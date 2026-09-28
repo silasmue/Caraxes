@@ -9,7 +9,8 @@
 # The guest is a tapless VM (CARAXES_TAP=none) whose overlay runs a boot-only check at boot
 # and powers off: vm7 for the 610 guest, vm7-615 for the 615 guest (CARAXES_EMU_VM overrides),
 # prepared by caraxes/runs/emu-regress-2026-09-25/prepare-vm7.sh. The device binary is
-# CARAXES_SERVER, default target/release (610) or target/v615/release (615), built when absent.
+# CARAXES_SERVER, default target/release (one binary for every guest ABI: the guest chooses,
+# docs/research/one-abi-binary-2026-09-28.md), built when absent.
 # Exit 0 when the guest's RmInitAdapter succeeds and nvidia-smi returns 0; 1 when not, with
 # the device's warnings about the guest registry (gspboot.rs); 77 with a SKIP note when a
 # prerequisite is absent (Cloud Hypervisor, the guest kernel, the overlay, the check service
@@ -33,8 +34,7 @@ case $DRIVER in
     610) VER=610.57.04; VM=${CARAXES_EMU_VM:-vm7}
          SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/release/vfio-user-nvgpu}; FEAT=() ;;
     615) VER=615.71.09; VM=${CARAXES_EMU_VM:-vm7-615}
-         SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/v615/release/vfio-user-nvgpu}
-         FEAT=(--features v615 --target-dir "$LEA_ROOT/target/v615") ;;
+         SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/release/vfio-user-nvgpu}; FEAT=() ;;
     *) printf 'ERROR: --driver must be 610 or 615\n' >&2; exit 2 ;;
 esac
 case $CHIP in

@@ -9,8 +9,9 @@
 #                           the guest's leandro-test/DRIVER_VERSION
 #   CARAXES_GUEST_LIBDIR    the guest directory with libcuda.so.1 and libnvidia-ml.so.1
 #   CARAXES_GUEST_SMI       the guest's nvidia-smi of that version
-#   CARAXES_GUEST_ABI       exported for the device process: unset for 610 (the emulated
-#                           version; a caller's 595 experiment value is kept), 615 for 615
+#   CARAXES_GUEST_ABI       not set here: the device reads the guest's ABI at its GSP boot
+#                           (docs/research/one-abi-binary-2026-09-28.md). A caller's value
+#                           pins the device; with CARAXES_DRIVER=615 it must be 615 or unset
 # CARAXES_GUEST_NVRM=<dir> still overrides the guest userspace as <dir>/lib and
 # <dir>/bin/nvidia-smi. caraxes_driver_image <vm dir> prints the base image of the driver.
 # Guest layouts: docs/caraxes/guest-driver-versions.md section 8.
@@ -49,8 +50,7 @@ caraxes_driver_select() {
             if [[ -n ${CARAXES_GUEST_ABI:-} && $CARAXES_GUEST_ABI != 615 ]]; then
                 printf 'ERROR: CARAXES_DRIVER=615 with CARAXES_GUEST_ABI=%s; unset it or set 615\n' "$CARAXES_GUEST_ABI" >&2
                 return 1
-            fi
-            export CARAXES_GUEST_ABI=615 ;;
+            fi ;;
     esac
     if [[ -n ${CARAXES_GUEST_NVRM:-} ]]; then
         CARAXES_GUEST_LIBDIR=$CARAXES_GUEST_NVRM/lib

@@ -53,7 +53,7 @@ use crate::guestmem::GuestMemory;
 use crate::hostmem::{HostGfxp, HostMemory, HostUserd, OsEvent};
 use crate::intr::IntrShared;
 use crate::invalidate::Invalidator;
-use crate::ver::active as v;
+use crate::ver::common as v;
 
 /// `NV2080_NOTIFIERS_*` (class/cl2080_notification.h): the engine notifiers the mirrored
 /// channels run on, and the RC notifier.
@@ -5545,7 +5545,9 @@ mod tests {
         assert_eq!(cache.by_engine.len(), 3);
     }
 
-    type Abi = v::RmAbi;
+    /// The guest's channel allocation layout (the same in every guest ABI; the TSG's is
+    /// `ver::layouts()`).
+    type Abi = nvrm_sys::V610;
 
     fn registry() -> Registry {
         Registry::new(crate::fixture::rtx2070().chip.data().channel)
@@ -5554,9 +5556,9 @@ mod tests {
     /// A TSG with the kernel's id `grp` in internalFlags (a 615 layout; the 610 struct has
     /// no such field, so the id is dropped there, as a 610 kernel sends none).
     fn tsg_params(grp: Option<u32>) -> Vec<u8> {
-        let mut b = vec![0u8; <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize];
-        let off = <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags;
-        if let (Some(id), true) = (grp, b.len() >= off + 4) {
+        let l = crate::ver::layouts();
+        let mut b = vec![0u8; l.tsg_size];
+        if let (Some(id), Some(off)) = (grp, l.tsg_internal_flags) {
             b[off..off + 4].copy_from_slice(&(id | 1 << 16 | 1 << 17).to_le_bytes());
         }
         b
@@ -5577,8 +5579,7 @@ mod tests {
     }
 
     fn with_615_id() -> bool {
-        <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize
-            >= <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags + 4
+        crate::ver::layouts().tsg_internal_flags.is_some()
     }
 
     /// Item 3 of the GSP plan round 2 (classes.md §8, TSG): the host TSG map is keyed by the
@@ -5587,6 +5588,14 @@ mod tests {
     /// bare channel's internal TSG is keyed by its own id.
     #[test]
     fn host_tsg_key_is_the_kernel_tsg_id() {
+        for g in [crate::ver::GuestAbi::V610, crate::ver::GuestAbi::V615] {
+            let _g = crate::ver::TestGuest::set(g);
+            assert_eq!(with_615_id(), g == crate::ver::GuestAbi::V615);
+            host_tsg_key_case();
+        }
+    }
+
+    fn host_tsg_key_case() {
         let gpfifo = crate::fixture::rtx2070().chip.data().channel.gpfifo;
         let grp = |id: u32, c: u32, h: u32| {
             if with_615_id() {

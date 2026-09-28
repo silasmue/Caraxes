@@ -4,7 +4,7 @@
 //! The RPC vocabulary the device answers during init (docs/caraxes/gsp-rpc-protocol.md §3-4,
 //! docs/caraxes/gsp-abi-610.md (b)-(d)) and the `GspStaticConfigInfo` reply built from
 //! the profile, the chip, the board and the WPR layout the guest itself computed. The
-//! function numbers and layouts are the emulated driver version's ([`crate::ver`]). Every field of the reply is
+//! function numbers and layouts are the guest ABI's ([`crate::ver`]). Every field of the reply is
 //! labelled with its provenance (decision D9 in docs/caraxes/README.md): `profile`,
 //! `card` (captured from the physical card), `guest` (derived from what the guest wrote),
 //! `synthesized` (a constant chosen here, to be replaced by host data in E4).
@@ -14,10 +14,10 @@ use crate::chip::ChipData;
 use crate::config::PciIds;
 use crate::fb::FbLayout;
 use crate::guestmem::GuestMemory;
-use crate::ver::active as v;
+use crate::ver::common as v;
 use nvrm_abi::naming::{self, Backend, NameFormat, Personality, Transport, VirtualGpuSpec};
 
-pub use crate::ver::active::{
+pub use crate::ver::common::{
     EV_GSP_INIT_DONE, FN_CONTINUATION_RECORD, FN_DUP_OBJECT, FN_FREE, FN_GET_GSP_STATIC_INFO,
     FN_GSP_RM_ALLOC, FN_GSP_RM_CONTROL, FN_GSP_SET_SYSTEM_INFO, FN_INIT_GSP_TRACE_CRASH_BUFFER,
     FN_SET_GUEST_SYSTEM_INFO, FN_SET_REGISTRY, FN_UPDATE_BAR_PDE, NV_ERR_NOT_SUPPORTED, NV_OK,

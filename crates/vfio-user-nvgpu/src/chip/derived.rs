@@ -227,7 +227,7 @@ mod tests {
         let b = crate::chip::by_name("tu106").unwrap().data();
         assert_eq!((a.identity.boot_1 >> 16) & 3, 2);
         assert_eq!((a.identity.boot_0, a.identity.boot_42), (b.identity.boot_0, b.identity.boot_42));
-        assert_eq!(a.features.refused.len(), b.features.refused.len());
+        assert_eq!(a.features().refused.len(), b.features().refused.len());
     }
 
     /// The Ampere, Ada and Hopper costumes: the architecture/implementation fields of
@@ -252,7 +252,7 @@ mod tests {
         }
         let gh = get("gh100").unwrap().unwrap().data();
         assert!(gh.gr.mig);
-        assert!(!gh.features.absent.contains(&"mig"));
-        assert!(gh.features.absent.contains(&"frl"));
+        assert!(!gh.features().absent.contains(&"mig"));
+        assert!(gh.features().absent.contains(&"frl"));
     }
 }

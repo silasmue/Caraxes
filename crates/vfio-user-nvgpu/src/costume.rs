@@ -12,7 +12,7 @@ use crate::fb::FbLayout;
 use crate::fixture;
 use crate::guestmem::GuestMemory;
 use crate::rpc::build_static_info;
-use crate::ver::active as v;
+use crate::ver::common as v;
 
 const MIB: u64 = 1 << 20;
 

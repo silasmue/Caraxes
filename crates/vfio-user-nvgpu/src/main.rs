@@ -99,10 +99,12 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --persist  file for the settings a real card keeps across resets and power cycles (the ECC
              and MIG modes of a chip that models them, src/families): read at start, where the
              pending settings take effect, and written at every change
-  --guest-abi  the guest driver's GSP ABI this device must serve (default: CARAXES_GUEST_ABI, else
-             the build's): 610 needs a default build, 615 a `--features v615` build (message
-             queue v2, GMCAPI init; docs/caraxes/gsp-transport-615.md), 595 a 610 build with
-             CARAXES_GUEST_ABI=595; anything else is refused (fail closed)
+  --guest-abi  pin the guest driver's GSP ABI (default: CARAXES_GUEST_ABI, else none): 570
+             (nova-core), 595 (experiment), 610 or 615 (also the 617 Windows guest); anything
+             else is refused (fail closed). Without a pin the guest chooses: every build
+             serves all of them and reads the guest's from its GSP boot (RMARGS magic 'GSP '
+             for 615, the first queue element's frame for 610 or 570;
+             docs/research/one-abi-binary-2026-09-28.md)
   --bar0-registers  the physical card's captured BAR0 registers (bar0.rs CapturedRegisters),
              answering reads of offsets no model owns and nothing latched, traced `captured`
              (default: the newest bar0-registers-*.txt beside the board's config capture;
@@ -175,9 +177,18 @@ struct Args {
     selftest: Option<PathBuf>,
     name_format: NameFormat,
     print_name: bool,
-    guest_abi: u32,
+    /// The pinned guest ABI (`None`: the guest chooses).
+    guest_abi: Option<vfio_user_nvgpu::ver::GuestAbi>,
     /// The captured BAR0 table (`None`: no table).
     bar0_registers: Option<PathBuf>,
+}
+
+/// The guest ABI as the start-up log names it: the pin, or that the guest chooses.
+fn describe_guest_abi(pin: Option<ver::GuestAbi>) -> String {
+    match pin {
+        Some(g) => format!("{g}, pinned (--guest-abi / CARAXES_GUEST_ABI)"),
+        None => "chosen by the guest (570, 610 or 615; 610 until its GSP boot shows it)".to_string(),
+    }
 }
 
 fn parse_args() -> Result<Args> {
@@ -220,7 +231,7 @@ fn parse_args() -> Result<Args> {
         name_format: NameFormat::from_env()?,
         print_name: false,
         board_data: board_data.clone(),
-        guest_abi: 0,
+        guest_abi: None,
         // The board's reference directory: the one its config capture lives in.
         bar0_registers: root
             .join(&board_data.config)
@@ -287,7 +298,7 @@ fn parse_args() -> Result<Args> {
                 a.bar0_registers = (v != "none").then(|| PathBuf::from(v));
             }
             "--guest-abi" => {
-                guest_abi_flag = Some(value()?.parse().context("--guest-abi needs 595, 610 or 615")?)
+                guest_abi_flag = Some(value()?.parse().context("--guest-abi needs 570, 595, 610 or 615")?)
             }
             "-h" | "--help" => {
                 println!("{USAGE}");
@@ -302,6 +313,7 @@ fn parse_args() -> Result<Args> {
         std::env::var("CARAXES_GUEST_ABI").ok().as_deref(),
     )
     .map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
+    ver::pin_guest(a.guest_abi).map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
     // The costume ladder's class translation for the mirror (board `class_map`).
     vfio_user_nvgpu::board::install_class_map(board_data.class_map.clone());
     a.board_data = board_data;
@@ -765,7 +777,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             "vfio-user-nvgpu: {} (chosen by {}); guest ABI {}",
             sel.layouts.describe(),
             sel.how,
-            vfio_user_nvgpu::ver::active::DRIVER_VERSION
+            describe_guest_abi(a.guest_abi)
         );
     }
     // Host memory for E5b: one client for the reservation and the guest RAM, shared with
@@ -1391,15 +1403,15 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         None => None,
     };
     eprintln!(
-        "vfio-user-nvgpu: guest ABI {} ({:?})",
-        a.guest_abi,
-        ver::active::GSP_TRANSPORT
+        "vfio-user-nvgpu: guest ABI {} ({})",
+        describe_guest_abi(a.guest_abi),
+        a.guest_abi.map_or("transport read from the guest".to_string(), |g| format!("{:?}", g.transport()))
     );
     eprintln!(
         "vfio-user-nvgpu: {} (BOOT_0 {:#010x}, driver {}) on {}, boot model {}, FB {} MiB, ROM {} bytes, PROM image {} bytes, trace {}",
         chip.data().short_name,
         identity.boot_0,
-        ver::active::DRIVER_VERSION,
+        describe_guest_abi(a.guest_abi),
         socket.display(),
         if a.boot_model { "on" } else { "off" },
         a.fb_mib,

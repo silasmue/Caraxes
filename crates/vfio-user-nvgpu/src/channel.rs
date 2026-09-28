@@ -28,8 +28,7 @@
 //! The channel and copy classes come from the chip (`chips/<chip>/chip.toml`,
 //! `[channel]`); the method decoding below is that of the Volta/Turing host class
 //! (`clc46f.h`) and the Turing copy class (`clc5b5.h`), which the chip data names. The
-//! allocation and control parameter layouts are the emulated driver version's
-//! ([`crate::ver`]).
+//! allocation and control parameter layouts are the guest ABI's ([`crate::ver`]).
 
 use std::collections::BTreeMap;
 
@@ -38,13 +37,15 @@ use nvrm_sys::RmAbi;
 use crate::chip::ChannelClasses;
 use crate::fb::{FakeFb, Target};
 use crate::guestmem::GuestMemory;
-use crate::ver::active::{
+use crate::ver::common::{
     self as v, ADDR_FBMEM, ADDR_SYSMEM, CTXSHARE_HVASPACE, FERMI_CONTEXT_SHARE_A, FERMI_VASPACE_A,
     KEPLER_CHANNEL_GROUP_A, TSG_ENGINE_TYPE, TSG_HVASPACE,
 };
 
-/// The channel parameter offsets of the emulated driver version.
-type Abi = v::RmAbi;
+/// The guest's channel allocation offsets: `NV_CHANNEL_ALLOC_PARAMS` is the same in every
+/// guest ABI (hostabi.rs asserts 610 and 615 equal field by field); the TSG allocation is
+/// not, and comes from `ver::layouts()`.
+type Abi = nvrm_sys::V610;
 
 /// The page shift of a Turing (GMMU v2) VA space's root directory, PD3 (ptcache.rs).
 const ROOT_PAGE_SHIFT_V2: u8 = 47;
@@ -1238,10 +1239,10 @@ impl Registry {
                 let engine = rd32(params, TSG_ENGINE_TYPE);
                 self.tsgs.insert((h_client, h_object), (vas, engine));
                 // 615 appends internalFlags (28 bytes; 610 has 20 and no such field).
-                let off = <Abi as RmAbi>::TSG_PARAMS_OFF_internalFlags;
-                let grp = (<Abi as RmAbi>::TSG_PARAMS_SIZE as usize >= off + 4
-                    && params.len() >= off + 4)
-                    .then(|| rd32(params, off))
+                let grp = crate::ver::layouts()
+                    .tsg_internal_flags
+                    .filter(|&off| params.len() >= off + 4)
+                    .map(|off| rd32(params, off))
                     .filter(|f| f & (1 << 16) != 0)
                     .map(|f| f & 0xFFFF);
                 if let Some(id) = grp {

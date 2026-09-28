@@ -23,7 +23,7 @@
 //! map (hostfloor.rs). Every call is printed with its status. No register access, no module,
 //! no reset, no unbind.
 //!
-//! Run: cargo run --release -p vfio-user-nvgpu --features v615 --example comp-slice-probe
+//! Run: cargo run --release -p vfio-user-nvgpu --example comp-slice-probe
 
 use nvrm_abi::nvgpu::{nvos32_attr, nvos46_flags};
 use nvrm_abi::sys;

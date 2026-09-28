@@ -15,8 +15,8 @@ mod deferred_context;
 use crate::chip::ChipData;
 use crate::rpc::StaticIdentity;
 // Classes, control numbers and parameter layouts of the emulated driver (src/ver).
-use crate::ver::active as v;
-pub use crate::ver::active::{
+use crate::ver::common as v;
+pub use crate::ver::common::{
     CMD_BIOS_GET_INFO_V2, CMD_BUS_GET_PCI_BAR_INFO, CMD_CE_GET_FAULT_METHOD_BUFFER_SIZE,
     CMD_CE_UPDATE_CLASS_DB, CMD_CE_UPDATE_PCE_LCE_MAPPINGS_V2, CMD_EVENT_SET_NOTIFICATION,
     CMD_FB_GET_GPU_CACHE_INFO, CMD_FIFO_GET_DEVICE_INFO_TABLE,
@@ -2026,7 +2026,7 @@ impl Dispatcher {
         match cmd {
             // 0x20800A36: chip info for a 610 guest, the fabric-probe sync for a 615
             // guest (the id was reused; `ver::Id0A36`).
-            CMD_INTERNAL_GPU_GET_CHIP_INFO => self.id_0a36(v::CTRL_0A36, params),
+            CMD_INTERNAL_GPU_GET_CHIP_INFO => self.id_0a36(crate::ver::layouts().ctrl_0a36, params),
             CMD_INTERNAL_GPU_GET_USER_REGISTER_ACCESS_MAP => {
                 // ctrl2080internal.h:775-788: the map size with compressedSize 0 = allow all.
                 let m = &self.chip.user_register_access_map;
@@ -2051,13 +2051,15 @@ impl Dispatcher {
                 // engineData[16] (engine_info.h indices), pbdmaIds[2], pbdmaFaultIds[2],
                 // numPbdmas, engineName[16]. The table is the chip's
                 // (chips/<chip>/device-info.toml, docs/caraxes/fifo-device-info.md).
+                // The layout is the guest ABI's (`engineData` has 17 words from 615 on).
                 let table = &self.chip.device_info;
-                let mut b = vec![0u8; n.max(v::DEVINFO_PARAMS_SIZE)];
-                put32(&mut b, v::DEVINFO_NUM_ENTRIES, table.engines.len() as u32);
-                b[v::DEVINFO_B_MORE] = 0;
+                let l = &crate::ver::layouts().devinfo;
+                let mut b = vec![0u8; n.max(l.params_size)];
+                put32(&mut b, l.num_entries, table.engines.len() as u32);
+                b[l.b_more] = 0;
                 for (i, e) in table.engines.iter().enumerate() {
-                    let o = v::DEVINFO_ENTRIES + v::DEVINFO_ENTRY_SIZE * i;
-                    let data = |idx: usize| o + v::DEVINFO_ENGINE_DATA + 4 * idx;
+                    let o = l.entries + l.entry_size * i;
+                    let data = |idx: usize| o + l.engine_data + 4 * idx;
                     put32(&mut b, data(v::ENGINE_INFO_ENG_DESC), e.eng_desc);
                     put32(&mut b, data(v::ENGINE_INFO_RM_ENGINE_TYPE), e.rm_engine_type);
                     put32(&mut b, data(v::ENGINE_INFO_RUNLIST), e.runlist);
@@ -2067,11 +2069,11 @@ impl Dispatcher {
                     put32(&mut b, data(v::ENGINE_INFO_INSTANCE_ID), e.instance);
                     put32(&mut b, data(v::ENGINE_INFO_IS_HOST_DRIVEN_ENGINE), e.host_driven);
                     for (k, [id, fault]) in e.pbdma.iter().enumerate() {
-                        put32(&mut b, o + v::DEVINFO_PBDMA_IDS + 4 * k, *id);
-                        put32(&mut b, o + v::DEVINFO_PBDMA_FAULT_IDS + 4 * k, *fault);
+                        put32(&mut b, o + l.pbdma_ids + 4 * k, *id);
+                        put32(&mut b, o + l.pbdma_fault_ids + 4 * k, *fault);
                     }
-                    put32(&mut b, o + v::DEVINFO_NUM_PBDMAS, e.pbdma.len() as u32);
-                    let name = o + v::DEVINFO_ENGINE_NAME;
+                    put32(&mut b, o + l.num_pbdmas, e.pbdma.len() as u32);
+                    let name = o + l.engine_name;
                     b[name..name + e.name.len()].copy_from_slice(e.name.as_bytes());
                 }
                 b.truncate(n);
@@ -2190,10 +2192,10 @@ impl Dispatcher {
             // firmwareVersion[64] @6. The version string is what nvidia-smi shows.
             CMD_GSP_GET_FEATURES => {
                 let mut b = vec![0u8; n];
-                // CARAXES_GSP_FW_VERSION: the firmware version string instead of the emulated
-                // driver's (a 617.14 Windows guest against the 615-based model).
+                // CARAXES_GSP_FW_VERSION: the firmware version string instead of the served
+                // guest ABI's driver (a 617.14 Windows guest against the 615-based model).
                 let env_ver = std::env::var("CARAXES_GSP_FW_VERSION").ok().filter(|s| s.len() < 64);
-                let ver = env_ver.as_deref().unwrap_or(v::DRIVER_VERSION).as_bytes();
+                let ver = env_ver.as_deref().unwrap_or(crate::ver::layouts().driver).as_bytes();
                 // gspFeatures bit 0 is UVM_ENABLED (ctrl2080gsp.h). A Linux guest's nvidia-uvm
                 // would need replayable faults, which never reach the guest (the host RM owns
                 // them): libcuda would map through UVM and the first GPU touch of a managed page
@@ -2235,9 +2237,10 @@ impl Dispatcher {
             // Row 80 (ctrl2080internal.h:2576-2580): both statuses NOT_SUPPORTED (0x05).
             CMD_INTERNAL_GET_PCIE_P2P_CAPS => {
                 let mut b = vec![0u8; n];
-                if n > v::P2P_WRITE_CAPS_STATUS {
-                    b[v::P2P_READ_CAPS_STATUS] = v::P2P_CAPS_STATUS_NOT_SUPPORTED;
-                    b[v::P2P_WRITE_CAPS_STATUS] = v::P2P_CAPS_STATUS_NOT_SUPPORTED;
+                let l = crate::ver::layouts();
+                if n > l.p2p_write_caps_status {
+                    b[l.p2p_read_caps_status] = v::P2P_CAPS_STATUS_NOT_SUPPORTED;
+                    b[l.p2p_write_caps_status] = v::P2P_CAPS_STATUS_NOT_SUPPORTED;
                 }
                 Answer::ok(b, "synthesized (no PCIe P2P)", "pcie p2p caps: not supported")
             }
@@ -2310,7 +2313,7 @@ impl Dispatcher {
     }
 
     /// 0x20800A36 as the guest's driver version means it (`ver::Id0A36`, chosen by the
-    /// guest ABI through `v::CTRL_0A36`).
+    /// guest ABI through `ver::layouts().ctrl_0a36`).
     fn id_0a36(&self, id: crate::ver::Id0A36, params: &[u8]) -> Answer {
         let n = params.len();
         match id {
@@ -2470,21 +2473,24 @@ mod tests {
             >(),
             16
         );
-        // Through the dispatcher, the build's guest ABI decides.
-        let mut d = dispatcher(None);
-        let a = d.control(INTERNAL_CLIENT, 0xCA7A_0003, 0x2080_0A36, &p);
-        let want = if v::DRIVER_VERSION == "615.71.09" {
-            Id0A36::SyncFabricProbeInfo
-        } else {
-            Id0A36::GetChipInfo
-        };
-        assert_eq!(v::CTRL_0A36, want);
-        assert_eq!(
-            a.note == "chip info",
-            want == Id0A36::GetChipInfo,
-            "{}",
-            a.note
-        );
+        // Through the dispatcher, the guest ABI in force decides, in one build.
+        use crate::ver::{GuestAbi, TestGuest};
+        for (g, want) in [
+            (GuestAbi::V570, Id0A36::GetChipInfo),
+            (GuestAbi::V610, Id0A36::GetChipInfo),
+            (GuestAbi::V615, Id0A36::SyncFabricProbeInfo),
+        ] {
+            let _g = TestGuest::set(g);
+            let mut d = dispatcher(None);
+            let a = d.control(INTERNAL_CLIENT, 0xCA7A_0003, 0x2080_0A36, &p);
+            assert_eq!(crate::ver::layouts().ctrl_0a36, want);
+            assert_eq!(
+                a.note == "chip info",
+                want == Id0A36::GetChipInfo,
+                "{g:?}: {}",
+                a.note
+            );
+        }
     }
 
     /// The costume board (docs/caraxes/costume-5060.md): chip info carries the 5060 Ti's
@@ -2589,7 +2595,7 @@ mod tests {
             CMD_GSP_GET_FEATURES,
             &[0u8; 72],
         );
-        assert_eq!(&a.params[6..15], v::DRIVER_VERSION.as_bytes());
+        assert_eq!(&a.params[6..15], crate::ver::layouts().driver.as_bytes());
         // UVM_ENABLED (gspFeatures bit 0): off before GSP_INIT and for a Unix guest (no
         // replayable faults reach it), on for a Windows guest (as the card answers).
         assert_eq!(get32(&a.params, 0), 0);

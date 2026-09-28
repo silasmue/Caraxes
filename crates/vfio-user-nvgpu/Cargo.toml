@@ -19,8 +19,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 libc.workspace = true
-# Both host layouts: the host driver is chosen at run time (src/hostabi.rs,
-# docs/caraxes/cutover-615.md); the guest ABI stays the build-time `v610` below.
+# Both versions' layouts in every build: the host driver is chosen at run time from the
+# running driver (src/hostabi.rs, docs/caraxes/cutover-615.md), the guest ABI from what the
+# guest sends (src/ver, docs/research/one-abi-binary-2026-09-28.md).
 nvrm-sys = { workspace = true, features = ["v610", "v615"] }
 nvrm-abi.workspace = true
 nvrm-client = { path = "../nvrm-client" }
@@ -36,17 +37,13 @@ vfio-bindings = { version = "0.6", features = ["fam-wrappers"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 
-# The GSP driver-version axis (decision D14, docs/caraxes/versatility.md): one
-# feature per vendored driver version, mirroring crates/nvrm-sys. `src/ver`
-# holds one module per version; the build emulates exactly one of them
-# (docs/caraxes/gsp-abi-610.md (e), "Version selection").
+# The GSP driver-version axis (decision D14, docs/caraxes/versatility.md): `src/ver` holds
+# one module per guest driver version, and every build carries all of them; the device
+# serves the guest ABI the guest shows at its GSP boot (570 nova-core, 610, 615 Linux and
+# the 617 Windows guest on the 615 model), or the one `--guest-abi`/`CARAXES_GUEST_ABI`
+# pins (docs/research/one-abi-binary-2026-09-28.md). The two features are no-ops kept so
+# that older scripts' `--features v615` still build the one binary.
 [features]
 default = ["v610"]
-v610 = ["nvrm-sys/v610"]
-# The guest runs driver 615.71.09 (docs/caraxes/gsp-transport-615.md): `ver::active` is
-# `ver::v615`, the transport is message queue v2 with the GMCAPI init. It implies v610,
-# whose module v615 builds on; the host side follows the running host driver either way
-# (src/hostabi.rs). Build with
-# `cargo build --release -p vfio-user-nvgpu --features v615 --target-dir target/v615`;
-# tools/caraxes-vm.sh picks that binary for CARAXES_GUEST_ABI=615.
-v615 = ["v610", "nvrm-sys/v615"]
+v610 = []
+v615 = []

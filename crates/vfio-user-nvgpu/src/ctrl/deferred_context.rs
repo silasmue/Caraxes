@@ -421,10 +421,11 @@ mod tests {
     use super::*;
     use crate::deferred::{ContextTarget, Request, CMD_DEFERRED_API};
     use crate::fb::FbLayout;
-    use crate::ver::active::{self as v, FERMI_VASPACE_A, KEPLER_CHANNEL_GROUP_A};
+    use crate::ver::common::{self as v, FERMI_VASPACE_A, KEPLER_CHANNEL_GROUP_A};
     use nvrm_sys::RmAbi;
 
-    type Abi = v::RmAbi;
+    /// The guest's channel allocation layout (the same in every guest ABI).
+    type Abi = nvrm_sys::V610;
 
     fn put32(bytes: &mut [u8], offset: usize, value: u32) {
         bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
@@ -488,7 +489,7 @@ mod tests {
         put32(&mut pd, v::SET_PD_NUM_ENTRIES, 1);
         put32(&mut pd, v::SET_PD_H_VASPACE, vas);
         dispatcher.channels.record_set_page_directory(client, &pd);
-        let mut tsg_params = vec![0; <Abi as RmAbi>::TSG_PARAMS_SIZE as usize];
+        let mut tsg_params = vec![0; crate::ver::layouts().tsg_size];
         put32(&mut tsg_params, v::TSG_HVASPACE, vas);
         put32(&mut tsg_params, v::TSG_ENGINE_TYPE, 1);
         dispatcher

@@ -34,6 +34,7 @@ Target: driver 615.71.09 only (D19, D20); 610.57.04 appears as one "610 delta" b
 | [video-path-2026-09-28.md](video-path-2026-09-28.md) | NVENC/NVDEC per frame in a 615 guest: channels, doorbells, interrupts and idle gaps; the gap to native is host engine time (likely the host card's power state, with the guest's PERF_BOOST not forwarded); the 610 delta is run-to-run spread; three fixes ranked |
 | [uvm-guest-ram-2026-09-28.md](uvm-guest-ram-2026-09-28.md) | Managed memory pinned in guest RAM without faults: when UVM maps a GPU up front, module parameters, the preload-shim recipe and what breaks, what the device can do, a no-fault nvidia-uvm mode for upstream, the `GSP_GET_FEATURES` answer per guest OS (`HOST_OS_TYPE`) |
 | [host-boost-2026-09-28.md](host-boost-2026-09-28.md) | The host card ran VM work at P8; what `PERF_BOOST` does in the RM (params, privilege, per-client hints, no cleanup on free); the device's activity-driven 3 s boost renewed at most every second, `CARAXES_HOST_BOOST=0`, and the A/B to measure |
+| [one-abi-binary-2026-09-28.md](one-abi-binary-2026-09-28.md) | One device binary for every guest ABI: what was compile time, host-side against guest-side layouts, the detection (RMARGS magic, first element's frame), the optional pin, the tests and the gate commands for nova, Linux 615 and Windows |
 
 ## Format of a note
 

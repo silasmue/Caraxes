@@ -39,7 +39,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::ctrl::HostRm;
-use crate::ver::active::{self as v, NV20_SUBDEVICE_0, NV_OK};
+use crate::ver::common::{self as v, NV20_SUBDEVICE_0, NV_OK};
 
 /// The switch: `0` (or `off`) turns the host boost off; anything else, or unset, leaves it on.
 pub const ENV: &str = "CARAXES_HOST_BOOST";

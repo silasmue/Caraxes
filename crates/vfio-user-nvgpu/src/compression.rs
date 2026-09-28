@@ -47,7 +47,7 @@ use crate::chip::ChipData;
 use crate::ctrl::Answer;
 use crate::fb::FbLayout;
 use crate::gmcapi::RegValue;
-use crate::ver::active::{NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::ver::common::{NV_ERR_NOT_SUPPORTED, NV_OK};
 use crate::ver::Abi;
 
 /// The switch: `off` (default) or `slice`.
@@ -201,7 +201,7 @@ impl GuestView {
     }
 }
 
-/// Offset of `path` in the emulated version's generated layout of `st`
+/// Offset of `path` in the guest ABI's generated layout of `st`
 /// (src/ver/v6xx/ctrl_layouts.rs).
 fn off(st: &str, path: &str) -> usize {
     Abi::active()
@@ -288,7 +288,7 @@ pub fn answer(view: &GuestView, cmd: u32, params: &[u8]) -> Option<Answer> {
         FB_GET_CTAGS_FOR_CBC_EVICTION => {
             // `pCompTags[127]`, `numCompTags` (ctrl2080fb.h:1559-1562): no entries.
             let mut b = vec![0u8; n];
-            put(&mut b, crate::ver::active::public::CTAGS_NUM, 0, 4);
+            put(&mut b, crate::ver::common::public::CTAGS_NUM, 0, 4);
             Some(Answer {
                 status: NV_OK,
                 params: b,
@@ -382,7 +382,7 @@ pub fn pte_kinds_verdict(view: Option<&GuestView>, kinds: &[(u8, u32, u64)]) -> 
 mod tests {
     use super::*;
     use crate::ctrl::{Dispatcher, HostRm, INTERNAL_CLIENT, INTERNAL_DEVICE, INTERNAL_SUBDEVICE};
-    use crate::ver::active as v;
+    use crate::ver::common as v;
 
     const GIB: u64 = 1 << 30;
     /// The 4 GiB profile on this host (docs/caraxes/memory-model.md §1).
@@ -831,7 +831,7 @@ mod tests {
 
         /// The regions of the static info: `(base, limit, supportCompressed)`.
         pub fn regions(img: &[u8]) -> Vec<(u64, u64, bool)> {
-            use crate::ver::active as v;
+            use crate::ver::common as v;
             let n = u32::from_le_bytes(img[v::SI_NUM_FB_REGIONS..v::SI_NUM_FB_REGIONS + 4].try_into().unwrap());
             (0..n as usize)
                 .map(|i| {

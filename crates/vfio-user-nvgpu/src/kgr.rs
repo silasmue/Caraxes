@@ -55,9 +55,9 @@
 
 use crate::chip::ChipData;
 use crate::ctrl::{Answer, HostRm};
-// The control numbers and parameter layouts of the emulated driver version, computed
-// from the typed bindings (src/ver); the tests below pin them.
-pub use crate::ver::active::{
+// The control numbers and parameter layouts every guest ABI shares, computed from the
+// typed bindings (src/ver/common.rs); the tests below pin them.
+pub use crate::ver::common::{
     CAPS_ELEM, CAPS_PARAMS, CMD_GR_GET_CAPS_V2, CMD_GR_GET_ENGINE_CONTEXT_PROPERTIES,
     CMD_GR_GET_GLOBAL_SM_ORDER, CMD_GR_GET_INFO_V2, CMD_GR_GET_ROP_INFO,
     CMD_GR_GET_SM_ISSUE_RATE_MODIFIER, CMD_GR_GET_SM_ISSUE_RATE_MODIFIER_V2,
@@ -74,16 +74,15 @@ pub use crate::ver::active::{
     CMD_INTERNAL_STATIC_KGR_GET_SM_ISSUE_THROTTLE_CTRL, CMD_INTERNAL_STATIC_KGR_GET_ZCULL_INFO,
     CTX_ELEM, CTX_ENGINE_COUNT, CTX_ENGINE_FECS_EVENT, CTX_PARAMS, FECS_EVENT_RECORD_SIZE,
     FECS_HW_ENABLE_BENABLE, FECS_HW_ENABLE_PARAMS, FECS_RECORD_SIZE_PARAMS, FECS_TRACE_PARAMS,
-    FS_ELEM, FS_PARAMS, GR_INFO_COUNT, GR_MAX_ENGINES, INFO_ELEM, INFO_PARAMS, LIST_ELEM,
+    GR_INFO_COUNT, GR_MAX_ENGINES, INFO_ELEM, INFO_PARAMS, LIST_ELEM,
     LIST_PARAMS, PDB_PARAMS, PPC_PARAMS, PUB_CAPS_V2, PUB_CTX_PROPS, PUB_CTX_PROPS_ALIGNMENT,
     PUB_CTX_PROPS_ENGINE_ID, PUB_CTX_PROPS_SIZE, PUB_INFO_V2, PUB_INFO_V2_LIST, PUB_SMIR,
-    PUB_SMIR_DATA, ROP_ELEM, ROP_PARAMS, SMIR_ELEM, SMIR_PARAMS, SM_ENTRY,
-    SM_ORDER_ELEM, SM_ORDER_NUM_SM, SM_ORDER_PARAMS, ZCULL_ELEM, ZCULL_PARAMS,
+    PUB_SMIR_DATA, ROP_ELEM, ROP_PARAMS, SMIR_ELEM, SMIR_PARAMS, ZCULL_ELEM, ZCULL_PARAMS,
 };
 use crate::hostabi::{HostLayouts, SmOrderLayout};
-use crate::ver::active::{
-    NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK, SM_ORDER_GUEST,
-};
+use crate::ver::common::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
+// The floorsweeping masks and the SM order are laid out as the guest ABI in force has them
+// (`ver::layouts()`: 1336 or 1356 bytes per engine, nine or ten u16 per SM).
 
 /// The host RM as the handlers see it (the device's own boxed client).
 type Host<'a> = Option<&'a mut (dyn HostRm + 'static)>;
@@ -174,13 +173,14 @@ fn floorsweeping(
     host: &mut Host<'_>,
     hl: &HostLayouts,
 ) -> Result<(Vec<u8>, String), Option<u32>> {
-    use crate::ver::active as v;
+    use crate::ver::common as v;
+    let fs = &crate::ver::layouts().fs;
     let mut p = vec![0u8; v::GR_ROUTED_SIZE];
     host_ok(host, v::CMD_GR_GET_GPC_MASK, &mut p)?;
     let gpc_mask = get32(&p, v::GR_ROUTED_ARG);
-    let mut b = vec![0u8; FS_PARAMS];
-    put32(&mut b, v::FS_GPC_MASK, gpc_mask);
-    put32(&mut b, v::FS_PHYS_GPC_MASK, gpc_mask);
+    let mut b = vec![0u8; fs.params];
+    put32(&mut b, fs.gpc_mask, gpc_mask);
+    put32(&mut b, fs.phys_gpc_mask, gpc_mask);
     let mut tpcs = Vec::new();
     // The host indexes every per-GPC query by 0..popcount(gpcMask) (kgr.c:3544-3585).
     for g in 0..(gpc_mask.count_ones() as usize).min(v::FS_MAX_GPC) {
@@ -188,11 +188,11 @@ fn floorsweeping(
         put32(&mut p, v::GR_ROUTED_ARG, g as u32);
         host_ok(host, v::CMD_GR_GET_TPC_MASK, &mut p)?;
         let tpc_mask = get32(&p, v::GR_ROUTED_OUT);
-        put32(&mut b, v::FS_TPC_MASK + 4 * g, tpc_mask);
+        put32(&mut b, fs.tpc_mask + 4 * g, tpc_mask);
         let mut p = [0u8; 8];
         put32(&mut p, 0, g as u32);
         host_ok(host, v::CMD_GR_GET_NUM_TPCS_FOR_GPC, &mut p)?;
-        put32(&mut b, v::FS_TPC_COUNT + 4 * g, get32(&p, 4));
+        put32(&mut b, fs.tpc_count + 4 * g, get32(&p, 4));
         tpcs.push(format!("{tpc_mask:#x}/{}", get32(&p, 4)));
         // NOT_SUPPORTED means the host holds NV_U32_MAX there (kgr.c:3840-3842).
         let mut p = [0u8; 8];
@@ -202,27 +202,27 @@ fn floorsweeping(
             Some(NV_ERR_NOT_SUPPORTED) => NV_U32_MAX,
             e => return Err(e),
         };
-        put32(&mut b, v::FS_ZCULL_MASK + 4 * g, zcull);
+        put32(&mut b, fs.zcull_mask + 4 * g, zcull);
         let mut p = vec![0u8; hl.pes_info_size];
         put32(&mut p, 0, g as u32);
         host_ok(host, v::CMD_GPU_GET_PES_INFO, &mut p)?;
         put32(
             &mut b,
-            v::FS_NUM_PES_PER_GPC + 4 * g,
+            fs.num_pes_per_gpc + 4 * g,
             get32(&p, hl.pes_info_num_pes),
         );
         if g == 0 {
             // One map in the internal struct; the host fills it from GPC 0's
             // (subdevice_ctrl_gpu_kernel.c:2021-2028 serves it for any gpcId).
-            let (src, dst) = (hl.pes_info_tpc_to_pes_map, v::FS_TPC_TO_PES_MAP);
-            let len = 4 * v::FS_TPC_TO_PES_MAP_LEN.min(hl.pes_info_map_len);
+            let (src, dst) = (hl.pes_info_tpc_to_pes_map, fs.tpc_to_pes_map);
+            let len = 4 * fs.tpc_to_pes_map_len.min(hl.pes_info_map_len);
             b[dst..dst + len].copy_from_slice(&p[src..src + len]);
         }
     }
     let mut p = vec![0u8; v::GR_ROUTED_SIZE];
     host_ok(host, v::CMD_GR_GET_GFX_GPC_AND_TPC_INFO, &mut p)?;
-    put32(&mut b, v::FS_PHYS_GFX_GPC_MASK, get32(&p, v::GR_ROUTED_ARG));
-    put32(&mut b, v::FS_NUM_GFX_TPC, get32(&p, v::GR_ROUTED_OUT));
+    put32(&mut b, fs.phys_gfx_gpc_mask, get32(&p, v::GR_ROUTED_ARG));
+    put32(&mut b, fs.num_gfx_tpc, get32(&p, v::GR_ROUTED_OUT));
     Ok((
         b,
         format!(
@@ -245,7 +245,7 @@ fn global_sm_order(
 ) -> Result<(Vec<u8>, String), Option<u32>> {
     let mut p = vec![0u8; hl.sm_order.size];
     host_ok(host, CMD_GR_GET_GLOBAL_SM_ORDER, &mut p)?;
-    let mut b = vec![0u8; SM_ORDER_PARAMS.max(guest.size)];
+    let mut b = vec![0u8; crate::ver::layouts().sm_order_params.max(guest.size)];
     hl.sm_order_to_guest(&p, &mut b[..guest.size], guest);
     let num_sm = u16::from_le_bytes([b[guest.num_sm], b[guest.num_sm + 1]]);
     let mut how = format!(
@@ -410,7 +410,7 @@ pub fn answer(
                 format!("kgr floorsweeping masks from host: {gpcs}"),
             ),
             Err(e) => ok(
-                vec![0u8; FS_PARAMS],
+                vec![0u8; crate::ver::layouts().fs.params],
                 n,
                 "synthesized fallback (gpcMask 0: no golden channel, GR unusable)",
                 format!("kgr floorsweeping masks: all zero ({})", why(e)),
@@ -421,7 +421,7 @@ pub fn answer(
             // internal element's per-SM u16 fields, numSm and numTpc; the host fills
             // them from its own static info (kgr.c:3176-3192). Guest and host may be
             // different driver versions: translated field by name.
-            match global_sm_order(host, hl, &SM_ORDER_GUEST) {
+            match global_sm_order(host, hl, &crate::ver::layouts().sm_order) {
                 Ok((b, note)) => ok(
                     b,
                     n,
@@ -429,7 +429,7 @@ pub fn answer(
                     note,
                 ),
                 Err(e) => ok(
-                    vec![0u8; SM_ORDER_PARAMS],
+                    vec![0u8; crate::ver::layouts().sm_order_params],
                     n,
                     "synthesized fallback (empty SM order)",
                     format!("kgr global SM order: zeros ({})", why(e)),
@@ -645,24 +645,12 @@ fn context_buffers_info(host: &mut Host<'_>, n: usize) -> Answer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ver::active::SM_ORDER_NUM_TPC;
+    use crate::ver::{GuestAbi, TestGuest, L610, L615};
     use std::mem::size_of;
 
-    /// The bindings of this build's guest ABI (`ver::active`).
-    #[cfg(feature = "v615")]
-    use nvrm_sys::v615 as guest_ffi;
-    #[cfg(not(feature = "v615"))]
+    /// The bindings of the shared layouts (the same in 610 and 615; the ones that differ are
+    /// checked per version below).
     use nvrm_sys::v610 as guest_ffi;
-
-    /// A number that differs between the guest ABIs: the 610 one in a default build,
-    /// the 615 one in a `--features v615` build.
-    fn by_abi<T>(a610: T, a615: T) -> T {
-        if cfg!(feature = "v615") {
-            a615
-        } else {
-            a610
-        }
-    }
 
     fn chip() -> &'static ChipData {
         crate::fixture::rtx2070().chip.data()
@@ -674,12 +662,15 @@ mod tests {
     fn layouts_are_the_documented_ones() {
         assert_eq!((CAPS_ELEM, CAPS_PARAMS, PUB_CAPS_V2), (23, 184, 48));
         assert_eq!((INFO_ELEM, INFO_PARAMS, PUB_INFO_V2), (504, 4032, 528));
-        assert_eq!((FS_ELEM, FS_PARAMS), by_abi((1336, 10688), (1356, 10848)));
-        assert_eq!(
-            (SM_ORDER_ELEM, SM_ORDER_PARAMS),
-            by_abi((9220, 73760), (10244, 81952))
-        );
-        assert_eq!(SM_ORDER_NUM_SM, 512 * SM_ENTRY);
+        // The two that differ between the guest ABIs, per version.
+        for (l, fs, sm) in [
+            (&L610, (1336, 10688), (9220, 73760)),
+            (&L615, (1356, 10848), (10244, 81952)),
+        ] {
+            assert_eq!((l.fs.elem, l.fs.params), fs, "{}", l.driver);
+            assert_eq!((l.sm_order.size, l.sm_order_params), sm, "{}", l.driver);
+            assert_eq!(l.sm_order.num_sm, 512 * l.sm_order.entry_size);
+        }
         assert_eq!(
             (ZCULL_ELEM, ZCULL_PARAMS, ROP_ELEM, ROP_PARAMS),
             (40, 320, 12, 96)
@@ -714,18 +705,28 @@ mod tests {
             size_of::<v::NV2080_CTRL_GR_GET_INFO_V2_PARAMS>(),
             PUB_INFO_V2
         );
-        assert_eq!(
-            size_of::<v::NV2080_CTRL_INTERNAL_STATIC_GR_GET_FLOORSWEEPING_MASKS_PARAMS>(),
-            FS_PARAMS
-        );
-        assert_eq!(
-            size_of::<v::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER>(),
-            SM_ORDER_ELEM
-        );
-        assert_eq!(
-            size_of::<v::NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS>(),
-            SM_ORDER_PARAMS
-        );
+        macro_rules! per_version {
+            ($m:ident, $l:expr) => {
+                assert_eq!(
+                    size_of::<nvrm_sys::$m::NV2080_CTRL_INTERNAL_STATIC_GR_GET_FLOORSWEEPING_MASKS_PARAMS>(),
+                    $l.fs.params
+                );
+                assert_eq!(
+                    size_of::<nvrm_sys::$m::NV2080_CTRL_INTERNAL_STATIC_GR_FLOORSWEEPING_MASKS>(),
+                    $l.fs.elem
+                );
+                assert_eq!(
+                    size_of::<nvrm_sys::$m::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER>(),
+                    $l.sm_order.size
+                );
+                assert_eq!(
+                    size_of::<nvrm_sys::$m::NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS>(),
+                    $l.sm_order_params
+                );
+            };
+        }
+        per_version!(v610, L610);
+        per_version!(v615, L615);
         assert_eq!(
             size_of::<v::NV2080_CTRL_INTERNAL_STATIC_GR_GET_PPC_MASKS_PARAMS>(),
             PPC_PARAMS
@@ -802,20 +803,22 @@ mod tests {
     fn field_offsets_match_the_bindings() {
         use guest_ffi as v;
         use std::mem::offset_of;
-        assert_eq!(
-            offset_of!(v::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numSm),
-            512 * SM_ENTRY
-        );
-        assert_eq!(
-            offset_of!(v::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numTpc),
-            SM_ORDER_NUM_TPC
-        );
-        // The guest's element is the generated one of its ABI, field for field.
-        let g = by_abi(
-            &crate::hostabi::guest_layouts::GUEST_SM_ORDER_610,
-            &crate::hostabi::guest_layouts::GUEST_SM_ORDER_615,
-        );
-        assert_eq!(&SM_ORDER_GUEST, g);
+        macro_rules! per_version {
+            ($m:ident, $l:expr, $g:expr) => {
+                assert_eq!(
+                    offset_of!(nvrm_sys::$m::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numSm),
+                    512 * $l.sm_order.entry_size
+                );
+                assert_eq!(
+                    offset_of!(nvrm_sys::$m::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numTpc),
+                    $l.sm_order.num_tpc
+                );
+                // The guest's element is the generated one of its ABI, field for field.
+                assert_eq!(&$l.sm_order, $g);
+            };
+        }
+        per_version!(v610, L610, &crate::hostabi::guest_layouts::GUEST_SM_ORDER_610);
+        per_version!(v615, L615, &crate::hostabi::guest_layouts::GUEST_SM_ORDER_615);
         assert_eq!(
             offset_of!(v::NV2080_CTRL_GR_GET_INFO_V2_PARAMS, grInfoList),
             4
@@ -937,25 +940,29 @@ mod tests {
         assert_eq!(parse_sm_version("12.0"), Some(0x0C00));
         assert_eq!(parse_sm_version("12"), None);
 
-        let a = answer(
-            chip(),
-            CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS,
-            &[0xFF; FS_PARAMS],
-            None,
-        )
-        .unwrap();
-        assert_eq!((a.status, a.params.len()), (NV_OK, FS_PARAMS));
-        assert_eq!(get32(&a.params, 0), 0, "gpcMask 0 without a host");
-        assert!(a.label.contains("fallback"));
+        for g in [GuestAbi::V610, GuestAbi::V615] {
+            let _g = TestGuest::set(g);
+            let l = crate::ver::layouts();
+            let a = answer(
+                chip(),
+                CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS,
+                &vec![0xFF; l.fs.params],
+                None,
+            )
+            .unwrap();
+            assert_eq!((a.status, a.params.len()), (NV_OK, l.fs.params));
+            assert_eq!(get32(&a.params, 0), 0, "gpcMask 0 without a host");
+            assert!(a.label.contains("fallback"));
 
-        let a = answer(
-            chip(),
-            CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER,
-            &[0u8; SM_ORDER_PARAMS],
-            None,
-        )
-        .unwrap();
-        assert_eq!((a.status, a.params.len()), (NV_OK, SM_ORDER_PARAMS));
+            let a = answer(
+                chip(),
+                CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER,
+                &vec![0u8; l.sm_order_params],
+                None,
+            )
+            .unwrap();
+            assert_eq!((a.status, a.params.len()), (NV_OK, l.sm_order_params));
+        }
 
         for cmd in [
             CMD_INTERNAL_STATIC_KGR_GET_PPC_MASKS,
@@ -1075,18 +1082,19 @@ mod tests {
         assert_eq!(get32(&a.params, 8 * 62 + 4), 0x100 + 62);
         assert!(a.params[INFO_ELEM..].iter().all(|&x| x == 0));
 
+        let l = crate::ver::layouts();
         let a = answer(
             chip(),
             CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER,
-            &[0u8; SM_ORDER_PARAMS],
+            &vec![0u8; l.sm_order_params],
             Some(&mut host),
         )
         .unwrap();
         assert_eq!(
-            (a.status, a.params[0], a.params[SM_ORDER_NUM_SM]),
+            (a.status, a.params[0], a.params[l.sm_order.num_sm]),
             (NV_OK, 7, 36)
         );
-        assert_eq!(a.params.len(), SM_ORDER_PARAMS);
+        assert_eq!(a.params.len(), l.sm_order_params);
         assert!(a.note.contains("36 SMs from host (host 610.57.04"), "{}", a.note);
 
         let a = answer(
@@ -1136,14 +1144,22 @@ mod tests {
             CMD_INTERNAL_STATIC_KGR_GET_PPC_MASKS,
             CMD_INTERNAL_STATIC_KGR_GET_FECS_TRACE_DEFINES,
         ] {
-            assert!(answer(chip(), cmd, &[0u8; FS_PARAMS], Some(&mut silent)).is_some());
+            assert!(answer(chip(), cmd, &vec![0u8; l.fs.params], Some(&mut silent)).is_some());
         }
     }
 
     /// Row 41 assembled from a host with three GPCs of 0xf TPCs each (TU106's shape).
     #[test]
     fn floorsweeping_from_host() {
-        use crate::ver::active as v;
+        for g in [GuestAbi::V610, GuestAbi::V615] {
+            let _g = TestGuest::set(g);
+            floorsweeping_from_host_case();
+        }
+    }
+
+    fn floorsweeping_from_host_case() {
+        use crate::ver::common as v;
+        let fs = &crate::ver::layouts().fs;
         struct Gr;
         impl HostRm for Gr {
             fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
@@ -1170,32 +1186,32 @@ mod tests {
         let a = answer(
             chip(),
             CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS,
-            &[0u8; FS_PARAMS],
+            &vec![0u8; fs.params],
             Some(&mut host),
         )
         .unwrap();
-        assert_eq!((a.status, a.params.len()), (NV_OK, FS_PARAMS));
+        assert_eq!((a.status, a.params.len()), (NV_OK, fs.params));
         let p = &a.params;
         assert_eq!(
-            (get32(p, v::FS_GPC_MASK), get32(p, v::FS_PHYS_GPC_MASK)),
+            (get32(p, fs.gpc_mask), get32(p, fs.phys_gpc_mask)),
             (7, 7)
         );
         for g in 0..3 {
-            assert_eq!(get32(p, v::FS_TPC_MASK + 4 * g), 0xf);
-            assert_eq!(get32(p, v::FS_TPC_COUNT + 4 * g), 4);
-            assert_eq!(get32(p, v::FS_ZCULL_MASK + 4 * g), u32::MAX);
-            assert_eq!(get32(p, v::FS_NUM_PES_PER_GPC + 4 * g), 2);
+            assert_eq!(get32(p, fs.tpc_mask + 4 * g), 0xf);
+            assert_eq!(get32(p, fs.tpc_count + 4 * g), 4);
+            assert_eq!(get32(p, fs.zcull_mask + 4 * g), u32::MAX);
+            assert_eq!(get32(p, fs.num_pes_per_gpc + 4 * g), 2);
         }
-        assert_eq!(get32(p, v::FS_TPC_MASK + 12), 0);
-        assert_eq!(get32(p, v::FS_TPC_TO_PES_MAP + 4), 1);
+        assert_eq!(get32(p, fs.tpc_mask + 12), 0);
+        assert_eq!(get32(p, fs.tpc_to_pes_map + 4), 1);
         assert_eq!(
             (
-                get32(p, v::FS_PHYS_GFX_GPC_MASK),
-                get32(p, v::FS_NUM_GFX_TPC)
+                get32(p, fs.phys_gfx_gpc_mask),
+                get32(p, fs.num_gfx_tpc)
             ),
             (7, 12)
         );
-        assert!(p[FS_ELEM..].iter().all(|&x| x == 0));
+        assert!(p[fs.elem..].iter().all(|&x| x == 0));
         assert!(a.label.starts_with("host"));
     }
 
@@ -1213,7 +1229,7 @@ mod tests {
 
     impl HostRm for SizedHost {
         fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
-            use crate::ver::active as v;
+            use crate::ver::common as v;
             assert_eq!(class, NV20_SUBDEVICE_0);
             let l = self.0;
             match cmd {
@@ -1247,44 +1263,48 @@ mod tests {
         }
     }
 
-    /// Both host selections against this build's guest layout: the host calls are
+    /// Both host selections against both guest layouts in one build: the host calls are
     /// sized by the host (56/76 bytes PES info, 9240/10264 SM order) and the guest
-    /// element is laid out as the guest ABI has it.
+    /// element is laid out as the guest ABI in force has it.
     #[test]
     fn host_selection_610_and_615() {
         use crate::hostabi::{HOST_610, HOST_615};
-        use crate::ver::active as v;
-        for l in [&HOST_610, &HOST_615] {
-            let mut h: Box<dyn HostRm> = Box::new(SizedHost(l));
-            let mut host: Host<'_> = Some(h.as_mut());
-            let (fs, _) = floorsweeping(&mut host, l).unwrap();
-            assert_eq!(fs.len(), FS_PARAMS);
-            assert_eq!(get32(&fs, v::FS_NUM_PES_PER_GPC), 2);
-            // The shorter of the two maps is copied (the word after the guest's map is
-            // numPesPerGpc[0], checked above as 2).
-            let copied = v::FS_TPC_TO_PES_MAP_LEN.min(l.pes_info_map_len);
-            for i in 0..v::FS_TPC_TO_PES_MAP_LEN {
-                let want = if i < copied { 0x100 + i as u32 } else { 0 };
-                assert_eq!(get32(&fs, v::FS_TPC_TO_PES_MAP + 4 * i), want, "map {i}");
-            }
-            let (sm, note) = global_sm_order(&mut host, l, &SM_ORDER_GUEST).unwrap();
-            assert_eq!(sm.len(), SM_ORDER_PARAMS);
-            assert!(note.contains(l.driver()), "{note}");
-            let rd = |o: usize| u16::from_le_bytes([sm[o], sm[o + 1]]);
-            assert_eq!((rd(SM_ORDER_NUM_SM), rd(SM_ORDER_NUM_TPC)), (36, 18));
-            for sm_id in [0usize, 1, 35, 511] {
-                for (name, off) in SM_ORDER_GUEST.fields {
-                    let host_has = l.sm_order.fields.iter().any(|(n, _)| n == name);
-                    let want = if host_has { tag(sm_id, name) } else { 0 };
-                    assert_eq!(rd(sm_id * SM_ENTRY + off), want, "{} sm {sm_id} {name}", l.driver());
+        for g in [GuestAbi::V610, GuestAbi::V615] {
+            let _g = TestGuest::set(g);
+            let gl = crate::ver::layouts();
+            let gs = &gl.sm_order;
+            for l in [&HOST_610, &HOST_615] {
+                let mut h: Box<dyn HostRm> = Box::new(SizedHost(l));
+                let mut host: Host<'_> = Some(h.as_mut());
+                let (fs, _) = floorsweeping(&mut host, l).unwrap();
+                assert_eq!(fs.len(), gl.fs.params);
+                assert_eq!(get32(&fs, gl.fs.num_pes_per_gpc), 2);
+                // The shorter of the two maps is copied (the word after the guest's map is
+                // numPesPerGpc[0], checked above as 2).
+                let copied = gl.fs.tpc_to_pes_map_len.min(l.pes_info_map_len);
+                for i in 0..gl.fs.tpc_to_pes_map_len {
+                    let want = if i < copied { 0x100 + i as u32 } else { 0 };
+                    assert_eq!(get32(&fs, gl.fs.tpc_to_pes_map + 4 * i), want, "{g:?} map {i}");
                 }
+                let (sm, note) = global_sm_order(&mut host, l, gs).unwrap();
+                assert_eq!(sm.len(), gl.sm_order_params);
+                assert!(note.contains(l.driver()), "{note}");
+                let rd = |o: usize| u16::from_le_bytes([sm[o], sm[o + 1]]);
+                assert_eq!((rd(gs.num_sm), rd(gs.num_tpc)), (36, 18));
+                for sm_id in [0usize, 1, 35, 511] {
+                    for (name, off) in gs.fields {
+                        let host_has = l.sm_order.fields.iter().any(|(n, _)| n == name);
+                        let want = if host_has { tag(sm_id, name) } else { 0 };
+                        assert_eq!(rd(sm_id * gs.entry_size + off), want, "{g:?} {} sm {sm_id} {name}", l.driver());
+                    }
+                }
+                assert!(sm[gs.size..].iter().all(|&x| x == 0));
             }
-            assert!(sm[SM_ORDER_ELEM..].iter().all(|&x| x == 0));
         }
     }
 
     /// The four combinations through the handler's own path: a 610 or 615 guest element
-    /// (from the generated modules, whatever this build emulates) filled from a 610 or
+    /// (from the generated modules) filled from a 610 or
     /// 615 host that answers only a call of its own size.
     #[test]
     fn global_sm_order_all_four_combinations() {

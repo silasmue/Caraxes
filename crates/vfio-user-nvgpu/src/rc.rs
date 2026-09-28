@@ -54,10 +54,11 @@ use nvrm_sys::RmAbi;
 use crate::channel::{GpuMem, Registry};
 use crate::ctrl::Answer;
 use crate::fb::Target;
-use crate::ver::active as v;
+use crate::ver::common as v;
 use crate::ver::Abi;
 
-type GuestAbi = v::RmAbi;
+/// The guest's channel allocation offsets (the same in every guest ABI; hostabi.rs).
+type GuestAbi = nvrm_sys::V610;
 
 /// D9 labels.
 pub const CHANNELS: &str =
@@ -612,7 +613,7 @@ pub fn take(ctrl: &mut crate::ctrl::Dispatcher, gm: &GpuMem) -> Vec<RcEvent> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ver::active as v;
+    use crate::ver::common as v;
 
     /// Records what reached the host mirrors.
     #[derive(Default)]
@@ -628,7 +629,7 @@ mod tests {
         let chip = crate::chip::by_name("tu106").unwrap().data();
         let mut reg = Registry::new(chip.channel);
         // A TSG under the device, then a channel in it (the shapes of channel.rs tests).
-        let tsg = vec![0u8; <GuestAbi as RmAbi>::TSG_PARAMS_SIZE as usize];
+        let tsg = vec![0u8; crate::ver::layouts().tsg_size];
         reg.record_alloc(0xC1, 0xD0, 0x7000, v::KEPLER_CHANNEL_GROUP_A, &tsg);
         let mut p = vec![0u8; 1024];
         let o = <GuestAbi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_instanceMem;

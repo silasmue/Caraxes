@@ -27,7 +27,7 @@ use nvrm_client::RmClient;
 
 use crate::dmamap::DmaRange;
 use crate::privilege::Privilege;
-use crate::ver::active as v;
+use crate::ver::common as v;
 
 /// `NV_ESC_RM_GET_EVENT_DATA` (kernel-open/common/inc/nv_escape.h): drain the OS-event
 /// records queued on an event ctl fd (`NVOS41_PARAMETERS`).

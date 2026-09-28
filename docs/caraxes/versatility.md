@@ -65,7 +65,9 @@ crates/vfio-user-nvgpu/
   trace in the same order as before.
 - `Dispatcher` takes the chip tables and the identity; `kgr::answer`, `nvml::answer`
   and `uvm::answer` take the chip tables for their chip-bound answers (PDB property,
-  MIG, decompression LCE) and reach every number through `crate::ver::active`.
+  MIG, decompression LCE) and reach every number through `crate::ver::common` (shared by
+  every guest ABI) or `crate::ver::layouts()` (the guest ABI in force; since 2026-09-28
+  chosen at run time, docs/research/one-abi-binary-2026-09-28.md).
 - The channel `Registry` takes the chip's `ChannelClasses`; the usermode doorbell
   offset comes from the chip.
 
@@ -90,7 +92,8 @@ a misspelt key an error rather than a default.
 ### The version module
 
 `src/ver/v610.rs` exports the same names every future `v<NNN>.rs` must export; generic
-code imports them through `crate::ver::active`. Three kinds of checks keep the numbers
+code imports the shared ones through `crate::ver::common` and reads the ones that differ
+between guest ABIs from `crate::ver::layouts()`. Three kinds of checks keep the numbers
 honest:
 
 1. **Typed layouts.** Where `nvrm_sys::v610` has the parameter struct, the offset or
@@ -277,20 +280,13 @@ code of their own, selected by the version module.
    | `FECS_EVENT_RECORD_SIZE`, `INFO_CHIP_UNIQUE_*`, `INDEX_FORWARD_TO_PHYSICAL` | `fecs_event_list.c`, the host trace, `subdevice_ctrl_gpu_kernel.c` | read |
    | Phase-5 inventory (which controls arrive, in which order) | the guest's own boot | run E4 with the new guest; every `unanswered` is a new row |
 
-4. **Feature and selection.** Add `v615 = ["nvrm-sys/v615"]` to the crate's
-   `[features]`, `#[cfg(feature = "v615")] pub mod v615;` to `src/ver/mod.rs`, and make
-   `active` pick exactly one version even when features unify (they are additive, as
-   in `nvrm-sys`, and `tools/check.sh` builds with `--all-features`):
-
-   ```rust
-   #[cfg(feature = "v615")]
-   pub use v615 as active;
-   #[cfg(all(feature = "v610", not(feature = "v615")))]
-   pub use v610 as active;
-   ```
-
-   A 615 build is then `cargo build --release -p vfio-user-nvgpu --no-default-features
-   --features v615`.
+4. **Selection (run time, one binary).** Every version module is compiled into every
+   build (docs/research/one-abi-binary-2026-09-28.md). Add `pub mod v6xx;` to
+   `src/ver/mod.rs`, a `GuestAbi` variant, its table `L6xx = guest_layouts!(v6xx)`, a
+   private stand-in in `src/ver/common.rs` for every item the module overrides (the test
+   `the_shared_vocabulary_hides_every_615_override` checks the list), and a rule in
+   `BootModel::detect_guest` or `guest_from_frame` if the guest's transport or element
+   frame is new. The crate's `v610`/`v615` features are no-ops.
 5. **Verify** as for any change: the unit tests (the pinning tests list every moved
    offset), the E0 selftest, a guest boot with the 615 driver in the guest and on the
    host, the `nvml` gate and the UVM check.
