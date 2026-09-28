@@ -436,3 +436,41 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - **Fix 5738dc81:** `set_b` takes the root's fence (the shadow's layout, or `Mirror::fence_of`
   before the build); a regression test drives the `GlobalExtents` path (fails without the fix).
   Depends on: L, AB.
+
+## P29 / P29b (2026-09-28 23:34-00:03, merged binary, fence fix; slot 0, 4 GiB, 8 GiB RAM)
+
+- **No host Xid at all.** D3D11 PASS, **D3D12 PASS** (first time: fence round trip 2 us,
+  dispatch verified), **Vulkan enumerates** (vulkaninfo exit 0, 617.14, API 1.4.351).
+- **CUDA runs** (first time): context, vadd, short kernel median 72-76 us (native 6, Linux B
+  13-20), launch + sync 199-512 us, HtoD 0.20 GB/s, DtoH 0.07 GB/s.
+- **Managed memory with GSP_GET_FEATURES bit 0 = 1:** managedMemory 1,
+  concurrentManagedAccess 0, 64 MiB CPU write + kernel increment + CPU check OK. The bit-0 half
+  of the A/B is still to run.
+- **llama 1B (b10173 CUDA 13.3):** pp512 2947 ± 2344, tg128 33.7 t/s (native 7639/305, Linux B
+  7084/242).
+- **P29 device drop:** QEMU's vfio-user reply timeout (5 s) fired during a 64 MiB DtoH copy: the
+  software CE read VRAM at 10 MB/s for 6.7 s inside the message loop. Every Windows channel is
+  PRIVILEGED, so CUDA's copies ran in software.
+- **TDR at every CUDA exit:** the KMD evicts the TSG's context through the last channel left;
+  the context was tied to the first (freed) channel: Xid 45 RC on the management channel.
+- **NVENC/NVDEC in software:** the video channels carry the KMD's 0x5080 object; refused.
+
+### Changed defaults after P29b (one universal configuration, no switches)
+
+- **The deferred context belongs to its TSG** (c5deec2a): it moves to a live member when its
+  channel is freed. Depends on: none.
+- **Video channels may carry 0x5080** (1dc497c5): it stays an inert host object; the deferred
+  calls run only on the management channel in the device. Depends on: none.
+- **Application copy channels are mirrored** (f8faee97): a privileged CE channel whose root is
+  also that of a skip-context GR channel (an application context) runs on the host, unprivileged
+  with DENY_PHYSICAL_MODE_CE; the KMD's paging and scrub channels (system VA space) stay in
+  software. A physical-mode method on a mirrored channel faults that channel only (to be
+  reported per case). Linux never sets SKIP_CTXBUFFER_ALLOC: unchanged. Depends on: AB (the
+  channel's leaves are shadowed like the GR channels'), L (the same shadow VAS), K.
+- **The software CE is sliced** (ca751140): at most 40 ms per call, continued by a 1 ms clock;
+  copies up to the guest's memory. Also Linux (scrub memsets). Depends on: R (VRAM reads through
+  the BAR1 windows set the chunk size), P.
+- The launcher's WIN_VFIO_USER_TIMEOUT_MS (8d3a3045) stays as a stopgap; with slicing the 5 s
+  default suffices.
+- Teardown exit 3 ("owned GFXP resources remain attached") is the P17 diagnostic's owned GFXP
+  only; a production build has no owned GFXP set and does not take that path.
