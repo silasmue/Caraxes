@@ -68,6 +68,10 @@ pub struct Trace {
     reads: [u64; 9],
     writes: [u64; 9],
     unnamed: BTreeMap<u64, u64>,
+    /// Trapped BAR1 and BAR2 (region 3) accesses per MiB of the BAR, by (region, MiB,
+    /// write): where a guest driver's CPU traffic through the apertures lands (the BAR1
+    /// pool covers only its first MiBs).
+    by_mib: BTreeMap<(u32, u64, bool), u64>,
     /// `CARAXES_TRACE_ACCESSES=0`: count the region accesses but write no line per
     /// access (events are still written). Every trapped access otherwise formats and
     /// writes one line on the guest's MMIO round trip (docs/caraxes/mapping.md §6).
@@ -110,6 +114,7 @@ impl Trace {
             reads: [0; 9],
             writes: [0; 9],
             unnamed: BTreeMap::new(),
+            by_mib: BTreeMap::new(),
             accesses: Accesses::parse(std::env::var("CARAXES_TRACE_ACCESSES").ok().as_deref())?,
             flush_each: std::env::var("CARAXES_TRACE_FLUSH").as_deref() != Ok("0"),
             last_flush: Instant::now(),
@@ -137,6 +142,9 @@ impl Trace {
         }
         if region == 0 && note.is_none() {
             *self.unnamed.entry(offset & !3).or_insert(0) += 1;
+        }
+        if region == 1 || region == 3 {
+            *self.by_mib.entry((region, offset >> 20, dir == Dir::Write)).or_insert(0) += 1;
         }
         if !self.accesses.wants(region, offset) || self.out.is_none() {
             return;
@@ -183,6 +191,28 @@ impl Trace {
                 ));
             }
         }
+        for (region, name) in [(1u32, "bar1"), (3, "bar3")] {
+            let mut v: Vec<((u64, bool), u64)> = self
+                .by_mib
+                .iter()
+                .filter(|((r, _, _), _)| *r == region)
+                .map(|((_, m, w), n)| ((*m, *w), *n))
+                .collect();
+            if v.is_empty() {
+                continue;
+            }
+            v.sort_by(|a, b| b.1.cmp(&a.1));
+            let top: Vec<String> = v
+                .iter()
+                .take(16)
+                .map(|((m, w), n)| format!("{m} MiB {}:{n}", if *w { "W" } else { "R" }))
+                .collect();
+            s.push_str(&format!(
+                "{name} trapped accesses by MiB of the BAR (busiest first, of {} MiB-direction pairs): {}\n",
+                v.len(),
+                top.join(" ")
+            ));
+        }
         if !self.unnamed.is_empty() {
             s.push_str("bar0 offsets without a name in the register map (offset: accesses):\n");
             for (off, n) in self.unnamed.iter().take(64) {
@@ -199,6 +229,18 @@ impl Trace {
 #[cfg(test)]
 mod tests {
     use super::Accesses;
+
+    #[test]
+    fn bar_accesses_are_counted_per_mib() {
+        let mut t = super::Trace::new(None).unwrap();
+        for _ in 0..3 {
+            t.access(super::Dir::Write, 1, 0x0230_0004, &[0], None);
+        }
+        t.access(super::Dir::Read, 3, 0x10, &[0; 4], None);
+        let s = t.summary();
+        assert!(s.contains("bar1 trapped accesses by MiB of the BAR (busiest first, of 1 MiB-direction pairs): 35 MiB W:3"), "{s}");
+        assert!(s.contains("bar3 trapped accesses by MiB of the BAR (busiest first, of 1 MiB-direction pairs): 0 MiB R:1"), "{s}");
+    }
 
     #[test]
     fn access_filter_parses_and_selects() {
