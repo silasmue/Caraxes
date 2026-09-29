@@ -1029,3 +1029,35 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - **The ETW start failed:** SSH dropped at the reset. Start the trace before the desktop.
 - Memory model: none. The storm and the fix are interrupt semantics; the long holders are the
   mirror and shadow paths.
+
+## Cloud Hypervisor, step 12: the software channel holds the lock; a stale host vector after the FLR (2026-09-29, C65, C66)
+
+- **C65 (lf3: lf2 plus lockfree step 2, mirror builds off the lock):**
+  - TDR 4.6 s after the first desktop flip (138.0 s, FLR 142.6 s). No flip in between; the
+    guest went quiet (6 doorbells), then the KMD tore down.
+  - No host NVRM line.
+- **Lock attribution (lockfree's `dlock`):**
+  - "doorbell software" 357 holds, 21.8 s in total, max 538 ms, nearly all chid 15. That is the
+    KMD's privileged CE channel ("may issue guest physical-mode work", allocation flags
+    0x201720), kept on the software executor.
+  - Mirror build snapshot 5 x 370 ms: CARAXES_SHADOW_CHANNEL_DIAG's coverage query. It is off by
+    default in run44.py since C66.
+  - The display clock's driver waited as long (p99 <= 524 ms, max 757 ms); its catch-up took
+    <= 27 us.
+  - The CE bytes are not the cost: fills of 64 KiB and more already run on the device CE (50
+    pushes, 99 MiB, 11 ms). The lockfree agent names the per-4 KiB translations through
+    uncached BAR1 window reads (step 5a, dc30d2c5).
+- **After the FLR, a re-arm storm again (8.57M MSIs):**
+  - The trace of the tree stores after the reset shows vector 4 pending before the guest's first
+    store. The old mirror's host event thread delivered two host-notifier raises after the tree
+    page's reset, because Bar0::reset reset the page before the boot model.
+  - The guest enabled LEAF_EN bit 4 and TOP_EN and never acked the vector.
+  - Fix (a76dd4a3): the boot model first (the old mirror joins its event thread), then the page,
+    which drops the raises not yet folded.
+- **C66 (lf4) never reached the driver:** the device trace ends at 7 s and the guest answers no
+  ARP. Probably Windows' automatic recovery after two killed runs (C64, C65), with no screen to
+  show it (the ROM has no GOP).
+- **Diagnostic (694e2e9c):** a reset traces the old model's summary ("reset: before:"), so the
+  counters before a TDR survive the FLR.
+- Memory model: the software executor reads guest page tables through BAR1 windows. Its cost
+  depends on the FB store (windows, pool, memfd).
