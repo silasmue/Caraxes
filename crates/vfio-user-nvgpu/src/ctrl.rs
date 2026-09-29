@@ -756,8 +756,17 @@ impl Dispatcher {
             .map_or(self.reservation, |l| l.reservation)
             .map(|(b, e)| (b, e.saturating_sub(crate::devce::PRIVATE_AT).max(b)));
         let software_runs = self.channels.software_runs;
+        let t0 = std::time::Instant::now();
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
-        if self.channels.software_runs == software_runs {
+        let spent = t0.elapsed();
+        let software = self.channels.software_runs != software_runs;
+        // The device lock's tags and work table (dlock.rs): what a channel's doorbell cost.
+        let kind = if software { "software" } else { "host" };
+        if spent >= std::time::Duration::from_millis(1) {
+            crate::dlock::tag(|| format!("doorbell chid {chid} ({kind}) {} ms", spent.as_millis()));
+        }
+        crate::dlock::work("doorbell", kind.to_string(), spent);
+        if !software {
             return notes;
         }
         // All software routes (including blocked peers retried by Registry) publish
@@ -846,25 +855,10 @@ impl Dispatcher {
         // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
         let host_doorbells = m.stats.doorbells;
         if m.is_shadow(&self.channels, chid) {
-            let fresh = !m.is_mirrored(chid);
             let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
-            let host = if fresh {
-                m.channel(chid).map(|h| h.token)
-            } else {
-                None
-            };
-            // Shadow VA spaces handed to the teardown: their cached walks go too.
-            for r in m.take_reaped_roots() {
-                gm.fb.unwatch_tables(crate::fb::Target::Fb(r));
-            }
-            // A build the host refused for memory: RC the channel once (rc.rs).
-            for c in m.take_exhausted() {
-                let engine = self.channels.channel(c).map_or(0, |ch| ch.engine_type);
-                self.dstate.rc.host_refused(c, engine);
-                notes.push(format!(
-                    "shadow: chid {c} refused by the host for memory: RC queued (PREEMPTIVE_REMOVAL) [host protection]"
-                ));
-            }
+            // Builds committed in this call (mirror.rs `take_committed`): their tokens are
+            // pinned below.
+            let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
             // The host doorbell write is the last step of a built shadow channel's ring.
             if m.stats.doorbells != host_doorbells {
                 self.host_doorbell_at
@@ -892,8 +886,8 @@ impl Dispatcher {
             if self.mirror_diag {
                 notes.extend(self.mirror_push_diag(gm, chid));
             }
-            if let Some(h) = host {
-                notes.extend(self.pin_pool_token(gm, chid, h));
+            for (c, h) in committed {
+                notes.extend(self.pin_pool_token(gm, c, h));
             }
             return notes;
         }
@@ -1582,13 +1576,61 @@ impl Dispatcher {
     }
 
     /// The guest kernel's TLB invalidate for `pdb`: forwarded to the mirror VA spaces.
-    /// Forward the held rings that are ready (ringgate.rs; the completer thread).
+    /// Forward the held rings that are ready and commit the finished mirror builds
+    /// (ringgate.rs, execution.md §9.2; the completer thread).
     pub fn complete_held_rings(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
-        let reg = &self.channels;
-        self.mirror
-            .as_mut()
-            .map(|m| m.complete_held_rings(reg, gm))
-            .unwrap_or_default()
+        let Some(m) = self.mirror.as_mut() else {
+            return Vec::new();
+        };
+        let mut notes = m.complete_held_rings(&self.channels, gm);
+        let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
+        for (c, h) in committed {
+            notes.extend(self.pin_pool_token(gm, c, h));
+        }
+        notes
+    }
+
+    /// Wait for and commit the mirror builds in flight a guest free may concern (boot.rs,
+    /// before [`Self::free`]; mirror.rs `settle_builds_for_free`).
+    pub fn settle_builds_for_free(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        h_client: u32,
+        h_object: u32,
+    ) -> Vec<String> {
+        let Some(m) = self.mirror.as_mut() else {
+            return Vec::new();
+        };
+        let mut notes = m.settle_builds_for_free(&self.channels, gm, h_client, h_object);
+        let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
+        for (c, h) in committed {
+            notes.extend(self.pin_pool_token(gm, c, h));
+        }
+        notes
+    }
+
+    /// After shadow doorbells and mirror build commits: the cached walks of shadow VA spaces
+    /// handed to the teardown go, a build the host refused for memory RCs its channel once
+    /// (rc.rs), and the channels committed are returned with their host tokens (for
+    /// [`Self::pin_pool_token`]).
+    fn after_mirror_builds(
+        m: &mut crate::mirror::Mirror,
+        reg: &crate::channel::Registry,
+        dstate: &mut crate::dmodel::DState,
+        gm: &mut crate::channel::GpuMem,
+        notes: &mut Vec<String>,
+    ) -> Vec<(u32, u32)> {
+        for r in m.take_reaped_roots() {
+            gm.fb.unwatch_tables(crate::fb::Target::Fb(r));
+        }
+        for c in m.take_exhausted() {
+            let engine = reg.channel(c).map_or(0, |ch| ch.engine_type);
+            dstate.rc.host_refused(c, engine);
+            notes.push(format!(
+                "shadow: chid {c} refused by the host for memory: RC queued (PREEMPTIVE_REMOVAL) [host protection]"
+            ));
+        }
+        m.take_committed()
     }
 
     /// The mirror's ring gate, when there is a mirror.
