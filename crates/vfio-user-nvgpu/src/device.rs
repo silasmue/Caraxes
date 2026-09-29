@@ -2424,10 +2424,19 @@ impl Device {
 
     /// The steps after every trapped write of BAR0 or config space: the model's notes, a
     /// function-level reset, a pending MSI, the MSI enable.
+    ///
+    /// The notes go out with one flush: a boot-model write drains the host event thread's
+    /// queued lines (`IntrShared::notes`, up to about 190 in one 60 Hz window of vkmark),
+    /// and one flush per line was one write syscall per line on the guest's trap
+    /// (docs/research/vkmark-frame-2026-09-28.md, trace artefact).
     fn after_write(&mut self) {
-        for n in self.bar0.take_notes() {
-            self.trace.event(&format!("boot: {n}"));
-        }
+        let notes: Vec<String> = self
+            .bar0
+            .take_notes()
+            .into_iter()
+            .map(|n| format!("boot: {n}"))
+            .collect();
+        self.trace.events(&notes);
         if self.cfg.take_flr() {
             self.trace
                 .event("flr: function-level reset, device model back to its initial state");
