@@ -9,9 +9,11 @@
 //! Block-linear surfaces (NVC57E `SET_STORAGE`: block height 3:0 in GOBs, clc57e.h:114-123;
 //! `SET_PLANAR_STORAGE` pitch in blocks of one GOB width): a GOB is 64 bytes by 8 rows, a
 //! block one GOB wide and 2^h GOBs high, blocks run along the row first. Inside a GOB the
-//! bytes of (x, y) sit at ((x & 32) << 3) | ((y & 6) << 5) | ((x & 16) << 1) | ((y & 1) << 4)
-//! | (x & 15), x in bytes: 16-byte by 2-row sectors, the GOB layout of the desktop GPUs
-//! since Fermi as nouveau and Mesa implement it (unverified against a Turing capture).
+//! byte (x, y), x in bytes, sits at address bits 3:0 = x 3:0, 4 = y 0, 5 = y 1, 6 = x 4,
+//! 7 = y 2, 8 = x 5. Measured, not taken from a document: of the 120 orders of the five
+//! bits above bit 3, this one decodes the Windows lock screen the 617 KMD scanned out on
+//! TU106 (C55, 2026-09-29) sharpest, with crisp text; the order x 4 at bit 5 and y 2:1 at
+//! bits 7:6 used before left every edge jagged.
 
 /// Byte offset of byte `x` of row `y` in a block-linear surface `pitch_gobs` GOBs wide
 /// with blocks 2^`bh_log2` GOBs high.
@@ -20,7 +22,12 @@ pub fn block_linear_offset(x: u64, y: u64, pitch_gobs: u64, bh_log2: u32) -> u64
     let block_row = y / gob_rows;
     let gob_in_block = (y % gob_rows) / 8;
     let (gx, yy) = (x % 64, y % 8);
-    let in_gob = ((gx & 32) << 3) | ((yy & 6) << 5) | ((gx & 16) << 1) | ((yy & 1) << 4) | (gx & 15);
+    let in_gob = ((gx & 32) << 3)
+        | ((yy & 4) << 5)
+        | ((gx & 16) << 2)
+        | ((yy & 2) << 4)
+        | ((yy & 1) << 4)
+        | (gx & 15);
     ((block_row * pitch_gobs + x / 64) << bh_log2 | gob_in_block) * 512 + in_gob
 }
 
@@ -99,12 +106,13 @@ mod tests {
 
     #[test]
     fn gob_and_block_layout() {
-        // The first GOB: 16-byte runs, rows interleaved per the sector layout.
+        // The first GOB: 16-byte runs; bit 4 y 0, bit 5 y 1, bit 6 x 4, bit 7 y 2, bit 8 x 5.
         assert_eq!(block_linear_offset(0, 0, 1, 0), 0);
         assert_eq!(block_linear_offset(15, 0, 1, 0), 15);
         assert_eq!(block_linear_offset(0, 1, 1, 0), 16);
-        assert_eq!(block_linear_offset(16, 0, 1, 0), 32);
-        assert_eq!(block_linear_offset(0, 2, 1, 0), 64);
+        assert_eq!(block_linear_offset(0, 2, 1, 0), 32);
+        assert_eq!(block_linear_offset(16, 0, 1, 0), 64);
+        assert_eq!(block_linear_offset(0, 4, 1, 0), 128);
         assert_eq!(block_linear_offset(32, 0, 1, 0), 256);
         assert_eq!(block_linear_offset(63, 7, 1, 0), 511);
         // Blocks of 16 GOBs: row 8 is the next GOB of the same block; x 64 the next block.
