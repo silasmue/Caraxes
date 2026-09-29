@@ -733,3 +733,47 @@ fn core_pio_blanking_and_scan_line() {
     let n = disp.write32(scan, 0x5, &mem, &mut fb).unwrap();
     assert!(n[0].contains("read-only"), "{n:?}");
 }
+
+/// `dump auto`: window 0's scanout is written after a new latch, not again before the period,
+/// and the pixels come out of the pitch layout in the right order.
+#[test]
+fn auto_dump_writes_new_latches_rate_limited() {
+    let mut disp = display();
+    let mut fb = FakeFb::new(1 << 20);
+    let mem = GuestMemory::new();
+    // 16 x 2 pixels, A8R8G8B8, pitch layout (one 64-byte unit per row): pixel (x, y) = x + 16y.
+    for y in 0..2u64 {
+        for x in 0..16u64 {
+            let v = (x + 16 * y) as u32;
+            fb.write(y * 64 + x * 4, &(v | 0xFF00_0000).to_le_bytes());
+        }
+    }
+    let dir = std::env::temp_dir().join(format!("caraxes-autodump-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    disp.auto_dump = Some(AutoDump { dir: dir.clone(), next_ns: 0, flips: 0, count: 0 });
+    let w = &mut disp.engine.windows[0];
+    w.head = Some(0);
+    w.flips = 1;
+    w.latched = engine::Surface {
+        mem: Some(engine::MemRef { target: 1, addr: 0 }),
+        width: 16,
+        height: 2,
+        format: 0xCF,
+        pitch: 1,
+        pitch_layout: true,
+        block_height_log2: 0,
+    };
+    disp.maybe_auto_dump(&fb, &mem);
+    let f = dir.join("scanout-auto-0.png");
+    let png = std::fs::read(&f).unwrap();
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    // IDAT holds stored rows: filter 0, then R, G, B of pixel 0 (0, 0, 0), pixel 1 (0, 0, 1).
+    let at = png.windows(4).position(|c| c == b"IDAT").unwrap() + 4 + 2 + 5;
+    assert_eq!(&png[at..at + 7], &[0, 0, 0, 0, 0, 0, 1]);
+    assert!(disp.notes.iter().any(|n| n.contains("auto #0")), "{:?}", disp.notes);
+    // A new flip within the period: no second file.
+    disp.engine.windows[0].flips = 2;
+    disp.maybe_auto_dump(&fb, &mem);
+    assert!(!dir.join("scanout-auto-1.png").exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}

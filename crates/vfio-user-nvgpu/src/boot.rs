@@ -818,8 +818,31 @@ impl BootModel {
         let Some(cmd) = crate::display::engine::ticker().take_command() else {
             return;
         };
-        // `dump [path]`: window 0's scanout as a PNG (display/dump.rs), no event.
+        // `dump [path]`: window 0's scanout as a PNG (display/dump.rs), no event; `dump auto`
+        // and `dump off`: after new latches, at most one per 3 s (display/mod.rs).
         if let Some(rest) = cmd.trim().strip_prefix("dump") {
+            let dir = crate::display::engine::ticker().control_dir().unwrap_or_default();
+            match rest.trim() {
+                "auto" => {
+                    self.ctrl.display.auto_dump = Some(crate::display::AutoDump {
+                        dir: dir.clone(),
+                        next_ns: 0,
+                        flips: 0,
+                        count: 0,
+                    });
+                    self.ctrl.display.notes.push(format!(
+                        "display: auto dump on: window 0's scanout after new latches, at most one per 3 s, {}/scanout-auto-<0..9>.png",
+                        dir.display()
+                    ));
+                    return;
+                }
+                "off" => {
+                    self.ctrl.display.auto_dump = None;
+                    self.ctrl.display.notes.push("display: auto dump off".into());
+                    return;
+                }
+                _ => {}
+            }
             let path = match rest.trim() {
                 "" => crate::display::engine::ticker()
                     .control_dir()

@@ -320,7 +320,24 @@ pub struct Display {
     pub hotplug_events: Vec<(u32, u32)>,
     /// Phase C: methods, heads, the clock and the interrupt registers (engine.rs).
     pub engine: engine::Engine,
+    /// `dump auto` (display-ctl): window 0's scanout dumped after new latches, at most one
+    /// per `AUTO_DUMP_PERIOD`, the last `AUTO_DUMP_KEEP` kept (dump.rs).
+    pub auto_dump: Option<AutoDump>,
 }
+
+/// The state of `dump auto`.
+#[derive(Clone, Debug)]
+pub struct AutoDump {
+    pub dir: std::path::PathBuf,
+    pub next_ns: u64,
+    pub flips: u64,
+    pub count: u64,
+}
+
+/// At most one automatic dump per 3 s (each reads the whole surface through the FB store
+/// under the device lock), and the last 10 files kept (`scanout-auto-<n % 10>.png`).
+pub const AUTO_DUMP_PERIOD_NS: u64 = 3_000_000_000;
+pub const AUTO_DUMP_KEEP: u64 = 10;
 
 fn put32(b: &mut [u8], off: usize, v: u32) {
     if off + 4 <= b.len() {
@@ -423,6 +440,7 @@ impl Display {
             notes: Vec::new(),
             hotplug_events: Vec::new(),
             engine: engine::Engine::new(0, 0),
+            auto_dump: None,
         }
     }
 
@@ -1635,6 +1653,7 @@ impl Display {
     pub fn read32_io(&mut self, off: u64, fb: &mut FakeFb, mem: &GuestMemory) -> Option<u32> {
         if self.enabled && engine::Engine::handles(off) {
             self.engine.catch_up(engine::now_ns(), fb, mem);
+            self.maybe_auto_dump(fb, mem);
         }
         self.read32(off)
     }
@@ -1649,6 +1668,7 @@ impl Display {
         let t0 = engine::now_ns();
         self.engine.catch_up(t0, fb, mem);
         engine::ticker().note_catch_up(engine::now_ns().saturating_sub(t0) / 1000);
+        self.maybe_auto_dump(fb, mem);
         let mut n = self.take_engine_notes();
         if let Some(p) = fe_page() {
             n.extend(p.take_notes());
@@ -1707,6 +1727,35 @@ impl Display {
             path.display(),
             png.len()
         ))
+    }
+
+    /// `dump auto`: after the engine advanced, dump window 0's scanout when it latched a new
+    /// surface since the last dump, its head is unblanked and the period has passed.
+    pub fn maybe_auto_dump(&mut self, fb: &FakeFb, mem: &GuestMemory) {
+        let Some(a) = self.auto_dump.as_ref() else {
+            return;
+        };
+        let now = engine::now_ns();
+        let Some(w) = self.engine.windows.first() else {
+            return;
+        };
+        let blanked = w.head.and_then(|h| self.engine.heads.get(h)).is_none_or(|h| h.blanked);
+        if w.flips == a.flips || now < a.next_ns || blanked || w.latched.mem.is_none() {
+            return;
+        }
+        let (flips, n, dir) = (w.flips, a.count, a.dir.clone());
+        let path = dir.join(format!("scanout-auto-{}.png", n % AUTO_DUMP_KEEP));
+        let t0 = std::time::Instant::now();
+        let note = match self.dump_window(0, fb, mem, &path) {
+            Ok(n) => format!("{n} (auto #{}, flip {flips}, {} ms under the device lock)", a.count, t0.elapsed().as_millis()),
+            Err(e) => format!("display: auto dump refused: {e}"),
+        };
+        self.notes.push(note);
+        if let Some(a) = self.auto_dump.as_mut() {
+            a.flips = flips;
+            a.count += 1;
+            a.next_ns = engine::now_ns() + AUTO_DUMP_PERIOD_NS;
+        }
     }
 
     /// Notes of the engine not yet in the trace.
