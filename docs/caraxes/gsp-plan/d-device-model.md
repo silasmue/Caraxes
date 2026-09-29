@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 <!-- Research by a read-only subagent on 2026-09-24 (P23, category D of gsp-surface.md §3), with five read-only helper agents for the per-group reading. Numbers from caraxes/tools/gsp-surface.py at worktree HEAD 61e0b6a against the 610.57.04 and 615.71.09 trees. No crate file was changed. -->
 # Category D: the controls that need device modelling (615.71.09)
 

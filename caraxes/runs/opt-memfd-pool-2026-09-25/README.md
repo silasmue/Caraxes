@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # BAR2 memfd beside the BAR1 pool, 2026-09-25 (vm3)
 
 Backlog item 1 of [docs/caraxes/optimization-backlog.md](../../../docs/caraxes/optimization-backlog.md):

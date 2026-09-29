@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """caraxes/runs/trap-census-2026-09-25/summarize.py with this directory's `on-rearm` (CARAXES_MSI_REARM_IOEVENTFD=1) next to
 ../opt-memfd-pool-2026-09-25/on (the same windows, the re-arm trapped).
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Tear down a run of run.sh that had to be stopped by hand (a hung guest process): stop its
 # host watch, bring vm3 down, keep the device summary and the host Xid lines since T0.
 # Usage: teardown.sh <run dir> "<T0 as YYYY-MM-DD HH:MM:SS>"

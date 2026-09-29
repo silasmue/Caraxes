@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The soak line (docs/caraxes/host-resources.md): one `key=value` line every
 //! `CARAXES_SOAK_SECS` seconds (default 60, `0` off) while the device serves a guest, and
 //! once at exit, with what the device holds on the host and what the host has left. A

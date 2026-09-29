@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The RTX 2070 as the unit tests see it: the TU106 chip, the built-in board data
 //! and the captured config space; the RTX 5060 Ti (GB206) the same way.
 

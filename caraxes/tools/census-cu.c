@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * census-cu: one CUDA driver-API operation at a time, for the trap census
  * (docs/caraxes/optimization-backlog.md). Every repetition of an operation is

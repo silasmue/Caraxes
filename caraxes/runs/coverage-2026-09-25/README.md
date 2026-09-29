@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Coverage map, 2026-09-25 (vm2)
 
 The runs behind [docs/caraxes/coverage-map.md](../../../docs/caraxes/coverage-map.md). The

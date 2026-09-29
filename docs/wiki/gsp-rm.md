@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # GSP-RM
 
 The GPU System Processor (GSP) is a RISC-V core on every NVIDIA GPU from Turing on. GSP-RM

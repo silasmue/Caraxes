@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The DPCD register model and the sink's link-training state machine.
 //!
 //! Semantics for addresses the model does not define (decided here, see the README):

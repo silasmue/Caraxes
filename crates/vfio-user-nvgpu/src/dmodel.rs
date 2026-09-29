@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The category D rule table (docs/caraxes/gsp-plan/d-device-model.md §2, roadmap R0): the
 //! controls that need device modelling get the plan's labelled answer instead of the
 //! dispatcher's `unanswered`.

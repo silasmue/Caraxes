@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # The TU106 display engine as the device presents it (docs/caraxes/display-ab.md,
 # display-adapter.md sections 3-5, display-scaling.md section 3.1). Values are Turing

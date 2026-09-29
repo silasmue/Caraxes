@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Hot-plug detect: the level (plugged or not) and the pulses a source sees.
 //!
 //! A long pulse is a level change (plug or unplug; a replug is an unplug followed by a

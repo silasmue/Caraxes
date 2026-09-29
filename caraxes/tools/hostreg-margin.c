@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * hostreg-margin: cuMemHostRegister on guest pages that lie in the 2 MiB rounding of the
  * swiotlb alias (docs/caraxes/memory-model.md §2, "The alias in the device"). The guest's

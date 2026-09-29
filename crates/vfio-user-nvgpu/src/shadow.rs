@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Shadow VA space for the GR kernel launch (variant c1s, exec-formats.md §4.5,
 //! decision D17 route 4 stage 1). A GR channel cannot run through the guest's own root
 //! from user space: an externally-owned VAS cannot schedule GR, and a replayed VAS makes

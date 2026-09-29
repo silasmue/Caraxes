@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """(caraxes/runs/trap-census-2026-09-25/workload-rates.py with two rows more: all trapped
 accesses, and the MSI re-arms that came through the ioeventfd.) Counts per workload window (MODE/{rl,ppo,short-auto}-trace.txt.xz of run.sh, the rl and ppo
 traces in CENSUS_TRACE_STORE): submissions

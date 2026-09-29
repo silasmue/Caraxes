@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Function coverage of the device crate: the instrumented device of `run.sh map` against its
 # unit tests (the map and extra parts; both built with -C instrument-coverage; llvm-profdata and llvm-cov of the rustup
 # llvm-tools component, LLVM 20, the same major as rustc 1.89's). Writes llvm-functions.md and

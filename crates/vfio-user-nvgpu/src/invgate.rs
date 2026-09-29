@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The held invalidate without the device lock (docs/caraxes/execution.md §8).
 //!
 //! The untrapped-GPPut rule (untrapped.rs, docs/caraxes/bar1-pool.md §9) makes a guest MMU

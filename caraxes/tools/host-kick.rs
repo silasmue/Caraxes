@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Ring the host doorbell with a given work-submit token from a separate, unprivileged
 //! RM client (E5b part 2 diagnosis, docs/caraxes/execution.md): tells whether a channel
 //! whose first submission did not run needs a second doorbell (the runlist took the

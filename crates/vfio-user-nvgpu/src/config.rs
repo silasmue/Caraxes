@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! PCI configuration space of the synthetic device.
 //!
 //! Seeded from the real card's `lspci -xxxx` dump (the board's capture,

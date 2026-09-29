@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Client-side check of a running server, using the same crate's `Client`:
 //! region and interrupt tables, the PCI identity, BAR sizing, the boot
 //! registers, the PROM window and the config mirror. Runs without a VM.

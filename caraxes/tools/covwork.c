@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //
 // covwork: CUDA driver-API workloads the gates do not cover or cover thinly, one per
 // subcommand, for the coverage map (docs/caraxes/coverage-map.md). Built in the guest like

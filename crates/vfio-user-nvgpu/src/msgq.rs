@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The GSP message queues in guest RAM, from the GSP side
 //! (docs/caraxes/gsp-rpc-protocol.md §1-2, docs/caraxes/gsp-abi-610.md (a) and (d)).
 //!

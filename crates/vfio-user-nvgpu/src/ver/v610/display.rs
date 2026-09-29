@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Driver 610.57.04: the display control vocabulary (docs/caraxes/display-adapter.md
 //! section 1.3, docs/caraxes/display-ab.md). Control numbers, parameter sizes and field
 //! offsets of the NV0073, NV5070, NVC370 and NVC372 controls and of the internal NV2080

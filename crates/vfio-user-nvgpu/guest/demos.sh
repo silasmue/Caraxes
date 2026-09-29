@@ -1,7 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Guest (as the desktop user, with sudo), display phase E (docs/caraxes/display-e.md): the
 # classic demos on the GPU path, each for at least 20 s, with the driver that answered.
 #   demos.sh weston   each demo as a client of its own Weston (GL renderer, Xwayland on)

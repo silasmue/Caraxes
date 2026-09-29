@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The doorbell token pool (`CARAXES_DOORBELL_TOKENS=N`, docs/caraxes/doorbell-token-pool.md).
 //!
 //! The guest rings a channel by writing its work-submit token to the usermode doorbell

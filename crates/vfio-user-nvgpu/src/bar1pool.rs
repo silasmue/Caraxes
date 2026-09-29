@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! P21 design H, the BAR1 pool (docs/caraxes/bar1-pool.md, bar1-passthrough.md §4 H):
 //! `CARAXES_BAR1_PASSTHROUGH=pool`.
 //!

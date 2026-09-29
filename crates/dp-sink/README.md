@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # dp-sink: a transport-neutral DisplayPort SST sink
 
 Package A of the display side assignment ([briefing](../../docs/caraxes/briefing-display-nova.md),

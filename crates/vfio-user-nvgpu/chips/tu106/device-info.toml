@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # The TU106 FIFO device-info table, the answer to FIFO_GET_DEVICE_INFO_TABLE
 # (ctrl2080fifo.h:535-576; docs/caraxes/fifo-device-info.md and

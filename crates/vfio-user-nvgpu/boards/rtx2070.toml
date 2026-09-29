@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # The board axis (decision D14, docs/caraxes/versatility.md): what the RTX 2070 board
 # adds to its chip. PCI ids, subsystem ids, class, revision and the capability chain

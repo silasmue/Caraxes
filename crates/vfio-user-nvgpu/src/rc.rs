@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The CUDA error and teardown paths of category D (docs/caraxes/gsp-plan/d-device-model.md
 //! roadmap R2, groups 6.1, 6.8 and 6.10): the guest's channel set, the RC journal and the RC
 //! reflection to the guest.

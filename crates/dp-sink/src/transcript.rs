@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! AUX transcripts: a line format for request/reply sequences, a replayer that checks
 //! every reply exactly, and a recorder.
 //!

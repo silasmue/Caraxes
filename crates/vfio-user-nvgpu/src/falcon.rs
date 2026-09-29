@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! A falcon register block, as the kernel RM drives it during the GSP boot
 //! (docs/caraxes/gsp-boot-turing.md §2): reset through `FALCON_ENGINE`, IMEM and
 //! DMEM port writes with auto-increment and tags, `BOOTVEC`, `CPUCTL` start and

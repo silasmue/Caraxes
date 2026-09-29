@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The sink: DPCD, DDC and HPD behind one AUX entry point.
 
 use crate::aux::{AuxCommand, AuxError, AuxReply, AuxRequest, Fault, ReplyCode};

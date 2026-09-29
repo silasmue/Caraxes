@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Coverage map: which device paths real workloads reach, and what they cost
 
 Written 2026-09-25 for the operator's question "how do we find functions that are not easy to

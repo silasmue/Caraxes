@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The ZBC clear table as an RM client sees it (docs/caraxes/gsp-plan/d-device-model.md 6.2,
 //! Measurement Q5): a `GF100_ZBC_CLEAR` object under the client's own subdevice, then
 //! `GET_ZBC_CLEAR_TABLE_SIZE` for colour, depth and stencil and `GET_ZBC_CLEAR_TABLE_ENTRY`

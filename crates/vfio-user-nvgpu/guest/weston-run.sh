@@ -1,7 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Guest (root), display phase E (docs/caraxes/display-e.md): start Weston on card0 (DRM
 # backend, atomic KMS, kiosk shell), run one command as a Wayland client, stop Weston.
 # The display gate's GPU stages (swapchain, present, rt, events) run their probes this

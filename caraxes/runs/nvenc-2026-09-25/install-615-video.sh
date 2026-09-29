@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Install NVIDIA's 615.71.09 encode and decode libraries (libnvidia-encode, libnvidia-decode,
 # the CUDA repository packages that sottr-prepare.sh installs on vm4-615) into vm2-615's
 # persistent overlay, through a NAT for vm2's tap as sottr-2026-09-24/up.sh sets it up

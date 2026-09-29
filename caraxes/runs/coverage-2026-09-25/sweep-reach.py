@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """What the guest control sweep reached, and what stays untested (coverage-map.md §3).
 
 Joins extra/work/ctlsweep-table-out.txt (the guest's status per swept control) with the

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """The census tables of docs/caraxes/optimization-backlog.md from this directory's runs.
 
 Reads MODE/census.json (caraxes/tools/census-table.py) for the modes bare, off and on, and

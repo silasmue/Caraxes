@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The profile (`CARAXES_PROFILE=1`, docs/caraxes/coverage-map.md §1): what the device did,
 //! aggregated in memory instead of written line by line as the trace does (trace.rs).
 //!

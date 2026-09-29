@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! End-to-end check of the E0 device through the vfio-user protocol: a server
 //! thread with the real config dump and a synthetic ROM, and the crate's client
 //! on the other end. No VM, no hardware.

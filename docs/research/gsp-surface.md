@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # GSP surface
 
 Scope: everything a stock 615.71.09 kernel RM in GSP-client mode can send to GSP-RM, how much of it the device answers, and how it sorts the rest.

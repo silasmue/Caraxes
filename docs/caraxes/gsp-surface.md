@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 <!-- Source survey and tooling by a read-only subagent on 2026-09-24 (operator's direction of the same day: emulate as many device answers as possible, so that Windows can run later without trace-driven bring-up). Numbers are the output of caraxes/tools/gsp-surface.py on the working tree of that day (HEAD fd1e5e7 plus the uncommitted crate changes); rerun the script for current numbers. -->
 # The GSP surface of 610.57.04: what a GSP-RM stand-in must answer
 

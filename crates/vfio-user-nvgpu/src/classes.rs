@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Which `GSP_RM_ALLOC` classes the device refuses (docs/caraxes/gsp-plan/classes.md
 //! §5, §8): fail closed, with the status GSP-RM's resource server gives, instead of
 //! acknowledging every class.

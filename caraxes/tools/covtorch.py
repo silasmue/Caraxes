@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """cuBLAS, cuDNN and attention through torch, for the coverage map (docs/caraxes/coverage-map.md).
 
 Usage: covtorch.py matmul|conv|attention [seconds]

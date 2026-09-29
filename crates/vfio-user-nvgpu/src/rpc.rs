@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The RPC vocabulary the device answers during init (docs/caraxes/gsp-rpc-protocol.md §3-4,
 //! docs/caraxes/gsp-abi-610.md (b)-(d)) and the `GspStaticConfigInfo` reply built from
 //! the profile, the chip, the board and the WPR layout the guest itself computed. The

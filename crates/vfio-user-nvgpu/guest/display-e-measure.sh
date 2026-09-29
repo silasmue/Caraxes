@@ -1,7 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Guest (as the desktop user, with sudo), display phase E (docs/caraxes/display-e.md): the
 # before/after measurement set in one go, printing one line per number.
 #   eglprobe 1080p (GPU clear + readback), Weston GL frame callbacks at 1080p60 with the

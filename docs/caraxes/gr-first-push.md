@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # The first GR push of cuCtxCreate on the shadow VAS: content, wait, and why it stalls
 
 Read-only analysis (2026-09-23) of the E5b part 2 GR runs `d-gr-c2`, `d-gr-shadow`..`d-gr-shadow4`

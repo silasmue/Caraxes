@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Incremental walk of one guest GMMU tree (docs/caraxes/mapping.md §1).
 //!
 //! The shadow VA space (shadow.rs) mirrors the leaves of a guest root. Before this module

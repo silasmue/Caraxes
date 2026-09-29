@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! BAR0: the register window of the synthetic GPU.
 //!
 //! Experiment E0 answers only what the driver reads before it needs a GSP: the

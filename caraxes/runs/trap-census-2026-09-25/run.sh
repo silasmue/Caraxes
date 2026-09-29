@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The trap census of 2026-09-25 (docs/caraxes/optimization-backlog.md): every CUDA driver-API
 # operation alone, bracketed by census-cu's marker writes, with the device trace on; then
 # rlprobe and a 30 s PPO run as workload windows. vm3 only, in the environment of

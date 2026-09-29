@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # TU106: answers to category A controls ("pure chip data", docs/caraxes/gsp-surface.md
 # §3.A), one [[control]] per control, served by the table-driven handler of

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Message queue v2, the CPU-GSP transport from driver 615 on, from the GSP side
 //! (docs/caraxes/gsp-transport-615.md §2-3).
 //!

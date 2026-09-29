@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Windows and traps
 
 Scope: the shared-memory windows that take guest accesses off the trapped vfio-user path, what still traps per CUDA operation and per compositor frame, and what one trap costs.

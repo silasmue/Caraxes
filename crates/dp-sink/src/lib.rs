@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! A transport-neutral DisplayPort SST sink: the monitor side of an emulated DP connector.
 //!
 //! - [`dpcd`]: the DPCD register file and the link-training state machine;

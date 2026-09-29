@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Channel emulation for experiment E5a (docs/caraxes/uvm.md): the host (PBDMA)
 //! and copy-engine methods that `nvidia-uvm` pushes while it registers a GPU,
 //! executed by the device against the fake framebuffer and guest RAM. No work

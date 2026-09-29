@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The table-driven public controls of the GSP plan (docs/caraxes/gsp-plan/
 //! b-host-forwardable.md, c-guest-state.md): the rows of `ver::<version>::public::PUBLIC`.
 //! Plain forwards stay in the `FORWARD` list (nvml.rs); this module answers the rest.

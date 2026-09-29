@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * Check that the guest kernel's DMA API honours the GPU's dma_range_map:
  * dma_map_page() and dma_alloc_coherent() on the GPU's PCI device must return

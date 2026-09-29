@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The vfio-user device: region and interrupt tables, and the `ServerBackend`
 //! that routes region accesses to the config space, BAR0 and the ROM. DMA
 //! mappings are mapped as guest RAM ([`GuestMemory`]) and, from E5b on, registered

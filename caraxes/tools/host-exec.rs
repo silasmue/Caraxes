@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Host-side execution primitive for Caraxes (docs/caraxes/host-exec.md).
 //!
 //! Proves, as an unprivileged RM client (with CAP_SYS_ADMIN raised only around the

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Rank the rows of a vfio-user-nvgpu profile (CARAXES_PROFILE=1, src/profile.rs) by cost.
 
 The device dumps its profile as TSV on SIGUSR2 (<prefix>.<n>.tsv) and at exit

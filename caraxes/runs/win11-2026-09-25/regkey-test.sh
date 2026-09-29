@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Does the Windows driver switch to GSP-RM mode by registry? Sets EnableGpuFirmware and
 # RMEnableGpuFirmware (DWORD 1) under the nvlddmkm service key, its Parameters subkey and the
 # card's class key (night-2026-09-25/etw-driver-start/registry-before.txt: class instance 0007),

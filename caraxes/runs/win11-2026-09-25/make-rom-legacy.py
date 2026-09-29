@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Cut the EFI (GOP) image out of a PCI option ROM so the expansion ROM BAR can stay on for the
 Windows guest without the firmware running the GOP driver (which spins on NV_PTIMER_TIME in pure
 emulation). Keeps the x86 legacy image, marks it as the last image, and pads to the original size.

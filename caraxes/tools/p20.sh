@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # P20 parallelism proof helpers (docs/caraxes/parallel.md). Every command takes the VM
 # name (vm1, vm2, vm3) and sets the launcher's environment for it: the green
 # configuration of testing.md §7b with a 2 GiB profile and one reservation slot per VM.

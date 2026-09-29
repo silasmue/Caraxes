@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Round 2 of the category D work (d-device-model.md R2, the open MODEL rows, the ZBC model):
 # the nvml and cuda gates on vm3, before and after, with the environment of
 # caraxes/runs/gsp-rpc-2026-09-24/run.sh gate610/gate615 (1 GiB profile at reservation

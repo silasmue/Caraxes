@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The parts of the 615 boot exchange beyond the queues and `GSP_INIT`'s static
 //! configuration (docs/caraxes/gsp-plan/boot-exchange.md §3-5): the registry keys the
 //! device honours (B3), the unstable-interface opt-in (B7), the `GSP_SUSPEND` flags and

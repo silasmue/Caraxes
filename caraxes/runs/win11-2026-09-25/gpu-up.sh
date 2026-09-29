@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The synthetic GPU for the Windows guest, in pure emulation (no host RM, no reservation, no
 # host execution): the same start as tools/caraxes-vm.sh `up` builds, on $W/gpu.sock, so that
 # QEMU (`-device vfio-user-pci,socket=`) or Cloud Hypervisor (`--user-device socket=`) attach

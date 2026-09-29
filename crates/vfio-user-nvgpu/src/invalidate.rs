@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! TLB invalidation of the guest's page directories on the physical GPU (E5b part 2).
 //!
 //! The host RM's `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` on a mirror VA space invalidates the

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The access log: one line per region access, DMA map, interrupt setup or
 //! reset, with a monotonic timestamp, so that a run can be read against
 //! docs/caraxes/init-map.md. The summary counts accesses per region and lists
