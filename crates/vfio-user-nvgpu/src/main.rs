@@ -92,7 +92,7 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --host-exec  execute on the physical GPU (E5b part 2, docs/caraxes/execution.md): the FB is the
              reserved VRAM through BAR1 windows, the guest's channels get host mirror channels bound
              to the guest's page tables at their first doorbell, GR0/CE non-stall events become guest
-             interrupts (needs --reserve-vram, --register-guest-ram and --host-rm)
+             interrupts; implies --boot-model, --host-rm, --reserve-vram and --register-guest-ram
   --display  present the display engine (docs/caraxes/display-ab.md): the display fuse reads 0,
              the display controls are answered from chips/<chip>/display.toml and the board's
              [display] connectors, each connector backed by a DisplayPort sink model; without
@@ -331,6 +331,15 @@ fn parse_args() -> Result<Args> {
     if a.socket.is_none() && a.selftest.is_none() && !a.print_name {
         bail!("{USAGE}");
     }
+    // Host execution needs the boot model, the host RM, the VRAM reservation and registered
+    // guest RAM, so --host-exec implies them (naming them as well changes nothing). An
+    // explicit --identity-dma-table is not overridden: it is refused below.
+    if a.host_exec {
+        a.boot_model = true;
+        a.host_rm = true;
+        a.reserve_vram = true;
+        a.register_guest_ram |= !a.identity_dma_table;
+    }
     // The host paths talk to the house card, a TU106 (docs/caraxes/blackwell-gb206.md
     // section 4): any other chip identity runs in pure emulation, unless the board is a
     // costume-ladder board that presents it over the TU106 (`host_chip = "tu106"` and the
@@ -350,8 +359,8 @@ fn parse_args() -> Result<Args> {
     if a.reserve_vram && !a.boot_model {
         bail!("--reserve-vram needs --boot-model (the FB layout lives in the boot model)");
     }
-    if a.host_exec && !(a.reserve_vram && a.register_guest_ram && a.host_rm) {
-        bail!("--host-exec needs --reserve-vram, --register-guest-ram and --host-rm (the guest's addresses must be the host's before anything runs on the physical GPU)");
+    if a.host_exec && !a.register_guest_ram {
+        bail!("--host-exec needs registered guest RAM, not --identity-dma-table (the guest's addresses must be the host's before anything runs on the physical GPU)");
     }
     Ok(a)
 }
