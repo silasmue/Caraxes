@@ -36,6 +36,7 @@ Target: driver 615.71.09 only (D19, D20); 610.57.04 appears as one "610 delta" b
 | [host-boost-2026-09-28.md](host-boost-2026-09-28.md) | The host card ran VM work at P8; what `PERF_BOOST` does in the RM (params, privilege, per-client hints, no cleanup on free); the device's activity-driven 3 s boost renewed at most every second, `CARAXES_HOST_BOOST=0`, and the A/B to measure |
 | [one-abi-binary-2026-09-28.md](one-abi-binary-2026-09-28.md) | One device binary for every guest ABI: what was compile time, host-side against guest-side layouts, the detection (RMARGS magic, first element's frame), the optional pin, the tests and the gate commands for nova, Linux 615 and Windows |
 | [vkmark-frame-2026-09-28.md](vkmark-frame-2026-09-28.md) | vkmark cube and clear per frame in a 615 guest: rings, interrupts and traps per frame; the 60 Hz window (vblank ISR holds every completion, the flip path's traps block the app) costs 20-28 %; the steady loop is interrupt-released; budget against native; five fixes ranked, and why the ratio is not SotTR's |
+| [display-balloon-2026-09-29.md](display-balloon-2026-09-29.md) | SotTR's NVKMS refusal in a full 4 GiB guest: v1's display balloon, where a 615 guest's sizes and Vulkan budget come from (all guest-kernel, PMA-derived except `fb_length`), why no device answer can reserve room for NVKMS, alternatives ranked, the recommended memacct application cap with its automatic size and test plan |
 
 ## Format of a note
 
