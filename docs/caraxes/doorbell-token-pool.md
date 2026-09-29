@@ -525,5 +525,7 @@ Checks:
   - Hot values: `0x1a` (GR chid 26, the CUDA probe, 201098 rings in P43), `0x1000f` (chid 15 on
     runlist 1, the KMD's paging CE, 38096 in C45), `0x70024` (NVENC chid 36).
   - Proposed set: `0,1,2,3,7:48` = 240 values (runlist 0 at positions 0-47, 1 at 48-95, ...);
-    worst matched position 239 (~6 us of KVM scan, still below a trapped ring's ~25 us).
+    worst matched position 239 (~6 us of KVM scan, measured 7.2 us at position 253 in (b)); a
+    trapped ring is an exit to the VMM (4.8 us in (b)) plus a vfio-user message and the device
+    loop.
 - **Status.** Built with a reactor test and parse tests; not run yet.
