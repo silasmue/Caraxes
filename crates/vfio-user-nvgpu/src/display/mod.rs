@@ -1755,6 +1755,11 @@ impl Display {
         self.read32(off)
     }
 
+    /// Whether the display interrupt line is asserted (the FE's status, engine.rs).
+    pub fn line(&self) -> bool {
+        self.enabled && self.engine.pending()
+    }
+
     /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`):
     /// the guest's reads of the status no longer trap, so the clock advances the engine
     /// (latches, notifiers, `LAST_DATA`, AWAKEN, the raise) and returns the trace's notes.

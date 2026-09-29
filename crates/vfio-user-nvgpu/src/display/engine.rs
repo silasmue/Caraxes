@@ -262,7 +262,9 @@ pub struct TickTiming {
 }
 
 /// What the display clock runs at a tick when the engine does not advance on reads.
-pub type Driver = dyn Fn() + Send + Sync;
+/// The display clock's driver (main.rs: the device's display tick): advances the engine
+/// to now and returns whether the display interrupt line is asserted afterwards.
+pub type Driver = dyn Fn() -> bool + Send + Sync;
 
 static TICKER: OnceLock<Arc<Ticker>> = OnceLock::new();
 
@@ -308,19 +310,29 @@ impl Ticker {
         }
     }
 
-    /// The tick's work: the driver first if there is one (the page is written), then the
-    /// raise, as the trapped path raises at every tick with work: a `LAST_DATA` the guest
-    /// left pending (vblank callbacks still queued) is serviced again at the next frame.
+    /// The tick's work. With a driver it advances the engine (the page is written) and the
+    /// vector is raised while the display's interrupt line is asserted, as the card's FE
+    /// raises its tree leaf: a `LAST_DATA` the guest left pending (vblank callbacks still
+    /// queued) is raised again at the next frame; a tick with nothing pending raises
+    /// nothing (a leaf pending without an FE cause is one the guest's display handler never
+    /// acknowledges: C64, a re-arm storm after an FLR). Without a driver the tick raises and
+    /// the guest's trapped status read advances the engine (`Display::read32_io`).
     fn fire(&self) {
         let d = self.driver.lock().unwrap().clone();
-        if let Some(d) = d {
-            self.driven.fetch_add(1, Ordering::Relaxed);
-            let t0 = now_ns();
-            d();
-            let us = now_ns().saturating_sub(t0) / 1000;
-            self.timing.lock().unwrap().driver.add(us);
+        let asserted = match d {
+            Some(d) => {
+                self.driven.fetch_add(1, Ordering::Relaxed);
+                let t0 = now_ns();
+                let asserted = d();
+                let us = now_ns().saturating_sub(t0) / 1000;
+                self.timing.lock().unwrap().driver.add(us);
+                asserted
+            }
+            None => true,
+        };
+        if asserted {
+            self.raise();
         }
-        self.raise();
     }
 
     /// The first raise the guest has not acknowledged yet ([`now_ns`]), taken.
@@ -1965,6 +1977,7 @@ mod tests {
         let c = n.clone();
         t.set_driver(Arc::new(move || {
             c.fetch_add(1, Ordering::Relaxed);
+            true
         }));
         t.set_head(0, 1_000_000, now_ns());
         t.set_vblank(0, true);
@@ -1976,5 +1989,39 @@ mod tests {
         }
         assert!(n.load(Ordering::Relaxed) >= 5);
         assert_eq!(t.driven.load(Ordering::Relaxed), n.load(Ordering::Relaxed));
+    }
+
+    /// With a driver, a tick raises the vector only while the display's interrupt line is
+    /// asserted after it (C64: a leaf raised with nothing pending in the FE was never
+    /// acknowledged, and every MSI re-arm sent it again).
+    #[test]
+    fn the_clock_raises_only_an_asserted_line() {
+        use std::sync::atomic::AtomicU64;
+        let intr = IntrShared::new();
+        let t = Arc::new(Ticker::default());
+        let asserted = Arc::new(AtomicBool::new(false));
+        let n = Arc::new(AtomicU64::new(0));
+        let (a, c) = (asserted.clone(), n.clone());
+        t.set_driver(Arc::new(move || {
+            c.fetch_add(1, Ordering::Relaxed);
+            a.load(Ordering::Relaxed)
+        }));
+        t.set_head(0, 1_000_000, now_ns());
+        t.set_want(0, true);
+        t.attach(intr.clone(), 76);
+        let wait_for = |k: u64| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while n.load(Ordering::Relaxed) < k && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            assert!(n.load(Ordering::Relaxed) >= k, "the clock did not tick");
+        };
+        wait_for(5);
+        assert_eq!(t.raised.load(Ordering::Relaxed), 0, "ticks with the line low raise nothing");
+        asserted.store(true, Ordering::Relaxed);
+        let k = n.load(Ordering::Relaxed);
+        wait_for(k + 3);
+        assert!(t.raised.load(Ordering::Relaxed) > 0, "an asserted line is raised");
+        t.set_want(0, false);
     }
 }

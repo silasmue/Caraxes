@@ -86,6 +86,16 @@ impl IntrShared {
         }
     }
 
+    /// Function-level reset: the vectors raised before it and not yet folded into the
+    /// tree (or read by the guest) go with the rest of the interrupt state. Returns the
+    /// vectors dropped, per leaf, for the trace.
+    pub fn reset_pending(&self) -> [u32; LEAVES] {
+        let _delivery = self.delivery.lock().unwrap();
+        self.page_raised.store(false, Ordering::SeqCst);
+        self.page_msi.store(false, Ordering::SeqCst);
+        std::array::from_fn(|i| self.pending[i].swap(0, Ordering::SeqCst))
+    }
+
     fn pending(&self) -> bool {
         self.pending
             .iter()
@@ -470,5 +480,21 @@ mod tests {
         shared.note("x".into());
         assert_eq!(shared.take_notes(), vec!["x".to_string()]);
         assert!(shared.take_notes().is_empty());
+    }
+
+    /// A function-level reset drops the vectors raised before it: after the reset the
+    /// guest's tree shows none of them (C64: a display raise from before the FLR).
+    #[test]
+    fn a_reset_drops_the_raised_vectors() {
+        let shared = IntrShared::new();
+        assert!(!shared.raise(6), "no MSI without an eventfd");
+        assert!(!shared.raise(40));
+        let dropped = shared.reset_pending();
+        assert_eq!(dropped[0], 1 << 6);
+        assert_eq!(dropped[1], 1 << 8);
+        assert!(!shared.pending());
+        let mut t = IntrTree::new(BASE, 0x1000).with_shared(shared.clone());
+        t.write32(BASE + LEAF_EN_SET, 1 << 6);
+        assert_eq!(t.read32(BASE + LEAF) & (1 << 6), 0);
     }
 }
