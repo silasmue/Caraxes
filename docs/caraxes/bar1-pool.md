@@ -562,7 +562,9 @@ lost).
   queue doorbell, the trapped BAR2 flush read, and every poll (every trapped BAR0 write the
   model takes; since 356dd4e4 not a write that lands in the config-space mirror, whose MSI
   re-arm orders nothing and held the device lock 570 times a second, sottr-stage.md §11; since
-  §11 the poll merges only after a flush point, the other polls only mark). The
+  §11 the poll merges only after a flush point, the other polls only mark; a write the
+  display page takes, the vblank handler's acks, three per flip, is served before the device
+  lock and runs no poll, f294c275, [vblank-path-2026-09-29.md](../research/vblank-path-2026-09-29.md)). The
   guest orders its table writes before the invalidate, so the shadow always walks the merged
   page. Doorbells are not sync points (cost); data written only through an aliased mapping
   reaches the GPU at the guest's next flush or invalidate.
