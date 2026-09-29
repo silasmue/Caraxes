@@ -401,6 +401,13 @@ pub struct Channel {
     /// src/nvidia/generated/g_kernel_channel_nvoc.h:199-202 of 615;
     /// kernel_channel.c:2786-2799), which GSP-RM creates under that id.
     pub internal_tsg_id: Option<u32>,
+    /// The privilege level the guest kernel gave the channel
+    /// (`NV_KERNELCHANNEL_ALLOC_INTERNALFLAGS_PRIVILEGE` 1:0 of `internalFlags`: USER 0,
+    /// ADMIN 1, KERNEL 2; 615 tree: src/nvidia/generated/g_kernel_channel_nvoc.h:173-176).
+    /// A GSP client passes it because GSP-RM cannot check the client itself (615 tree:
+    /// src/nvidia/src/kernel/gpu/fifo/kernel_channel.c:2767-2770): a kernel client's channels
+    /// are KERNEL, an admin (root) process's ADMIN, and both are PRIVILEGED_CHANNEL (:288-297).
+    pub alloc_privilege: u32,
     gp_get: u32,
     /// USERD GPPut as read at the channel's last doorbell on any path (software, shadow,
     /// mirror): the token-less ioeventfd doorbell path rings a channel only when the
@@ -1535,6 +1542,10 @@ impl Registry {
                     ))
                     .filter(|f| f & (1 << 24) != 0)
                     .map(|f| (f >> 8) & 0xFFFF),
+                    alloc_privilege: rd32(
+                        params,
+                        <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags,
+                    ) & 3,
                     gp_get: 0,
                     gp_put_seen: 0,
                     resume: None,
@@ -6349,6 +6360,21 @@ mod tests {
         assert_eq!(reg.tsg_id((1, 0x40)), Some(12));
         reg.record_free(1, 0x30);
         assert_eq!(reg.tsg_id((1, 0x30)), None);
+    }
+
+    /// The privilege level the guest kernel passes in the channel's internalFlags (1:0):
+    /// USER 0, ADMIN 1 (a root process), KERNEL 2 (the guest RM's own channels).
+    #[test]
+    fn the_channel_privilege_level_is_decoded() {
+        let mut reg = Registry::new(classes());
+        let f = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags;
+        for (chid, level) in [(3u32, 0u32), (4, 1), (5, 2)] {
+            let mut ch = channel_params(chid, 0x1000_0000, 0x20_0000 + u64::from(chid) * 0x1000, 0);
+            // With the internal TSG id bits set too: the level is bits 1:0 only.
+            ch[f..f + 4].copy_from_slice(&(level | 12 << 8 | 1 << 24).to_le_bytes());
+            reg.record_alloc(1, 0x10, 0x40 + chid, TURING_CHANNEL_GPFIFO_A, &ch).unwrap();
+            assert_eq!(reg.channel(chid).unwrap().alloc_privilege, level);
+        }
     }
 
     #[test]

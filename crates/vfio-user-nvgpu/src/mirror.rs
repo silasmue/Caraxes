@@ -193,10 +193,36 @@ fn needs_software_physical_ce(alloc_flags: u32, is_gr: bool) -> bool {
 /// 273-283), so on Windows the bit says nothing about the KMD's intent (run P31: the KMD's own
 /// NVENC channel ran in software, hit an NVENC method the CE model lacks, Xid 45 and a TDR).
 /// A privileged-only method on a mirrored video channel faults that channel only.
+///
+/// A copy channel of an admin client ([`admin_application_channel`]: a root process, CUDA in
+/// a container) is an application's channel too and is mirrored; only the guest kernel's own
+/// (KERNEL) channels stay in software.
 fn privileged_stays_in_software(reg: &Registry, ch: &Channel, gr0: u32, is_gr: bool) -> bool {
     needs_software_physical_ce(ch.alloc_flags, is_gr)
         && video_engine(ch.engine_type).is_none()
         && !application_copy_channel(reg, ch, gr0)
+        && !admin_application_channel(ch)
+}
+
+/// `NV_KERNELCHANNEL_ALLOC_INTERNALFLAGS_PRIVILEGE_ADMIN` (615 tree:
+/// src/nvidia/generated/g_kernel_channel_nvoc.h:175).
+const PRIVILEGE_ADMIN: u32 = 1;
+
+/// Whether a privileged channel is an admin (root) process's, not the guest kernel's: the
+/// guest RM sets PRIVILEGED_CHANNEL for a kernel-level client (privilege KERNEL) and for an
+/// admin one (`rmclientIsAdmin`: privilege ADMIN; 615 tree:
+/// src/nvidia/src/kernel/gpu/fifo/kernel_channel.c:288-297) and passes the level to GSP-RM as
+/// `internalFlags` PRIVILEGE (:2767-2770). The level is the RM's own and the same on every
+/// guest OS: a Windows KMD's channels, its paging and scrub channels among them, are a
+/// kernel-level client's (KERNEL) and keep their rules ([`application_copy_channel`], run
+/// P29). libcuda, libGL and the Vulkan driver address only by VA; the physical-mode
+/// page-table writes and scrubs are the guest RM's own (KERNEL) channels. Run census root of
+/// 2026-09-29 (docs/research/ctxcreate-2026-09-29.md): a root CUDA process's twelve copy
+/// channels ran in software at about 1.1 ms per push and 0.3 GB/s (d2h 16 MiB 55.6 ms
+/// against 1.35 ms as a user). A physical-mode method on such a channel's mirror faults that
+/// channel only ([`HOST_MIRROR_CHANNEL_FLAGS`]), as for Windows' application channels.
+fn admin_application_channel(ch: &Channel) -> bool {
+    ch.alloc_privilege == PRIVILEGE_ADMIN
 }
 
 /// `NVOS04_FLAGS_SKIP_CTXBUFFER_ALLOC` (bit 31): the Windows KMD allocates an application's GR
@@ -7457,6 +7483,36 @@ mod tests {
         assert!(!needs_software_physical_ce(DENY_PHYSICAL_CE, false));
         // The guest's X11 present CE channel of SotTR (allocation flags 0x202000).
         assert!(!needs_software_physical_ce(0x20_2000, false));
+    }
+
+    /// Run census root (2026-09-29): a root process's copy channels carry PRIVILEGED_CHANNEL
+    /// and internalFlags PRIVILEGE ADMIN; they are an application's and are mirrored. The
+    /// guest kernel's own (KERNEL) and a privileged channel of the USER level stay in
+    /// software. The level is the RM's, the same on every guest OS.
+    #[test]
+    fn an_admin_copy_channel_is_mirrored() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let gr0 = 1u32;
+        let mut reg = registry();
+        const PRIV: u32 = 1 << 5;
+        let f = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags;
+        let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags;
+        let e = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
+        for (chid, level) in [(10u32, 1u32), (11, 2), (12, 0)] {
+            let mut cp = channel_params(chid, None);
+            let flags = u32::from_le_bytes(cp[o..o + 4].try_into().unwrap()) | PRIV;
+            cp[o..o + 4].copy_from_slice(&flags.to_le_bytes());
+            cp[e..e + 4].copy_from_slice(&0x0cu32.to_le_bytes());
+            cp[f..f + 4].copy_from_slice(&level.to_le_bytes());
+            reg.record_alloc(0xc1d0_0020, 0x1, 0x40 + chid, chip.channel.gpfifo, &cp);
+        }
+        let software =
+            |c: u32| privileged_stays_in_software(&reg, reg.channel(c).unwrap(), gr0, false);
+        assert!(!software(10), "ADMIN: mirrored");
+        assert!(software(11), "the guest kernel's own channel: software");
+        assert!(software(12), "PRIVILEGED without an admin level: software");
+        assert!(admin_application_channel(reg.channel(10).unwrap()));
+        assert!(!admin_application_channel(reg.channel(11).unwrap()));
     }
 
     /// Run P29 (Windows): every channel is privileged. A copy channel on the VA space of an
