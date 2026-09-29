@@ -1,0 +1,15 @@
+dbbb96fdc464a02af2bab3c27e9678238de0ee11242fa7068163ee20342ac45b  /mnt/vmstore/caraxes/vfio-user-nvgpu-openrender-f7e9f4c7
+8f33f98d68733ffdf1c7bc9a2b5447038c81f5077e0f03d296f548b849cf0ef0  /mnt/vmstore/caraxes/nova-kernel/build/arch/x86/boot/bzImage
+b7651733ccade3a420b0c2c5f795b636c3442f0c40e99cd28680ed54ba8391fc  /mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+aae71348 runs: openrender vm10-boot5: nouveau 570 + NVK render on the device (R1-R5, R7 pass)
+CARAXES_BOOT_MODEL=1
+CARAXES_CPUS=2
+CARAXES_FB_MIB=1024
+CARAXES_GUEST_ABI=
+CARAXES_INITRD=none
+CARAXES_KERNEL=/mnt/vmstore/caraxes/nova-kernel/build/arch/x86/boot/bzImage
+CARAXES_MEM=1G
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-openrender-f7e9f4c7
+CARAXES_TAP=none
+CARAXES_VBIOS=/mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+VM=vm9

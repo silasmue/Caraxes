@@ -1,0 +1,104 @@
+[    0.000000] Linux version 7.2.7-nova (silas@manacor) (clang version 22.1.8, GNU ld (GNU Binutils) 2.47) #1 SMP PREEMPT_DYNAMIC Fri Sep 25 14:42:47 CEST 2026
+[    0.416686]   No soundcards found.
+[    0.983572] systemd[1]: kmod-static-nodes.service - Create List of Static Device Nodes was skipped because of an unmet condition check (ConditionFileNotEmpty=/lib/modules/7.2.7-nova/modules.devname).
+[[0;32m  OK  [0m] Started [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
+         Starting [0;1;39mcaraxes-check.service[0m - Caraxes nova boot check...
+CARAXES-CHECK begin 2026-09-29T06:40:13+00:00 7.2.7-nova
+00:04.0 VGA compatible controller [0300]: NVIDIA Corporation TU106 [GeForce RTX 2070] [10de:1f02] (rev a1)
+CARAXES-CHECK firmware
+CARAXES-CHECK probe 1
+modprobe nova_core rc=0
+[    0.000000] Linux version 7.2.7-nova (silas@manacor) (clang version 22.1.8, GNU ld (GNU Binutils) 2.47) #1 SMP PREEMPT_DYNAMIC Fri Sep 25 14:42:47 CEST 2026
+[    0.983572] systemd[1]: kmod-static-nodes.service - Create List of Static Device Nodes was skipped because of an unmet condition check (ConditionFileNotEmpty=/lib/modules/7.2.7-nova/modules.devname).
+[    4.168008] nova-core 0000:00:04.0: enabling device (0000 -> 0002)
+[    4.169559] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[    6.619550] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[    6.619675] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+CARAXES-CHECK drm
+modprobe nova_drm rc=0
+crw-rw----  1 root video 226, 0 Sep 29 06:40 card0
+/sys/class/drm/card0: DRIVER=nova-drm.nova-drm MODALIAS=auxiliary:nova-core.nova-drm 
+nova-drm dev=nova-core.nova-drm.0 unique=nova-core.nova-drm.0
+nova-drm dev=nova-core.nova-drm.0 unique=nova-core.nova-drm.0
+CARAXES-CHECK cycle 2 unbind/bind
+unbind rc=0
+bind rc=0
+[    0.983572] systemd[1]: kmod-static-nodes.service - Create List of Static Device Nodes was skipped because of an unmet condition check (ConditionFileNotEmpty=/lib/modules/7.2.7-nova/modules.devname).
+[    4.168008] nova-core 0000:00:04.0: enabling device (0000 -> 0002)
+[    4.169559] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[    6.619550] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[    6.619675] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[    9.638620] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.0 on minor 0
+[   10.655682] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   11.138979] nova-core 0000:00:04.0: GSP successfully unloaded
+[   13.141285] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   15.528787] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   15.528922] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[   15.529518] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.1 on minor 0
+CARAXES-CHECK cycle 3 unbind/bind
+unbind rc=0
+bind rc=0
+[   10.655682] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   11.138979] nova-core 0000:00:04.0: GSP successfully unloaded
+[   13.141285] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   15.528787] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   15.528922] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[   15.529518] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.1 on minor 0
+[   18.533975] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   19.046639] nova-core 0000:00:04.0: GSP successfully unloaded
+[   21.049171] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   23.388134] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   23.388282] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[   23.388641] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.2 on minor 0
+CARAXES-CHECK cycle 4 unbind/bind
+unbind rc=0
+bind rc=0
+[   18.533975] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   19.046639] nova-core 0000:00:04.0: GSP successfully unloaded
+[   21.049171] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   23.388134] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   23.388282] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[   23.388641] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.2 on minor 0
+[   26.431378] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   26.933426] nova-core 0000:00:04.0: GSP successfully unloaded
+[   28.935419] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   31.208509] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   31.208618] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[   31.208977] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.3 on minor 0
+CARAXES-CHECK reload
+rmmod rc=0
+modprobe nova_core rc=0
+CARAXES-CHECK dmesg-after
+[    0.000000] Linux version 7.2.7-nova (silas@manacor) (clang version 22.1.8, GNU ld (GNU Binutils) 2.47) #1 SMP PREEMPT_DYNAMIC Fri Sep 25 14:42:47 CEST 2026
+[    0.983572] systemd[1]: kmod-static-nodes.service - Create List of Static Device Nodes was skipped because of an unmet condition check (ConditionFileNotEmpty=/lib/modules/7.2.7-nova/modules.devname).
+[    4.168008] nova-core 0000:00:04.0: enabling device (0000 -> 0002)
+[    4.169559] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[    6.619550] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[    6.619675] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[    9.638620] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.0 on minor 0
+[   10.655682] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   11.138979] nova-core 0000:00:04.0: GSP successfully unloaded
+[   13.141285] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   15.528787] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   15.528922] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[   15.529518] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.1 on minor 0
+[   18.533975] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   19.046639] nova-core 0000:00:04.0: GSP successfully unloaded
+[   21.049171] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   23.388134] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   23.388282] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[   23.388641] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.2 on minor 0
+[   26.431378] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   26.933426] nova-core 0000:00:04.0: GSP successfully unloaded
+[   28.935419] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   31.208509] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   31.208618] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+[   31.208977] [drm] Initialized nova-drm 0.0.0 for nova-core.nova-drm.3 on minor 0
+[   34.235984] nova-core 0000:00:04.0: GSP message UnloadingGuestDriver has unprocessed data
+[   34.687783] nova-core 0000:00:04.0: GSP successfully unloaded
+[   34.693227] nova-core 0000:00:04.0: NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)
+[   36.882623] nova-core 0000:00:04.0: GSP message GspInitDone has unprocessed data
+[   36.882764] nova-core 0000:00:04.0: GPU name: Leandro VFIO RTX 2070-1G
+CARAXES-CHECK end
+M[K[[0;32m  OK  [0m] Finished [0;1;39mcaraxes-check.service[0m - Caraxes nova boot check.
+[[0;32m  OK  [0m] Stopped [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
