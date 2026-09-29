@@ -136,11 +136,12 @@ offset = 0x6E0
 name = "POSTCOMP_HEAD_HDR_CAPA(3)"
 value = 0x0053_0200
 # PRECOMP_WIN_PIPE_HDR_CAPA(w) = 0x780 + 32w: CSC00, CSC0LUT, CSC01, CSC10, CSC1LUT,
-# CSC11 (CSC11 is asserted on every flip, nvkms-evo3.c:1150); no TMO, no scaler.
+# CSC11 (CSC11 is asserted on every flip, nvkms-evo3.c:1150); TMO on the even windows as
+# captured (0x01D7_0000), no scaler.
 [[caps]]
 offset = 0x780
 name = "PRECOMP_WIN_PIPE_HDR_CAPA(0)"
-value = 0x01C7_0000
+value = 0x01D7_0000
 [[caps]]
 offset = 0x7A0
 name = "PRECOMP_WIN_PIPE_HDR_CAPA(1)"
@@ -148,7 +149,7 @@ value = 0x01C7_0000
 [[caps]]
 offset = 0x7C0
 name = "PRECOMP_WIN_PIPE_HDR_CAPA(2)"
-value = 0x01C7_0000
+value = 0x01D7_0000
 [[caps]]
 offset = 0x7E0
 name = "PRECOMP_WIN_PIPE_HDR_CAPA(3)"
@@ -156,7 +157,7 @@ value = 0x01C7_0000
 [[caps]]
 offset = 0x800
 name = "PRECOMP_WIN_PIPE_HDR_CAPA(4)"
-value = 0x01C7_0000
+value = 0x01D7_0000
 [[caps]]
 offset = 0x820
 name = "PRECOMP_WIN_PIPE_HDR_CAPA(5)"
@@ -164,8 +165,108 @@ value = 0x01C7_0000
 [[caps]]
 offset = 0x840
 name = "PRECOMP_WIN_PIPE_HDR_CAPA(6)"
-value = 0x01C7_0000
+value = 0x01D7_0000
 [[caps]]
 offset = 0x860
 name = "PRECOMP_WIN_PIPE_HDR_CAPA(7)"
 value = 0x01C7_0000
+
+# TMO resource geometry from the TU106 capture, no GMA bits (the Windows KMD's display
+# init needs it: P40, without it the KMD loops on 0x50700117 and unloads, Code 43).
+[[caps]]
+offset = 0x78c
+name = "PRECOMP_WIN_PIPE_HDR_CAPD(0)"
+value = 0x0000_016A
+
+# TMO resource geometry from the TU106 capture, no GMA bits (the Windows KMD's display
+# init needs it: P40, without it the KMD loops on 0x50700117 and unloads, Code 43).
+[[caps]]
+offset = 0x7cc
+name = "PRECOMP_WIN_PIPE_HDR_CAPD(2)"
+value = 0x0000_016A
+
+# TMO resource geometry from the TU106 capture, no GMA bits (the Windows KMD's display
+# init needs it: P40, without it the KMD loops on 0x50700117 and unloads, Code 43).
+[[caps]]
+offset = 0x80c
+name = "PRECOMP_WIN_PIPE_HDR_CAPD(4)"
+value = 0x0000_016A
+
+# TMO resource geometry from the TU106 capture, no GMA bits (the Windows KMD's display
+# init needs it: P40, without it the KMD loops on 0x50700117 and unloads, Code 43).
+[[caps]]
+offset = 0x84c
+name = "PRECOMP_WIN_PIPE_HDR_CAPD(6)"
+value = 0x0000_016A
+
+# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
+[[caps]]
+offset = 0x784
+name = "PRECOMP_WIN_PIPE_HDR_CAPB(0)"
+value = 0x0000_DA90
+
+# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
+[[caps]]
+offset = 0x7a4
+name = "PRECOMP_WIN_PIPE_HDR_CAPB(1)"
+value = 0x0000_DA90
+
+# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
+[[caps]]
+offset = 0x7c4
+name = "PRECOMP_WIN_PIPE_HDR_CAPB(2)"
+value = 0x0000_DA90
+
+# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
+[[caps]]
+offset = 0x7e4
+name = "PRECOMP_WIN_PIPE_HDR_CAPB(3)"
+value = 0x0000_DA90
+
+# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
+[[caps]]
+offset = 0x804
+name = "PRECOMP_WIN_PIPE_HDR_CAPB(4)"
+value = 0x0000_DA90
+
+# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
+[[caps]]
+offset = 0x824
+name = "PRECOMP_WIN_PIPE_HDR_CAPB(5)"
+value = 0x0000_DA90
+
+# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
+[[caps]]
+offset = 0x844
+name = "PRECOMP_WIN_PIPE_HDR_CAPB(6)"
+value = 0x0000_DA90
+
+# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
+[[caps]]
+offset = 0x864
+name = "PRECOMP_WIN_PIPE_HDR_CAPB(7)"
+value = 0x0000_DA90
+
+# OLUT geometry from the TU106 capture; the captured head-0 low-latency state bit omitted.
+[[caps]]
+offset = 0x684
+name = "POSTCOMP_HEAD_HDR_CAPB(0)"
+value = 0x0000_D680
+
+# OLUT geometry from the TU106 capture; the captured head-0 low-latency state bit omitted.
+[[caps]]
+offset = 0x6a4
+name = "POSTCOMP_HEAD_HDR_CAPB(1)"
+value = 0x0000_D680
+
+# OLUT geometry from the TU106 capture; the captured head-0 low-latency state bit omitted.
+[[caps]]
+offset = 0x6c4
+name = "POSTCOMP_HEAD_HDR_CAPB(2)"
+value = 0x0000_D680
+
+# OLUT geometry from the TU106 capture; the captured head-0 low-latency state bit omitted.
+[[caps]]
+offset = 0x6e4
+name = "POSTCOMP_HEAD_HDR_CAPB(3)"
+value = 0x0000_D680

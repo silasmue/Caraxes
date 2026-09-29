@@ -103,7 +103,8 @@ out: (b) ioeventfds from QEMU, (d) the usermode page as memory, (e) Windows unde
 
 - Order under QEMU, each a measured A/B on Windows (short kernel, PyTorch first step, smoke):
   1. BAR2 memfd: the largest trap class, one switch, known on Linux;
-  2. interrupt page: 17 of the 28 traps per interrupt;
+  2. interrupt page: 27 of the 28 traps per interrupt (the tree and BAR0 page 0 with
+     `PMC_INTR_EN`);
   3. the usermode page with a spinning reactor and the O(changed) scan: the doorbell.
 - (b) is the cheaper doorbell if a patched QEMU is acceptable: one KVM exit, no spinning core.
 - (e) brings all Linux windows at once (token pool, re-arm ioeventfd, interrupt and kick pages)
@@ -112,8 +113,12 @@ out: (b) ioeventfds from QEMU, (d) the usermode page as memory, (e) Windows unde
 ## Open
 
 - A census of the Windows desktop and a D3D workload (TIME reads, present path).
-- `PMC_INTR_EN` (BAR0 page 0, beside `NV_PMC_BOOT_0`) stays trapped with every window: 10 traps
-  per interrupt.
-- The launch-timing histogram "host doorbell to host event" puts every sample in its top bucket
-  on Windows (p10 = max = 15.8 s in P36): the events are not doorbell completions; fix the
-  attribution before using it for the split.
+- (Corrected 2026-09-29: `PMC_INTR_EN` lies in BAR0 page 0, which the interrupt page maps too.)
+- (Fixed in c6e651b1: the host-event histogram now times from the oldest unanswered host
+  doorbell, and trapped doorbells are rings of the chain.)
+
+## P37: the A/B under QEMU (2026-09-29, windows-findings.md "P37")
+
+- Arm 1 (BAR2 memfd): context setup twice as fast, steady-state rates 40 % lower.
+- Arm 2 (plus the interrupt page): TDRs from the first D3D11 device; not usable on Windows yet.
+- The usermode page needs the interrupt page's memfd and reactor: blocked with it.

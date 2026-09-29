@@ -304,12 +304,9 @@ impl BootModel {
             base,
             end,
         )));
-        // The device's private pages (devce.rs `PRIVATE_AT`) are no guest memory for BAR
-        // accesses either, as for the software CE and the shadow.
-        self.fb.set_private(Some((
-            end.saturating_sub(crate::devce::PRIVATE_AT).max(base),
-            end,
-        )));
+        // The device's private pages (the owned-GFXP slots and devce.rs `PRIVATE_AT`) are no
+        // guest memory for BAR accesses either, as for the software CE and the shadow.
+        self.fb.set_private(self.layout.private_ranges());
         let r = self.regs;
         self.intr = IntrTree::new(r.intr_tree, r.intr_tree_size).with_shared(shared.clone());
         self.ctrl.mirror = Some(Mirror::new(hm.clone(), shared.clone(), self.chip.data(), &self.layout)?);
@@ -725,6 +722,16 @@ impl BootModel {
                 if xid == crate::gspmem::XID_GR_EXCEPTION {
                     notes.extend(self.ctrl.gr_exception_postmortem(&gm, chid));
                 }
+                // Any RC of a GR channel (the Xid 109 CTX SWITCH TIMEOUT above all): the push
+                // the host fetched last, in the device log (preempt.rs step 0).
+                let gr0 = crate::ver::common::lookup(crate::ver::common::NV2080_ENGINE_TYPES, "GR0")
+                    .unwrap_or(1);
+                if eng == gr0 {
+                    if let Some(line) = self.ctrl.gr_rc_push_note(&gm, chid, xid) {
+                        eprintln!("vfio-user-nvgpu: {line}");
+                        notes.push(line);
+                    }
+                }
                 // RmLogonRC = 0: no Xid line (gspboot.rs, B3).
                 if self.registry.log_on_rc {
                     items.push(crate::events::Unsolicited::Event(
@@ -884,6 +891,10 @@ impl BootModel {
         }
         if let Some(m) = &self.ctrl.mirror {
             s.push(m.summary());
+            s.push(m.preemption_summary());
+        }
+        if let Some(p) = self.ctrl.channels.preemption_summary() {
+            s.push(p);
         }
         if let Some(p) = &self.ctrl.channels.tokens {
             s.push(p.summary());
@@ -1049,6 +1060,11 @@ impl BootModel {
         let mut notes = self.ctrl.doorbell_pool(&mut gm, token, false);
         notes.extend(self.scan_channel_errors(mem, false));
         notes
+    }
+
+    /// BAR0 offset of the usermode doorbell (`NOTIFY_CHANNEL_PENDING`).
+    pub fn usermode_doorbell(&self) -> u64 {
+        self.regs.usermode_doorbell
     }
 
     /// The first host doorbell write since the last call (ctrl.rs `host_doorbell_at`).
@@ -1606,13 +1622,24 @@ impl BootModel {
         }
     }
 
-    /// A doorbell the usermode page's reactor found (um_page.rs), or its watchdog
-    /// (`hint` None): every channel whose GPPut advanced is rung, as the token-less
-    /// ioeventfd path rings them. The watchdog first checks without the BAR2 sync that a
+    /// A doorbell the usermode page's reactor took (um_page.rs): the channel its value names
+    /// is rung, as a trapped write of the value would ring it. `hint` None is the reactor's
+    /// follow-up or watchdog scan: every channel whose GPPut advanced is rung, as the
+    /// token-less ioeventfd path rings them; it first checks without the BAR2 sync that a
     /// doorbell pays, and does nothing when no channel is pending. Returns the channels
     /// rung and the notes.
     pub fn doorbell_from_page(&mut self, mem: &GuestMemory, hint: Option<u32>) -> (usize, Vec<String>) {
-        if hint.is_none() {
+        if let Some(v) = hint {
+            self.bar2_doorbell_sync(mem);
+            let mut gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            let mut notes = self.ctrl.doorbell(&mut gm, v);
+            notes.extend(self.scan_channel_errors(mem, false));
+            return (1, notes);
+        }
+        {
             let gm = crate::channel::GpuMem {
                 fb: &mut self.fb,
                 sys: mem,
@@ -4151,7 +4178,7 @@ mod tests {
         let f = crate::fixture::rtx2070();
         let mut b = BootModel::new(f.chip, layout, f.identity(256 * MIB));
         let private = end - crate::devce::PRIVATE_AT;
-        b.fb.set_private(Some((private, end)));
+        b.fb.set_private(vec![(private, end)]);
         b.fb.write_u64(private, 0x1234_5678);
         let mem = GuestMemory::new();
         let (window, pramin) = (b.regs.bar0_window, b.regs.pramin);

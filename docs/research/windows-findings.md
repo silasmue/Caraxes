@@ -600,6 +600,91 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   the private pages, the shadow never waited for the registrar; device CE 114 pushes, 268 MiB.
 - The CUDA probe's trap census (profile dumps around it): windows-traps-exit-2026-09-29.md.
 
+## P37 (2026-09-29 03:47-04:26, the memory-window A/B under QEMU; slot 0, 4 GiB, Linux B off)
+
+- Binary c6e651b1 (dev 8644a81c plus the launch-timing fix); each arm: smoke, cuda-probe,
+  transformer and ResNet-18 60 s, NVENC vram; stopped cleanly, no host Xid in any arm.
+
+  | | arm 0: as now | arm 1: BAR2 memfd | arm 2: + interrupt page |
+  |---|---|---|---|
+  | smoke | PASS (73 s) | PASS (36 s) | FAIL: 3 TDRs, Basic Display |
+  | short kernel median | 75.6 us | 208.1 us | hung |
+  | transformer first step / rate | 12.9 s / 82336 tok/s | 4.8 s / 50668 | - |
+  | ResNet-18 first step / rate | 63.4 s / 371.8 img/s | 30.3 s / 207.1 | - |
+  | NVENC open / init | 6.0 / 4.8 s | 1.3 / 0.6 s | - |
+  | NVENC h264 / hevc | 119.8 / 138.4 fps | 61.5 / 68.2 | - |
+
+- The launch-timing split works on Windows now (arm 0): a trapped doorbell to its host doorbell
+  p50 11.9 us, 9.6 us of it the shadow USERD harvest (six uncached reads of the host USERD in
+  vidmem through BAR1; fixed off the submission path in 3d5dd954); host doorbell to the next
+  host event p50 78 us.
+- Arm 1: 7450 syncs (476 ms in all), 67 KiB written back; the guest's time from a host doorbell
+  to its next submission went from p50 7 to 50 us. Two explanations, tested in P38: the deferred
+  flush (a submission waits for a sync owed until the next hand-over or 1 ms), or GPU writes to
+  VRAM the KMD reads through BAR2, which the memfd shows stale (sampled drift check, 6d7db985).
+- Arm 2 (the interrupt page needs the token pool and a polling reactor): nvlddmkm event 153
+  three times, the KMD reset the GSP each time, Windows fell back to the Basic Display Adapter;
+  the page's retrigger watchdog sent 3898 MSIs besides 5705 for raises.
+- Open: the interrupt page on Windows. Hypothesis: the page shows `TAG` (bit 31) in every leaf
+  and in `TOP_EN_SET` so the reactor can see guest stores (intr_page.rs); the Linux RM masks
+  leaves with its enabled vectors, the 617 KMD may take bit 31 for a pending vector it can never
+  clear (the watchdog MSIs fit). Isolation owed: arm 1 plus the token pool and the hybrid
+  reactor without the page, and a trace of the leaf values and acks.
+- Memory model: independent of the VRAM layout.
+
+## P38 (2026-09-29 04:35-05:02, the harvest fix and the BAR2 memfd's loss; slot 0, 4 GiB)
+
+- Binary 6d7db985 (P17 diagnostic applied). No host Xid in any arm, smoke PASS in all.
+
+  | | a: as now | b: memfd, sync per flush read | c2: memfd, sync per doorbell |
+  |---|---|---|---|
+  | device side p50 (ring to host doorbell) | 7.0 us (P37: 11.9) | 8.2 us | 61.3 us |
+  | short kernel median | 68.6 us | 919 us | 226 us |
+  | transformer first / rate | 12.3 s / 86008 tok/s | 4.8 s / 53747 | 4.9 s / 45493 |
+  | ResNet-18 first / rate | 62.3 s / 374.6 img/s | 30.2 s / 223.9 | 31.7 s / 219.8 |
+  | NVENC h264 / hevc | 130.2 / 136.9 fps | 67.3 / 78.1 | 62.1 / 64.6 |
+  | VRAM behind the memfd | - | 0 of 543 | 0 of 3865 |
+
+- The harvest fix (3d5dd954): the USERD step 9.6 -> 4.5 us, device lock p99 120 -> 53 us,
+  launch + synchronize 462 -> 348 us.
+- The BAR2 memfd's steady-state loss is not the deferred flush (b), not GPU writes the memfd
+  shows stale (drift 0), and not submission data written through BAR2 (c2: 278067 doorbell
+  syncs found 1877 dirty pages in all). The device's share per ring is unchanged; the guest's
+  time from a host doorbell to its next submission grows by about 40 us. Cause open; the memfd
+  stays off for Windows.
+- Memory model: independent of the VRAM layout.
+
+## P39 (2026-09-29 05:03-05:06, P39-plain: the production binary, no diagnostic patch)
+
+- Binary 888b17af (win-2026-09-29b on dev a48e54cf) built without diagnostic.patch: no P17 BIND
+  handling, no first-use gate, no pool acknowledgement. Every gate since P17 carried that patch.
+- Result: Windows does not start the driver: Device Manager Code 43, nvidia-smi exit 9, D3D11,
+  D3D12, Vulkan and CUDA (`CUDA_ERROR_NO_DEVICE`) fail; no TDR, no host Xid, clean teardown.
+- Cause in the trace: at 15.0 s the KMD asks `GR_GFX_POOL_QUERY_SIZE` (0x2080121f); dev refuses
+  it (ctrl.rs `control_inner`: "host GFXP pool is not implemented", NOT_SUPPORTED); 0.4 s later
+  the KMD unloads (GMCAPI `GSP_SUSPEND`, gsp reset 3). No host GR context was built, so the
+  preemption-mode log had nothing to read.
+- Consequence: the Windows path needs the pool bootstrap answered and the BIND handled (P17's
+  owned GFXP today; the productization proposal carves the buffers from the VM's slice).
+- Memory model: the GFXP buffers' placement depends on it (host vidmem today, the VM's slice
+  proposed).
+
+## P40-P42 (2026-09-29 05:38-05:57): the production binary without the diagnostic patch
+
+- P40 (owned GFXP in the slice, the pool answered, no patch): the pool query passes; the KMD then
+  loops on 5070 control 0x50700117 (116 times, 2 in P38-a) with ~7 s waits and unloads (Code 43).
+  The missing piece was the patch's display caps.
+- P41 (plus the captured TU106 TMO/ILUT/OLUT caps in chips/tu106/display.toml, 9d021744): the first
+  production binary that runs Windows. Smoke all PASS, 0 TDR, no host Xid; CUDA short kernel
+  53.7 us median; transformer 85854 tokens/s (first step 12.5 s); NVENC 98.9 / 131.5 fps.
+  - Compute parity works on Windows: its SETs (CILP_SET, CTA) are bound after the build.
+  - GFXP stayed WFI on every 3D TSG: the slot VA 2^48 lay outside the 2^47 shadow VA space (0x1a).
+- P42 (slot VAs at 2^47 in a 2^48 shadow VA space): GFXP bound (GET gfxp 1 at build), then host Xid
+  31 HUBCLIENT_SCC_NB FAULT_PDE VIRT_WRITE at the slot VAs with bit 47 dropped (0x610000 = slot 0's
+  RTV buffer) on Windows and Linux B: the context switch hardware keeps these pointers in 47 bits.
+  Reverted (1c581554); GFXP buffer VAs must lie below 2^47, open (gr-preemption-2026-09-29.md).
+- Memory model: the slots are part of the VM's reservation (54 MiB at 4 GiB).
+
 ## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
 
 - **Before (all builds up to 70614b41's parent):** the top of the reservation holds device-owned

@@ -380,11 +380,11 @@ pub fn build_static_info(
     let space = layout.addr_space;
     let reserved_end = layout.reservation.map_or(space, |(_, end)| end);
     let (usable_start, usable_end, rsvd_start, source) = match (layout.usable(), wpr) {
-        (Some((b, e)), _) if layout.pool > 0 => (
+        (Some((b, e)), _) if layout.pool > 0 || layout.gfxp > 0 => (
             b,
             e,
             e,
-            "reservation (host VRAM fixed allocation; usable = reservation minus the carve-out and the BAR1 pool below it, docs/caraxes/bar1-pool.md)",
+            "reservation (host VRAM fixed allocation; usable = reservation minus the carve-out, the BAR1 pool and the owned-GFXP slots below it, docs/caraxes/bar1-pool.md, gfxpslot.rs)",
         ),
         (Some((b, e)), _) => (
             b,

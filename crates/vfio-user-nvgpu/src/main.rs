@@ -867,6 +867,34 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 .map_err(anyhow::Error::msg)?;
             layout = layout.with_pool(len).map_err(anyhow::Error::msg)?;
         }
+        // Owned GFXP in the VM's slice (gfxpslot.rs): slots for the host GR contexts' preemption
+        // buffers, carved from the usable FB before the static info is built. Without them
+        // every host GR context stays in graphics WFI (one WARN). Off (`gfxpslot::ENABLED`)
+        // until the buffers have a VA design: no carve-out, the usable FB as before.
+        if a.host_exec && vfio_user_nvgpu::gfxpslot::ENABLED {
+            use vfio_user_nvgpu::gfxpslot;
+            let slots = gfxpslot::host_geometry(&h).and_then(|g| {
+                let n = gfxpslot::count_for(layout.profile);
+                let bytes = gfxpslot::carve_bytes(&g, n);
+                layout.with_gfxp(bytes).map(|l| (l, g, n, bytes))
+            });
+            match slots {
+                Ok((l, g, n, bytes)) => {
+                    layout = l;
+                    let (lo, hi) = layout.gfxp_range().expect("just carved");
+                    eprintln!(
+                        "vfio-user-nvgpu: gfxp slots: {n} x {:#x} bytes at [{lo:#x}, {hi:#x}) of the reservation: {} MiB of the slice ({:.1} % of the profile), reported reserved, device-private; buffers mapped at VAs from {:#x} (docs/research/gr-preemption-2026-09-29.md)",
+                        g.slot,
+                        bytes >> 20,
+                        bytes as f64 * 100.0 / layout.profile as f64,
+                        gfxpslot::SLOT_VA_BASE
+                    );
+                }
+                Err(e) => eprintln!(
+                    "vfio-user-nvgpu: WARNING gfxp slots: none ({e}); every host GR context stays in graphics WFI"
+                ),
+            }
+        }
         eprintln!(
             "vfio-user-nvgpu: fb layout: address space {:#x} (host card), reservation [{:#x}, {:#x}), usable [{:#x}, {:#x}), BAR2/BAR1 roots {:#x}/{:#x}, fb_length {:#x}",
             layout.addr_space,
@@ -1458,9 +1486,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 h.with_usermode(
                     u.clone(),
                     Arc::new(move |hint| {
-                        d.lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .doorbell_from_page(hint)
+                        // A doorbell the page's reactor took is a ring of the launch chain
+                        // (launch.rs), from the take to the host doorbell.
+                        if hint.is_some() {
+                            vfio_user_nvgpu::launch::begin(std::time::Instant::now(), false);
+                        }
+                        let mut dev = d.lock().unwrap_or_else(PoisonError::into_inner);
+                        vfio_user_nvgpu::launch::mark(vfio_user_nvgpu::launch::Step::Lock);
+                        let rung = dev.doorbell_from_page(hint);
+                        drop(dev);
+                        vfio_user_nvgpu::launch::end();
+                        rung
                     }),
                 )
             }
