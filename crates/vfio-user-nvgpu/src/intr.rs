@@ -53,6 +53,33 @@ pub struct IntrShared {
     direct: OnceLock<Weak<crate::intr_page::IntrPage>>,
     /// Raises the direct completion folded on the raising thread.
     pub direct_scans: AtomicU64,
+    /// Per vector of leaves 0 and 1 (the engines' non-stall vectors among them): raises,
+    /// the raises that found the vector idle, the guest's acks of it, raises dropped while
+    /// muted (intr_page.rs), and the time from the raise that made it pending to the ack
+    /// (docs/research/windows-findings.md, the NVENC async timeout).
+    vec: Vectors,
+    epoch: OnceLock<std::time::Instant>,
+}
+
+/// [`VectorStats`] of vectors 0-63.
+struct Vectors([VectorStats; 64]);
+
+impl Default for Vectors {
+    fn default() -> Self {
+        Vectors(std::array::from_fn(|_| VectorStats::default()))
+    }
+}
+
+/// One vector's counters ([`IntrShared::vector_summary`]).
+#[derive(Default)]
+struct VectorStats {
+    raised: AtomicU64,
+    fresh: AtomicU64,
+    acked: AtomicU64,
+    muted: AtomicU64,
+    pending_since_ns: AtomicU64,
+    ack_ns: AtomicU64,
+    ack_max_ns: AtomicU64,
 }
 
 impl IntrShared {
@@ -115,6 +142,7 @@ impl IntrShared {
         let leaf = (vector / 32) as usize;
         self.raised.fetch_add(1, Ordering::Relaxed);
         crate::profile::window("interrupts: vector raises", 0);
+        self.note_raise(vector);
         if leaf < LEAVES {
             let bit = 1u32 << (vector % 32);
             if self.pending[leaf].fetch_or(bit, Ordering::SeqCst) & bit != 0 {
@@ -145,6 +173,87 @@ impl IntrShared {
             return true;
         }
         self.signal_msi_locked()
+    }
+
+    fn now_ns(&self) -> u64 {
+        self.epoch.get_or_init(std::time::Instant::now).elapsed().as_nanos() as u64
+    }
+
+    /// A raise of `vector` (before it is folded anywhere): counted, and its pending time
+    /// starts when the vector was not waiting for an ack already.
+    fn note_raise(&self, vector: u32) {
+        let Some(v) = self.vec.0.get(vector as usize) else { return };
+        v.raised.fetch_add(1, Ordering::Relaxed);
+        if v.pending_since_ns.load(Ordering::Acquire) == 0 {
+            v.fresh.fetch_add(1, Ordering::Relaxed);
+            v.pending_since_ns.store(self.now_ns().max(1), Ordering::Release);
+        }
+    }
+
+    /// The guest acknowledged (wrote 1 to clear) the bits `mask` of leaf `leaf`: counted per
+    /// vector with the time since the raise that made it pending.
+    pub fn note_ack(&self, leaf: usize, mask: u32) {
+        if leaf >= 2 || mask == 0 {
+            return;
+        }
+        let now = self.now_ns();
+        for b in (0..32).filter(|b| mask & (1 << b) != 0) {
+            let v = &self.vec.0[leaf * 32 + b];
+            let since = v.pending_since_ns.swap(0, Ordering::AcqRel);
+            if since != 0 {
+                let d = now.saturating_sub(since);
+                v.acked.fetch_add(1, Ordering::Relaxed);
+                v.ack_ns.fetch_add(d, Ordering::Relaxed);
+                v.ack_max_ns.fetch_max(d, Ordering::Relaxed);
+            }
+        }
+    }
+
+    /// Raises of the bits `mask` of leaf `leaf` dropped while muted (intr_page.rs): their
+    /// pending time ends without an ack.
+    pub fn note_muted(&self, leaf: usize, mask: u32) {
+        if leaf >= 2 {
+            return;
+        }
+        for b in (0..32).filter(|b| mask & (1 << b) != 0) {
+            let v = &self.vec.0[leaf * 32 + b];
+            v.muted.fetch_add(1, Ordering::Relaxed);
+            v.pending_since_ns.store(0, Ordering::Release);
+        }
+    }
+
+    /// The exit summary's line: every vector raised, with its acks and ack times; a vector
+    /// the guest never acknowledges is one its interrupt handler does not service.
+    pub fn vector_summary(&self) -> Option<String> {
+        let parts: Vec<String> = self
+            .vec
+            .0
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| v.raised.load(Ordering::Relaxed) > 0)
+            .map(|(i, v)| {
+                let acked = v.acked.load(Ordering::Relaxed);
+                format!(
+                    "{i}: {} raise(s), {} from idle, {} ack(s) (mean {} us, max {} us){}{}",
+                    v.raised.load(Ordering::Relaxed),
+                    v.fresh.load(Ordering::Relaxed),
+                    acked,
+                    v.ack_ns.load(Ordering::Relaxed) / acked.max(1) / 1000,
+                    v.ack_max_ns.load(Ordering::Relaxed) / 1000,
+                    match v.muted.load(Ordering::Relaxed) {
+                        0 => String::new(),
+                        n => format!(", {n} dropped while muted"),
+                    },
+                    if v.pending_since_ns.load(Ordering::Relaxed) != 0 { ", pending now" } else { "" }
+                )
+            })
+            .collect();
+        (!parts.is_empty()).then(|| {
+            format!(
+                "interrupt vectors by the guest's acks (0-3 GSP/FIFO/TMR, 4 GR0, 5-7 CE2-CE4, 8 NVDEC0, 9 NVENC0, 32+ leaf 1): {}",
+                parts.join("; ")
+            )
+        })
     }
 
     /// Hand raises to the interrupt page's reactor from now on: `wake` is an eventfd in
@@ -311,7 +420,11 @@ impl IntrTree {
         let note = match r {
             o if (LEAF..LEAF + 4 * LEAVES as u64).contains(&o) => {
                 // Write 1 to clear.
-                self.leaf[((o - LEAF) / 4) as usize] &= !v;
+                let i = ((o - LEAF) / 4) as usize;
+                if let Some(s) = &self.shared {
+                    s.note_ack(i, v & self.leaf[i]);
+                }
+                self.leaf[i] &= !v;
                 None
             }
             o if (LEAF_EN_SET..LEAF_EN_SET + 4 * LEAVES as u64).contains(&o) => {
@@ -352,6 +465,26 @@ impl IntrTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The per-vector counters (the NVENC async timeout, windows-findings.md): a raise that
+    /// finds the vector idle starts its pending time, a second raise before the ack does not,
+    /// the guest's ack ends it; a vector the guest never acknowledges shows raises and no ack.
+    #[test]
+    fn vectors_count_raises_and_the_guests_acks() {
+        let s = IntrShared::new();
+        assert!(s.vector_summary().is_none());
+        s.raise(9);
+        s.raise(9);
+        s.raise(4);
+        s.note_ack(0, 1 << 9);
+        s.raise(9);
+        let l = s.vector_summary().unwrap();
+        assert!(l.contains("4: 1 raise(s), 1 from idle, 0 ack(s)"), "{l}");
+        assert!(l.contains("9: 3 raise(s), 2 from idle, 1 ack(s)"), "{l}");
+        assert!(l.contains("pending now"), "{l}");
+        s.note_muted(0, 1 << 9);
+        assert!(s.vector_summary().unwrap().contains("1 dropped while muted"));
+    }
     use std::io::Read;
 
     const BASE: u64 = 0x00B8_1000;

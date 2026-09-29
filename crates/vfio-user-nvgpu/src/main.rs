@@ -448,12 +448,17 @@ fn spawn_soak_thread(
                     continue;
                 }
                 next += every;
-                let counts = device
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .soak_counts();
+                let (counts, vectors) = {
+                    let d = device.lock().unwrap_or_else(PoisonError::into_inner);
+                    (d.soak_counts(), d.vector_summary())
+                };
                 let label = format!("{}s", every.as_secs());
                 eprintln!("vfio-user-nvgpu: {}", soak_line(&label, counts, hm.as_ref()));
+                // Which interrupt vectors the guest services (the NVENC async timeout,
+                // windows-findings.md): live, not only at exit.
+                if let Some(v) = vectors {
+                    eprintln!("vfio-user-nvgpu: {v}");
+                }
             }
         })
         .ok()
