@@ -17,7 +17,9 @@
 # -silent and the game directly through Steam's scout run.sh (Steam's shader-cache prompt blocks
 # steam://rungameid; without the runtime the game lacks libopenal), the host's
 # free VRAM is logged and the run stops below 200 MiB, and the game is ended after the result to
-# log the VRAM that stays in use.
+# log the VRAM that stays in use. SOTTR_DMEM_RESERVE_MIB=<n> (with DMEM_CAP=on) sets
+# DISPLAY_RESERVE_MIB=<n> in the guest's /etc/caraxes/dmem-cap.conf for this run (a tagged line,
+# removed at the end).
 # Usage: sottr-bench-6g.sh OUT BINARY   (SOTTR_RES, SOTTR_MAX_S as in sottr-bench.sh)
 set -uo pipefail
 OUT=$1 BIN=$2
@@ -34,13 +36,14 @@ NIGHT_SERVER=$BIN NIGHT_FB_MIB=${SOTTR_FB_MIB:-6144} NIGHT_VRAM_FLOOR_MIB=${SOTT
     || { log "up failed"; tail -5 "$OUT/up.txt"; exit 1; }
 timeout 240 "$W" wait 200 >> "$OUT/up.txt" 2>&1
 log "vm up"
-T=200 gssh "DMEM_CAP=$CAP bash -s" > "$OUT/guest-prep.txt" <<'G'
+T=200 gssh "DMEM_CAP=$CAP DMEM_R=${SOTTR_DMEM_RESERVE_MIB:-} bash -s" > "$OUT/guest-prep.txt" <<'G'
 sudo ip route replace default via 192.168.106.1 dev eth0 && sudo resolvectl dns eth0 192.168.188.1 && sudo resolvectl domain eth0 "~."
 sudo modprobe nvidia && sudo modprobe nvidia_modeset && sudo modprobe nvidia_drm modeset=1 && echo modules-ok
 bash ~/caraxes-guest/display-up.sh >/dev/null 2>&1; sudo systemctl start gdm3; sleep 12
 export XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 systemctl --user start app-dev.lizardbyte.app.Sunshine.service; sleep 6
 echo "sunshine: $(systemctl --user is-active app-dev.lizardbyte.app.Sunshine.service) $(cat /proc/$(pgrep -x sunshine | head -1)/cgroup 2>/dev/null)"
+if [ -n "$DMEM_R" ]; then sudo mkdir -p /etc/caraxes; sudo touch /etc/caraxes/dmem-cap.conf; sudo sed -i '/# sottr-bench$/d' /etc/caraxes/dmem-cap.conf; echo "DISPLAY_RESERVE_MIB=$DMEM_R # sottr-bench" | sudo tee -a /etc/caraxes/dmem-cap.conf; fi
 if [ "$DMEM_CAP" = on ]; then systemctl --user restart caraxes-dmem-cap.service; else systemctl --user stop caraxes-dmem-cap.service; fi
 echo "caraxes-dmem-cap ($DMEM_CAP): $(systemctl --user is-active caraxes-dmem-cap.service)"
 journalctl --user -u caraxes-dmem-cap.service -b --no-pager -o cat | tail -n 6
@@ -148,3 +151,4 @@ log "result: $(grep -m1 'Average FPS' "$OUT/benchmark-result.txt" | tr -s ' \t' 
 T=60 gssh 'G=Shadow; G="${G}OfTheTombRaider"; p=$(pgrep -f "bin/$G" | head -1); [ -n "$p" ] && kill $p; sleep 25; echo "after the game: $(tail -1 /tmp/sottr-mon.log)"' >> "$OUT/timeline.txt"
 kill "$MP" 2>/dev/null; log "moonlight stopped"
 T=60 gssh 'P="$HOME/.local/share/feral-interactive/Shadow of the Tomb Raider/preferences"; cp "$P" "$P.after-sottr-bench"; cp "$P.before-sottr-bench" "$P"; sync; echo restored' >> "$OUT/timeline.txt"
+T=60 gssh "sudo sed -i '/# sottr-bench\$/d' /etc/caraxes/dmem-cap.conf 2>/dev/null; echo conf-restored" >> "$OUT/timeline.txt"
