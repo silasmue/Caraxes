@@ -87,6 +87,8 @@ const C_HEAD_STRIDE: u32 = 0x400;
 const C_HEAD_PIXEL_CLOCK: u32 = 0x0C;
 const C_HEAD_VIEWPORT_SIZE_IN: u32 = 0x4C;
 const C_HEAD_RASTER_SIZE: u32 = 0x64;
+const C_HEAD_RASTER_BLANK_END: u32 = 0x6C;
+const C_HEAD_RASTER_BLANK_START: u32 = 0x70;
 const C_HEAD_OLUT_CONTROL: u32 = 0x280;
 const C_HEAD_CONTEXT_DMA_OLUT: u32 = 0x288;
 
@@ -579,6 +581,14 @@ pub struct Head {
     pub olut: (u32, u32),
     /// Modesets (activations or period changes) of this head.
     pub modesets: u32,
+    /// The raster's vertical blank: the line where the active region ends
+    /// (`HEAD_SET_RASTER_BLANK_START` Y) and where it begins (`HEAD_SET_RASTER_BLANK_END` Y),
+    /// clc57d.h; 0 when unknown.
+    pub vblank_start: u32,
+    pub vblank_end: u32,
+    /// `SET_GET_BLANKING_CTRL`: the head's output is blanked (core channel PIO register,
+    /// clc57d.h:291-297).
+    pub blanked: bool,
     /// Tick-rate report: ticks and time at the last report.
     report: (u64, u64),
 }
@@ -759,6 +769,63 @@ impl Engine {
         }
         let into = (now.saturating_sub(head.t0_ns)) % head.period_ns;
         (into * head.vtotal as u64 / head.period_ns) as u32
+    }
+
+    /// Whether `line` of head `h` lies in the vertical blank: before the raster's
+    /// `BLANK_END` Y or from its `BLANK_START` Y on (clc57d.h `HEAD_SET_RASTER_BLANK_*`);
+    /// without them, from the viewport's height on. A head without a raster scans out no
+    /// active line, so it counts as in the blank (a wait for it ends).
+    pub fn in_vblank(&self, h: usize, line: u32) -> bool {
+        let Some(hd) = self.heads.get(h) else {
+            return false;
+        };
+        if !hd.active {
+            return true;
+        }
+        if hd.vblank_start > hd.vblank_end {
+            line < hd.vblank_end || line >= hd.vblank_start
+        } else {
+            line >= hd.height
+        }
+    }
+
+    /// `GET_RG_SCAN_LINE(b)` (core channel PIO, clc57d.h:285-289): LINE 15:0 the raster
+    /// generator's current line, VBLANK 16:16 whether it lies in the vertical blank.
+    pub fn rg_scan_line(&self, h: usize, now: u64) -> u32 {
+        let line = self.scanline(h, now);
+        (line & 0xFFFF) | ((self.in_vblank(h, line) as u32) << 16)
+    }
+
+    /// A write to `SET_GET_BLANKING_CTRL(b)` (core channel PIO, clc57d.h:291-297): BLANK
+    /// 0:0 and UNBLANK 1:1, each NO_CHANGE (0) or ENABLE (1), a request encoding. The model
+    /// carries a request out at once (there are no pixels to blank), BLANK before UNBLANK,
+    /// so a read-back finds none pending ([`Self::blanking_ctrl`]). Returns the trace note.
+    pub fn set_blanking_ctrl(&mut self, h: usize, v: u32) -> String {
+        let Some(hd) = self.heads.get_mut(h) else {
+            return format!("display: SET_GET_BLANKING_CTRL({h}) {v:#x}: no such head, dropped");
+        };
+        let was = hd.blanked;
+        if v & 1 != 0 {
+            hd.blanked = true;
+        }
+        if v & 2 != 0 {
+            hd.blanked = false;
+        }
+        format!(
+            "display: head {h} SET_GET_BLANKING_CTRL {v:#x}: {} [guest]",
+            match (was, hd.blanked) {
+                (false, true) => "blanked",
+                (true, false) => "unblanked",
+                (true, true) => "stays blanked",
+                (false, false) => "stays unblanked",
+            }
+        )
+    }
+
+    /// A read of `SET_GET_BLANKING_CTRL(b)`: the requests still pending, NO_CHANGE in both
+    /// fields, since the model carries each out when it is written.
+    pub fn blanking_ctrl(&self, _h: usize) -> u32 {
+        0
     }
 
     // ---- registers
@@ -1106,6 +1173,8 @@ impl Engine {
                 hd.vtotal = vtotal;
                 hd.width = vp & 0x7FFF;
                 hd.height = (vp >> 16) & 0x7FFF;
+                hd.vblank_end = (get(base + C_HEAD_RASTER_BLANK_END) >> 16) & 0x7FFF;
+                hd.vblank_start = (get(base + C_HEAD_RASTER_BLANK_START) >> 16) & 0x7FFF;
                 hd.t0_ns = now;
                 hd.ticks = 0;
                 hd.report = (0, now);
@@ -1247,13 +1316,14 @@ impl Engine {
             .filter(|(_, h)| h.active || h.modesets > 0)
             .map(|(i, h)| {
                 format!(
-                    "head {i}: {} {}x{} {:.3} Hz, {} ticks, {} modesets",
+                    "head {i}: {} {}x{} {:.3} Hz, {} ticks, {} modesets{}",
                     if h.active { "active" } else { "off" },
                     h.width,
                     h.height,
                     h.hz(),
                     h.ticks,
-                    h.modesets
+                    h.modesets,
+                    if h.blanked { ", blanked" } else { "" }
                 )
             })
             .collect();

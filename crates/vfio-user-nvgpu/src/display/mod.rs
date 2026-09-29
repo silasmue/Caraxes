@@ -50,6 +50,10 @@ pub const NV_PDISP_VGA_WORKSPACE_BASE: u64 = 0x0062_5F04;
 pub const NV_PDISP_FE_SW: u64 = 0x0064_0000;
 pub const CAPS_PAGE_SIZE: u64 = 0x1000;
 pub const CORE_USERD: u64 = 0x0068_0000;
+/// The core channel's PIO registers in its user page (clc57d.h:285-297): `GET_RG_SCAN_LINE(b)`
+/// at 0x220 and `SET_GET_BLANKING_CTRL(b)` at 0x240, one word per head.
+pub const CORE_GET_RG_SCAN_LINE: u64 = 0x220;
+pub const CORE_SET_GET_BLANKING_CTRL: u64 = 0x240;
 pub const CORE_ARMED: u64 = 0x0068_8000;
 pub const WIN_USERD: u64 = 0x0069_0000;
 pub const CURSOR_USERD: u64 = 0x006D_8000;
@@ -1609,6 +1613,14 @@ impl Display {
                     _ => {}
                 }
             }
+            if base == CORE_USERD {
+                if let Some(h) = core_pio_head(rel, CORE_GET_RG_SCAN_LINE, self.engine.heads.len()) {
+                    return Some(self.engine.rg_scan_line(h, engine::now_ns()));
+                }
+                if let Some(h) = core_pio_head(rel, CORE_SET_GET_BLANKING_CTRL, self.engine.heads.len()) {
+                    return Some(self.engine.blanking_ctrl(h));
+                }
+            }
             if base >= CURSOR_USERD && rel == CURSOR_FREE {
                 return Some(CURSOR_FREE_ENTRIES);
             }
@@ -1697,6 +1709,17 @@ impl Display {
             return None;
         }
         let (base, rel) = page_of(off);
+        if base == CORE_USERD {
+            let heads = self.engine.heads.len();
+            if core_pio_head(rel, CORE_GET_RG_SCAN_LINE, heads).is_some() {
+                return Some(vec![format!(
+                    "display: write {v:#x} to GET_RG_SCAN_LINE at {off:#x} (read-only) dropped [guest]"
+                )]);
+            }
+            if let Some(h) = core_pio_head(rel, CORE_SET_GET_BLANKING_CTRL, heads) {
+                return Some(vec![self.engine.set_blanking_ctrl(h, v)]);
+            }
+        }
         if rel == 0 && base < CURSOR_USERD {
             if let Some(mut ch) = self.channels.get(&base).copied() {
                 ch.put = v;
@@ -1906,6 +1929,12 @@ impl Display {
     pub fn take_notes(&mut self) -> Vec<String> {
         std::mem::take(&mut self.notes)
     }
+}
+
+/// The head of a core PIO register array at `base` (one word per head) that `rel` names,
+/// if `rel` lies in it and the head exists.
+fn core_pio_head(rel: u64, base: u64, heads: usize) -> Option<usize> {
+    (rel >= base && rel < base + 4 * heads as u64 && rel % 4 == 0).then(|| ((rel - base) / 4) as usize)
 }
 
 /// The page and offset within it of a USERD access.

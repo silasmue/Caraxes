@@ -689,3 +689,45 @@ fn a_page_kick_is_the_trapped_kick() {
     assert_eq!(disp.read32(w6 + 4), Some(16));
     assert_eq!(disp.channels[&w6].kicks, 1);
 }
+
+/// The core channel's PIO registers (clc57d.h:285-297): SET_GET_BLANKING_CTRL takes a
+/// request (BLANK 0:0, UNBLANK 1:1, NO_CHANGE or ENABLE) that the model carries out at once,
+/// so the read-back shows none pending (the Windows KMD writes BLANK at its modeset and reads
+/// it back); GET_RG_SCAN_LINE gives the raster line and the VBLANK bit and ignores writes.
+#[test]
+fn core_pio_blanking_and_scan_line() {
+    let mut disp = display();
+    let mut fb = FakeFb::new(1 << 20);
+    let mem = GuestMemory::new();
+    let blank = CORE_USERD + CORE_SET_GET_BLANKING_CTRL;
+    let n = disp.write32(blank, 0x1, &mem, &mut fb).unwrap();
+    assert!(n[0].contains("head 0 SET_GET_BLANKING_CTRL 0x1: blanked"), "{n:?}");
+    assert!(disp.engine.heads[0].blanked);
+    assert_eq!(disp.read32(blank), Some(0), "no request pending after the write");
+    let n = disp.write32(blank, 0x2, &mem, &mut fb).unwrap();
+    assert!(n[0].contains("unblanked"), "{n:?}");
+    assert!(!disp.engine.heads[0].blanked);
+    let n = disp.write32(blank + 4, 0x3, &mem, &mut fb).unwrap();
+    assert!(n[0].contains("head 1") && n[0].contains("stays unblanked"), "BLANK then UNBLANK: {n:?}");
+    // A head beyond the chip's four: not a PIO register, latched as before.
+    assert_eq!(disp.write32(blank + 16, 0x1, &mem, &mut fb), Some(Vec::new()));
+    // An idle head: line 0, in the blank; an active one: a line below vtotal, VBLANK set
+    // outside [BLANK_END.Y, BLANK_START.Y) = [40, 1120).
+    let scan = CORE_USERD + CORE_GET_RG_SCAN_LINE;
+    assert_eq!(disp.read32(scan), Some(1 << 16));
+    let mut armed = BTreeMap::new();
+    armed.insert(0x300, 0x1 | (8 << 8));
+    armed.insert(0x2000 + 0x64, 2200 | (1125 << 16));
+    armed.insert(0x2000 + 0x6C, 191 | (40 << 16));
+    armed.insert(0x2000 + 0x70, 2111 | (1120 << 16));
+    armed.insert(0x2000 + 0x0C, 148_500_000);
+    armed.insert(0x2000 + 0x4C, 1920 | (1080 << 16));
+    disp.engine.core_update(&armed, engine::now_ns(), &mut fb, &mem);
+    let v = disp.read32(scan).unwrap();
+    let line = v & 0xFFFF;
+    assert!(line < 1125, "{v:#x}");
+    assert_eq!(v >> 16 & 1 == 1, !(40..1120).contains(&line), "{v:#x}");
+    assert!(disp.engine.in_vblank(0, 10) && disp.engine.in_vblank(0, 1121) && !disp.engine.in_vblank(0, 500));
+    let n = disp.write32(scan, 0x5, &mem, &mut fb).unwrap();
+    assert!(n[0].contains("read-only"), "{n:?}");
+}
