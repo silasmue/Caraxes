@@ -126,10 +126,51 @@ Isolation:
 - Measured (P40-P42): 2^48 is outside the 2^47 shadow VA space (0x1a, every TSG WFI); at 2^47
   in a 2^48 shadow VA space the BIND succeeds but the context switch faults at the VAs with bit 47
   dropped (host Xid 31, HUBCLIENT_SCC_NB): GFXP buffer VAs must lie below 2^47. Reverted to WFI.
-- Open: a structurally guest-free VA range below 2^47. Candidates: the guest's server-RM range
-  [4 GiB, 4.5 GiB), which the guest reserves for its GSP (this device), but where a base-0 shadow
-  VA space has the host's own server-RM range; the host RM's own GFXP buffers (SET GFXP without
-  pointers), outside the slice, ~6.6 MiB per context.
+- Open: a structurally guest-free VA range below 2^47; the options are in the next section.
+
+## GFXP buffer VAs: the options for the user (2026-09-29)
+
+Requirement (P42, both guests): the five buffers need VAs below 2^47 in the TSG's shadow VA
+space, in a range no guest leaf can take. At 2^47 the BIND took (GET gfxp 1) and the first switch
+wrote to the VA with bit 47 dropped: host Xid 31 HUBCLIENT_SCC_NB FAULT_PDE VIRT_WRITE at 0x610000
+(slot 0's RTV buffer) [windows-findings.md, P40-P42]. Guests use both ends: Linux UMD leaves up to
+near 2^47 (0x7ffc...), Windows pushbuffers at 0x10000-0x13000.
+
+- **(a) The guest's server-RM range [4 GiB, 4.5 GiB): ruled out.**
+  - The guest keeps it for its GSP, i.e. this device, so no guest leaf lands there.
+  - But the host RM reserves the same range in every shadow VA space: as a GSP client it sets
+    `vaStartServerRMOwned = min(vaLimitInternal - 512 MiB + 1, 4 GiB)`, and `vasStart + 4 GiB`
+    only if vasStart lies above that [615 tree: src/nvidia/src/kernel/mem_mgr/gpu_vaspace.c:397-420].
+    Our host client cannot allocate there.
+  - Moving it does not help:
+    - a lower vaLimitInternal (RESTRICTED_RM_INTERNAL_VALIMITS, gpu_vaspace.c:1119-1126) pushes
+      it below 4 GiB, onto 32-bit guest VAs;
+    - a vaBase above 4 GiB puts it at vaBase + 4 GiB but makes every guest leaf below vaBase
+      unmirrorable (the Windows pushbuffers).
+  - Confidence 0.9.
+- **(d) The host RM's own buffers (GFXP SET without pointers): weaker than assumed.**
+  - P14 showed only the mode bit: SET1 without buffers gave NV_OK and GET 1; no graphics switch
+    ran afterwards [windows-deferred-context-2026-09-28.md, P14].
+  - The open kernel RM never allocates the per-context buffers (preempt, spill, betacb,
+    pagepool, rtv); it only unmaps and frees them [kernel_graphics_context.c:2358-2364,
+    2867-2881]. NVIDIA's vGPU guest allocates and BINDs them itself [vgpu/rpc.c:3603-3812].
+  - The SET goes to GSP-RM (ROUTE_TO_PHYSICAL). Its heap is fixed at boot at 48 KiB per
+    channel [inc/kernel/gpu/gsp/gsp_fw_heap.h:71], so 6.6 MiB per context does not fit there.
+  - Most likely a pointer-free GFXP runs without buffers: the first graphics switch writes to
+    unmapped VAs (host Xid 31). Confidence 0.65; GSP-RM is closed.
+  - To know, one test with your go: a pointer-free SET1 on a mirrored 3D TSG, then a forced
+    switch (the test plan's long draw beside host vkcube). Cost: possibly one host Xid 31 or 109
+    and a ~4 s host desktop freeze.
+  - If it works: structurally guest-free (host server range); host memory outside the slice,
+    ~6.6 MiB per GR context, needs a per-VM cap (8 contexts = 53 MiB, then WFI and a WARN)
+    counted against the host VRAM floor. If it sits in GSP-RM's heap, that heap is host-wide
+    and the cap must be much smaller.
+- **(c) Host first fit per TSG (P17's way), buffers from the slice.** Windows: lands above the
+  F2b fence, 20 runs without a collision. Linux needs a fence too. A later guest leaf on those VAs
+  is refused by name and counted, not prevented: not structural.
+- **(e) Windows only: the KMD's own pool VAs** (its GFXP_POOL BIND). Guest-allocated, safe while
+  bound; Linux has no pool.
+- Until decided: P43 (no carve-out, graphics WFI, compute CTA/CILP parity on both guests).
 
 ## Test plan
 
