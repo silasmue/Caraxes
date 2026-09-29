@@ -1597,6 +1597,11 @@ impl Device {
 
     /// The device model's side of the soak line (soak.rs): the mirror's maps, the FB
     /// store's windows and the cached walks.
+    /// The interrupt vectors' raises and the guest's acks (intr.rs `vector_summary`).
+    pub fn vector_summary(&self) -> Option<String> {
+        self.intr.as_ref().and_then(|i| i.vector_summary())
+    }
+
     pub fn soak_counts(&self) -> crate::soak::DeviceCounts {
         let mut c = crate::soak::DeviceCounts::default();
         if let Some(b) = self.bar0.boot() {
@@ -2030,6 +2035,10 @@ impl Device {
             }
             s.push_str(&b.fast().summary());
             s.push('\n');
+            if let Some(l) = self.intr.as_ref().and_then(|i| i.vector_summary()) {
+                s.push_str(&l);
+                s.push('\n');
+            }
             if let Some(l) = b.fb.bar1_pool_summary() {
                 s.push_str(&l);
                 s.push('\n');

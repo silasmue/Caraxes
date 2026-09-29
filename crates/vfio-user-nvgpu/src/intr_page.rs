@@ -772,6 +772,7 @@ impl IntrPage {
         let (mut rearm, mut rearm_by_set, mut acked) = (false, false, false);
         match i {
             Some(i) if i < W_EN_SET => {
+                self.shared.note_ack(i, v & st.model.leaf[i]);
                 st.model.leaf[i] &= !v;
                 acked = true;
                 bump(&self.stats.acks);
@@ -954,6 +955,7 @@ impl IntrPage {
                         self.odd(&mut st, Odd::TagInLeaf);
                     }
                     let mask = v & !TAG;
+                    self.shared.note_ack(i, mask & st.model.leaf[i]);
                     st.model.leaf[i] &= !mask;
                     acked = true;
                     bump(&self.stats.acks);
@@ -1001,6 +1003,7 @@ impl IntrPage {
                 let mut p = self.shared.take_pending(i) & !TAG;
                 // Withdrawn host hints (`rearm`): dropped while muted.
                 if p & st.muted[i] != 0 {
+                    self.shared.note_muted(i, p & st.muted[i]);
                     p &= !st.muted[i];
                     bump(&self.stats.muted_raises);
                 }
