@@ -1,0 +1,27 @@
+modules: ok
+RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+desktop: WAYLAND_DISPLAY=wayland-0 gnome-shell=2 Xwayland=0
+display: connected 1920x1080
+Leandro VFIO RTX 2070-1G, 615.71.09, 1024 MiB
+vkcube-wayland rc=124
+vkcube-x11 rc=124
+glmark2 [build] duration=10: FPS: 1 FrameTime: 5690.556 ms
+vkcomp: device Leandro VFIO RTX 2070-1G
+vkcomp: device created fam=2 in 0.41 s
+vkcomp rc=124
+cuwork: START wall=1790654164.952 pid=2363
+cuwork: context in 0.36 s
+cuwork rc=124
+ENC frames=300 bytes=5274082 seconds=1.537 fps=195.2 fill_ms_total=790 lat_us_med=2272 lat_us_p99=3874 lat_us_max=4712 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=1.831 fps=163.9 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+vkcube-x11 beside NVENC holder rc=0
+holder RESULT PASS
+sunshine: active
+guest Xid: 6
+[  106.892593] NVRM: Xid (PCI:0000:00:06): 31, pid=2218, name=glmark2-wayland, Caraxes: channel 3 (engine type 0x1) error, info16 0x1 (host mirror)
+[  208.265017] NVRM: Xid (PCI:0000:00:06): 31, pid=2128, name=Xwayland, Caraxes: channel 6 (engine type 0x1) error, info16 0x1 (host mirror)
+[  231.814941] NVRM: Xid (PCI:0000:00:06): 31, pid=2409, name=sunshine, Caraxes: channel 3 (engine type 0x1) error, info16 0x1 (host mirror)
+SCRUB loops=30 size_mib=300 total_s=10.82 worst_loop_s=0.76
+vkcube-during-scrub rc=0
+guest Xid: 6

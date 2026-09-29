@@ -291,3 +291,18 @@ The production candidate, with no diagnostic patch:
 - **Compute parity works.** Desktop GR TSGs get "guest SET compute CTA (1) … bound" at build, and CTA again at teardown. The CUDA TSG (grpID 27) had no SET at build (host default gfxp 0, cilp 0 = WFI); its SET came later, the device idled the TSG and bound CILP, and teardown shows cilp 2.
 - **GFXP did not bind on Linux:** "WARNING gfxp: tsg grpID N stays in graphics WFI: GFXP VA 0x1000000000000: 0x1a" for every graphics TSG. The host refuses the fixed VA 2^48 in the shadow VAS. The fix is with the Windows agent (slot VAs inside the host VAS range, outside anything the guest can map).
 - **Windows P40:** the pool query is answered, and the next blocker is the display caps (Code 43 after 116 loops on 5070 control 0x50700117). P41 carries the captured TU106 TMO/ILUT/OLUT caps for every guest.
+
+## P41, P42: Windows without the diagnostic patch, and the GFXP VA limit
+
+- **P41** (gfxp-2026-09-29 f8a450b8 = P40 plus the captured TU106 display caps, productized for every guest; no patch): **the production binary runs Windows.**
+  - D3D11 and smoke ALL PASS, 0 TDR; CUDA 53.7 µs, 12.9/13.1 GB/s; transformer 85854 tok/s; NVENC 99 / 132 fps.
+  - Compute parity works on Windows too (SET CILP_SET compute CTA → bound after an idle).
+  - GFXP stayed WFI (the 2^48 VA was refused).
+- **P42** (the slot VA window at 2^47, shadow VAS 2^48): GFXP bound (step 0 read gfxp 1 at build). Then host **Xid 31 HUBCLIENT_SCC_NB FAULT_PDE VIRT_WRITE** on both devices, at the slot VAs with bit 47 dropped.
+  - The context-switch unit keeps 47 VA bits, so GFXP buffer VAs must be below 2^47, inside the guest's range.
+  - The Linux B smoke with P42 (`smoke-p42/`): 6 guest Xid 31 (glmark2, Xwayland, sunshine), vkcube timeouts, glmark2 1 FPS.
+  - Reverted (1c581554).
+- **Safe production state:** P41 (Windows without the patch, compute CTA/CILP parity, graphics WFI). P43 = P41 without the unused slot carve-out is the production candidate for the next gate.
+- **Open design question for the user:** where GFXP buffers can live structurally guest-free below 2^47.
+  - (a) The guest's own server-RM range [4 GiB, 4.5 GiB), which needs an RM-source check.
+  - (d) Buffers allocated by the host RM in its server range: host VRAM outside the slice, ~6.6 MiB per GR context, capped per VM.
