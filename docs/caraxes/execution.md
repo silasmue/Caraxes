@@ -632,6 +632,8 @@ clock's per-tick work takes the display engine's lock and never D.
   starts). No access passes a doorbell the guest wrote before it, as on PCIe, where a read
   or write does not pass a posted write. The card promises no more: a doorbell only makes the GPU
   fetch the new entries eventually.
+- A/B switch for the Windows guest: `CARAXES_POSTED_DOORBELL=0` traps the doorbell under D as
+  before (default on; to be removed once proven on every guest).
 - Counted: the exit summary's `posted doorbells` line (writes, joined, rung by the completer or by
   a later access, queue time mean and max, deepest queue); the profile's "posted doorbell: posted
   to rung" and "posted doorbell: rung (device time)"; the D holders "posted doorbells" and the
@@ -685,6 +687,8 @@ clock's per-tick work takes the display engine's lock and never D.
     active head (from `Head::t0_ns`, `ticks` and `period_ns`), published after every catch-up:
     a read at `now` below it needs no catch-up.
 - These reads take D:
+  - every one of them with `CARAXES_FAST_READS=0` (A/B switch for the Windows guest, default
+    on; to be removed once proven on every guest);
   - TRIGGER while a BAR1 pool batch runs (its slices continue at those reads);
   - a register the trace writes a line for (`CARAXES_TRACE_ACCESSES`, per kind: TRIGGER, the
     flush page, PTIMER, the usermode time; a BAR0 range without them keeps them off D);
