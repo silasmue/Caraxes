@@ -913,20 +913,29 @@ drsv3-on-2-profile.*.tsv, benchmark-window-20s-device.md); Windows C57-C59b (§1
   spent, and parks the rest.
 - The guest polls TRIGGER before it uses the mapping (RM `kgmmuCheckPendingInvalidates_TU102`,
   nouveau `tu102_vmm_flush`). Each trapped read of it runs the next slice; TRIGGER reads busy
-  until the batch is done, beside the held invalidate's gate (invgate.rs). A wait for a job in
-  flight is at most `WAIT_SLICE` (50 us) per read.
+  until the batch is done, beside the held invalidate's gate (invgate.rs).
+- No poll waits for the worker longer than `WAIT_SLICE` (50 us) under the device lock
+  (`Pace`): a job in flight that covers a page to move leaves the batch for the next poll (a
+  trigger read, any sync point). The one exception is the invalidate page
+  (`CARAXES_INVALIDATE_PAGE=1`): the reactor clears TRIGGER when the poll returns, so that poll
+  finishes everything, as the page's held invalidate already waits under the lock.
 - Between two slices the device lock is free and the pool is consistent: each move is one copy
   and one remap switch under the lock; releases run before installs; an install the guest took
   back, or a release it re-lived, is skipped; replicas are made once their area page is free
   (an evicted table page's in the same hold).
 - A batch pending blocks new decisions only: the next poll continues it first and decides what
   changed afterwards, in the same hold. A sync point outside an invalidate, the invalidate page
-  (`CARAXES_INVALIDATE_PAGE=1`, trigger cleared by the reactor) and a batch older than
-  `BATCH_FALLBACK` (1 s, inside RM's 4 s and nouveau's 2 s poll) run everything at once.
-- The copies themselves stay under the lock: a copy on another thread would need a page state
-  "in transit" that every device path (FB store, BAR2 memfd, software executor, device CE,
-  display) respects. The slices bound each hold instead; with the lazy move back (§13) fewer
-  copies are left.
+  and a batch older than `BATCH_FALLBACK` (1 s, inside RM's 4 s and nouveau's 2 s poll) run all
+  moves at once; the wait for a job in flight stays bounded (a worker stuck past the guest's
+  poll shows as the guest's invalidate timeout, not as a stalled vCPU).
+- Still under the device lock: the warm path (preempt, re-sync, worker drain; 24 times in the
+  SotTR session, never on Windows) and the copies of each slice. Next (after the lockfree
+  work's held rings, execution.md §9): the warm path as held rings plus worker jobs, and the
+  copies on a pool thread with pages in transit behind a pool lock (device lock, then pool).
+- The copies themselves stay under the lock for now: a copy on another thread needs a page
+  state "in transit" that every device path (FB store, BAR2 memfd, software executor, device
+  CE, display) respects. The slices bound each hold; with the lazy move back (§13) fewer copies
+  are left.
 
 **Counters.**
 - Exit summary, after §13's: `lock holds: B batch(es) in more than one hold (P hold(s) left the
@@ -942,7 +951,7 @@ dropped leaf),
 `bar1pool::tests::a_page_a_plan_in_flight_took_out_of_a_walk_waits_for_that_plan_only`,
 `a_sliced_batch_moves_a_chunk_per_hold_and_the_pool_is_consistent_between_holds`,
 `a_batch_asks_the_gpu_again_when_a_shadow_job_was_submitted_between_holds`,
-`a_batch_pending_past_the_fallback_completes_at_once`.
+`a_batch_pending_past_the_fallback_moves_everything_but_never_waits_to_the_end`.
 
 **What decides it works.** SotTR Linux: `slowest poll` and the polls over 2 ms against
 gpu-exit-on-2.log (441 ms, 9779), `W wait(s) for a shadow job in flight` small against the polls

@@ -1329,7 +1329,9 @@ impl Device {
         // gate's KMS readback read an empty pool page (series F, G and H). The offset is the
         // trigger word's, as for the trapped write (`BootModel::pool_merge_after`).
         let offset = self.bar0.boot().map_or(0, |b| b.mmu_invalidate_register());
-        self.after_bar0_write(true, offset);
+        // The reactor clears TRIGGER in the page when this returns: the pool finishes here,
+        // waits for the worker included, as the page's held invalidate does.
+        self.after_bar0_write_in(true, offset, crate::bar1pool::Pace::ALL);
     }
 
     /// The display kick page's reactor found a `PUT` change (display/chan_page.rs,
@@ -1495,7 +1497,7 @@ impl ServerBackend for Device {
                 if let Some(b) = self.bar0.boot_mut() {
                     if offset == b.mmu_invalidate_register() {
                         let t0 = std::time::Instant::now();
-                        if crate::bar1pool::continue_model(b, &self.mem, Some(crate::bar1pool::POOL_SLICE)) {
+                        if crate::bar1pool::continue_model(b, &self.mem, crate::bar1pool::Pace::SLICED) {
                             polled = Some(t0.elapsed());
                         }
                     }
@@ -1594,12 +1596,12 @@ impl ServerBackend for Device {
             // A trapped write of the MMU invalidate registers: the guest polls the trigger
             // before it uses a new BAR1 mapping, so the pool's moves may run in slices
             // behind it (docs/caraxes/bar1-pool.md §14).
-            let budget = self
-                .bar0
-                .boot()
-                .filter(|b| b.is_mmu_invalidate_register(offset))
-                .map(|_| crate::bar1pool::POOL_SLICE);
-            self.after_bar0_write_in(sync_point, offset, budget);
+            let pace = if self.bar0.boot().is_some_and(|b| b.is_mmu_invalidate_register(offset)) {
+                crate::bar1pool::Pace::SLICED
+            } else {
+                crate::bar1pool::Pace::NO_WAIT
+            };
+            self.after_bar0_write_in(sync_point, offset, pace);
         } else {
             self.after_write();
         }
@@ -1754,12 +1756,13 @@ impl Device {
     /// (`BootModel::pool_merge_after`, docs/caraxes/bar1-pool.md §11); a poll over
     /// [`SLOW_POOL_POLL`] is traced with its breakdown.
     fn after_bar0_write(&mut self, sync_point: bool, offset: u64) {
-        self.after_bar0_write_in(sync_point, offset, None);
+        self.after_bar0_write_in(sync_point, offset, crate::bar1pool::Pace::NO_WAIT);
     }
 
-    /// [`Self::after_bar0_write`]; `budget`: the BAR1 pool may leave moves for the guest's
-    /// reads of the invalidate trigger (bar1pool.rs `poll_sliced`, bar1-pool.md §14).
-    fn after_bar0_write_in(&mut self, sync_point: bool, offset: u64, budget: Option<std::time::Duration>) {
+    /// [`Self::after_bar0_write`] at the BAR1 pool's `pace`: whether it may leave moves for
+    /// the guest's reads of the invalidate trigger and how long it may wait for the shadow
+    /// worker (bar1pool.rs `poll_sliced`, bar1-pool.md §14).
+    fn after_bar0_write_in(&mut self, sync_point: bool, offset: u64, pace: crate::bar1pool::Pace) {
         if sync_point {
             // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
             // mapping and before it uses the mapping.
@@ -1771,7 +1774,7 @@ impl Device {
                 if b.fb.bar1_pool().is_some() {
                     let merge = b.pool_merge_after(offset);
                     let t0 = std::time::Instant::now();
-                    crate::bar1pool::poll_model(b, &self.mem, merge, budget);
+                    crate::bar1pool::poll_model(b, &self.mem, merge, pace);
                     self.after_pool_poll("write", offset, t0.elapsed());
                 }
             }

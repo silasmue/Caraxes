@@ -1312,12 +1312,7 @@ impl PoolGpu for MirrorGpu<'_> {
 /// flushes and invalidates through BAR0 after it changes a BAR1 mapping and before it uses
 /// the mapping. `merge`: the write is a flush point, the replicas are merged
 /// ([`poll_at`], `BootModel::pool_merge_after`). Returns whether a poll ran.
-pub fn poll_model(
-    b: &mut crate::boot::BootModel,
-    mem: &GuestMemory,
-    merge: bool,
-    budget: Option<Duration>,
-) -> bool {
+pub fn poll_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, merge: bool, pace: Pace) -> bool {
     if b.fb.bar1_pool().is_none() {
         return false;
     }
@@ -1332,9 +1327,9 @@ pub fn poll_model(
                 reg,
                 sys: mem,
             };
-            poll_sliced(&mut b.fb, &mut gpu, merge, budget)
+            poll_sliced(&mut b.fb, &mut gpu, merge, pace)
         }
-        None => poll_sliced(&mut b.fb, &mut NoGpu, merge, budget),
+        None => poll_sliced(&mut b.fb, &mut NoGpu, merge, pace),
     };
     // The pool emptied (a guest context went away): the counters so far, once per context,
     // for a loop of workloads to read per iteration (docs/caraxes/bar1-pool.md §9).
@@ -1350,11 +1345,11 @@ pub fn poll_model(
 /// A read of the invalidate trigger with a batch pending (§14, device.rs): its next chunk,
 /// and once it is done, what the guest changed meanwhile. Returns whether a batch was
 /// pending.
-pub fn continue_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, budget: Option<Duration>) -> bool {
+pub fn continue_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, pace: Pace) -> bool {
     if !b.fb.pool_mut().as_ref().is_some_and(|p| p.batch_pending()) {
         return false;
     }
-    poll_model(b, mem, false, budget);
+    poll_model(b, mem, false, pace);
     true
 }
 
@@ -1602,16 +1597,43 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
 /// - A page that is a mirrored channel's USERD is refused before the GPU references are
 ///   taken (no wait for the shadow worker, no leaf scan of every shadow root).
 pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
-    poll_sliced(fb, gpu, merge, None)
+    poll_sliced(fb, gpu, merge, Pace::ALL)
 }
 
-/// [`poll_at`] with a budget (§14): the moves run in chunks until `budget` is spent, the
-/// rest at the next polls ([`continue_model`] at the guest's reads of the invalidate
-/// trigger, which report busy meanwhile). A shadow job in flight that may still map a page
-/// to move is waited for at most [`WAIT_SLICE`] per poll. `None`: everything now, as
-/// [`poll_at`]. A batch still pending is continued first; nothing new is decided before it
-/// is done.
-pub fn poll_sliced(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool, budget: Option<Duration>) -> bool {
+/// How a poll may spend its hold of the device lock (§14).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pace {
+    /// The moves run until this is spent (a chunk at least), the rest at the next polls;
+    /// `None`: all now.
+    pub budget: Option<Duration>,
+    /// A shadow job in flight that may still map a page to move is waited for at most this
+    /// long per poll, then the batch waits for the next poll; `None`: to the end.
+    pub wait: Option<Duration>,
+}
+
+impl Pace {
+    /// Everything now, waits included: [`poll_at`] and the invalidate page, whose trigger
+    /// the reactor clears when the poll returns.
+    pub const ALL: Pace = Pace { budget: None, wait: None };
+    /// A trapped sync point outside an invalidate: every move now, no wait for the worker
+    /// beyond [`WAIT_SLICE`].
+    pub const NO_WAIT: Pace = Pace {
+        budget: None,
+        wait: Some(WAIT_SLICE),
+    };
+    /// A trapped write of the invalidate registers and a read of its trigger.
+    pub const SLICED: Pace = Pace {
+        budget: Some(POOL_SLICE),
+        wait: Some(WAIT_SLICE),
+    };
+}
+
+/// [`poll_at`] with a pace (§14): the moves run in chunks until the budget is spent, the rest
+/// at the next polls ([`continue_model`] at the guest's reads of the invalidate trigger,
+/// which report busy meanwhile); a shadow job in flight that may still map a page to move is
+/// waited for as long as the pace allows, then at the next polls. A batch still pending is
+/// continued first; nothing new is decided before it is done.
+pub fn poll_sliced(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool, pace: Pace) -> bool {
     let t0 = Instant::now();
     let mut bd = PollBreakdown {
         merge,
@@ -1622,7 +1644,7 @@ pub fn poll_sliced(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool, budget: 
     // A batch an earlier poll decided: its next chunks first.
     let parked = fb.pool_mut().as_mut().and_then(|p| p.batch.take());
     if let Some(mut b) = parked {
-        if !run_batch(fb, gpu, &mut b, budget) {
+        if !run_batch(fb, gpu, &mut b, pace) {
             park(fb, b, t0);
             return true;
         }
@@ -1930,7 +1952,7 @@ pub fn poll_sliced(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool, budget: 
         slices: 0,
         bd,
     });
-    if run_batch(fb, gpu, &mut b, budget) {
+    if run_batch(fb, gpu, &mut b, pace) {
         settle(fb, *b, t0);
     } else {
         park(fb, b, t0);
@@ -1945,10 +1967,12 @@ pub const POOL_SLICE: Duration = Duration::from_micros(500);
 /// Pages per chunk of a sliced batch: one GPU check (when a shadow job was submitted since
 /// the last), one barrier if a page of it is mapped by a shadow, the moves.
 const CHUNK: usize = 16;
-/// A batch pending this long completes at its next continuation, whatever the budget: well
-/// inside the guest's poll of the trigger (4 s in RM, 2 s in nouveau).
+/// A batch pending this long runs all its moves at its next continuation, whatever the
+/// budget, well inside the guest's poll of the trigger (4 s in RM, 2 s in nouveau). A wait
+/// for a shadow job in flight stays bounded by the pace: the device lock is never held
+/// waiting for the worker (execution.md §9).
 pub const BATCH_FALLBACK: Duration = crate::invgate::FALLBACK;
-/// How long one continuation waits under the lock for a shadow job the batch waits for.
+/// How long one poll waits under the lock for a shadow job the batch waits for.
 pub const WAIT_SLICE: Duration = crate::invgate::POLL_WAIT;
 
 /// What holds a page of a batch on the GPU side (from [`PoolGpu::userd_refs`] and
@@ -1992,16 +2016,16 @@ pub struct Batch {
     bd: PollBreakdown,
 }
 
-/// Run what is left of batch `b`: with `budget`, until it is spent (a chunk at least);
-/// whether the batch is done.
-fn run_batch(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, b: &mut Batch, budget: Option<Duration>) -> bool {
+/// Run what is left of batch `b` at `pace`: with a budget, until it is spent (a chunk at
+/// least); whether the batch is done.
+fn run_batch(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, b: &mut Batch, pace: Pace) -> bool {
     let t = Instant::now();
-    let budget = budget.filter(|_| b.since.elapsed() < BATCH_FALLBACK);
+    let budget = pace.budget.filter(|_| b.since.elapsed() < BATCH_FALLBACK);
     b.slices += 1;
     while !b.ops.is_empty() {
         if let Some(s) = b.wait {
             let tw = Instant::now();
-            let applied = gpu.wait_applied(s, budget.map(|_| WAIT_SLICE));
+            let applied = gpu.wait_applied(s, pace.wait);
             b.bd.in_flight_us += tw.elapsed().as_micros();
             if !applied {
                 return false;
@@ -3287,6 +3311,12 @@ mod tests {
         fb.pool_mut().as_ref().unwrap().batch_pending()
     }
 
+    /// A chunk per hold.
+    const TINY: Pace = Pace {
+        budget: Some(Duration::ZERO),
+        wait: Some(WAIT_SLICE),
+    };
+
     /// The pages of `xs` that live in the pool now.
     fn pooled(fb: &FakeFb, xs: &[u64]) -> usize {
         xs.iter().filter(|x| fb.remap(**x) != **x).count()
@@ -3325,11 +3355,16 @@ mod tests {
         gpu.stamp.set(2);
         gpu.slow_waits.set(2);
         fb.write_u64(pt + 24, pte(z));
-        assert!(poll_sliced(&mut fb, &mut gpu, true, Some(POOL_SLICE)));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, Pace::SLICED));
         assert!(batch_pending(&fb));
         assert_eq!(fb.remap(z), z);
-        assert!(poll_sliced(&mut fb, &mut gpu, false, None));
-        assert_eq!(gpu.waits.borrow().last(), Some(&(9, None)), "a sync point outside the invalidate waits to the end");
+        // A sync point outside the invalidate: no wait beyond WAIT_SLICE, the batch waits.
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::NO_WAIT));
+        assert!(batch_pending(&fb));
+        assert_eq!(gpu.waits.borrow().last(), Some(&(9, Some(WAIT_SLICE))));
+        // The invalidate page (its trigger is cleared when the poll returns) waits to the end.
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::ALL));
+        assert_eq!(gpu.waits.borrow().last(), Some(&(9, None)));
         assert_eq!(fb.remap(z), pool0 + 0x3000);
         assert!(!batch_pending(&fb));
         // The same with the trigger reads only.
@@ -3338,16 +3373,16 @@ mod tests {
         gpu.stamp.set(3);
         gpu.slow_waits.set(2);
         fb.write_u64(pt + 32, pte(w));
-        assert!(poll_sliced(&mut fb, &mut gpu, true, Some(POOL_SLICE)));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, Pace::SLICED));
         assert!(batch_pending(&fb));
-        assert!(poll_sliced(&mut fb, &mut gpu, false, Some(POOL_SLICE)));
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::SLICED));
         assert!(batch_pending(&fb), "the job is not applied yet");
-        assert!(poll_sliced(&mut fb, &mut gpu, false, Some(POOL_SLICE)));
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::SLICED));
         assert!(!batch_pending(&fb));
         assert_eq!(fb.remap(w), pool0 + 0x4000);
         assert!(gpu.waits.borrow().iter().rev().take(3).all(|w| *w == (12, Some(WAIT_SLICE))));
         let st = stats(&fb);
-        assert_eq!((st.in_flight_waits, st.in_flight_parked, st.sliced_batches), (3, 3, 2));
+        assert_eq!((st.in_flight_waits, st.in_flight_parked, st.sliced_batches), (3, 4, 2));
         assert_eq!(st.installs_cold, 4);
     }
 
@@ -3364,7 +3399,7 @@ mod tests {
             fb.write(*x, &[i as u8; 8]);
             fb.write_u64(pt + 8 * (i as u64 + 1), pte(*x));
         }
-        assert!(poll_sliced(&mut fb, &mut NoGpu, true, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut NoGpu, true, TINY));
         assert!(batch_pending(&fb));
         assert_eq!(pooled(&fb, &xs), CHUNK);
         let check = |fb: &FakeFb| {
@@ -3379,11 +3414,11 @@ mod tests {
         let w = BASE + 0x40_0000;
         fb.write(w, &[0xAA; 8]);
         fb.write_u64(pt + 8 * 45, pte(w));
-        assert!(poll_sliced(&mut fb, &mut NoGpu, false, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut NoGpu, false, TINY));
         assert_eq!(pooled(&fb, &xs), 2 * CHUNK);
         assert_eq!(fb.remap(w), w, "decided after the batch");
         check(&fb);
-        assert!(poll_sliced(&mut fb, &mut NoGpu, false, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut NoGpu, false, TINY));
         assert!(!batch_pending(&fb));
         assert_eq!(pooled(&fb, &xs), 40);
         assert_eq!(fb.remap(w), pool0 + 45 * 0x1000, "the batch done, the new mapping follows");
@@ -3397,7 +3432,7 @@ mod tests {
             fb.write(*y, &[0x80 | i as u8; 8]);
             fb.write_u64(pt + 8 * (i as u64 + 1), pte(*y));
         }
-        assert!(poll_sliced(&mut fb, &mut NoGpu, true, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut NoGpu, true, TINY));
         assert!(batch_pending(&fb));
         assert_eq!(pooled(&fb, &xs), 40 - CHUNK, "the releases run first");
         assert_eq!(pooled(&fb, &ys), 0);
@@ -3426,13 +3461,13 @@ mod tests {
         for (i, x) in xs.iter().enumerate() {
             fb.write_u64(pt + 8 * (i as u64 + 1), pte(*x));
         }
-        assert!(poll_sliced(&mut fb, &mut gpu, true, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, TINY));
         assert_eq!(pooled(&fb, &xs), CHUNK);
         assert_eq!(gpu.refs_calls.get(), 1);
         // A plan maps page 18 while the lock is free.
         gpu.used.insert(xs[18]);
         gpu.stamp.set(1);
-        assert!(poll_sliced(&mut fb, &mut gpu, false, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut gpu, false, TINY));
         assert!(!batch_pending(&fb));
         assert_eq!(gpu.refs_calls.get(), 2);
         assert_eq!(fb.remap(xs[18]), pool0 + 19 * 0x1000);
@@ -3444,17 +3479,19 @@ mod tests {
         for (i, y) in ys.iter().enumerate() {
             fb.write_u64(pt + 8 * (i as u64 + 30), pte(*y));
         }
-        assert!(poll_sliced(&mut fb, &mut gpu, true, Some(Duration::ZERO)));
-        assert!(poll_sliced(&mut fb, &mut gpu, false, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, TINY));
+        assert!(poll_sliced(&mut fb, &mut gpu, false, TINY));
         assert!(!batch_pending(&fb));
         assert_eq!(gpu.refs_calls.get(), 3);
         assert_eq!(pooled(&fb, &ys), 20);
     }
 
-    /// §14: a batch pending past BATCH_FALLBACK completes at its next hold, waits for a job
-    /// in flight included, well inside the guest's poll of the trigger.
+    /// §14: a batch pending past BATCH_FALLBACK runs all its moves at its next hold, well
+    /// inside the guest's poll of the trigger; a wait for a job in flight stays bounded (the
+    /// device lock is never held waiting for the worker), so the trigger reads busy until
+    /// the job is applied.
     #[test]
-    fn a_batch_pending_past_the_fallback_completes_at_once() {
+    fn a_batch_pending_past_the_fallback_moves_everything_but_never_waits_to_the_end() {
         let (mut fb, pt, _) = setup();
         let mut gpu = FakeGpu::new(0x1234_0000);
         let xs: Vec<u64> = (0..40u64).map(|i| BASE + 0x30_0000 + i * 0x1000).collect();
@@ -3463,15 +3500,18 @@ mod tests {
         }
         gpu.in_flight.insert(xs[39], 3);
         gpu.slow_waits.set(100);
-        assert!(poll_sliced(&mut fb, &mut gpu, true, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, TINY));
         assert!(batch_pending(&fb));
         assert_eq!(pooled(&fb, &xs), 0, "the whole batch waits for job 3");
         fb.pool_mut().as_mut().unwrap().batch.as_mut().unwrap().since =
             Instant::now() - BATCH_FALLBACK;
-        assert!(poll_sliced(&mut fb, &mut gpu, false, Some(Duration::ZERO)));
+        assert!(poll_sliced(&mut fb, &mut gpu, false, TINY));
+        assert!(batch_pending(&fb));
+        assert!(gpu.waits.borrow().iter().all(|w| w.1 == Some(WAIT_SLICE)));
+        gpu.slow_waits.set(0);
+        assert!(poll_sliced(&mut fb, &mut gpu, false, TINY));
         assert!(!batch_pending(&fb));
-        assert_eq!(pooled(&fb, &xs), 40);
-        assert_eq!(gpu.waits.borrow().last(), Some(&(3, None)));
+        assert_eq!(pooled(&fb, &xs), 40, "all at once past the fallback");
     }
 
     #[test]
