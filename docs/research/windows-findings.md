@@ -958,6 +958,13 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   last 2.1 s: ~181 paging ops (small CE memsets/copies into page tables around FB
   0x3dbxxxxx, a TLB invalidate and a semaphore release each). The device's share is small:
   145 shadow plans, 9 ms in all (max 2.1 ms); paging batches p90 8.4 ms, max 362 ms.
+- **The pool thrashes under Windows** (C59b exit summary, up to the FLR at 78 s): 33668 pages
+  moved in and 32858 back, all cold (the KMD maps and unmaps CPU-visible allocations all the
+  time), 134672 KiB copied in and 131432 KiB back in 586 ms; 123 pool polls held the device
+  over 2 ms; 28 guest page-table pages (FB 0x3e0000-) mapped through BAR1 refused and served
+  as replicas merged at sync points (95 merges, 0 conflicting words).
+- **"No channel behind" is weaker than it looks:** GPGet equal to GPPut says the PBDMA fetched
+  every entry, not that a semaphore acquire in the last segment finished (bar1-pool.md §4).
 - **Open:** what the KMD times out on. Next: a DxgKrnl ETW trace across the TDR
   (tools/windows/dxgk-etw.ps1) names the node and the fence.
 - Memory model: the pool (BAR1 pages mapped to host BAR1 windows).
