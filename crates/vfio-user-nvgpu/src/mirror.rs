@@ -37,7 +37,7 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -1835,7 +1835,44 @@ impl GlobalExtents {
 struct Events {
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
-    handles: Vec<u32>,
+    /// Each event object and the notifier it armed (disarmed at the teardown).
+    handles: Vec<(u32, u32)>,
+}
+
+/// The host events' arm results over the process, across every mirror (a function-level
+/// reset makes a fresh mirror on the same host client and subdevice): notifiers armed from
+/// DISABLE, armed again after a DISABLE (still armed by an earlier mirror), refused, and
+/// disarmed at a teardown (and refused there). A refused arm is a notifier whose
+/// completions never reach the guest.
+#[derive(Default)]
+pub struct EventArms {
+    pub armed: AtomicU64,
+    pub rearmed: AtomicU64,
+    pub failed: AtomicU64,
+    pub disarmed: AtomicU64,
+    pub disarm_failed: AtomicU64,
+}
+
+pub static EVENT_ARMS: EventArms = EventArms {
+    armed: AtomicU64::new(0),
+    rearmed: AtomicU64::new(0),
+    failed: AtomicU64::new(0),
+    disarmed: AtomicU64::new(0),
+    disarm_failed: AtomicU64::new(0),
+};
+
+impl EventArms {
+    pub fn line(&self) -> String {
+        let l = |a: &AtomicU64| a.load(Ordering::Relaxed);
+        format!(
+            "host events: {} notifier(s) armed, {} armed again after a DISABLE (still armed by an earlier mirror), {} REFUSED, {} disarmed at a teardown ({} refused)",
+            l(&self.armed),
+            l(&self.rearmed),
+            l(&self.failed),
+            l(&self.disarmed),
+            l(&self.disarm_failed)
+        )
+    }
 }
 
 pub struct Mirror {
@@ -4653,52 +4690,71 @@ impl Mirror {
         Ok((root, key))
     }
 
+    /// The host OS events of the engines' non-stall notifiers and the RC notifier, and the
+    /// thread that raises the guest's vectors from them. Every arm result goes to the log
+    /// and the trace as it happens ([`EVENT_ARMS`]): a notifier the host refused never
+    /// signals the guest, and the guest then waits for its completions for good (C75-C89:
+    /// every event after a function-level reset, the display dead behind the first frame).
     fn ensure_events(&mut self, notes: &mut Vec<String>) {
         if self.events.is_some() {
             return;
         }
         let mut events: Vec<(OsEvent, Option<u32>)> = Vec::new();
         let mut handles = Vec::new();
-        let mut want: Vec<(&str, u32, u32)> = Vec::new();
+        let mut want: Vec<(String, u32, Option<u32>)> = Vec::new();
+        let mut lines = Vec::new();
         for (name, notifier) in ENGINES {
             match engine_vector(self.chip, name) {
-                Some(vec) => want.push((name, *notifier | EVENT_NONSTALL, vec)),
-                None => notes.push(format!(
+                Some(vec) => want.push((name.to_string(), *notifier | EVENT_NONSTALL, Some(vec))),
+                None => lines.push(format!(
                     "events: {name} has no non-stall vector in the chip's interrupt table; its completions are not forwarded"
                 )),
             }
         }
+        want.push(("the RC notifier".into(), NOTIFIER_RC_ERROR, None));
         {
             let mut h = self.hm.lock().unwrap();
             for (name, notifier, vector) in &want {
                 let id = self.next_event_id;
                 self.next_event_id += 1;
+                let to = match vector {
+                    Some(v) => format!("(non-stall) -> guest vector {v}"),
+                    None => "(RC, counted)".to_string(),
+                };
                 match h.os_event(*notifier, id) {
                     Ok(ev) => {
-                        notes.push(format!(
-                            "events: host OS event on {name} notifier {:#x} (non-stall) -> guest vector {vector}, event {:#x} [host]",
-                            notifier, ev.handle
+                        let how = match ev.armed {
+                            crate::hostmem::Armed::Fresh => {
+                                EVENT_ARMS.armed.fetch_add(1, Ordering::Relaxed);
+                                "armed".to_string()
+                            }
+                            crate::hostmem::Armed::Rearmed(st) => {
+                                EVENT_ARMS.rearmed.fetch_add(1, Ordering::Relaxed);
+                                format!(
+                                    "armed again after a DISABLE (REPEAT refused with status {st:#x}: still armed by an earlier mirror of this host client)"
+                                )
+                            }
+                        };
+                        lines.push(format!(
+                            "events: host OS event on {name} notifier {notifier:#x} {to}, event {:#x}: {how} [host]",
+                            ev.handle
                         ));
-                        handles.push(ev.handle);
-                        events.push((ev, Some(*vector)));
+                        handles.push((ev.handle, *notifier));
+                        events.push((ev, *vector));
                     }
-                    Err(e) => notes.push(format!("events: {name}: {e:#}")),
+                    Err(e) => {
+                        EVENT_ARMS.failed.fetch_add(1, Ordering::Relaxed);
+                        lines.push(format!(
+                            "ERROR events: {name} notifier {notifier:#x} {to}: {e:#}; its completions never reach the guest [host]"
+                        ));
+                    }
                 }
-            }
-            let id = self.next_event_id;
-            self.next_event_id += 1;
-            match h.os_event(NOTIFIER_RC_ERROR, id) {
-                Ok(ev) => {
-                    notes.push(format!(
-                        "events: host OS event on the RC notifier {NOTIFIER_RC_ERROR}, event {:#x} [host]",
-                        ev.handle
-                    ));
-                    handles.push(ev.handle);
-                    events.push((ev, None));
-                }
-                Err(e) => notes.push(format!("events: RC notifier: {e:#}")),
             }
         }
+        for l in &lines {
+            eprintln!("vfio-user-nvgpu: mirror: {l}");
+        }
+        notes.extend(lines);
         let stop = Arc::new(AtomicBool::new(false));
         let intr = self.intr.clone();
         let stop2 = stop.clone();
@@ -6496,10 +6552,28 @@ impl Mirror {
                 let _ = t.join();
             }
             let mut h = self.hm.lock().unwrap();
-            for e in ev.handles {
+            // Each notifier back to DISABLE before its event goes: the subdevice keeps the
+            // action past the event (hostmem.rs `os_event`), and the next mirror of this
+            // client (after a function-level reset) arms it from DISABLE, as on a fresh card.
+            let mut refused = Vec::new();
+            for (e, notifier) in ev.handles {
+                let st = h.set_notification(notifier, crate::hostmem::NOTIFICATION_DISABLE);
+                if st == sys::NV_OK {
+                    EVENT_ARMS.disarmed.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    EVENT_ARMS.disarm_failed.fetch_add(1, Ordering::Relaxed);
+                    refused.push(format!("{notifier:#x} status {st:#x}"));
+                }
                 let _ = h.free_object(e);
             }
-            notes.push("host OS events freed, event thread stopped".into());
+            notes.push(format!(
+                "host OS events disarmed and freed, event thread stopped{}",
+                if refused.is_empty() {
+                    String::new()
+                } else {
+                    format!("; DISABLE refused for {}", refused.join(", "))
+                }
+            ));
         }
         notes
     }
@@ -6536,6 +6610,8 @@ impl Mirror {
                 "; gfxp slots: {} of {} in use, {} TSG(s) bound GFXP at build, {} left in WFI",
                 sl.in_use(), sl.count(), self.gfxp_bound, self.gfxp_no_slot
             ))
+            + "; "
+            + &EVENT_ARMS.line()
     }
 }
 

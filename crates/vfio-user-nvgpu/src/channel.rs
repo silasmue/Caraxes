@@ -172,7 +172,16 @@ struct DeviceWait {
     seq: u32,
     ranges: Vec<(u64, u64)>,
     engine: crate::devce::SharedEngine,
+    /// A remap with NO_WRITE components: the FB address of its first element and the bytes
+    /// it must hold afterwards (its old bytes with the written components replaced), checked
+    /// when the push is done ([`DEVCE_NO_WRITE_BAD`]).
+    check: Option<(u64, Vec<u8>)>,
 }
+
+/// Set when the host engine's result for a NO_WRITE remap differed from the class's
+/// semantics (the first element read back): later such remaps stay on the CPU.
+static DEVCE_NO_WRITE_BAD: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 impl std::fmt::Debug for DeviceWait {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -3463,6 +3472,17 @@ impl Registry {
                         for &(pa, len) in &w.ranges {
                             mem.fb.note_range_changed(pa, len);
                         }
+                        if let Some((pa, want)) = &w.check {
+                            let mut got = vec![0u8; want.len()];
+                            if !mem.read(Target::Fb(*pa), &mut got) || &got != want {
+                                DEVCE_NO_WRITE_BAD
+                                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                                parts.push(format!(
+                                    "ERROR device CE: NO_WRITE remap (components {:#x}) left {got:02x?} at FB {pa:#x}, the class says {want:02x?}; later NO_WRITE remaps stay on the CPU",
+                                    c.remap_components
+                                ));
+                            }
+                        }
                         on_device = Some(w.seq);
                     }
                     crate::devce::Poll::Pending => {
@@ -3478,7 +3498,10 @@ impl Registry {
                     }
                 }
             } else if c.progress.is_none()
-                && !general
+                // A remap that reads no source (constants and NO_WRITE components) runs on
+                // the host engine as the guest set it; a remap copy stays on the CPU.
+                && shape.is_none_or(|s| !s.reads_source())
+                && !(general && DEVCE_NO_WRITE_BAD.load(std::sync::atomic::Ordering::Relaxed))
                 && (bytes >= crate::devce::MIN_BYTES || (!remap && bytes >= DEVCE_VRAM_READ_MIN))
             {
                 if let Some(engine) = mem.fb.device_ce() {
@@ -3527,13 +3550,16 @@ impl Registry {
                                     let r = crate::devce::Remap {
                                         const_a: c.remap_const_a,
                                         const_b: c.remap_const_b,
-                                        components: c.remap_components,
+                                        // No component reads the source here, so
+                                        // NUM_SRC_COMPONENTS (21:20) is ONE, as in the
+                                        // engine's own memsets: nothing else changes.
+                                        components: c.remap_components & !(3 << 20),
                                     };
                                     crate::devce::plan_fill(
                                         &w,
                                         mem.fb,
                                         &to,
-                                        remap_elem(c)?.len() as u64,
+                                        shape.map_or(1, |s| s.dst_elem()) as u64,
                                         r,
                                     )?
                                 } else {
@@ -3551,7 +3577,28 @@ impl Registry {
                                 }
                                 Ok((ops, ranges))
                             })();
-                        if let Ok((ops, ranges)) = plan {
+                        // A NO_WRITE remap: the first element's old bytes, to check the result.
+                        let check = match (&plan, shape) {
+                            (Ok((_, ranges)), Some(s)) if general => {
+                                ranges.first().and_then(|&(pa, _)| {
+                                    let mut old = vec![0u8; s.dst_elem()];
+                                    mem.read(Target::Fb(pa), &mut old).then(|| {
+                                        let (out, mask) =
+                                            s.apply(&[], 1, c.remap_const_a, c.remap_const_b);
+                                        for (i, b) in old.iter_mut().enumerate() {
+                                            if mask[i] {
+                                                *b = out[i];
+                                            }
+                                        }
+                                        (pa, old)
+                                    })
+                                })
+                            }
+                            _ => None,
+                        };
+                        if let Some((ops, ranges)) =
+                            plan.ok().filter(|_| !general || check.is_some())
+                        {
                             match e.submit(mem.fb, &ops) {
                                 Ok(seq) => {
                                     drop(e);
@@ -3560,6 +3607,7 @@ impl Registry {
                                         seq,
                                         ranges,
                                         engine,
+                                        check,
                                     });
                                     return Ok(CeOutcome::Sliced(format!(
                                         "ce {what} of {bytes} bytes submitted to the device CE as push {seq} ({} op(s)) [host]",
@@ -3623,9 +3671,11 @@ impl Registry {
             // general remap works in whole destination elements (a row is a whole number of
             // them, so every chunk and slice starts on one).
             let chunk = match shape {
+                // Masked stores cost about 1.7 us per run through the store windows (C91):
+                // 16 KiB keeps a chunk near 2 ms, inside the slice bound.
                 Some(s) if general => {
                     let e = s.dst_elem() as u64;
-                    (CE_COPY_CHUNK as u64 / e).max(1) * e
+                    ((16 << 10) / e).max(1) * e
                 }
                 Some(_) => CE_FILL_CHUNK as u64,
                 None => CE_COPY_CHUNK as u64,
@@ -4679,14 +4729,25 @@ mod tests {
                     } => {
                         let comp = ((remap.components >> 16) & 3) as usize + 1;
                         let ncomp = ((remap.components >> 24) & 3) as usize + 1;
+                        let sel = |k: usize| (remap.components >> (4 * k)) & 7;
                         let mut elem = Vec::new();
                         for k in 0..ncomp {
-                            let v = if (remap.components >> (4 * k)) & 7 == 5 {
+                            let v = if sel(k) == 5 {
                                 remap.const_b
                             } else {
                                 remap.const_a
                             };
                             elem.extend_from_slice(&v.to_le_bytes()[..comp]);
+                        }
+                        if (0..ncomp).any(|k| sel(k) == 6) {
+                            // NO_WRITE: the engine stores only the other components.
+                            for i in 0..elements {
+                                for k in (0..ncomp).filter(|&k| sel(k) != 6) {
+                                    let at = i * elem.len() as u64 + (k * comp) as u64;
+                                    fb.write_behind(pa(dst) + at, &elem[k * comp..(k + 1) * comp]);
+                                }
+                            }
+                            continue;
                         }
                         let bytes: Vec<u8> = elem
                             .iter()
@@ -4753,6 +4814,35 @@ mod tests {
             fb.read_u64(0x30_0000 + (1 << 20) - 8).unwrap() as u32,
             0xAABB_CCDD
         );
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A large remap with NO_WRITE components and no source (Windows C91: 210 of them,
+    /// 36.8 s of CPU slices at about 9 MB/s) runs on the device CE with the guest's
+    /// components; the engine leaves the NO_WRITE bytes alone.
+    #[test]
+    fn a_large_no_write_remap_runs_on_the_device_ce() {
+        let elements = 1u32 << 13;
+        let mut pb = physical_fill(0x30_0000, elements);
+        // X CONST_A, Y CONST_B, Z/W NO_WRITE; COMPONENT_SIZE FOUR, NUM_DST_COMPONENTS FOUR.
+        pb[3..6].copy_from_slice(&[0x1122_3344, 0x5566_7788, 0x0303_6654]);
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("devce-nowrite", &pb);
+        reg.software_fb_range = Some((0, 64 << 20));
+        let len = elements as usize * 16;
+        assert!(fb.write(0x30_0000, &vec![0xEE; len]));
+        let engine = TestEngine::shared(48 << 20, 2, false);
+        fb.set_device_ce(Some(engine.clone()));
+        doorbell_until_done(&mut fb, &sys, &mut reg);
+        assert_eq!(engine.lock().unwrap().submitted, 1, "one device-CE push");
+        assert_eq!(sys.read_u32(0x4000_1004), Some(1));
+        let mut got = vec![0u8; len];
+        assert!(fb.read(0x30_0000, &mut got));
+        for (i, e) in got.chunks(16).enumerate() {
+            let want = [0x44, 0x33, 0x22, 0x11, 0x88, 0x77, 0x66, 0x55];
+            assert_eq!(&e[..8], &want, "element {i}");
+            assert_eq!(&e[8..], &[0xEE; 8], "NO_WRITE bytes of element {i}");
+        }
         std::fs::remove_file(path).ok();
     }
 
