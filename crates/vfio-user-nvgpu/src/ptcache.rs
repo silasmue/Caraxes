@@ -195,6 +195,11 @@ pub struct Update {
     pub added: Vec<u64>,
     /// Whether the cache stopped watching a table page in this update.
     pub dropped: bool,
+    /// FB ranges `[start, end)` of the leaves this update removed that no changed unit
+    /// maps any more, sorted and merged. The walk no longer shows them, but the host
+    /// shadow keeps them until the plan made from this update is applied: the BAR1 pool
+    /// waits for that plan only when a page it moves lies in one (bar1-pool.md §14).
+    pub removed: Vec<(u64, u64)>,
 }
 
 /// The cached walk of one guest root.
@@ -225,6 +230,8 @@ pub struct WalkCache {
     /// Pages that entered `uses` and whether one left it, during the running update.
     added: Vec<u64>,
     dropped: bool,
+    /// FB `(start, end)` of every leaf dropped during the running update ([`Update::removed`]).
+    removed: Vec<(u64, u64)>,
     /// A fresh stamp ([`fresh_generation`]) at creation and at every update that changed a
     /// unit's leaves: equal generations, equal leaves ([`Self::generation`]).
     generation: u64,
@@ -241,6 +248,27 @@ fn page_mix(p: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)
+}
+
+/// The FB range `[start, end)` of a leaf, `None` for a sysmem or peer leaf.
+fn fb_range(l: &Leaf) -> Option<(u64, u64)> {
+    match l.1 {
+        Target::Fb(pa) => Some((pa, pa.saturating_add(l.2))),
+        _ => None,
+    }
+}
+
+/// Sort `[start, end)` ranges and merge the overlapping and adjacent ones.
+pub fn merge_ranges(mut v: Vec<(u64, u64)>) -> Vec<(u64, u64)> {
+    v.sort_unstable();
+    let mut out: Vec<(u64, u64)> = Vec::with_capacity(v.len());
+    for (s, e) in v {
+        match out.last_mut() {
+            Some(last) if s <= last.1 => last.1 = last.1.max(e),
+            _ => out.push((s, e)),
+        }
+    }
+    out
 }
 
 impl WalkCache {
@@ -261,6 +289,7 @@ impl WalkCache {
             raw: HashMap::new(),
             reread: false,
             added: Vec::new(),
+            removed: Vec::new(),
             dropped: false,
             generation: fresh_generation(),
             tables_generation: fresh_generation(),
@@ -406,11 +435,18 @@ impl WalkCache {
         self.reads = 0;
         self.added.clear();
         self.dropped = false;
+        self.removed.clear();
         let dirty_pages = self.dirty.len();
         let mut changed = BTreeSet::new();
         let full = full || !self.built || self.sys_tables;
         if full {
             changed.extend(self.units.keys().copied());
+            let old: Vec<(u64, u64)> = self
+                .units
+                .values()
+                .flat_map(|u| u.leaves.iter().filter_map(fb_range))
+                .collect();
+            self.removed.extend(old);
             self.dirs.clear();
             self.units.clear();
             self.dropped |= !self.uses.is_empty();
@@ -471,6 +507,16 @@ impl WalkCache {
         added.sort_unstable();
         added.dedup();
         added.retain(|p| uses.contains_key(p));
+        // A dropped leaf that a changed unit maps again (a rebuilt unit, a re-walked
+        // directory) is still in the walk: only the rest is gone from it.
+        let mut removed = std::mem::take(&mut self.removed);
+        if !removed.is_empty() {
+            let kept: std::collections::HashSet<(u64, u64)> = changed
+                .iter()
+                .flat_map(|va| self.unit_leaves(*va).iter().filter_map(fb_range))
+                .collect();
+            removed.retain(|r| !kept.contains(r));
+        }
         Update {
             full,
             changed: changed.into_iter().collect(),
@@ -478,6 +524,7 @@ impl WalkCache {
             dirty_pages,
             added,
             dropped: self.dropped,
+            removed: merge_ranges(removed),
         }
     }
 
@@ -605,7 +652,7 @@ impl WalkCache {
         }
         self.leaves += leaves.len();
         self.malformed += bad;
-        self.units.insert(
+        let replaced = self.units.insert(
             va,
             Unit {
                 lo,
@@ -615,6 +662,10 @@ impl WalkCache {
                 bad,
             },
         );
+        // Every caller drops the unit first; a replaced one still counts as removed.
+        if let Some(u) = replaced {
+            self.removed.extend(u.leaves.iter().filter_map(fb_range));
+        }
     }
 
     fn drop_unit(&mut self, va: u64, changed: &mut BTreeSet<u64>) {
@@ -622,6 +673,7 @@ impl WalkCache {
             for p in &u.pages {
                 self.drop_use(*p, Use::Unit(va));
             }
+            self.removed.extend(u.leaves.iter().filter_map(fb_range));
             if !u.leaves.is_empty() {
                 changed.insert(va);
             }
@@ -766,6 +818,11 @@ impl WalkCache {
         Some((pieces, tables))
     }
 
+    /// Every cached leaf, ascending by unit, without a copy.
+    pub fn leaves(&self) -> impl Iterator<Item = &Leaf> + '_ {
+        self.units.values().flat_map(|u| u.leaves.iter())
+    }
+
     /// Every cached leaf, ascending by unit (tests and the full-walk comparison).
     pub fn all_leaves(&self) -> Vec<Leaf> {
         self.units.values().flat_map(|u| u.leaves.iter().copied()).collect()
@@ -864,6 +921,42 @@ mod tests {
         c.update(&m, false);
         assert_ne!(c.tables_generation(), tg);
         assert!(c.observable(&[]).unwrap().1.contains(&0x16));
+    }
+
+    /// The leaves an update took out of the walk, as FB ranges: what the host shadow still
+    /// maps until the plan made from the update is applied (bar1-pool.md §14). A leaf that
+    /// only moved within a rebuilt unit, or stayed, is not among them.
+    #[test]
+    fn an_update_names_the_fb_ranges_it_took_out_of_the_walk() {
+        let m = tree();
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        assert!(c.update(&m, false).removed.is_empty(), "the first walk removes nothing");
+        // A new PTE beside the old ones: nothing removed although the unit is rebuilt.
+        m.w(0x14000 + 8 * 5, pte(0x21000));
+        c.mark_dirty(0x14);
+        assert!(c.update(&m, false).removed.is_empty());
+        // The 4 KiB PTE to 0x20000 cleared, and the one to 0x21000 retargeted to 0x22000.
+        m.w(0x14000 + 8 * 3, 0);
+        m.w(0x14000 + 8 * 5, pte(0x22000));
+        c.mark_dirty(0x14);
+        let u = c.update(&m, false);
+        assert_eq!(u.removed, vec![(0x20000, 0x22000)], "adjacent ranges merge");
+        // The same page mapped at another VA of the unit: still in the walk.
+        m.w(0x14000 + 8 * 5, 0);
+        m.w(0x14000 + 8 * 7, pte(0x22000));
+        c.mark_dirty(0x14);
+        assert!(c.update(&m, false).removed.is_empty());
+        // The PD1 entry cleared: everything below it, the 64 KiB page too.
+        m.w(0x12000, 0);
+        c.mark_dirty(0x12);
+        let u = c.update(&m, false);
+        assert_eq!(u.removed, vec![(0x22000, 0x23000), (0x40000, 0x50000)]);
+        // A full walk of an unchanged tree removes nothing.
+        m.w(0x12000, vid(0x13000));
+        c.mark_dirty(0x12);
+        c.update(&m, false);
+        assert!(c.update(&m, true).removed.is_empty());
+        assert_eq!(merge_ranges(vec![(5, 7), (1, 3), (3, 4), (6, 9)]), vec![(1, 4), (5, 9)]);
     }
 
     #[test]

@@ -848,9 +848,9 @@ C59b-poolstall (ch15, pool 32 MiB, trace without access lines); the Windows anal
 - The device CE keeps off pooled pages (`FakeFb::plain_vram`), retired ones too: a large
   software-CE transfer over one runs on the CPU. Counted (`device-CE transfer(s) kept on the CPU
   by a pooled page (N by a retired one)`); `RETIRE_AGE` bounds how long a page can cause it.
-- Copies outside the device lock: not done. An install's copy must be complete before the
-  guest's vCPU leaves the trapped BAR0 write (it may use the mapping next), and a move home
-  before the next page's install at the same area page; a retirement has no copy left to move.
+- Copies and waits in long holds of the device lock: §14 (the moves of one invalidate run in
+  slices behind its trigger, the worker is waited for only when a job in flight concerns a page
+  to move).
 
 **Counters.**
 - Exit summary: `lazy move back: N retired now, R retired in all (no copy), L re-lived (no copy),
@@ -876,3 +876,76 @@ C59b-poolstall (ch15, pool 32 MiB, trace without access lines); the Windows anal
 `home for another page`: the churn is gone. Many `home for another page` and window maps: the
 KMD reuses BAR1 addresses for other allocations, and the remaining lever is the copy itself
 (the device CE for pool moves, with the pool mapped in its VA space).
+
+## 14. The pool's waits and copies out of long lock holds (2026-09-29)
+
+Records: Linux SotTR, `/mnt/vmstore/caraxes/runs-2026-09-29/sottr-stall/` (gpu-exit-on-2.log,
+drsv3-on-2-profile.*.tsv, benchmark-window-20s-device.md); Windows C57-C59b (§13).
+
+**What the data shows.**
+- SotTR (Linux, 615): 43419 polls, 24 barriers, 1.1 s of copies in all, yet 9779 polls held the
+  device over 2 ms and the slowest 441 ms [exit line]. In the 20 s benchmark window the polls
+  after the invalidate's PDB writes (0xb830a0/a4) cost 16 us on average but up to 441 ms and
+  170 ms [profile rows 9 and 10]: the tail is the GPU check's wait for the shadow worker.
+- The GPU check (`MirrorGpu::refs`) called `shadow_barrier` (wait until every submitted job is
+  applied) before it read the cached walks. The worker applied 81734 plans in 42.5 s, longest
+  301 ms [mirror exit line]: any poll with a page to move waited for all of it, under the lock,
+  and a held invalidate the trigger had just released (execution.md §8) was waited out here.
+- Windows (C57): no barrier and no worker wait (refs 1-2 us); the moves are the hold, 2-4 ms for
+  a 64 KiB mapping (16 pages) and up to 24 ms [slow-poll lines].
+
+**The GPU check without the drain** (`PoolGpu::in_flight`, `Mirror::shadow_in_flight`).
+- A cached walk shows every leaf a shadow maps or will map once the worker applied its plans.
+  What it does not show is a leaf the guest took out whose plan is not applied yet: the host
+  still maps it. Only that needs the worker.
+- The walk update names those leaves (`ptcache::Update::removed`: FB ranges dropped and not
+  mapped again by the changed units), the plan carries them (`Plan::ghosts`), and the worker's
+  submit keeps them with the job's number until it is applied; a teardown keeps its root's
+  leaves (every page when its walk is not at hand).
+- The poll asks which job in flight covers a page it moves and waits for that job only; with
+  none (the common case) it does not wait at all. A barrier's re-sync still drains the worker
+  (warm moves: 24 in the SotTR session, none on Windows).
+
+**The moves in slices behind the trigger** (`bar1pool.rs` `poll_sliced`, `Batch`).
+- A poll after a trapped write of the invalidate registers (PDB, UPPER_PDB, INVALIDATE) runs its
+  moves in chunks of 16 pages (GPU check when a shadow job was submitted since, barrier if a
+  page of the chunk is mapped by a shadow, copies, re-sync) until `POOL_SLICE` (500 us) is
+  spent, and parks the rest.
+- The guest polls TRIGGER before it uses the mapping (RM `kgmmuCheckPendingInvalidates_TU102`,
+  nouveau `tu102_vmm_flush`). Each trapped read of it runs the next slice; TRIGGER reads busy
+  until the batch is done, beside the held invalidate's gate (invgate.rs). A wait for a job in
+  flight is at most `WAIT_SLICE` (50 us) per read.
+- Between two slices the device lock is free and the pool is consistent: each move is one copy
+  and one remap switch under the lock; releases run before installs; an install the guest took
+  back, or a release it re-lived, is skipped; replicas are made once their area page is free
+  (an evicted table page's in the same hold).
+- A batch pending blocks new decisions only: the next poll continues it first and decides what
+  changed afterwards, in the same hold. A sync point outside an invalidate, the invalidate page
+  (`CARAXES_INVALIDATE_PAGE=1`, trigger cleared by the reactor) and a batch older than
+  `BATCH_FALLBACK` (1 s, inside RM's 4 s and nouveau's 2 s poll) run everything at once.
+- The copies themselves stay under the lock: a copy on another thread would need a page state
+  "in transit" that every device path (FB store, BAR2 memfd, software executor, device CE,
+  display) respects. The slices bound each hold instead; with the lazy move back (§13) fewer
+  copies are left.
+
+**Counters.**
+- Exit summary, after §13's: `lock holds: B batch(es) in more than one hold (P hold(s) left the
+  rest for the next poll, longest batch T us), W wait(s) for a shadow job in flight (Q left to
+  the next poll, U us in all), GPU checks, barriers, moves, re-syncs in ms in all (§14)`.
+- Slow-poll line: `in-flight wait N us; ... slice K of the batch`; a slice run by a trigger read
+  is traced as `the poll after a BAR0 trigger read`.
+
+**Tests.** `ptcache::tests::an_update_names_the_fb_ranges_it_took_out_of_the_walk`,
+`shadow::tests::a_leaf_on_a_bar1_pool_page_is_mirrored_to_the_pool_page` (the plan names the
+dropped leaf),
+`mirror::tests::a_ghost_covers_the_pages_that_start_inside_its_ranges`,
+`bar1pool::tests::a_page_a_plan_in_flight_took_out_of_a_walk_waits_for_that_plan_only`,
+`a_sliced_batch_moves_a_chunk_per_hold_and_the_pool_is_consistent_between_holds`,
+`a_batch_asks_the_gpu_again_when_a_shadow_job_was_submitted_between_holds`,
+`a_batch_pending_past_the_fallback_completes_at_once`.
+
+**What decides it works.** SotTR Linux: `slowest poll` and the polls over 2 ms against
+gpu-exit-on-2.log (441 ms, 9779), `W wait(s) for a shadow job in flight` small against the polls
+that moved pages, the display clock's waits. Windows: no TDR at DWM start, `slowest poll` about
+one slice, the churn line (§13).
+

@@ -36,10 +36,10 @@
 //! it lies inside the reservation.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use nvrm_abi::sys;
 use nvrm_client::mem::CpuMap;
@@ -2282,6 +2282,26 @@ impl Mirror {
         self.worker.wait_all();
     }
 
+    /// The BAR1 pool's question without a wait (docs/caraxes/bar1-pool.md §14): the newest
+    /// shadow job not yet applied that may still map a page of `pages` on the host beyond
+    /// what the cached walks show (a leaf its plan took out of the walk, a teardown).
+    /// `None`: the cached walks show every host mapping of these pages.
+    pub fn shadow_in_flight(&self, pages: &BTreeSet<u64>) -> Option<u64> {
+        self.worker.in_flight(pages)
+    }
+
+    /// Wait until shadow job `seq` is applied, at most `max` (`None`: to the end).
+    pub fn shadow_wait_applied(&self, seq: u64, max: Option<Duration>) -> bool {
+        self.worker.wait_applied(seq, max)
+    }
+
+    /// The number of shadow jobs submitted so far. The cached walks of the shadow roots
+    /// change only in a plan that is submitted (or with a root created or freed): while it
+    /// stays the same, an answer of [`Self::shadow_in_flight`] and the walks stays valid.
+    pub fn shadow_submitted(&self) -> u64 {
+        self.worker.seqs.submitted()
+    }
+
     /// Whether the worker has plans submitted and not yet applied (the GPPut barrier,
     /// boot.rs `bar_access`).
     pub fn shadow_pending(&self) -> bool {
@@ -2313,7 +2333,19 @@ impl Mirror {
         for r in empty {
             if let Some(sp) = self.shadows.remove(&r) {
                 // Freed by the worker in bounded batches, after everything queued before.
-                self.worker.submit(Job::Free(r));
+                // Until then the host maps every leaf of the root (bar1-pool.md §14).
+                let leaves = fb.and_then(|fb| {
+                    fb.with_walk(Target::Fb(r), |c| {
+                        c.all_leaves()
+                            .iter()
+                            .filter_map(|l| match l.1 {
+                                Target::Fb(pa) => Some((pa, pa.saturating_add(l.2))),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                });
+                self.worker.submit_with(Job::Free(r), leaves);
                 notes.push(format!(
                     "shadow: VAS {:#x} of guest root {r:#x} handed to the worker for an incremental teardown ({} resync(s) skipped clean on this thread) [host]",
                     sp.vas, sp.front.skipped
@@ -5615,6 +5647,28 @@ struct WorkerStats {
     promoted: std::sync::atomic::AtomicU64,
 }
 
+/// What a shadow job in flight may still map on the host beyond the cached walks
+/// (docs/caraxes/bar1-pool.md §14): the host keeps it until the job is applied.
+enum Ghost {
+    /// FB ranges `[start, end)`, sorted and merged: the leaves a plan's walk update took out
+    /// of the walk, or every leaf of a root being torn down.
+    Ranges(Vec<(u64, u64)>),
+    /// A teardown of a root whose walk was not at hand: any page.
+    All,
+}
+
+impl Ghost {
+    fn covers_any(&self, pages: &BTreeSet<u64>) -> bool {
+        match self {
+            Ghost::All => !pages.is_empty(),
+            Ghost::Ranges(r) => pages.iter().any(|p| {
+                let i = r.partition_point(|(s, _)| *s <= *p);
+                i > 0 && r[i - 1].1 > *p
+            }),
+        }
+    }
+}
+
 /// The shadow worker (docs/caraxes/mapping.md §4): one thread that owns the host side of
 /// every shadow VA space and applies the server thread's plans, so a guest MMU invalidate
 /// returns after the walk (tens of microseconds) instead of after the RM calls, and a
@@ -5635,6 +5689,10 @@ struct ShadowWorker {
     /// No teardown in progress.
     idle: Arc<(Mutex<bool>, std::sync::Condvar)>,
     thread: Option<std::thread::JoinHandle<()>>,
+    /// Jobs not yet applied, ascending, with their root and what they may still map beyond
+    /// the cached walks ([`Ghost`]); the ones below the oldest job in flight are dropped at
+    /// the next submit (a root's jobs may finish before older jobs of other roots).
+    ghosts: std::collections::VecDeque<(u64, u64, Ghost)>,
 }
 
 impl ShadowWorker {
@@ -5794,23 +5852,84 @@ impl ShadowWorker {
             enabled: std::env::var("CARAXES_SHADOW_WORKER").as_deref() != Ok("0"),
             notes,
             thread,
+            ghosts: Default::default(),
         }
     }
 
     fn submit(&mut self, job: Job) {
+        self.submit_with(job, None);
+    }
+
+    /// Submit `job`; for a teardown, `leaves` are the FB ranges its root maps (`None`: not
+    /// known, any page). What the job may still map beyond the cached walks is kept until
+    /// it is applied ([`Self::in_flight`]).
+    fn submit_with(&mut self, mut job: Job, leaves: Option<Vec<(u64, u64)>>) {
         let root = job.root();
         if self.thread.is_some() {
-            self.seqs.forget_done(self.progress.done());
+            let done = self.progress.done();
+            self.seqs.forget_done(done);
+            while self.ghosts.front().is_some_and(|(s, _, _)| *s <= done) {
+                self.ghosts.pop_front();
+            }
         }
         let seq = self.seqs.next(root);
         if self.thread.is_some() {
             self.progress.begin(seq, root);
+        }
+        let ghost = match &mut job {
+            Job::Apply(plan, _) if !plan.ghosts.is_empty() => {
+                Some(Ghost::Ranges(std::mem::take(&mut plan.ghosts)))
+            }
+            Job::Free(_) => Some(match leaves {
+                Some(r) => Ghost::Ranges(crate::ptcache::merge_ranges(r)),
+                None => Ghost::All,
+            }),
+            _ => None,
+        };
+        if let (Some(g), true) = (ghost, self.thread.is_some()) {
+            self.ghosts.push_back((seq, root, g));
         }
         if let Some(tx) = &self.tx {
             let _ = tx.send((seq, job));
         }
         if !self.enabled {
             self.wait_all();
+        }
+    }
+
+    /// The newest job not yet applied that may still map a page of `pages` (4 KiB-aligned
+    /// FB addresses) on the host beyond the cached walks; `None` without one.
+    fn in_flight(&self, pages: &BTreeSet<u64>) -> Option<u64> {
+        if self.thread.is_none() || pages.is_empty() {
+            return None;
+        }
+        let done = self.progress.done();
+        self.ghosts
+            .iter()
+            .rev()
+            .take_while(|(s, _, _)| *s > done)
+            .filter(|(_, _, g)| g.covers_any(pages))
+            .find(|(s, r, _)| !self.progress.is_done(&crate::invgate::Target::Roots(vec![(*r, *s)])))
+            .map(|(s, _, _)| *s)
+    }
+
+    /// Wait until job `seq` is applied, at most `max` (`None`: to the end); whether it is.
+    /// Only that job's root is waited for (its jobs finish in order), not older jobs of
+    /// other roots.
+    fn wait_applied(&self, seq: u64, max: Option<std::time::Duration>) -> bool {
+        if self.thread.is_none() {
+            return true;
+        }
+        let t = match self.ghosts.iter().find(|(s, _, _)| *s == seq) {
+            Some((s, r, _)) => crate::invgate::Target::Roots(vec![(*r, *s)]),
+            None => crate::invgate::Target::All(seq),
+        };
+        match max {
+            None => {
+                self.progress.wait(&t);
+                true
+            }
+            Some(m) => self.progress.wait_at_most(&t, m),
         }
     }
 
@@ -6165,6 +6284,20 @@ mod tests {
     }
 
     use super::*;
+
+    /// What a shadow job in flight may still map beyond the cached walks (bar1-pool.md
+    /// §14): a page overlaps a range when it starts inside it; a teardown without its walk
+    /// covers every page.
+    #[test]
+    fn a_ghost_covers_the_pages_that_start_inside_its_ranges() {
+        let g = Ghost::Ranges(vec![(0x1000, 0x3000), (0x1_0000, 0x2_0000)]);
+        let set = |v: &[u64]| v.iter().copied().collect::<BTreeSet<u64>>();
+        assert!(!g.covers_any(&set(&[0x0, 0x3000, 0x2_0000])));
+        assert!(g.covers_any(&set(&[0x3000, 0x2000])));
+        assert!(g.covers_any(&set(&[0x1_f000])));
+        assert!(!Ghost::All.covers_any(&set(&[])));
+        assert!(Ghost::All.covers_any(&set(&[0x5000])));
+    }
     use std::cell::Cell;
 
     /// The engines the mirror forwards are the chip's, with non-stall vectors in the
