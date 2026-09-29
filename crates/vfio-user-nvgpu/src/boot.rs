@@ -1617,12 +1617,13 @@ impl BootModel {
             // update (kbusUpdateRmAperture_GM107, kern_bus_gm107.c:2757-2785).
             // The BAR1 area's untracked pages (bar1pool.rs `sync_untracked`): the
             // replicas' guest writes reach their pages as tracked writes, and a
-            // table page still in the pool is re-read by the walks below. Settles
-            // a deferred flush read. With the memfd and no flush owed, the table pages
-            // only (`FakeFb::bar2_sync_tables`, bar2-memfd.md §3 rule 2): the MMU re-reads
-            // tables from here on; data reaches VRAM at its own hand-over.
+            // table page still in the pool is re-read by the walks below. With the memfd,
+            // the table pages only (`FakeFb::bar2_sync_tables`, bar2-memfd.md §3 rules 2
+            // and 3): the MMU re-reads tables from here on, and the invalidate starts no
+            // engine, so data (and an owed flush) waits for the next engine start. A host
+            // VA space on the guest's own tables (a mirror VAS) makes it a full sync.
             let host_walks = self.ctrl.mirror.as_ref().is_some_and(|m| m.walks_guest_tables());
-            if self.fb.bar2_area().is_some() && !self.fb.bar2_flush_pending() && !host_walks {
+            if self.fb.bar2_area().is_some() && !host_walks {
                 let root = self.bar_root(3);
                 self.fb.bar2_sync_tables(root, Some(mem));
                 crate::bar1pool::sync_untracked(&mut self.fb);
@@ -4743,13 +4744,18 @@ mod tests {
         assert!(b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock));
         assert_eq!(vram_u64(&b, x + 8), 0x1234);
         assert!(!b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock));
-        // The MMU invalidate settles it (the RM flushes, then invalidates).
+        // The MMU invalidate starts no engine: it syncs the table pages and leaves the owed
+        // flush to the next engine start (bar2-memfd.md §3 rule 3), here the GSP queue head.
         guest.store_word(2, 2, 0x5678);
         flush(&mut b);
         let r = b.regs;
         b.write32(r.mmu_invalidate_pdb, 0, &mem).unwrap();
         b.write32(r.mmu_invalidate_upper_pdb, 0, &mem).unwrap();
         b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x + 16), 0);
+        assert!(b.fb.bar2_flush_pending());
+        let head = b.gsp_queue_registers().unwrap().cmd_head;
+        b.write32(head, 0, &mem).unwrap();
         assert_eq!(vram_u64(&b, x + 16), 0x5678);
         let s = stats(&b);
         assert_eq!(
@@ -4757,6 +4763,45 @@ mod tests {
             (4, 1, 1, 1)
         );
         assert!(b.fb.bar2_area().unwrap().summary().contains("4 deferred"));
+    }
+
+    /// The order an invalidate keeps with a flush owed (bar2-memfd.md §3 rules 2 and 3): the
+    /// RM rewrites a PTE through a page table it mapped into BAR2 and writes data through
+    /// BAR2, flushes, and invalidates. The page table reaches VRAM at the invalidate (the MMU
+    /// uses it from there on) and the BAR2 mapping it changes is followed; the data reaches
+    /// VRAM only at the next engine start (a doorbell), and the device reads it from the
+    /// memfd meanwhile.
+    #[test]
+    fn an_invalidate_with_a_flush_owed_syncs_the_tables_and_leaves_the_data_to_the_engine_start() {
+        let mem = GuestMemory::new();
+        let (mut b, x, guest) = memfd_model(true);
+        let base = 0x400_0000u64;
+        let pt = base + 0x9000;
+        let y = base + 0x11_0000;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        // BAR2 page 3 maps the BAR2 page table itself (the RM's PTE update window).
+        b.fb.write_u64(pt + 8 * 3, pte(pt));
+        let (bar2, _) = b.layout.bar_roots().unwrap();
+        assert!(b.fb.bar2_sync(Some(bar2), None));
+        let flush = |b: &mut BootModel| {
+            let mut d = [0u8; 4];
+            b.bar_access(&GuestMemory::new(), 3, 0x1f000, &mut d, false);
+        };
+        // Through BAR2: a new PTE (BAR2 page 4 -> y) and data at x; a flush read; the invalidate.
+        guest.store_word(3, 4, pte(y));
+        guest.store_word(2, 0, 0xDA7A);
+        flush(&mut b);
+        assert!(b.fb.bar2_flush_pending());
+        b.write32(b.regs.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert_eq!(vram_u64(&b, pt + 8 * 4), pte(y), "the table is in VRAM for the MMU");
+        assert_eq!(b.fb.backing(y), crate::fb::Backing::Bar2Memfd(0x4000), "and followed");
+        assert_eq!(vram_u64(&b, x), 0, "the data waits for an engine start");
+        assert_eq!(b.fb.read_u64(x), Some(0xDA7A), "the device reads it from the memfd");
+        assert!(b.fb.bar2_flush_pending());
+        // A channel doorbell settles the owed flush before any channel is rung.
+        b.doorbell_pending(&mem);
+        assert_eq!(vram_u64(&b, x), 0xDA7A);
+        assert!(!b.fb.bar2_flush_pending());
     }
 
     /// `CARAXES_BAR2_MEMFD_DEFER_FLUSH=0`: every flush read syncs, as before.
@@ -4804,8 +4849,9 @@ mod tests {
         assert!(b.fb.bar2_area().unwrap().summary().contains("1 NV_UFLUSH_FB_FLUSH write(s)"));
     }
 
-    /// The MMU invalidate, the GSP command-queue head (where the CPU's runlist submits
-    /// arrive as RPCs on a GSP system) and the BAR2 bind are full sync points, each counted.
+    /// The GSP command-queue head (where the CPU's runlist submits arrive as RPCs on a GSP
+    /// system) and the BAR2 bind are full sync points, each counted; the MMU invalidate syncs
+    /// the table pages only, with or without a flush owed.
     #[test]
     fn the_invalidate_the_gsp_queue_head_and_the_bar2_bind_sync() {
         use crate::bar2area::Point;
@@ -4819,18 +4865,24 @@ mod tests {
         assert_eq!(vram_u64(&b, x), 0);
         assert_eq!(point(&b, Point::MmuInvalidate), 0);
         assert_eq!(b.fb.bar2_area().unwrap().stats().table_syncs, 1);
-        // A flush read (the trapped page) owes a sync: the invalidate settles it in full.
+        // A flush read (the trapped page) owes a sync: the invalidate still syncs the table
+        // pages only and leaves it owed, as it starts no engine (rule 3).
         let mut d = [0u8; 4];
         b.bar_access(&mem, 3, 0x1f000, &mut d, false);
         assert!(b.fb.bar2_flush_pending());
         b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
-        assert_eq!(vram_u64(&b, x), 0x11);
-        assert_eq!(point(&b, Point::MmuInvalidate), 1);
+        assert_eq!(vram_u64(&b, x), 0);
+        assert_eq!(point(&b, Point::MmuInvalidate), 0);
+        let s = b.fb.bar2_area().unwrap().stats();
+        assert_eq!((s.table_syncs, s.table_syncs_owed), (2, 1));
+        assert!(b.fb.bar2_flush_pending());
+        // The GSP queue head, an engine start, settles it with a full sync.
         guest.store_word(2, 0, 0x22);
         let head = b.gsp_queue_registers().unwrap().cmd_head;
         assert_eq!(head, 0x11_0c00, "NV_PGSP_QUEUE_HEAD(0), tu102/dev_gsp.h:38");
         b.write32(head, 0, &mem).unwrap();
         assert_eq!(vram_u64(&b, x), 0x22);
+        assert!(!b.fb.bar2_flush_pending());
         assert_eq!(point(&b, Point::GspQueueHead), 1);
         guest.store_word(2, 0, 0x33);
         let v = b.bar2_block;
