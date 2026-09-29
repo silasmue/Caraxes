@@ -830,3 +830,37 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   interrupt path (28 traps per interrupt, windows-traps-exit-2026-09-29.md).
 - No host Xid in C45-C48.
 - Memory model: none.
+
+## Cloud Hypervisor, step 5: flips, then a TDR (2026-09-29, C49-ch4 to C52-auto)
+
+- **Scanout works since the caps page (C49):** UNBLANK, window 0 latches real surfaces
+  (1920x1080 block-linear 0xCF, three buffers), `display_active` Enabled. The device-side
+  dump (`dump` in display-ctl, 0545afd2) showed the desktop (C51-dump/scanout-135039.png).
+- **Then every run ends in a TDR.** Guest event log: nvlddmkm id 153 at 08:45:40 (C49), 08:55:30
+  (C50), 09:20:37 (C51); no id 14 (RC), no 4101. On the device: no window UPDATE for ~2.5 s,
+  then window disable, head off, DP link power down, FLR, GSP re-boot (C52: FLR at 138.9 s after
+  latches 5-7 at 136.0-136.3 s). After the recovery the KMD modesets and blanks and never flips
+  again. No host Xid in C49-C52.
+- **The flip cadence points at completion.** C49 latches 13-42 come every 500 ms (134-150 s),
+  then one every ~30 s up to latch 62; C51 the same 500 ms rhythm until its FLR. The KMD flips
+  on a timeout, not on completion. Its flips use notifier mode WRITE (no AWAKEN; AWAKEN_WIN
+  read once per run), semaphore records 16 bytes apart (acquire == 0, release 2, 3, 4 ...).
+- **The device wrote the wrong status.** A window notifier is BEGUN after the flip, not
+  FINISHED: "when EVO performs the flip, it changes the notifier to BEGUN"
+  (nvkms-headsurface.c:1896-1922, tested `== BEGUN`; the client-notifier emulation writes
+  BEGUN and the timestamp, 1996-2013). FINISHED is the core notifier's. nvidia-drm never reads
+  the status (it waits for AWAKEN), so Linux never showed it.
+- **Two clocks.** Notifier timestamps came from the display engine's own epoch, PTIMER from
+  the channel registry's, and an FLR restarted PTIMER at 0 under the old display and usermode
+  bases. The timestamp base is PTIMER (nvkms-api.h:925; the RM's GPU/CPU time correlation,
+  nvkms-evo.c:8810-8840).
+- **Fix (82fb8741):** window notifier BEGUN; one device clock per process, kept across FLR
+  (the RM sets PTIMER forward before every GSP boot, kernel_gsp.c:5677-5682); PTIMER-granular
+  timestamps (low five bits 0); the flip-away release writes the record's timestamp;
+  `TIMESTAMP_MODE` holds a flip until PTIMER >= `SET_UPDATE_TIMESTAMP`. To be confirmed in C53
+  (ch8), then Linux B.
+- **BAR1 pool under CH (C50):** trapped BAR1 accesses 5.64 M (C49) to 148; heavy page moves;
+  not the TDR's cause (same TDR without the pool).
+- **Automatic dumps** (eaf8c394): `dump auto` in display-ctl, one PNG per 3 s at most, last 10;
+  the device removes a stale display-ctl at start, so run44.py arms it after the device start.
+- Memory model: none (display engine and device clock); the BAR1 pool result is the pool model.
