@@ -1342,6 +1342,8 @@ pub struct Mirror {
     /// [`Self::confirm_gfx_wfi`]): their channels built later are ready too. Cleared at the
     /// host TSG's free.
     preemption_ready_tsg: std::collections::BTreeSet<TsgKey>,
+    /// Host TSGs whose context preemption modes were read once (`log_preemption_modes`).
+    modes_read: std::collections::BTreeSet<TsgKey>,
     /// Guest roots whose shadow VAS was handed to the teardown: the FB store drops their
     /// cached walks ([`Mirror::take_reaped_roots`]; before, a walk cache of up to 4M leaves
     /// stayed for every context that ever ran).
@@ -1522,6 +1524,7 @@ impl Mirror {
             stats: MirrorStats::default(),
             preemption_ready: std::collections::BTreeSet::new(),
             preemption_ready_tsg: std::collections::BTreeSet::new(),
+            modes_read: std::collections::BTreeSet::new(),
             reaped_roots: Vec::new(),
             released_roots: Vec::new(),
             exhausted: Default::default(),
@@ -2204,6 +2207,7 @@ impl Mirror {
                 Ok(n) => notes.push(n),
                 Err(e) => notes.push(format!("shadow: doorbell chid {chid}: {e}")),
             }
+            notes.extend(self.log_preemption_modes(chid));
             // The GPU-owned words back to the guest's USERD after the ring, off the
             // submission path (uncached reads of the host USERD; P37: 9.6 us before it).
             if let Some(u) = self
@@ -3162,6 +3166,27 @@ impl Mirror {
         Ok(vec![format!(
             "tsg {key}: host context confirmed in graphics WFI (GET gfxp 0, cilp {cilp:#x}); nothing bound [host read]"
         )])
+    }
+
+    /// The host context's graphics and compute preemption modes, read once per host GR TSG
+    /// at its first forwarded doorbell (`GET_CTXSW_PREEMPTION_MODE`, read-only): what the
+    /// host runs, whatever the guest asked for (the guest's own GET is answered from its
+    /// recorded BIND, public.rs). Graphics 0 WFI, 1 GFXP, 2 GFXP pool; compute 0 WFI, 1 CTA,
+    /// 2 CILP (ctrl2080gr.h). A long draw in WFI cannot be preempted (host Xid 109).
+    fn log_preemption_modes(&mut self, chid: u32) -> Option<String> {
+        let hc = self.channels.get(&chid)?;
+        hc.shadow_root?;
+        let (key, handle) = (hc.tsg, hc.handle);
+        if !self.modes_read.insert(key) {
+            return None;
+        }
+        let (st, gfxp, compute) = get_preemption_modes(&self.hm.lock().unwrap(), handle);
+        let line = format!(
+            "host context preemption modes: tsg {key} (guest chid {chid}, host channel {handle:#x}): status {}, graphics {gfxp} (0 WFI, 1 GFXP, 2 GFXP pool), compute {compute} (0 WFI, 1 CTA, 2 CILP) [host read, once per TSG]",
+            status_name(st)
+        );
+        eprintln!("vfio-user-nvgpu: {line}");
+        Some(line)
     }
 
     /// A GR context whose preemption request was carried out on the host without an owned
@@ -4870,6 +4895,7 @@ impl Mirror {
         }
         if !freed { return false; }
         self.preemption_ready_tsg.remove(&key);
+        self.modes_read.remove(&key);
         if let Some(t) = self.tsgs.remove(&key) {
             let r = self.hm.lock().unwrap().free_object(t.handle);
             notes.push(match r {
