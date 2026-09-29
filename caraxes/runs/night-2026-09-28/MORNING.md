@@ -1,0 +1,80 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
+# Morning summary, night of 2026-09-28/29
+
+Evidence: [README.md](README.md) (all tables, commands, run folders). dev is not pushed.
+
+## Stable device for all three guest types (your priority)
+
+One binary on dev (b2e0d749 + docs): the guest's ABI is detected at the GSP boot. Gated on the same head 8e621e0a:
+- **nova** (Linux 7.2.7): ABI 570 detected, 5 probes, bind/unbind/reload, 0 refused.
+- **Linux, NVIDIA open 615:** smoke, compute series and scrub stress; 0 Xid.
+- **Windows 11 / 617.14:** D3D11, D3D12, Vulkan, CUDA, managed memory, NVENC/NVDEC, smoke ALL PASS; 0 Xid, 0 TDR.
+
+## Performance, Linux vs native (defaults, no extra switches)
+
+| Workload | native | Linux guest | ratio |
+|---|---|---|---|
+| llama 1B pp512 / tg128 | 7639 / 305 | 8037-8565 / 282-300 | 1.05-1.12 / 0.93-0.98 |
+| PyTorch transformer | 107485 tok/s | 109579-110248 | 1.02 |
+| PyTorch ResNet-18 | 532.5 img/s | 511-553 | 0.96-1.04 |
+| NVENC 1080p | 165-180 fps | 146-178 | 0.9-1.0 |
+| NVDEC 1080p | 137-143 fps | 129-154 | 0.93-1.0 |
+| short kernel | 6 µs | 11-13 µs | the one outlier |
+| vkmark / glmark2 (4000+ FPS micro-benchmarks) | 15973 / 12214 | ~5600 / ~4300 | 0.35 (per-frame overhead; not the game metric) |
+
+Windows lags: short kernel 59 µs, ResNet 0.66, NVENC 0.65-0.75.
+- Cause: QEMU traps every doorbell (no ioeventfd).
+- Next: the BAR2-memfd and interrupt-page A/B (P37).
+
+## What was wrong and is fixed on dev
+
+- **Short kernel 40-48 µs → 11 µs:**
+  - set B was recomputed twice per doorbell (20 µs);
+  - now cached (8d9ab89c), plus LAUNCH_FAST=2 as the default (ca2559f5).
+- **ResNet-18 crashed (host Xid 31):**
+  - since 9ddc665c CUDA maps through nvidia-uvm, whose invalidates never held the shadow;
+  - fixed by the MEM_OP hold (c8f9ce08).
+- **NVENC/NVDEC 0.55×:**
+  - the host card stayed in P8 while the VM worked;
+  - fixed by the activity-driven host boost (78d4b0fd, your go). ENC 0.55 → 0.9-1.0.
+- **UVM:**
+  - a Linux guest is told "no UVM" (945431f9, your call), so managed memory fails cleanly instead of with a host Xid;
+  - Windows keeps bit 1: managed memory works either way there, and bit 1 gives 4× pinned-copy bandwidth (A/B P31).
+- **Windows:**
+  - CUDA contexts (8-channel TSG) and TDR at every exit;
+  - D3D12 and Vulkan;
+  - CE channels mirrored (copies 0.2 → 12.9 GB/s), the video channels;
+  - the software CE sliced so QEMU never times out;
+  - guest-RAM registration off the loop.
+- **Device CE:** allocation clears and scrubs run on a device-owned host CE confined to the VM's FB. 29 GiB in 1.6 s instead of 75 s of CPU; Linux scrub stress 28 → 12 s.
+- **Security:**
+  - the device's own channel tables and rings (top 512 KiB of the reservation) were reachable as guest memory through the software CE, the shadow, BAR1/BAR2 and PRAMIN;
+  - now refused on every path (8e621e0a).
+- **Defaults instead of switches:** host boost, LAUNCH_FAST=2, the display kick page (+11-26 % glmark2).
+
+## Decisions for you
+
+1. **SotTR is blocked on Linux by the stock driver's NVKMS refusal at full VRAM.**
+   - Reproduced with screenshots: the picture freezes at 3884/4096 MiB, then the game exits.
+   - No device-only fix exists (docs/research/display-balloon-2026-09-29.md).
+   - The design: a per-cgroup VRAM cap on the guest's app slice via the 615 driver's own accounting, with R automatic = 52/82/162 MiB for 1080p/1440p/4K.
+   - Needs one guest-side unit (no driver patch).
+   - Decide:
+     - (a) allow the unit?
+     - (b) R out of the profile or on top?
+     - (c) `display_reserve_mib` as one of the knobs?
+2. **UVM for Linux:** a preload shim could keep managed memory in guest RAM (docs/research/uvm-guest-ram-2026-09-28.md). The upstreamable nvidia-uvm patch (~300 lines) needs a CLA and a public PR, which touches the licence rule.
+3. **Windows doorbells:**
+   - a QEMU patch for vfio-user io fds (one KVM exit per doorbell); or
+   - Windows under Cloud Hypervisor (firmware and TPM done; no display/keyboard for the installer; tooling work).
+   - See docs/research/windows-traps-exit-2026-09-29.md.
+4. **The device trace** costs ~10 % in graphics micro-benchmarks. Off by default in the launcher?
+5. **NAS:** the games disk reads at ~62 MiB/s (qcow2 on /mnt/vmstore); you mentioned 25 Gbit/s.
+
+## Open items (not blocking)
+
+- Log noise marked ERROR but handled: the BAR1 pool "USERD cannot move back" and "maps twice" lines; the untrapped-GPPut "ran ahead with plans pending" detector (pre-existing, no fault).
+- libcuda reports "VMM: no" with UVM off on Linux (cuMemCreate family unavailable).
+- The usermode and invalidate pages lose or are unsafe as they are (usermode −40 %; invalidate lacks the untrapped hold).
+- `cargo doc -D warnings` fails on dev (private doc links), from before tonight.
