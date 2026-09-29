@@ -560,3 +560,35 @@ clock's per-tick work takes the display engine's lock and never D.
   `software CPU copy`; the rest is the doorbell's total minus both).
 - Next, if the split shows the copies or the rest dominate: the executor off D (step 5b), or the
   paging channel on a host CE.
+
+### 9.7 The executor TLB and bounded software runs (step 5b, 2026-09-29)
+
+- Windows C67 (5a): software doorbells of the KMD's channel still held D 516-562 ms, about half
+  of it translating. A doorbell makes one or two translations per GPFIFO entry and per semaphore
+  or CE op, each 5-7 table words through the two BAR1 windows; table pages, GPFIFO, pushbuffers
+  and data sit in different 32 MiB regions and evict each other (C67: 38765 window maps).
+- The executor TLB (`fb.rs` `ExecTlb`): `(root, VA page)` to the page's target, filled by
+  `translate_pages` from walks that read only VRAM tables the device tracks (not sysmem, not the
+  BAR1 pool, not the private pages), with the table pages recorded.
+  - Flushed by a write to a recorded table page (the BAR TLB's three hooks: device writes,
+    BAR2 memfd syncs, writes of unknown content), by every MMU invalidate (register or the
+    invalidate page) and by every `MEM_OP` TLB invalidate the executor runs.
+  - That is the card's own rule: an engine may use cached translations until the next
+    invalidate, and a guest that changes a PTE invalidates before an engine uses it, so writers
+    the device cannot see are covered too.
+  - At most 2^18 entries. Counted: `executor tlb: page hits, unit walks, flushes`, and per long
+    software doorbell in its tag (hits, walks, window maps).
+- Bounded runs (`channel.rs` `RUN_BUDGET`, 2 ms): a software channel's run stops between two
+  GPFIFO entries once its budget is spent; the slice clock (the `ce-slices` thread, 1 ms, D taken
+  briefly) continues it at the same GPGet through the held replay, as a sliced CE transfer.
+  The CE slice is 4 ms (40 ms before).
+  - Order: the channel's own entries, semaphore releases and non-stall events stay in its order;
+    other channels, host or software, run in between, as on the GPU (a doorbell only promises
+    that the entries run eventually). Acquires go through the held replay as before.
+  - A hold of a software run is bounded by the budget plus one entry (a CE chunk at most).
+- Tests: `the_executor_tlb_holds_until_a_table_write_or_an_invalidate`,
+  `a_run_past_its_budget_stops_between_entries_and_continues_in_order`,
+  `a_range_translates_as_its_pages_do`.
+- Not done: the executor on its own thread without D. It reads and writes the FB through FakeFb
+  (VRAM windows, walk-cache hooks, BAR2 memfd merges, victim patches, the pool's remap), all
+  owned under D; only if the hold histogram still shows long software holds.

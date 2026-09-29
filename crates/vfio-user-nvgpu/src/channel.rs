@@ -359,6 +359,9 @@ pub struct Channel {
     software_fb_range: Option<(u64, u64)>,
     /// The software CE's slice ([`CE_SLICE`]; the registry's, copied at each run).
     ce_slice: std::time::Duration,
+    /// The last run stopped at its budget ([`RUN_BUDGET`]) with entries left: the slice
+    /// clock continues it at the same GPGet ([`Registry::blocked_software_channels`]).
+    budget_stop: bool,
     /// Fail-closed software execution for management channels whose deferred APIs are
     /// completed by the dispatcher through a prepared host context.
     deferred_management: bool,
@@ -535,6 +538,8 @@ pub struct Registry {
     pub software_fb_range: Option<(u64, u64)>,
     /// The software CE's slice ([`CE_SLICE`]; shorter in tests).
     pub ce_slice: std::time::Duration,
+    /// A software run's budget between GPFIFO entries ([`RUN_BUDGET`]; other in tests).
+    pub run_budget: std::time::Duration,
     /// Lets the dispatcher avoid software-event scans on the mirrored hot path.
     pub software_runs: u64,
     sem_diag: bool,
@@ -596,6 +601,8 @@ impl Registry {
             tokens: None,
             software_fb_range: None,
             ce_slice: CE_SLICE,
+            // Unit tests run whole doorbells unless they test the budget.
+            run_budget: if cfg!(test) { std::time::Duration::from_secs(1) } else { RUN_BUDGET },
             software_runs: 0,
             sem_diag: std::env::var("CARAXES_SEMAPHORE_DIAG").as_deref() == Ok("1"),
             sem_diag_chid: std::env::var("CARAXES_SEMAPHORE_DIAG_CHID")
@@ -963,7 +970,7 @@ impl Registry {
     pub fn blocked_software_channels(&self) -> Vec<u32> {
         self.channels
             .values()
-            .filter(|ch| !ch.mirrored && !ch.software_failed && ch.resume.is_some())
+            .filter(|ch| !ch.mirrored && !ch.software_failed && (ch.resume.is_some() || ch.budget_stop))
             .map(|ch| ch.chid)
             .collect()
     }
@@ -1427,6 +1434,7 @@ impl Registry {
                     software_nonstall: false,
                     software_fb_range: None,
                     ce_slice: CE_SLICE,
+                    budget_stop: false,
                     deferred_management: false,
                     deferred: None,
                     sem_diag_seen: std::collections::BTreeSet::new(),
@@ -2130,6 +2138,9 @@ impl Registry {
         self.software_runs = self.software_runs.wrapping_add(1);
         ch.software_fb_range = self.software_fb_range;
         ch.ce_slice = self.ce_slice;
+        ch.budget_stop = false;
+        let started = std::time::Instant::now();
+        let budget = self.run_budget;
         let Some(userd) = ch.userd else {
             notes.push(format!("chid {chid}: no USERD, nothing run"));
             return notes;
@@ -2234,6 +2245,18 @@ impl Registry {
             ch.entries_done += 1;
             if !mem.write(userd_at(USERD_GP_GET), &ch.gp_get.to_le_bytes()) {
                 notes.push(format!("chid {chid}: GPGet write to {userd:?} failed"));
+            }
+            // The run's budget: stop between two entries, the slice clock continues.
+            if ch.gp_get != gp_put % entries && started.elapsed() >= budget {
+                ch.budget_stop = true;
+                CE_SLICES_PENDING.store(true, std::sync::atomic::Ordering::Release);
+                notes.push(format!(
+                    "chid {chid}: run stopped at gp {} after {} us ({} us budget); the slice clock continues it",
+                    ch.gp_get,
+                    started.elapsed().as_micros(),
+                    budget.as_micros()
+                ));
+                break;
             }
         }
         let inv = std::mem::take(&mut ch.tlb_invalidates);
@@ -2587,6 +2610,8 @@ impl Registry {
                 if op == 9 || op == 0xA {
                     let pdb = crate::pdbwatch::memop_pdb(h.mem_op[2], data);
                     ch.tlb_invalidates.push(pdb);
+                    // The executor's own cached translations end here too (fb.rs `ExecTlb`).
+                    mem.fb.exec_tlb_flush();
                     pdb_note = match pdb {
                         Some(p) => format!(" pdb {p:?}"),
                         None => " all pdbs".into(),
@@ -3508,10 +3533,18 @@ impl Registry {
 const CE_MAX_BYTES: u64 = 4 << 30;
 /// The longest one call of the software CE works on a transfer before the rest continues in
 /// the next slice: the vfio-user loop answers within that (QEMU's reply timeout is 5 s) and
-/// the guest's other channels run in between.
-const CE_SLICE: std::time::Duration = std::time::Duration::from_millis(40);
+/// the guest's other channels run in between. 40 ms until 2026-09-29; 4 ms since, so a
+/// slice under the device lock stays within a few milliseconds (execution.md §9.7).
+const CE_SLICE: std::time::Duration = std::time::Duration::from_millis(4);
+/// The longest a software channel's run works through its GPFIFO under the device lock
+/// before it stops between two entries; the slice clock (the device's `ce-slices` thread,
+/// 1 ms) continues it at the same GPGet (docs/caraxes/execution.md §9.7). A doorbell only
+/// promises that the entries run eventually; the channel's own entries, semaphores and
+/// events keep their order, and other channels run in between as on the GPU. Windows C67:
+/// software doorbells of the KMD's channel held the lock 516-562 ms.
+pub const RUN_BUDGET: std::time::Duration = std::time::Duration::from_millis(2);
 /// A copy's chunk between two slice checks: 64 KiB take 6.5 ms at the 10 MB/s of VRAM reads
-/// through the BAR1 windows (run P29), so a slice ends within 50 ms.
+/// through the BAR1 windows (run P29), so a slice ends within about 11 ms.
 const CE_COPY_CHUNK: usize = 64 << 10;
 /// Transfers up to this size are validated whole before their first write.
 const CE_VALIDATE_WHOLE: u64 = 16 << 20;
@@ -4996,6 +5029,70 @@ mod tests {
         assert_eq!(reg.blocked_software_channels(), vec![9]);
         assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
         std::fs::remove_file(path).ok();
+    }
+
+    /// A software run stops between two GPFIFO entries once its budget is spent
+    /// ([`RUN_BUDGET`], execution.md §9.7): the entries before ran with their semaphore
+    /// release, GPGet stands after them, the channel waits for the slice clock, and the next
+    /// run continues at the same GPGet with the rest, in order.
+    #[test]
+    fn a_run_past_its_budget_stops_between_entries_and_continues_in_order() {
+        let (mut fb, sys, _path, _root) = world("budget");
+        let mut reg = Registry::new(classes());
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        reg.record_alloc(
+            1,
+            0x30,
+            0x40,
+            TURING_CHANNEL_GPFIFO_A,
+            &channel_params(9, 0x1000_0000, 0x20_0000, 0),
+        )
+        .unwrap();
+        // Two pushbuffers in guest RAM (VA pages 8 and 9): host semaphore releases of 1
+        // and 2 into VA page 10 (GPA 0x4000_2000).
+        let push = |payload: u32| -> Vec<u8> {
+            inc(0, 0x5C, &[0x1000_A000, 0x0, payload, 0, 1])
+                .iter()
+                .flat_map(|d| d.to_le_bytes())
+                .collect()
+        };
+        let (p1, p2) = (push(1), push(2));
+        assert!(sys.write(0x4000_0000, &p1));
+        assert!(sys.write(0x4000_1000, &p2));
+        let entry = |va: u32, len: usize| -> Vec<u8> {
+            let mut e = va.to_le_bytes().to_vec();
+            e.extend_from_slice(&(((len / 4) as u32) << 10).to_le_bytes());
+            e
+        };
+        let mut gp = entry(0x1000_8000, p1.len());
+        gp.extend(entry(0x1000_9000, p2.len()));
+        fb.write(0x100000, &gp);
+        fb.write(0x20_0000 + USERD_GP_PUT, &2u32.to_le_bytes());
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        reg.run_budget = std::time::Duration::ZERO;
+        let all = reg.doorbell(&mut mem, (1 << 16) | 9).join("\n");
+        assert!(all.contains("run stopped at gp 1"), "{all}");
+        assert_eq!(sys.read_u32(0x4000_2000), Some(1), "the first entry's release");
+        assert_eq!(mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET)), Some(1));
+        // Held for the slice clock (its flag is process-wide, so other tests share it).
+        assert_eq!(reg.blocked_software_channels(), vec![9]);
+        // The next run (the slice clock's held replay) continues with the second entry.
+        reg.run_budget = std::time::Duration::from_secs(1);
+        reg.doorbell(&mut mem, (1 << 16) | 9);
+        assert_eq!(sys.read_u32(0x4000_2000), Some(2), "the second release, after the first");
+        assert_eq!(mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET)), Some(2));
+        assert!(reg.blocked_software_channels().is_empty());
+        assert_eq!(reg.channels().next().unwrap().entries_done, 2);
     }
 
     #[test]

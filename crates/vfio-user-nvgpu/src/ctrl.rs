@@ -758,9 +758,13 @@ impl Dispatcher {
         let software_runs = self.channels.software_runs;
         let t0 = std::time::Instant::now();
         crate::dlock::take_spent();
+        let tlb0 = gm.fb.exec_tlb_stats();
+        let maps0 = gm.fb.vram_stats().map_or(0, |v| v.maps);
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
         let spent = t0.elapsed();
         let [translate, copy] = crate::dlock::take_spent();
+        let tlb1 = gm.fb.exec_tlb_stats();
+        let maps = gm.fb.vram_stats().map_or(0, |v| v.maps) - maps0;
         let software = self.channels.software_runs != software_runs;
         // The device lock's tags and work table (dlock.rs): what a channel's doorbell cost,
         // with a software run's translations and CPU copies apart.
@@ -768,9 +772,11 @@ impl Dispatcher {
         if spent >= std::time::Duration::from_millis(1) {
             crate::dlock::tag(|| {
                 format!(
-                    "doorbell chid {chid} ({kind}) {} ms (translate {} ms, CPU copy {} ms)",
+                    "doorbell chid {chid} ({kind}) {} ms (translate {} ms: {} page hit(s), {} unit walk(s); CPU copy {} ms; {maps} window map(s))",
                     spent.as_millis(),
                     translate.as_millis(),
+                    tlb1.0 - tlb0.0,
+                    tlb1.1 - tlb0.1,
                     copy.as_millis()
                 )
             });
