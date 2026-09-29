@@ -28,24 +28,12 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-/// The switch (default on).
-pub const ENV: &str = "CARAXES_SHADOW_INVALIDATE_ASYNC";
 /// A busy read of the trigger waits for the worker at most this long under the lock, so the
 /// guest's poll does not become a storm of exits while other waiters still get the lock.
 pub const POLL_WAIT: Duration = Duration::from_micros(50);
 /// A gate armed longer than this makes the next trigger read wait for the worker to the end
 /// (fail closed well inside the guest RM's 4 s `GPU_TIMEOUT_DEFAULT`).
 pub const FALLBACK: Duration = Duration::from_secs(1);
-
-/// `CARAXES_SHADOW_INVALIDATE_ASYNC`: unset, empty, `1`/`on` on; `0`/`off` off; anything
-/// else an error (the caller then keeps the old hold: fail closed).
-pub fn parse_switch(v: Option<&str>) -> Result<bool, String> {
-    match v.map(str::trim) {
-        None | Some("") | Some("1") | Some("on") => Ok(true),
-        Some("0") | Some("off") => Ok(false),
-        Some(x) => Err(format!("{ENV}={x:?}: expected 1, on, 0 or off")),
-    }
-}
 
 /// What a waiter waits for: every job up to a sequence number, or the jobs of one shadow
 /// root up to a sequence number (that root's last job when the wait began).
@@ -383,14 +371,6 @@ impl InvalidateGate {
 mod tests {
     use super::*;
     use std::sync::Arc;
-
-    #[test]
-    fn the_switch_is_on_unless_turned_off() {
-        assert_eq!(parse_switch(None), Ok(true));
-        assert_eq!(parse_switch(Some("on")), Ok(true));
-        assert_eq!(parse_switch(Some("0")), Ok(false));
-        assert!(parse_switch(Some("x")).is_err());
-    }
 
     /// A stand-in for the shadow worker: finishes job `seq` after `delay`.
     fn slow_worker(p: &Arc<Progress>, seq: u64, delay: Duration) -> std::thread::JoinHandle<()> {

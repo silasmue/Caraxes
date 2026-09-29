@@ -27,15 +27,6 @@ use std::time::{Duration, Instant};
 
 /// The switch: `1` times the launch path.
 pub const TIMING_ENV: &str = "CARAXES_LAUNCH_TIMING";
-/// The switch of the device-side cuts of the ring path (docs/caraxes/launch-path.md §3):
-/// `1` reads USERD's GPGet and GPPut as one qword and GPPut alone for the forward record,
-/// skips the BAR1 write-combine flush when the device stored nothing through its windows
-/// since the last one, skips `note_rung`'s USERD read when the token pool (which excludes
-/// the token-less reader, its only user) is on, and writes a ring's trace notes with one
-/// flush. The order of a ring (plans applied, flush, GPPut read, host doorbell) is kept.
-/// `2` adds the lean evidence: the ran-ahead check's USERD read only at a doorbell with
-/// plans pending, the one case it logs ([`evidence_needed`]).
-pub const FAST_ENV: &str = "CARAXES_LAUNCH_FAST";
 
 /// One step of the chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -301,7 +292,7 @@ static GATE_LAST_DOORBELL_NS: AtomicU64 = AtomicU64::new(0);
 /// The gate's hold in milliseconds (0: off).
 static GATE_HOLD_MS: AtomicU64 = AtomicU64::new(0);
 static FAST: AtomicBool = AtomicBool::new(false);
-/// `CARAXES_LAUNCH_FAST=2`: the lean evidence.
+/// The lean evidence ([`evidence_needed`]).
 static LEAN: AtomicBool = AtomicBool::new(false);
 /// Ran-ahead checks skipped by the lean evidence (no plan pending).
 pub static EVIDENCE_SKIPPED: AtomicU64 = AtomicU64::new(0);
@@ -330,23 +321,22 @@ pub fn configure() -> Result<bool, String> {
     Ok(on)
 }
 
-/// Read the fast switch once at start: `2` (the default since 2026-09-29: on with the lean
-/// evidence), `1` on, `0` off, anything else refused. The default follows the night of
-/// 2026-09-28: FAST=2 ran every Linux and Windows gate without an Xid and took the short
-/// kernel from 20 to 13 us (caraxes/runs/night-2026-09-28/README.md).
-pub fn configure_fast() -> Result<bool, String> {
-    let (on, lean) = match std::env::var(FAST_ENV).ok().as_deref().map(str::trim) {
-        None | Some("") | Some("2") => (true, true),
-        Some("0") => (false, false),
-        Some("1") => (true, false),
-        Some(v) => return Err(format!("{FAST_ENV}={v:?}: 2, 1 or 0")),
-    };
-    set_fast(on);
-    LEAN.store(lean, Relaxed);
-    Ok(on)
+/// The device-side cuts of the ring path at start (docs/caraxes/launch-path.md §3): USERD's
+/// GPGet and GPPut read as one qword and GPPut alone for the forward record, no BAR1
+/// write-combine flush when the device stored nothing through its windows since the last
+/// one, no `note_rung` USERD read under the token pool, a ring's trace notes written with
+/// one flush; and the lean evidence, the ran-ahead check's USERD read only at a doorbell
+/// with plans pending, the one case it logs ([`evidence_needed`]). The order of a ring
+/// (plans applied, flush, GPPut read, host doorbell) is kept. The default since 2026-09-29
+/// (`CARAXES_LAUNCH_FAST=2`, its variable gone on 2026-09-30): it ran every Linux and
+/// Windows gate without an Xid and took the short kernel from 20 to 13 us
+/// (caraxes/runs/night-2026-09-28/README.md).
+pub fn configure_fast() {
+    set_fast(true);
+    LEAN.store(true, Relaxed);
 }
 
-/// Whether the lean evidence (`CARAXES_LAUNCH_FAST=2`) is on.
+/// Whether the lean evidence is on.
 pub fn lean() -> bool {
     LEAN.load(Relaxed)
 }
@@ -424,11 +414,10 @@ pub fn set_fast_here(on: bool) {
 /// The fast switch's line for the exit summary.
 pub fn fast_summary() -> String {
     format!(
-        "launch fast: BAR1 flushes {} done, {} skipped (no device store since the last one); ran-ahead checks skipped with no plan pending: {} ({FAST_ENV}={}, docs/caraxes/launch-path.md)\n",
+        "launch fast: BAR1 flushes {} done, {} skipped (no device store since the last one); ran-ahead checks skipped with no plan pending: {} (docs/caraxes/launch-path.md)\n",
         FLUSH_DONE.load(Relaxed),
         FLUSH_SKIPPED.load(Relaxed),
         EVIDENCE_SKIPPED.load(Relaxed),
-        if lean() { 2 } else { 1 }
     )
 }
 

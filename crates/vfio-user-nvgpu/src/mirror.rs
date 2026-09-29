@@ -2026,14 +2026,12 @@ pub struct Mirror {
     /// physical GPU: `DMA_INVALIDATE_TLB` on an externally-owned mirror VA space is a
     /// no-op (the RM walker has no root there), so the guest's register invalidate was
     /// never replayed and a fresh mapping faulted with FAULT_PDE (Xid 31, measured
-    /// 2026-09-23 `d-ce-token`). `CARAXES_MEMOP_INVALIDATE=0` falls back to the (no-op)
-    /// `DMA_INVALIDATE_TLB` for A/B comparison.
+    /// 2026-09-23 `d-ce-token`).
     invalidator: Option<Invalidator>,
     /// The device-owned host copy engine of the software CE's large transfers (devce.rs),
     /// shared with the FB store; built once at the first doorbell.
     device_ce: Option<Arc<Mutex<crate::devce::DeviceCe>>>,
     device_ce_tried: bool,
-    memop_invalidate: bool,
     /// One shadow VAS per guest root (per CUDA context: two processes use the same VAs
     /// for different pages, measured in the gpu gate's robustness stage), built at the
     /// first GR channel of that root and freed when its last channel and TSG are gone.
@@ -2065,14 +2063,11 @@ pub struct Mirror {
     /// `CARAXES_ALLOC_LAZY=1` (lazy.rs, docs/caraxes/alloc-path.md): a guest MMU invalidate
     /// defers its plan to the next shadow doorbell or channel creation.
     lazy: crate::lazy::LazyPlans,
-    /// The rule for a mirrored channel whose GPPut store does not trap (untrapped.rs,
-    /// `CARAXES_SHADOW_UNTRAPPED_HOLD`, default on) and its counters.
-    hold_on: bool,
+    /// The counters of the rule for a mirrored channel whose GPPut store does not trap
+    /// (untrapped.rs).
     pub hold: crate::untrapped::HoldStats,
-    /// `CARAXES_SHADOW_INVALIDATE_ASYNC` (invgate.rs, default on): a held invalidate returns
-    /// at once and its trigger reads busy until the worker applied the plan, instead of
-    /// waiting inside the trapped write under the device lock.
-    inv_async: bool,
+    /// A held invalidate returns at once and its trigger reads busy until the worker
+    /// applied the plan (invgate.rs).
     inv_gate: crate::invgate::InvalidateGate,
     /// Held invalidates by scope: one root, `ALL_PDB` (its untrapped roots), and the roots
     /// the `ALL_PDB` ones held in total.
@@ -2087,9 +2082,6 @@ pub struct Mirror {
     /// the host: `(guest handle, class, params)` by ChID ([`Mirror::place_video_object`];
     /// docs/caraxes/video-engines.md §3).
     video_pending: BTreeMap<u32, (u32, u32, Vec<u8>)>,
-    /// Place video objects on the host ([`Mirror::place_video_object`]);
-    /// `CARAXES_MIRROR_VIDEO_OBJECT=0` refuses every one to the guest.
-    video_objects: bool,
     /// `CARAXES_SHADOW_FENCE=1` (shadow.rs [`crate::shadow::Layout::fenced`]): GR and CE shadow
     /// VA spaces fence the guest RM's kernel range, and set B moves above it.
     shadow_fence: bool,
@@ -2211,9 +2203,8 @@ impl Mirror {
             invalidator: None,
             device_ce: None,
             device_ce_tried: false,
-            memop_invalidate: std::env::var("CARAXES_MEMOP_INVALIDATE").as_deref() != Ok("0"),
             shadows: BTreeMap::new(),
-            map_budget: crate::shadow::MapBudget::from_env(),
+            map_budget: crate::shadow::MapBudget::device(),
             worker,
             ring_gate,
             held_rings: BTreeMap::new(),
@@ -2241,47 +2232,12 @@ impl Mirror {
                     crate::lazy::LazyPlans::new(false, None)
                 }
             },
-            hold_on: match crate::untrapped::parse_switch(
-                std::env::var(crate::untrapped::ENV).ok().as_deref(),
-            ) {
-                Ok(on) => {
-                    if !on {
-                        eprintln!(
-                            "vfio-user-nvgpu: WARN untrapped GPPut: rule OFF ({}=0): an invalidate of a root whose channel has an untrapped USERD is not held (A/B only; docs/caraxes/bar1-pool.md §9)",
-                            crate::untrapped::ENV
-                        );
-                    }
-                    on
-                }
-                Err(e) => {
-                    eprintln!("vfio-user-nvgpu: ERROR untrapped GPPut: {e}; the rule stays on");
-                    true
-                }
-            },
             hold: crate::untrapped::HoldStats::default(),
             held_scope: (0, 0, 0),
-            inv_async: match crate::invgate::parse_switch(
-                std::env::var(crate::invgate::ENV).ok().as_deref(),
-            ) {
-                Ok(on) => {
-                    if !on {
-                        eprintln!(
-                            "vfio-user-nvgpu: WARN held invalidates wait under the device lock ({}=0, A/B only; docs/caraxes/execution.md §8)",
-                            crate::invgate::ENV
-                        );
-                    }
-                    on
-                }
-                Err(e) => {
-                    eprintln!("vfio-user-nvgpu: ERROR held invalidate: {e}; it waits under the device lock");
-                    false
-                }
-            },
             inv_gate: Default::default(),
             unwaited: 0,
             descs: None,
             video_pending: BTreeMap::new(),
-            video_objects: std::env::var("CARAXES_MIRROR_VIDEO_OBJECT").as_deref() != Ok("0"),
             shadow_fence: std::env::var(crate::shadow::FENCE_ENV).as_deref() == Ok("1"),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
@@ -2597,9 +2553,6 @@ impl Mirror {
                 }
             }
         }
-        if !self.worker.enabled {
-            self.worker.wait_all();
-        }
         out.append(&mut Vec::new());
         out
     }
@@ -2616,12 +2569,8 @@ impl Mirror {
         // A root whose channel's GPPut store does not trap (untrapped.rs): the invalidate is
         // the last point before the host channel may run the guest's next work, so the plan
         // is made and applied before the guest continues, with everything deferred so far.
-        let untrapped = if self.hold_on {
-            self.untrapped_roots(reg, gm.fb)
-        } else {
-            Default::default()
-        };
-        if self.hold_on && crate::untrapped::must_hold(pdb, &untrapped) {
+        let untrapped = self.untrapped_roots(reg, gm.fb);
+        if crate::untrapped::must_hold(pdb, &untrapped) {
             // The invalidate's scope (docs/caraxes/execution.md §8): the card completes it
             // when the TLB holds no stale translation for its target. The target root, or
             // for ALL_PDB every root whose host channel may fetch without a trapped
@@ -2643,17 +2592,10 @@ impl Mirror {
                 notes.extend(self.shadow_resync(reg, gm, Some(*r)));
             }
             let targets = self.worker.targets(&held);
-            if self.inv_async {
-                // The guest polls TRIGGER until it reads FALSE before its map call returns
-                // (`kgmmuCommitTlbInvalidate_TU102`) ([`Mirror::invalidate_busy`]). The
-                // device lock is free meanwhile.
-                self.inv_gate.arm(targets, t0, &self.worker.progress);
-            } else {
-                self.worker
-                    .progress
-                    .wait(&crate::invgate::Target::Roots(targets));
-                self.hold.note_held(t0.elapsed());
-            }
+            // The guest polls TRIGGER until it reads FALSE before its map call returns
+            // (`kgmmuCommitTlbInvalidate_TU102`) ([`Mirror::invalidate_busy`]). The device
+            // lock is free meanwhile.
+            self.inv_gate.arm(targets, t0, &self.worker.progress);
             if pdb.is_none() {
                 notes.extend(self.invalidate_unheld(reg, gm, None));
             }
@@ -2718,10 +2660,10 @@ impl Mirror {
     }
 
     /// The shadow roots whose software `MEM_OP` TLB invalidate stops its push until the
-    /// shadow is applied (channel.rs `doorbell_holding`): every shadow root while the rule
-    /// is on (untrapped.rs `memop_holds`), `None` otherwise.
+    /// shadow is applied (channel.rs `doorbell_holding`): every shadow root (untrapped.rs
+    /// `memop_holds`), `None` without one.
     pub fn memop_hold_roots(&self) -> Option<std::collections::BTreeSet<u64>> {
-        (self.hold_on && !self.shadows.is_empty()).then(|| self.shadows.keys().copied().collect())
+        (!self.shadows.is_empty()).then(|| self.shadows.keys().copied().collect())
     }
 
     /// `MEM_OP` TLB invalidates the software executor ran (`inv`: the page directory each
@@ -2768,13 +2710,11 @@ impl Mirror {
     /// The untrapped-GPPut counters (untrapped.rs), for the pool's per-context line.
     pub fn hold_summary(&self) -> String {
         format!(
-            "{}; held invalidates {} (trigger read busy {} time(s), {} waited past {} ms) [{}], by scope: {} of one root, {} ALL_PDB holding {} untrapped root(s) in total; {}; {}",
-            self.hold.summary(self.hold_on),
-            if self.inv_async { "complete through the trigger's busy bit" } else { "wait under the device lock" },
+            "{}; held invalidates complete through the trigger's busy bit (trigger read busy {} time(s), {} waited past {} ms), by scope: {} of one root, {} ALL_PDB holding {} untrapped root(s) in total; {}; {}",
+            self.hold.summary(),
             self.inv_gate.busy_reads,
             self.inv_gate.fallbacks,
             crate::invgate::FALLBACK.as_millis(),
-            crate::invgate::ENV,
             self.held_scope.0,
             self.held_scope.1,
             self.held_scope.2,
@@ -3444,7 +3384,7 @@ impl Mirror {
         // A root first built for a video channel gets the video layout (shadow.rs `Layout`):
         // a host-only area below the guest's RM base, where the host RM's own context lands.
         // GR and CE roots keep the default layout, as before.
-        let layout = if self.video_objects && video_bind(self.chip, &ch).is_some() {
+        let layout = if video_bind(self.chip, &ch).is_some() {
             crate::shadow::Layout::video()
         } else if self.shadow_fence {
             crate::shadow::Layout::fenced()
@@ -5631,21 +5571,17 @@ impl Mirror {
     }
 
     /// Whether a video object on mirrored channel `chid` is refused to the guest before it
-    /// is recorded (fail closed): with `CARAXES_MIRROR_VIDEO_OBJECT=0`, or when the channel's
-    /// shadow VAS has the default layout (built for a GR or CE channel first), where the
+    /// is recorded (fail closed): when the channel's shadow VAS has the default layout (built for a GR or CE channel first), where the
     /// host's context would land on the guest's RM base. Returns the refusal line.
     pub fn refuse_video_object(&self, chid: u32, class: u32) -> Option<String> {
         if !video_class_ok(self.chip, class) {
             return None;
         }
         let root = self.channels.get(&chid)?.shadow_root?;
-        let why = if !self.video_objects {
-            "CARAXES_MIRROR_VIDEO_OBJECT=0".to_string()
-        } else if self.shadows.get(&root).is_none_or(|sp| sp.front.layout.va_base == 0) {
-            format!("the shadow VAS of guest root {root:#x} has the default layout (built for a GR or CE channel first): no host-only area for the host's context")
-        } else {
+        if self.shadows.get(&root).is_some_and(|sp| sp.front.layout.va_base != 0) {
             return None;
-        };
+        }
+        let why = format!("the shadow VAS of guest root {root:#x} has the default layout (built for a GR or CE channel first): no host-only area for the host's context");
         Some(format!(
             "chid {chid}: video object {class:#x} refused (fail closed): {why} [host]"
         ))
@@ -5863,7 +5799,7 @@ impl Mirror {
             notes.push(format!("invalidator: raw physical invalidator refused for {why}; shadow VAS invalidation remains active"));
             return;
         }
-        if self.invalidator.is_some() || !self.memop_invalidate {
+        if self.invalidator.is_some() {
             return;
         }
         let mut h = self.hm.lock().unwrap();
@@ -6883,8 +6819,7 @@ impl Ghost {
 /// context's teardown runs in the background in bounded batches. Ordering: every job gets
 /// a sequence number; a doorbell of a shadow channel waits until the worker finished every
 /// job submitted before it (`wait_all`), so no host channel runs before its root's mirror is
-/// consistent with the guest's last invalidate. `CARAXES_SHADOW_WORKER=0` waits after every
-/// submission (the synchronous reference).
+/// consistent with the guest's last invalidate.
 struct ShadowWorker {
     tx: Option<std::sync::mpsc::Sender<(u64, Job)>>,
     stats: Arc<WorkerStats>,
@@ -6892,7 +6827,6 @@ struct ShadowWorker {
     progress: Arc<crate::invgate::Progress>,
     /// Submitted jobs and the last one per shadow root.
     seqs: crate::invgate::Seqs,
-    enabled: bool,
     notes: Arc<Mutex<Vec<String>>>,
     /// No teardown in progress.
     idle: Arc<(Mutex<bool>, std::sync::Condvar)>,
@@ -7057,7 +6991,6 @@ impl ShadowWorker {
             progress,
             idle,
             seqs: Default::default(),
-            enabled: std::env::var("CARAXES_SHADOW_WORKER").as_deref() != Ok("0"),
             notes,
             thread,
             ghosts: Default::default(),
@@ -7099,9 +7032,6 @@ impl ShadowWorker {
         }
         if let Some(tx) = &self.tx {
             let _ = tx.send((seq, job));
-        }
-        if !self.enabled {
-            self.wait_all();
         }
     }
 

@@ -101,7 +101,7 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --persist  file for the settings a real card keeps across resets and power cycles (the ECC
              and MIG modes of a chip that models them, src/families): read at start, where the
              pending settings take effect, and written at every change
-  --guest-abi  pin the guest driver's GSP ABI (default: CARAXES_GUEST_ABI, else none): 570
+  --guest-abi  pin the guest driver's GSP ABI (default: none): 570
              (nova-core), 595 (experiment), 610 or 615 (also the 617 Windows guest); anything
              else is refused (fail closed). Without a pin the guest chooses: every build
              serves all of them and reads the guest's from its GSP boot (RMARGS magic 'GSP '
@@ -197,7 +197,7 @@ struct Args {
 /// The guest ABI as the start-up log names it: the pin, or that the guest chooses.
 fn describe_guest_abi(pin: Option<ver::GuestAbi>) -> String {
     match pin {
-        Some(g) => format!("{g}, pinned (--guest-abi / CARAXES_GUEST_ABI)"),
+        Some(g) => format!("{g}, pinned (--guest-abi)"),
         None => "chosen by the guest (570, 610 or 615; 610 until its GSP boot shows it)".to_string(),
     }
 }
@@ -319,11 +319,8 @@ fn parse_args() -> Result<Args> {
         }
     }
     a.chip = chip::by_name(&chip_name).map_err(|e| anyhow::anyhow!("--chip: {e}"))?;
-    a.guest_abi = ver::check_guest_abi(
-        guest_abi_flag,
-        std::env::var("CARAXES_GUEST_ABI").ok().as_deref(),
-    )
-    .map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
+    a.guest_abi =
+        ver::check_guest_abi(guest_abi_flag).map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
     ver::pin_guest(a.guest_abi).map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
     // The costume ladder's class translation for the mirror (board `class_map`).
     vfio_user_nvgpu::board::install_class_map(board_data.class_map.clone());
@@ -551,55 +548,28 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // By default the set comes from the engines this device offers, sized to the eventfds
     // one reply can carry beside the pool's and the re-arm and head eventfds. They need the
     // boot model (the channels live there).
-    let guest_tokens = {
-        use tokens::GuestTokensRequest as Q;
+    let guest_tokens = if a.boot_model {
         let budget = tokens::MAX_TOKENS
             .saturating_sub(doorbell_tokens.unwrap_or(0))
             .saturating_sub(msi_rearm as usize + rpc_ioeventfd as usize);
-        match Q::requested().map_err(anyhow::Error::msg)? {
-            Q::Off => None,
-            Q::Auto if !a.boot_model => None,
-            Q::Auto => {
-                let d = a.chip.data();
-                let engines: Vec<(&str, u32, bool)> = d
-                    .device_info
-                    .engines
-                    .iter()
-                    .map(|e| (e.name.as_str(), e.runlist, e.host_driven == 1))
-                    .collect();
-                tokens::GuestTokens::auto(&engines, d.fifo.num_channels.value, budget)
-            }
-            Q::Explicit(g) => {
-                if g.len() > budget {
-                    bail!(
-                        "{}: {} values, but one reply carries {} eventfds beside the pool's and the re-arm and head eventfds (SCM_MAX_FD {})",
-                        tokens::GUEST_TOKENS_ENV,
-                        g.len(),
-                        budget,
-                        tokens::MAX_TOKENS
-                    );
-                }
-                let d = a.chip.data();
-                for r in g.runlists() {
-                    if !d.device_info.engines.iter().any(|e| e.runlist == r && e.host_driven == 1) {
-                        bail!("{}: runlist {r} carries no host-driven engine on {}", tokens::GUEST_TOKENS_ENV, d.name);
-                    }
-                }
-                if g.chids > d.fifo.num_channels.value {
-                    bail!("{}: {} chids, the guest is told {} channels per runlist", tokens::GUEST_TOKENS_ENV, g.chids, d.fifo.num_channels.value);
-                }
-                Some(g)
-            }
-        }
+        let d = a.chip.data();
+        let engines: Vec<(&str, u32, bool)> = d
+            .device_info
+            .engines
+            .iter()
+            .map(|e| (e.name.as_str(), e.runlist, e.host_driven == 1))
+            .collect();
+        tokens::GuestTokens::auto(&engines, d.fifo.num_channels.value, budget)
+    } else {
+        None
     };
     // The pool's reactor reads every datamatch doorbell eventfd, the pool's and the guest
     // tokens'; the MSI re-arm and command-queue head eventfds ride on it.
     let token_reactor_on = doorbell_tokens.is_some() || guest_tokens.is_some();
     if msi_rearm && !token_reactor_on {
         bail!(
-            "{MSI_REARM_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd: {}=N or the guest tokens ({})",
+            "{MSI_REARM_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd: {}=N or the guest tokens (--boot-model)",
             tokens::TOKENS_ENV,
-            tokens::GUEST_TOKENS_ENV
         );
     }
     // Fail closed: without the pool's reactor or the boot model the register stays trapped.
@@ -621,13 +591,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             vfio_user_nvgpu::launch::GATE_ENV
         );
     }
-    if vfio_user_nvgpu::launch::configure_fast().map_err(anyhow::Error::msg)? {
-        eprintln!(
-            "vfio-user-nvgpu: launch fast: one USERD read per step, the BAR1 flush only after a device store, no note_rung read under the token pool, one trace flush per ring{} (the default; {}=0 turns it off, docs/caraxes/launch-path.md)",
-            if vfio_user_nvgpu::launch::lean() { ", the ran-ahead read only with plans pending" } else { "" },
-            vfio_user_nvgpu::launch::FAST_ENV
-        );
-    }
+    vfio_user_nvgpu::launch::configure_fast();
     if vfio_user_nvgpu::launch::configure().map_err(anyhow::Error::msg)? {
         eprintln!(
             "vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary ({}=1, docs/caraxes/launch-path.md)",
@@ -701,9 +665,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let token_reactor = reactor("tokens")?;
     if token_reactor_on && !a.boot_model {
         bail!(
-            "{}=N and {} need --boot-model (the channels live in the boot model)",
+            "{}=N needs --boot-model (the channels live in the boot model)",
             tokens::TOKENS_ENV,
-            tokens::GUEST_TOKENS_ENV
         );
     }
     // The BAR1 pool (docs/caraxes/bar1-pool.md), on with host execution: every GPU access
@@ -711,12 +674,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // shadow VA space. CARAXES_BAR1_POOL_MIB sizes it (0: none).
     let bar1_pool = vfio_user_nvgpu::bar1pool::config(a.host_exec).map_err(anyhow::Error::msg)?;
     let cfg = config_space(a)?;
-    if let Some(v) = vfio_user_nvgpu::falcon::stallack_from_env().map_err(anyhow::Error::msg)? {
-        eprintln!(
-            "vfio-user-nvgpu: {}={v:#x}: falcon ENGCTL reads {v:#x} after a stall request",
-            vfio_user_nvgpu::falcon::STALLACK_ENV
-        );
-    }
     let rom = std::fs::read(&a.rom).with_context(|| {
         format!(
             "read {} (the PCI-visible ROM of the card; capture it with `cat /sys/bus/pci/devices/<bdf>/rom` after `echo 1 > rom`)",
@@ -971,12 +928,10 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             let host = HostRmClient::open().context("open the host RM (decision D10)")?;
             eprintln!("vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)");
             // Static per-card getters answered from their first host answer (fwdcache.rs).
-            let host = vfio_user_nvgpu::fwdcache::CachingHost::from_env(Box::new(host));
+            let host = vfio_user_nvgpu::fwdcache::CachingHost::on(Box::new(host));
             eprintln!(
-                "vfio-user-nvgpu: forward cache {} ({} static getters; {}=0 turns it off)",
-                if host.enabled() { "on" } else { "off" },
+                "vfio-user-nvgpu: forward cache on ({} static getters)",
                 vfio_user_nvgpu::fwdcache::STATIC.len(),
-                vfio_user_nvgpu::fwdcache::FORWARD_CACHE_ENV
             );
             if profile::on() && host.enabled() {
                 profile::register_source(Box::new(vfio_user_nvgpu::fwdcache::counters));
@@ -995,25 +950,19 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 (wlen >> 20) * wn
             );
             // The host clock boost (hostboost.rs): the host card does the guest's work, so
-            // it leaves its idle P-state while the VM is active. On unless switched off.
+            // it leaves its idle P-state while the VM is active.
             use vfio_user_nvgpu::hostboost;
-            if hostboost::enabled(std::env::var(hostboost::ENV).ok().as_deref()) {
-                let flags = vfio_user_nvgpu::hostabi::current().perf_boost_flags;
-                match hostboost::start(flags) {
-                    Ok(()) => eprintln!(
-                        "vfio-user-nvgpu: host boost on: PERF_BOOST {{BOOST_TO_MAX, {} s}} on the subdevice of its own unprivileged host RM client, renewed at most every {} ms while the VM rings or its host engines raise events, then left to lapse; the guest's PERF_BOOST passes its command (host flag bits {flags:#x}), never its CUDA bits or duration ({}=0 turns it off; docs/research/host-boost-2026-09-28.md)",
-                        hostboost::DURATION_S,
-                        hostboost::RENEW.as_millis(),
-                        hostboost::ENV
-                    ),
-                    Err(e) => {
-                        eprintln!("vfio-user-nvgpu: WARNING host boost: {e}; running without it");
-                        hostboost::set_off(&format!("failed to start: {e}"));
-                    }
+            let flags = vfio_user_nvgpu::hostabi::current().perf_boost_flags;
+            match hostboost::start(flags) {
+                Ok(()) => eprintln!(
+                    "vfio-user-nvgpu: host boost on: PERF_BOOST {{BOOST_TO_MAX, {} s}} on the subdevice of its own unprivileged host RM client, renewed at most every {} ms while the VM rings or its host engines raise events, then left to lapse; the guest's PERF_BOOST passes its command (host flag bits {flags:#x}), never its CUDA bits or duration (docs/research/host-boost-2026-09-28.md)",
+                    hostboost::DURATION_S,
+                    hostboost::RENEW.as_millis(),
+                ),
+                Err(e) => {
+                    eprintln!("vfio-user-nvgpu: WARNING host boost: {e}; running without it");
+                    hostboost::set_off(&format!("failed to start: {e}"));
                 }
-            } else {
-                eprintln!("vfio-user-nvgpu: host boost off ({}=0)", hostboost::ENV);
-                hostboost::set_off(&format!("{}=0", hostboost::ENV));
             }
         }
         if let Some((pool0, pool_end)) = layout.pool_range() {
@@ -1066,17 +1015,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             match made {
                 Ok(r) => {
                     eprintln!(
-                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at {}, NV_UFLUSH_FB_FLUSH writes (as a flush read), MMU invalidates, BAR2 binds and GSP doorbells; a channel doorbell syncs the live pages its channel could observe (its VAS leaves less set B, page tables, USERD, instance block){} (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md §3)",
+                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at {}, NV_UFLUSH_FB_FLUSH writes (as a flush read), MMU invalidates, BAR2 binds and GSP doorbells; a channel doorbell syncs the live pages its channel could observe (its VAS leaves less set B, page tables, USERD, instance block) (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md §3)",
                         r.areas.len(),
                         cfg.traps.iter().map(|t| format!("{t:#x}")).collect::<Vec<_>>(),
                         if cfg.flush_page_memory {
                             "every hand-over (MMU invalidate, GSP or channel doorbell) and the flush clock 1 ms after the last sync: the flush page is memory, no BAR2 page traps (CARAXES_BAR2_FLUSH_PAGE=memory, docs/caraxes/intr-page.md §12.1)"
-                        } else if cfg.defer_flush {
-                            "the first hand-over after a flush read (the next MMU invalidate, GSP or channel doorbell, else the flush clock after 1 ms; CARAXES_BAR2_MEMFD_DEFER_FLUSH=0 syncs at every flush read, docs/caraxes/display-pacing.md)"
                         } else {
-                            "the trapped pages (CARAXES_BAR2_MEMFD_DEFER_FLUSH=0)"
+                            "the first hand-over after a flush read (the next MMU invalidate, GSP or channel doorbell, else the flush clock after 1 ms, docs/caraxes/display-pacing.md)"
                         },
-                        if cfg.sync_doorbell { "; CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1: every doorbell syncs all" } else { "" }
                     );
                     bar2_region = Some(r);
                 }
@@ -1225,20 +1171,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
-    // The display kick page (display/chan_page.rs, docs/caraxes/intr-page.md §12.3): the
-    // window channels' USERD pages.
-    let kicks = if vfio_user_nvgpu::display::chan_page::requested(fe.is_some())
-        .map_err(anyhow::Error::msg)?
-    {
-        let env = vfio_user_nvgpu::display::chan_page::KICK_PAGE_ENV;
+    // The display kick page (display/chan_page.rs, docs/caraxes/intr-page.md §12.3), on with
+    // the display page: the window channels' USERD pages.
+    let kicks = if fe.is_some() {
         let page = intr_page.as_ref().expect("the display page needs the interrupt page");
         let k = vfio_user_nvgpu::display::chan_page::ChanPage::create(page)
-            .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("display kick page: {e}"))?;
         vfio_user_nvgpu::display::set_chan_page(k.clone());
         bar0 = bar0.with_chan_page(k.clone());
         let (base, len) = k.area();
         eprintln!(
-            "vfio-user-nvgpu: display kick page: BAR0 [{base:#x}, {:#x}) (the window channels' USERD pages, PUT and GET) offered as a sparse mmap area; the reactor runs the kick of each PUT change and stores GET ({env}=1, docs/caraxes/intr-page.md §12.3)",
+            "vfio-user-nvgpu: display kick page: BAR0 [{base:#x}, {:#x}) (the window channels' USERD pages, PUT and GET) offered as a sparse mmap area; the reactor runs the kick of each PUT change and stores GET (with the display page, docs/caraxes/intr-page.md §12.3)",
             base + len
         );
         Some(k)
@@ -1393,12 +1336,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 guest.push((v, reader));
             }
             eprintln!(
-                "vfio-user-nvgpu: doorbell guest tokens: BAR0 {offset:#x}, 4 bytes, {} sub-region(s) with datamatch runlist << 16 | chid, runlists {:?} interleaved per ChID then {:?} one by one, ChIDs 0..{}, one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a write of one of them is rung as its trapped write ({}, docs/caraxes/doorbell-token-pool.md (g))",
+                "vfio-user-nvgpu: doorbell guest tokens: BAR0 {offset:#x}, 4 bytes, {} sub-region(s) with datamatch runlist << 16 | chid, runlists {:?} interleaved per ChID then {:?} one by one, ChIDs 0..{}, one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a write of one of them is rung as its trapped write (docs/caraxes/doorbell-token-pool.md (g))",
                 g.len(),
                 g.hot,
                 g.rest,
                 g.chids,
-                tokens::GUEST_TOKENS_ENV
             );
         }
         Some((offset, readers, guest))

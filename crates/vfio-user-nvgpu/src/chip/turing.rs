@@ -247,11 +247,7 @@ pub struct TuringBoot {
 
 impl TuringBoot {
     pub fn new(d: &'static TuringBootData, fb_bytes: u64) -> Self {
-        let stallack = crate::falcon::stallack_from_env()
-            .ok()
-            .flatten()
-            .or(d.stallack)
-            .unwrap_or(crate::falcon::STALLACK_DEFAULT);
+        let stallack = d.stallack.unwrap_or(crate::falcon::STALLACK_DEFAULT);
         TuringBoot {
             gsp: d.gsp.falcon("gsp", stallack),
             sec2: d.sec2.falcon("sec2", stallack),
@@ -884,9 +880,7 @@ mod tests {
         let mut b = TuringBoot::new(d, 4 << 30);
         assert_eq!(b.read32(pmu + falcon::ENGCTL), Some(0));
         b.write32(pmu + falcon::ENGCTL, 0x2, &mem);
-        let want = falcon::stallack_from_env()
-            .unwrap()
-            .unwrap_or(falcon::STALLACK_DEFAULT);
+        let want = d.stallack.unwrap_or(falcon::STALLACK_DEFAULT);
         assert_eq!(b.read32(pmu + falcon::ENGCTL), Some(want));
     }
 

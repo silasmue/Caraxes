@@ -271,16 +271,13 @@ impl TokenPool {
     }
 }
 
-/// The switch for the guest-token ioeventfds (docs/caraxes/doorbell-token-pool.md (g)).
-/// Unset or `auto`: the set is derived from the engines the device offers
-/// ([`GuestTokens::auto`]); `off` or `0`: none; for an A/B,
-/// `<hot>[,<runlist>...]:<chids>` with the hot runlists joined by `+` (e.g. `0+1,7,2,3:48`).
-/// Each value `runlist << 16 | chid` is one datamatch sub-region of the doorbell register
-/// with its own eventfd; a write of such a value ends in its eventfd, and the device rings it
-/// exactly as the trapped write of that value (ctrl.rs `doorbell`). For guests that ring
-/// their own tokens and never read the work-submit-token notifier entry: the Windows KMD
-/// computes its tokens itself (the pool's hand-out cannot reach it).
-pub const GUEST_TOKENS_ENV: &str = "CARAXES_DOORBELL_GUEST_TOKENS";
+// The guest-token ioeventfds (docs/caraxes/doorbell-token-pool.md (g)), with the boot
+// model: the set is derived from the engines the device offers ([`GuestTokens::auto`]).
+// Each value `runlist << 16 | chid` is one datamatch sub-region of the doorbell register
+// with its own eventfd; a write of such a value ends in its eventfd, and the device rings it
+// exactly as the trapped write of that value (ctrl.rs `doorbell`). For guests that ring
+// their own tokens and never read the work-submit-token notifier entry: the Windows KMD
+// computes its tokens itself (the pool's hand-out cannot reach it).
 
 /// `NV_CTRL_VF_DOORBELL` (tu102/dev_ctrl.h:36-37): VECTOR (the ChID) 11:0, RUNLIST_ID 22:16.
 pub const TOKEN_VECTOR_BITS: u32 = 12;
@@ -298,14 +295,6 @@ pub fn guest_token(runlist: u32, chid: u32) -> u32 {
     (runlist << TOKEN_RUNLIST_SHIFT) | chid
 }
 
-/// What the switch asks for.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum GuestTokensRequest {
-    Off,
-    Auto,
-    Explicit(GuestTokens),
-}
-
 /// The guest tokens declared as ioeventfds, in registration order: KVM passes the entries
 /// of one address in that order, about 25 ns each, so the busiest values go first. The
 /// `hot` runlists are interleaved per ChID (ChID 0 of each, then ChID 1, ...): the graphics
@@ -316,36 +305,6 @@ pub struct GuestTokens {
     pub hot: Vec<u32>,
     pub rest: Vec<u32>,
     pub chids: u32,
-}
-
-impl GuestTokensRequest {
-    pub fn requested() -> Result<Self, String> {
-        match std::env::var(GUEST_TOKENS_ENV) {
-            Ok(v) => Self::parse(&v),
-            Err(_) => Ok(GuestTokensRequest::Auto),
-        }
-    }
-
-    pub fn parse(v: &str) -> Result<Self, String> {
-        let v = v.trim();
-        match v {
-            "" | "auto" => return Ok(GuestTokensRequest::Auto),
-            "0" | "off" => return Ok(GuestTokensRequest::Off),
-            _ => {}
-        }
-        let bad = || {
-            format!("{GUEST_TOKENS_ENV}={v:?}: auto, off, or <hot>[,<runlist>...]:<chids> with the hot runlists joined by + (e.g. 0+1,7,2,3:48)")
-        };
-        let (rl, n) = v.split_once(':').ok_or_else(bad)?;
-        let chids: u32 = n.trim().parse().map_err(|_| bad())?;
-        let num = |r: &str| r.trim().parse::<u32>().map_err(|_| bad());
-        let mut groups = rl.split(',');
-        let hot = groups.next().ok_or_else(bad)?.split('+').map(num).collect::<Result<Vec<_>, _>>()?;
-        let rest = groups.map(num).collect::<Result<Vec<_>, _>>()?;
-        let t = GuestTokens { hot, rest, chids };
-        t.check()?;
-        Ok(GuestTokensRequest::Explicit(t))
-    }
 }
 
 impl GuestTokens {
@@ -390,22 +349,22 @@ impl GuestTokens {
         Some(t)
     }
 
-    fn check(&self) -> Result<(), String> {
+    pub(crate) fn check(&self) -> Result<(), String> {
         let all: Vec<u32> = self.hot.iter().chain(&self.rest).copied().collect();
         for (i, r) in all.iter().enumerate() {
             if *r > TOKEN_RUNLIST_MAX || all[..i].contains(r) {
-                return Err(format!("{GUEST_TOKENS_ENV}: runlist {r} repeated or beyond RUNLIST_ID 22:16"));
+                return Err(format!("guest tokens: runlist {r} repeated or beyond RUNLIST_ID 22:16"));
             }
         }
         if self.hot.is_empty() {
-            return Err(format!("{GUEST_TOKENS_ENV}: no runlist"));
+            return Err("guest tokens: no runlist".into());
         }
         if self.chids == 0 || self.chids > 1 << TOKEN_VECTOR_BITS {
-            return Err(format!("{GUEST_TOKENS_ENV}: chids must be 1 to {} (VECTOR 11:0)", 1 << TOKEN_VECTOR_BITS));
+            return Err(format!("guest tokens: chids must be 1 to {} (VECTOR 11:0)", 1 << TOKEN_VECTOR_BITS));
         }
         if self.len() > MAX_TOKENS {
             return Err(format!(
-                "{GUEST_TOKENS_ENV}: {} tokens, at most {MAX_TOKENS} (SCM_MAX_FD: one eventfd each, one reply)",
+                "guest tokens: {} tokens, at most {MAX_TOKENS} (SCM_MAX_FD: one eventfd each, one reply)",
                 self.len()
             ));
         }
@@ -512,21 +471,20 @@ mod tests {
     }
 
     #[test]
-    fn guest_tokens_parse_and_order() {
-        use super::{guest_token, GuestTokens, GuestTokensRequest as Q};
-        assert_eq!(Q::parse("").unwrap(), Q::Auto);
-        assert_eq!(Q::parse("auto").unwrap(), Q::Auto);
-        assert_eq!(Q::parse("off").unwrap(), Q::Off);
-        let Q::Explicit(t) = Q::parse("0+1,7:2").unwrap() else { panic!() };
+    fn guest_tokens_check_and_order() {
+        use super::{guest_token, GuestTokens};
+        let set = |hot: &[u32], rest: &[u32], chids| GuestTokens { hot: hot.to_vec(), rest: rest.to_vec(), chids };
+        let t = set(&[0, 1], &[7], 2);
+        assert!(t.check().is_ok());
         assert_eq!(t.values(), vec![0x0, 0x10000, 0x1, 0x10001, 0x70000, 0x70001]);
         assert_eq!(guest_token(1, 15), 0x1000f);
-        assert!(Q::parse("0,0:4").is_err());
-        assert!(Q::parse("128:4").is_err());
-        assert!(Q::parse("0:0").is_err());
-        assert!(Q::parse("0:4097").is_err());
-        assert!(Q::parse("0+1,2,3,7,8:51").is_err(), "306 > SCM_MAX_FD");
+        assert!(set(&[0], &[0], 4).check().is_err());
+        assert!(set(&[128], &[], 4).check().is_err());
+        assert!(set(&[0], &[], 0).check().is_err());
+        assert!(set(&[0], &[], 4097).check().is_err());
+        assert!(set(&[0, 1], &[2, 3, 7, 8], 51).check().is_err(), "306 > SCM_MAX_FD");
         // Never a pool token: the pool's bits 31:23 lie above RUNLIST_ID 22:16.
-        let Q::Explicit(t) = Q::parse("0,127:1").unwrap() else { panic!() };
+        let t = set(&[0], &[127], 1);
         for v in t.values() {
             assert!(!super::is_pool_token(v, super::MAX_TOKENS));
         }

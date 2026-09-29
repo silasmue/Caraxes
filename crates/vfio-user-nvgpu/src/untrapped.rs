@@ -39,20 +39,8 @@
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-/// The switch (default on).
-pub const ENV: &str = "CARAXES_SHADOW_UNTRAPPED_HOLD";
 /// Findings logged at most (the counters are complete).
 const LOG_FIRST: usize = 16;
-
-/// `CARAXES_SHADOW_UNTRAPPED_HOLD`: unset, empty, `1`/`on` on; `0`/`off` off; anything else
-/// an error (the caller then keeps the rule on: fail closed).
-pub fn parse_switch(v: Option<&str>) -> Result<bool, String> {
-    match v.map(str::trim) {
-        None | Some("") | Some("1") | Some("on") => Ok(true),
-        Some("0") | Some("off") => Ok(false),
-        Some(x) => Err(format!("{ENV}={x:?}: expected 1, on, 0 or off")),
-    }
-}
 
 /// Whether a guest MMU invalidate of `pdb` (`None`: `ALL_PDB`) must be planned and applied
 /// before it returns: it names the shadow root of a mirrored channel whose USERD the guest
@@ -177,10 +165,9 @@ impl HoldStats {
         })
     }
 
-    pub fn summary(&self, on: bool) -> String {
+    pub fn summary(&self) -> String {
         format!(
-            "untrapped GPPut: rule {} ({ENV}); {} invalidate(s) held until applied ({} ms in total, longest {} us); {} software MEM_OP invalidate(s) of a shadow root held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending, {} with plans of the channel's own root pending (docs/caraxes/bar1-pool.md §9)",
-            if on { "on" } else { "OFF" },
+            "untrapped GPPut: {} invalidate(s) held until applied ({} ms in total, longest {} us); {} software MEM_OP invalidate(s) of a shadow root held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending, {} with plans of the channel's own root pending (docs/caraxes/bar1-pool.md §9)",
             self.held,
             self.held_total.as_millis(),
             self.held_max.as_micros(),
@@ -219,16 +206,6 @@ mod tests {
     }
 
     use super::*;
-
-    #[test]
-    fn the_switch_is_on_unless_turned_off() {
-        assert_eq!(parse_switch(None), Ok(true));
-        assert_eq!(parse_switch(Some("")), Ok(true));
-        assert_eq!(parse_switch(Some("1")), Ok(true));
-        assert_eq!(parse_switch(Some("0")), Ok(false));
-        assert_eq!(parse_switch(Some("off")), Ok(false));
-        assert!(parse_switch(Some("maybe")).is_err());
-    }
 
     /// An invalidate is held when it names a root with an untrapped USERD, or every root
     /// while there is one; never when no mirrored channel has an untrapped USERD.
@@ -291,15 +268,15 @@ mod tests {
         assert!(s.note_ahead(true, true, || "z".into()).is_none());
         assert_eq!((s.ahead, s.ahead_pending), (LOG_FIRST as u64 + 2, LOG_FIRST as u64 + 1));
         assert_eq!(s.ahead_own_root, LOG_FIRST as u64 / 2 + 1, "own-root cases counted apart");
-        assert!(s.summary(true).contains("with plans of the channel's own root pending"));
+        assert!(s.summary().contains("with plans of the channel's own root pending"));
         s.note_held(Duration::from_micros(300));
         s.note_held(Duration::from_micros(100));
         assert_eq!((s.held, s.held_max), (2, Duration::from_micros(300)));
-        assert!(s.summary(true).contains("2 invalidate(s) held"));
+        assert!(s.summary().contains("2 invalidate(s) held"));
         s.note_memop_held(Duration::from_micros(3123));
         assert_eq!((s.memop_held, s.memop_max), (1, Duration::from_micros(3123)));
         assert!(s
-            .summary(true)
+            .summary()
             .contains("1 software MEM_OP invalidate(s) of a shadow root held until applied (3 ms in total, longest 3123 us)"));
     }
 }

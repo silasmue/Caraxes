@@ -81,9 +81,6 @@ pub struct Trace {
     /// `CARAXES_TRACE_ACCESSES=bar0:<lo>-<hi>` writes the lines of BAR0 accesses in
     /// [lo, hi) only (a diagnostic, e.g. the display block 0x610000-0x700000).
     accesses: Accesses,
-    /// `CARAXES_TRACE_FLUSH=0`: flush at event lines and at most every 100 ms instead of
-    /// after every line (one write syscall per trapped access).
-    flush_each: bool,
     last_flush: Instant,
     /// The free-space guard ([`TRACE_MIN_FREE`]): when the trace's filesystem was last
     /// checked.
@@ -138,7 +135,6 @@ impl Trace {
             bar0: std::collections::HashMap::new(),
             by_mib: BTreeMap::new(),
             accesses: Accesses::parse(std::env::var("CARAXES_TRACE_ACCESSES").ok().as_deref())?,
-            flush_each: std::env::var("CARAXES_TRACE_FLUSH").as_deref() != Ok("0"),
             last_flush: Instant::now(),
             last_space_check: Instant::now(),
         })
@@ -172,7 +168,9 @@ impl Trace {
         self.space_guard();
         if let Some(out) = &mut self.out {
             let _ = writeln!(out, "{t:>12} {text}");
-            if self.flush_each || text.starts_with('E') || self.last_flush.elapsed().as_millis() >= 100 {
+            // Flushed at event lines and at most every 100 ms, not after every line (one
+            // write syscall per trapped access; CARAXES_TRACE_FLUSH=0 until 2026-09-30).
+            if text.starts_with('E') || self.last_flush.elapsed().as_millis() >= 100 {
                 let _ = out.flush();
                 self.last_flush = Instant::now();
             }

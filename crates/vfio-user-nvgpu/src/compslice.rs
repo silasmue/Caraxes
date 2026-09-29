@@ -46,11 +46,8 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::Mutex;
 
-/// The switch: `slice` or `off` (the default).
+/// The knob: `slice` or `off` (the default).
 pub const ENV: &str = "CARAXES_COMPRESSION";
-/// `0` skips the device's own clear of the slice at start and before the free (A/B only;
-/// the host's scrub-on-free still covers the free).
-pub const CLEAR_ENV: &str = "CARAXES_COMPRESSION_CLEAR";
 
 /// One comptag line per 64 KiB on TU10x (`comprPageShift` 16).
 pub const COMPR_PAGE: u64 = 0x1_0000;

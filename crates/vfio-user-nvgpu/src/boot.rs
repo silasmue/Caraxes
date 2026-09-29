@@ -1907,16 +1907,10 @@ impl BootModel {
     /// trap, nouveau's FB-address-0 read, is covered as well).
     ///
     /// - A flush whose sync is still owed is settled first, in full (rule 3).
-    /// - `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`: a full sync (the reference setting).
     /// - Otherwise only the live pages the channels could observe are compared and written
     ///   back ([`Self::bar2_observed`]); none, no sync.
     fn bar2_doorbell_sync(&mut self, mem: &GuestMemory, chids: &[u32]) {
         if self.settle_deferred_flush(mem, crate::bar2area::Settle::Doorbell) {
-            return;
-        }
-        if self.fb.bar2_area().is_some_and(|a| a.sync_doorbell) {
-            let root = self.bar_root(3);
-            self.fb.bar2_sync(root, Some(mem));
             return;
         }
         let mut keys = Vec::new();
@@ -5000,7 +4994,6 @@ mod tests {
         b.fb.write_u64(pt + 8 * 0x1f, pte(base + 0x2_0000));
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: defer,
             flush_page_memory: false,
         };
@@ -5088,7 +5081,7 @@ mod tests {
         assert_eq!(vram_u64(&b, x), 0xABCD);
         assert!(!b.fb.bar2_flush_pending());
         assert_eq!(stats(&b).syncs, syncs0 + 1);
-        // Without an owed flush a doorbell does not sync (sync_doorbell is off).
+        // Without an owed flush a doorbell does not sync.
         b.doorbell_pending(&mem);
         assert_eq!(stats(&b).syncs, syncs0 + 1);
         // The flush clock settles one no hand-over did.

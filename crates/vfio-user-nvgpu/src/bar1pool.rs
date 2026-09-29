@@ -4606,7 +4606,6 @@ mod tests {
         fb.write_u64(pt2 + 8 * 3, pte(pt2));
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: false,
             flush_page_memory: false,
         };

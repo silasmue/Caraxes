@@ -1312,7 +1312,7 @@ impl HostMemory {
             closed: false,
             free_failures: Vec::new(),
             fail_closed: None,
-            guard: crate::hostfloor::HostGuard::from_env(),
+            guard: crate::hostfloor::HostGuard::device(),
             userd_bar1: crate::hostfloor::HostGuard::bar1_from_env(),
         })
     }
@@ -1997,18 +1997,12 @@ impl HostMemory {
     /// reservation's kind 0x09 with physically based comptags, the kind the host scrubber
     /// writes with (compslice.rs), so every 64 KiB page ends up uncompressed zeros whatever
     /// its compbits said before. The host's scrub-on-free does the same at the free; this
-    /// is the device's own guarantee, after the allocation and before the free.
-    /// `CARAXES_COMPRESSION_CLEAR=0` skips it. `Err` when a window is refused.
+    /// is the device's own guarantee, after the allocation and before the free. `Err` when
+    /// a window is refused.
     pub fn clear_slice(&mut self, when: &str) -> Result<String, String> {
         let r = self.reservation.clone().ok_or("no reservation")?;
         if r.compression.is_none() {
             return Ok(format!("compression: nothing to clear {when} (uncompressed reservation)"));
-        }
-        if std::env::var(crate::compslice::CLEAR_ENV).as_deref() == Ok("0") {
-            return Ok(format!(
-                "WARN compression: the slice clear {when} is skipped ({}=0); the host's scrub-on-free still writes every freed page through its kind-0x09 alias",
-                crate::compslice::CLEAR_ENV
-            ));
         }
         let t = Instant::now();
         let step = crate::fb::bar1_budget().0 as u64;
@@ -2722,10 +2716,11 @@ impl HostMemory {
         size: u64,
         host_va: *mut u8,
     ) -> Result<(Vec<DmaRange>, Vec<String>)> {
+        // The guest's RAM size, from the launcher: with it the registration is one linear
+        // IOVA offset for the whole guest (docs/caraxes/mapping.md §5).
         let total = std::env::var("CARAXES_GUEST_RAM_BYTES")
             .ok()
-            .and_then(|v| v.parse::<u64>().ok())
-            .filter(|_| std::env::var("CARAXES_LINEAR_IOVA").as_deref() != Ok("0"));
+            .and_then(|v| v.parse::<u64>().ok());
         let Some(total) = total else {
             return self.register_chunks(gpa, size, host_va, HUGE);
         };

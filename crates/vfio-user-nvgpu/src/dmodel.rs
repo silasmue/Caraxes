@@ -200,7 +200,7 @@ impl DState {
             },
             zbc: None,
             zbc_slice: crate::zbc::slice_from_env()
-                .then(|| crate::zbc::SliceZbc::new(&chip.name, crate::zbc::max_from_env())),
+                .then(|| crate::zbc::SliceZbc::new(&chip.name, crate::zbc::DEFAULT_MAX)),
             compute_mode: 0,
             gpuacct: BTreeMap::new(),
             fecs: (false, 0, 0),

@@ -44,16 +44,6 @@ pub type PageBuf = [u64; WORDS];
 
 /// The switch.
 pub const ENV: &str = "CARAXES_BAR2_MEMFD";
-/// Comma-separated BAR2 offsets of pages that stay trapped (hex or decimal, page
-/// aligned), or `none`; default [`DEFAULT_TRAP`].
-pub const TRAP_ENV: &str = "CARAXES_BAR2_MEMFD_TRAP";
-/// `1`: sync before every doorbell as well (the reference for the doorbell rule).
-pub const SYNC_DOORBELL_ENV: &str = "CARAXES_BAR2_MEMFD_SYNC_DOORBELL";
-/// `0`: every trapped flush read syncs at once (the behaviour before
-/// docs/caraxes/display-pacing.md). On by default: a flush read only marks the sync owed
-/// ([`DeferredFlush`]); the next hand-over to the GPU (MMU invalidate, GSP command-queue
-/// doorbell, channel doorbell) or the flush clock after [`DEFER_BOUND`] settles it.
-pub const DEFER_FLUSH_ENV: &str = "CARAXES_BAR2_MEMFD_DEFER_FLUSH";
 /// How long an owed flush may wait for a hand-over before the flush clock settles it.
 pub const DEFER_BOUND: Duration = Duration::from_millis(1);
 /// `memory`: the flush page is memory as well, no longer trapped (docs/caraxes/intr-page.md
@@ -76,10 +66,13 @@ const MAX_LEAVES: usize = 1 << 20;
 /// The switch's settings.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// BAR2 offsets of the trapped pages.
+    /// BAR2 offsets of the trapped pages (the device's: [`DEFAULT_TRAP`], none with the flush
+    /// page as memory; the unit tests choose others).
     pub traps: Vec<u64>,
-    pub sync_doorbell: bool,
-    /// Flush reads defer their sync to the next hand-over ([`DEFER_FLUSH_ENV`]).
+    /// Flush reads defer their sync to the next hand-over (on: a flush read only marks the
+    /// sync owed, [`DeferredFlush`]; the next hand-over to the GPU, MMU invalidate, GSP
+    /// command-queue doorbell or channel doorbell, or the flush clock after [`DEFER_BOUND`]
+    /// settles it, docs/caraxes/display-pacing.md; the unit tests also run it off).
     pub defer_flush: bool,
     /// `CARAXES_BAR2_FLUSH_PAGE=memory`: the flush page is not trapped; the owed flush
     /// stands from every sync on ([`DeferredFlush::standing`]).
@@ -91,13 +84,7 @@ pub fn config() -> Result<Option<Config>, String> {
     if std::env::var(ENV).as_deref() != Ok("1") {
         return Ok(None);
     }
-    config_from(
-        std::env::var(TRAP_ENV).ok().as_deref(),
-        std::env::var(SYNC_DOORBELL_ENV).as_deref() == Ok("1"),
-        std::env::var(DEFER_FLUSH_ENV).as_deref() != Ok("0"),
-        std::env::var(FLUSH_PAGE_ENV).ok().as_deref(),
-    )
-    .map(Some)
+    config_from(None, true, std::env::var(FLUSH_PAGE_ENV).ok().as_deref()).map(Some)
 }
 
 /// The settings from the variables' values (unset: `None`). Fail closed: the flush page as
@@ -106,7 +93,6 @@ pub fn config() -> Result<Option<Config>, String> {
 /// between hand-overs); with it the trap list defaults to none.
 pub fn config_from(
     traps: Option<&str>,
-    sync_doorbell: bool,
     defer_flush: bool,
     flush_page: Option<&str>,
 ) -> Result<Config, String> {
@@ -123,18 +109,17 @@ pub fn config_from(
     if flush_page_memory {
         if traps.contains(&DEFAULT_TRAP) {
             return Err(format!(
-                "{FLUSH_PAGE_ENV}=memory with {TRAP_ENV} holding the flush page {DEFAULT_TRAP:#x}"
+                "{FLUSH_PAGE_ENV}=memory with a trap list holding the flush page {DEFAULT_TRAP:#x}"
             ));
         }
         if !defer_flush {
             return Err(format!(
-                "{FLUSH_PAGE_ENV}=memory needs the deferred flush and its clock ({DEFER_FLUSH_ENV} not 0)"
+                "{FLUSH_PAGE_ENV}=memory needs the deferred flush and its clock"
             ));
         }
     }
     Ok(Config {
         traps,
-        sync_doorbell,
         defer_flush,
         flush_page_memory,
     })
@@ -153,7 +138,7 @@ fn parse_traps(v: &str) -> Result<Vec<u64>, String> {
                 None => t.parse().ok(),
             };
             n.filter(|n| n % PAGE == 0)
-                .ok_or_else(|| format!("{TRAP_ENV}: {t:?} is not a page-aligned offset"))
+                .ok_or_else(|| format!("trap list: {t:?} is not a page-aligned offset"))
         })
         .collect()
 }
@@ -1279,7 +1264,6 @@ pub struct Bar2Area {
     size: u64,
     /// Trapped pages (page numbers), ascending.
     traps: Vec<u64>,
-    pub sync_doorbell: bool,
     pub remap: RemapTable,
     cache: RefCell<Option<WalkCache>>,
     cache_root: Cell<u64>,
@@ -1318,7 +1302,6 @@ impl Bar2Area {
             mem,
             size,
             traps,
-            sync_doorbell: cfg.sync_doorbell,
             remap: RemapTable::default(),
             cache: RefCell::new(None),
             cache_root: Cell::new(u64::MAX),
@@ -2135,16 +2118,16 @@ mod flush_page_tests {
     /// on a trap list with the flush page or the deferred flush off.
     #[test]
     fn flush_page_as_memory_settings() {
-        let c = config_from(None, false, true, None).unwrap();
+        let c = config_from(None, true, None).unwrap();
         assert_eq!(c.traps, vec![DEFAULT_TRAP]);
         assert!(!c.flush_page_memory && c.defer_flush);
-        let c = config_from(None, false, true, Some("memory")).unwrap();
+        let c = config_from(None, true, Some("memory")).unwrap();
         assert!(c.traps.is_empty() && c.flush_page_memory);
-        assert!(config_from(None, false, false, Some("memory")).is_err());
-        assert!(config_from(Some("0xfea000"), false, true, Some("memory")).is_err());
-        assert!(config_from(Some("0x1000"), false, true, Some("memory")).is_ok());
-        assert!(config_from(None, false, true, Some("maybe")).is_err());
-        assert!(!config_from(None, false, true, Some("trap")).unwrap().flush_page_memory);
+        assert!(config_from(None, false, Some("memory")).is_err());
+        assert!(config_from(Some("0xfea000"), true, Some("memory")).is_err());
+        assert!(config_from(Some("0x1000"), true, Some("memory")).is_ok());
+        assert!(config_from(None, true, Some("maybe")).is_err());
+        assert!(!config_from(None, true, Some("trap")).unwrap().flush_page_memory);
     }
 
     /// Standing mode: owed from the start and again after every sync, the bound counting
@@ -2283,7 +2266,7 @@ mod tests {
     /// only those and leaves the others' changes to a later scan.
     #[test]
     fn observed_pages_and_a_keyed_scan() {
-        let cfg = config_from(Some("none"), false, true, None).unwrap();
+        let cfg = config_from(Some("none"), true, None).unwrap();
         let mut a = Bar2Area::create(16 * PAGE, &cfg).unwrap();
         let guest = a.mem.map_again().unwrap();
         assert!(a.observed(&[(Target::Fb(0), u64::MAX)], &[]).is_empty(), "nothing live");

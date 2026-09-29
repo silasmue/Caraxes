@@ -1278,7 +1278,6 @@ pub struct FakeFb {
     /// ([`Self::share_record_window`]).
     record_grants: RefCell<Vec<RecordGrant>>,
     records_revoked: Cell<u64>,
-    bar_tlb_on: bool,
     pub bar_tlb_stats: Cell<(u64, u64, u64)>,
     /// The software executor's translations ([`ExecTlb`], [`Self::translate_pages`]).
     exec_tlb: RefCell<ExecTlb>,
@@ -1333,7 +1332,6 @@ impl FakeFb {
             bar_tlb_pages: RefCell::new(std::collections::HashSet::new()),
             record_grants: RefCell::new(Vec::new()),
             records_revoked: Cell::new(0),
-            bar_tlb_on: std::env::var("CARAXES_BAR_TLB").as_deref() != Ok("0"),
             bar_tlb_stats: Cell::new((0, 0, 0)),
             exec_tlb: RefCell::new(ExecTlb::default()),
             watched: RefCell::new(HashMap::new()),
@@ -2659,9 +2657,6 @@ impl FakeFb {
     /// [`Self::translate`] through the BAR TLB: a hit costs no table read; a miss walks
     /// and records the table pages it read, so that a later write to one flushes the TLB.
     pub fn bar_translate(&self, root: u64, va: u64) -> Target {
-        if !self.bar_tlb_on {
-            return self.translate(root, va);
-        }
         let key = (root, va >> 12);
         let off = va & 0xFFF;
         let (h, m, f) = self.bar_tlb_stats.get();
@@ -3233,7 +3228,6 @@ mod tests {
         // The BAR2 memfd maps the guest page and leaves the private one out.
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: false,
             flush_page_memory: false,
         };
@@ -3303,7 +3297,6 @@ mod tests {
         fb.write_u64(pt + 8, pte(0x20000));
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: false,
             flush_page_memory: false,
         };
@@ -3347,7 +3340,6 @@ mod tests {
         fb.write_u64(pt + 8, pte(0x20000));
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: true,
             flush_page_memory: false,
         };
@@ -3648,7 +3640,6 @@ mod tests {
 
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: false,
             flush_page_memory: false,
         };
@@ -3730,7 +3721,6 @@ mod tests {
         fb.write_u64(0x60008, 0x6060);
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: false,
             flush_page_memory: false,
         };
@@ -3826,7 +3816,7 @@ mod tests {
         fb.write_u64(0x13008, vid(0x14000));
         fb.write_u64(0x14000 + 8, pte(0x14000));
         fb.write_u64(0x14000 + 16, pte(0x34000));
-        let cfg = config_from(None, false, true, Some("memory")).unwrap();
+        let cfg = config_from(None, true, Some("memory")).unwrap();
         assert!(cfg.traps.is_empty());
         let area = Bar2Area::create(0x20000, &cfg).unwrap();
         // The whole aperture is one sparse area: the flush page no longer traps.

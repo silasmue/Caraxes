@@ -2664,10 +2664,8 @@ impl Dispatcher {
             // firmwareVersion[64] @6. The version string is what nvidia-smi shows.
             CMD_GSP_GET_FEATURES => {
                 let mut b = vec![0u8; n];
-                // CARAXES_GSP_FW_VERSION: the firmware version string instead of the served
-                // guest ABI's driver (a 617.14 Windows guest against the 615-based model).
-                let env_ver = std::env::var("CARAXES_GSP_FW_VERSION").ok().filter(|s| s.len() < 64);
-                let ver = env_ver.as_deref().unwrap_or(crate::ver::layouts().driver).as_bytes();
+                // The firmware version string: the served guest ABI's driver.
+                let ver = crate::ver::layouts().driver.as_bytes();
                 // gspFeatures bit 0 is UVM_ENABLED (ctrl2080gsp.h). A Linux guest's nvidia-uvm
                 // would need replayable faults, which never reach the guest (the host RM owns
                 // them): libcuda would map through UVM and the first GPU touch of a managed page

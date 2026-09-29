@@ -53,13 +53,11 @@
 //!   is mapped from one gather descriptor (hostmem.rs `gather`): the stretch's pages, each
 //!   the filter's answer, back to back in one OS descriptor, so one `RM_MAP_MEMORY_DMA`
 //!   maps the whole stretch. The descriptor is freed when its last mapping is gone.
-//!   `CARAXES_SHADOW_GATHER=0` maps such stretches run by run.
 //! - *Whole-region frees.* When the guest empties a 2 MiB region that holds at least
 //!   [`BULK_MIN_RUNS`] runs, the shadow frees the region object with its mappings in one
 //!   `RM_FREE` (the RM unmaps them itself) instead of one NVOS47 per run; the teardown does
-//!   the same, about [`TEARDOWN_BATCH`] mappings per step. `CARAXES_SHADOW_BULK_FREE=0`
-//!   unmaps run by run.
-//! - *Deferred TLB invalidation* (`CARAXES_SHADOW_DEFER_TLB=1`, off by default: it measured
+//!   the same, about [`TEARDOWN_BATCH`] mappings per step.
+//! - *Deferred TLB invalidation* (off: it measured
 //!   no gain, the per-call cost is not the invalidate). Every map and unmap of a plan or a
 //!   teardown step then carries the RM's `DEFER_TLB_INVALIDATION` flag, and the shadow owes
 //!   the VAS one `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB`, paid ([`ShadowVas::settle`]) before
@@ -68,7 +66,7 @@
 //! - *Region free list.* A region object whose 2 MiB region the guest emptied, with every
 //!   run in it unmapped by the RM, goes on a bounded per-VAS free list instead of being
 //!   freed, and the next need of the same region and page class takes it back: two RM
-//!   calls fewer per churned region. `CARAXES_SHADOW_REGION_POOL=0` frees at once.
+//!   calls fewer per churned region.
 //! - *Counted.* Every RM call of the shadow is counted by kind with its time ([`RmCalls`]),
 //!   per sync line and in the summary.
 
@@ -435,11 +433,6 @@ impl RmCalls {
     }
 }
 
-/// `CARAXES_SHADOW_DEFER_TLB` and `CARAXES_SHADOW_REGION_POOL`: on unless set to 0.
-fn switch_on(var: &str) -> bool {
-    std::env::var(var).as_deref() != Ok("0")
-}
-
 /// `nvos46_flags::PAGE_SIZE_*` for a guest page size.
 fn page_size_flag(size: u64) -> u32 {
     use nvrm_abi::nvgpu::nvos46_flags as f;
@@ -757,14 +750,9 @@ impl MapBudget {
         }
     }
 
-    /// `CARAXES_MAP_BUDGET` (set by the launcher from `--map-budget`), else the default.
-    pub fn from_env() -> Self {
-        let limit = std::env::var("CARAXES_MAP_BUDGET")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .filter(|n: &usize| *n > 0)
-            .unwrap_or(DEFAULT_MAP_BUDGET);
-        MapBudget::new(limit)
+    /// The device's budget: [`DEFAULT_MAP_BUDGET`] live mappings.
+    pub fn device() -> Self {
+        MapBudget::new(DEFAULT_MAP_BUDGET)
     }
 
     pub fn live(&self) -> usize {
@@ -1082,20 +1070,18 @@ pub struct ShadowVas {
     teardown_objects: Vec<u32>,
     teardown_unmapped: usize,
     teardown_freed: usize,
-    /// Coalesce contiguous leaves into one RM mapping (`CARAXES_SHADOW_COALESCE=0`: one
-    /// mapping per leaf, the earlier behaviour, for A/B measurements).
+    /// Coalesce contiguous leaves into one RM mapping (on; the unit tests turn it off to
+    /// compare with one mapping per leaf).
     coalesce: bool,
-    /// Map and unmap with the RM's TLB invalidate deferred to [`Self::settle`]
-    /// (`CARAXES_SHADOW_DEFER_TLB=1`; off by default: measured without gain, memory-model.md
-    /// §7.5). Turned off for good when an invalidate fails.
+    /// Map and unmap with the RM's TLB invalidate deferred to [`Self::settle`] (off: measured
+    /// without gain, memory-model.md §7.5). Turned off for good when an invalidate fails.
     defer_tlb: bool,
-    /// Free an emptied region's object with its mappings in one call
-    /// (`CARAXES_SHADOW_BULK_FREE=0`: one unmap per run).
+    /// Free an emptied region's object with its mappings in one call (on; off: one unmap
+    /// per run, for the unit tests).
     bulk_on: bool,
     /// A deferred map or unmap was made since the last invalidate of the VAS.
     tlb_owed: bool,
-    /// Empty region objects kept for reuse, by region VA (`CARAXES_SHADOW_REGION_POOL=0`:
-    /// none). Every one of them had all its runs unmapped by the RM without a failure.
+    /// Empty region objects kept for reuse, by region VA (`pool_on`, on). Every one of them had all its runs unmapped by the RM without a failure.
     pool: BTreeMap<u64, Region>,
     pool_on: bool,
     /// Host RM calls by kind, since the VAS was created.
@@ -1106,8 +1092,8 @@ pub struct ShadowVas {
     teardown_calls0: Option<RmCalls>,
     /// Mappings the teardown removed with their region object.
     teardown_bulk: usize,
-    /// Map scattered sysmem stretches through gather descriptors
-    /// (`CARAXES_SHADOW_GATHER=0`: run by run from the registered descriptors).
+    /// Map scattered sysmem stretches through gather descriptors (on; off: run by run from
+    /// the registered descriptors, for the unit tests).
     gather_on: bool,
     /// Live gather descriptors and the runs mapped from each.
     gathers: BTreeMap<u32, usize>,
@@ -1350,17 +1336,17 @@ impl ShadowVas {
             teardown_objects: Vec::new(),
             teardown_unmapped: 0,
             teardown_freed: 0,
-            coalesce: switch_on("CARAXES_SHADOW_COALESCE"),
-            defer_tlb: std::env::var("CARAXES_SHADOW_DEFER_TLB").as_deref() == Ok("1"),
-            bulk_on: switch_on("CARAXES_SHADOW_BULK_FREE"),
+            coalesce: true,
+            defer_tlb: false,
+            bulk_on: true,
             tlb_owed: false,
             pool: BTreeMap::new(),
-            pool_on: switch_on("CARAXES_SHADOW_REGION_POOL"),
+            pool_on: true,
             calls: RmCalls::default(),
             settle_notes: Vec::new(),
             teardown_calls0: None,
             teardown_bulk: 0,
-            gather_on: switch_on("CARAXES_SHADOW_GATHER"),
+            gather_on: true,
             gathers: BTreeMap::new(),
             gathers_idle: Vec::new(),
             comp: None,

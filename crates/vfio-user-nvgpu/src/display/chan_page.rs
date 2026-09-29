@@ -31,8 +31,6 @@ use std::time::{Duration, Instant};
 
 use crate::intr_page::{IntrPage, Mapping, PAGE};
 
-/// The switch.
-pub const KICK_PAGE_ENV: &str = "CARAXES_DISPLAY_KICK_PAGE";
 /// The first window channel's USERD page (display/mod.rs `WIN_USERD`).
 pub const BASE: u64 = super::WIN_USERD;
 /// Window and window-immediate channels, 32 each.
@@ -40,30 +38,10 @@ pub const PAGES: usize = 64;
 /// A kick not completed after this long is counted.
 pub const WATCHDOG: Duration = Duration::from_millis(20);
 
-/// `CARAXES_DISPLAY_KICK_PAGE`: on by default with the display page (since 2026-09-29), `0`
-/// turns it off. The night of 2026-09-28 measured it twice against its control in fresh
-/// Linux B guests: vkmark +2-23 %, glmark2 +11-26 %, 0 inconsistencies, the smoke suite and a
-/// Moonlight stream verified (caraxes/runs/night-2026-09-28/README.md).
-pub fn requested(display_page: bool) -> Result<bool, String> {
-    parse(std::env::var(KICK_PAGE_ENV).ok().as_deref(), display_page)
-}
-
-pub fn parse(v: Option<&str>, display_page: bool) -> Result<bool, String> {
-    let Some(v) = v.map(str::trim).filter(|v| !v.is_empty()) else {
-        return Ok(display_page);
-    };
-    let on = match v {
-        "0" | "off" => false,
-        "1" | "on" => true,
-        v => return Err(format!("{KICK_PAGE_ENV}={v:?}: 0 or 1")),
-    };
-    if on && !display_page {
-        return Err(format!(
-            "{KICK_PAGE_ENV}=1 needs CARAXES_DISPLAY_PAGE=1 (the display clock drives the engine the kicks feed)"
-        ));
-    }
-    Ok(on)
-}
+// The page is on with the display page (main.rs), since 2026-09-29 by default and since
+// 2026-09-30 without a switch. The night of 2026-09-28 measured it twice against its control
+// in fresh Linux B guests: vkmark +2-23 %, glmark2 +11-26 %, 0 inconsistencies, the smoke
+// suite and a Moonlight stream verified (caraxes/runs/night-2026-09-28/README.md).
 
 #[derive(Default, Debug)]
 pub struct Stats {
@@ -287,16 +265,6 @@ mod tests {
         )
         .unwrap();
         ChanPage::create(&intr).unwrap()
-    }
-
-    #[test]
-    fn switch_needs_the_display_page() {
-        assert_eq!(parse(None, false), Ok(false));
-        assert_eq!(parse(None, true), Ok(true));
-        assert_eq!(parse(Some("0"), true), Ok(false));
-        assert_eq!(parse(Some("1"), true), Ok(true));
-        assert!(parse(Some("1"), false).is_err());
-        assert!(parse(Some("x"), true).is_err());
     }
 
     /// Window 6's page: a PUT store is one kick to the newest PUT, GET follows when the
