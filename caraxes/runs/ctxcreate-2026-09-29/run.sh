@@ -46,6 +46,7 @@ if [[ $MODE == native ]]; then
       echo "=== census-cu ctx"; "$CBIN/census-cu" ctx 5
       echo "=== census-cu ops"; "$CBIN/census-cu" ops 10 ) > "$C/native.txt" 2>&1
     echo "native rc=$? $(grep -c '^OP' "$C/native.txt") OP lines, $(grep -c '^INIT' "$C/native.txt") INIT, $(grep -c '^CHURN' "$C/native.txt") CHURN"
+    grep -hE '^(INIT|CHURN|OP) ' "$C/native.txt" > "$C/results.txt"
     exit 0
 fi
 
@@ -109,7 +110,9 @@ EOF
 T0=$(date '+%F %T')
 mx_setup "$C"
 sha256sum "$CBIN/census-cu" >> "$C/setup.txt"
-if mx_up "$C" && "$LEA_TOOLS/caraxes-vm.sh" probe "ctx-$LABEL" | tail -n 2 >> "$C/up.txt" &&
+# The launcher's probe (the guest's DMA table, a reset and the module load) wants a trace file;
+# with the trace off it gets an empty one.
+if mx_up "$C" && { [[ $MODE == census ]] || : > "$MX_W/gpu-trace.log"; } && "$LEA_TOOLS/caraxes-vm.sh" probe "ctx-$LABEL" | tail -n 2 >> "$C/up.txt" &&
     "$LEA_TOOLS/caraxes-vm.sh" ssh "$V2_NODES" >> "$C/up.txt" 2>&1; then
     L0=0; [[ $MODE == census ]] && L0=$(wc -l < "$MX_W/gpu-trace.log")
     G0=$(wc -l < "$MX_W/gpu.log")
