@@ -12,6 +12,7 @@ Scope: where a CUDA context's creation and destruction and a device allocation's
 - `run.sh bench`: trace off (the clean times), `bench-cu` init ×10, churn 20 ×3, `census-cu` ctx 5 and ops 10 unmarked.
 - `run.sh native LABEL`: the same programs on the host (615.71.09).
 - `census-cu` is built on the host from `caraxes/tools/census-cu.c` (GLIBC 2.34 at most) and copied into the guest; `bench-cu` is the guest's own.
+- The whole Leandro-Test material on one binary: `R/lt-suite.sh vm BIN LABEL` (4 GiB, slot 0; nvml and gpu gates, then `lt-all.sh` in the guest: the runner's CUDA, suite and gpu tests, all 21 other `probe/matrix` probes, the C and Python probes, bench-cu; one timed row each), `lt-suite.sh native LABEL` (the same on the host, without the VRAM-exhausting, display and sudo tests), `lt-suite.sh table VM NATIVE`.
 
 ## Facts
 
