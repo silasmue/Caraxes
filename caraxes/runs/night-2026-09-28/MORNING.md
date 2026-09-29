@@ -10,6 +10,8 @@ One binary on dev (b2e0d749 + docs): the guest's ABI is detected at the GSP boot
 - **nova** (Linux 7.2.7): ABI 570 detected, 5 probes, bind/unbind/reload, 0 refused.
 - **Linux, NVIDIA open 615:** smoke, compute series and scrub stress; 0 Xid.
 - **Windows 11 / 617.14:** D3D11, D3D12, Vulkan, CUDA, managed memory, NVENC/NVDEC, smoke ALL PASS; 0 Xid, 0 TDR.
+  - **Caveat:** every Windows run binary (P28-P38) carried the P17 diagnostic build patch, which binds owned GFXP buffers on the host (host vidmem, outside the VM's slice). dev itself has no such bind.
+  - A Windows gate of the plain dev binary (P39) is scheduled. The productized owned-GFXP bind for both guests, with the buffers in the VM's slice, is being designed; it is also the likely fix for the Linux Xid 109.
 
 ## Performance, Linux vs native (defaults, no extra switches)
 
