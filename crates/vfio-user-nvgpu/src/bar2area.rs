@@ -1297,6 +1297,11 @@ pub struct Bar2Area {
     live_sorted: RefCell<(u64, Vec<u64>)>,
     /// Page tables that left the BAR2 mapping ([`Victims`]).
     pub victims: RefCell<Victims>,
+    /// The display's FB record windows granted over pages not behind BAR2 (fb.rs
+    /// `share_record_window`): `(first page, end page, owner)`. A page of one about to
+    /// enter the BAR2 mapping revokes it first (`revoke_record_grant`).
+    pub records: RefCell<Vec<crate::fb::RecordGrant>>,
+    pub records_revoked: std::cell::Cell<u64>,
 }
 
 impl Bar2Area {
@@ -1331,6 +1336,8 @@ impl Bar2Area {
             drift_at: None,
             live_sorted: RefCell::new((0, Vec::new())),
             victims: RefCell::new(Victims::default()),
+            records: RefCell::new(Vec::new()),
+            records_revoked: std::cell::Cell::new(0),
         })
     }
 
@@ -1944,6 +1951,8 @@ impl Bar2Area {
             traps,
             stats,
             victims,
+            records,
+            records_revoked,
             ..
         } = self;
         let victims = victims.get_mut();
@@ -1951,6 +1960,15 @@ impl Bar2Area {
         let mut loads = 0u64;
         let mut load = |key: u64| -> Box<PageBuf> {
             loads += 1;
+            // A page under a display record window enters the mapping: the window goes
+            // first (the display then writes through the device, which keeps the memfd), and
+            // the region's snapshots with it (the window's writes bypassed them).
+            if key & SYS == 0 {
+                for (first, end) in crate::fb::revoke_grants(&mut records.borrow_mut(), key, key + 1) {
+                    records_revoked.set(records_revoked.get() + 1);
+                    victims.drop_pages(first, end - 1);
+                }
+            }
             if key & SYS == 0 && !victims.is_empty() {
                 if let Some(snap) = victims.take(key, view.epoch) {
                     victims.stats.load_hits += 1;

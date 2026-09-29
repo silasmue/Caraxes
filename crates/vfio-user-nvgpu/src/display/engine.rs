@@ -1726,7 +1726,7 @@ impl Engine {
         let clock = ticker().timing_summary();
         let (pinned, refused) = self.pins.counts();
         format!(
-            "display engine: {} core UPDATEs, {} core notifiers written, {} vblank interrupts, {} unresolved context DMAs, ticker raised {} ({} MSIs); {}; {}; without the device mutex: {} clock ticks, {} register reads, {} register writes, {} FB record window(s), {} region(s) left to the device path{}{}",
+            "display engine: {} core UPDATEs, {} core notifiers written, {} vblank interrupts, {} unresolved context DMAs, ticker raised {} ({} MSIs); {}; {}; without the device mutex: {} clock ticks, {} register reads, {} register writes, {} FB record window(s), {} region(s) left to the device path ({} window(s) taken back when a page entered the BAR2 memfd or the BAR1 pool){}{}",
             self.core_updates,
             self.core_notifier_writes,
             self.vblank_raised,
@@ -1740,6 +1740,7 @@ impl Engine {
             self.routed_writes,
             pinned,
             refused,
+            self.pins.revoked(),
             if clock.is_empty() { "" } else { "; " },
             clock
         )

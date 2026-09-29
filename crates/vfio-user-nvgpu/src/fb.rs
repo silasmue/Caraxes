@@ -307,6 +307,43 @@ pub trait FbStore: Send {
 /// core's record windows).
 pub trait SharedWindow: WindowBacking + Sync {}
 
+/// The owner of FB record windows (the display's `RecordPins`, display/core_path.rs): told
+/// to stop using the window of the region at `start` before the region's pages leave VRAM
+/// as the window sees it (a page entering the BAR2 memfd or the BAR1 pool). It must not
+/// return before no user of the window is left (the display takes its windows' write lock).
+pub trait RecordRevoke: Send + Sync {
+    fn revoke(&self, start: u64);
+}
+
+/// A record window granted over FB pages `[first, end)` (page numbers) to `owner`.
+#[derive(Clone)]
+pub struct RecordGrant {
+    pub first: u64,
+    pub end: u64,
+    pub owner: std::sync::Weak<dyn RecordRevoke>,
+}
+
+/// Revoke every grant of `grants` over a page in `[first, end)` and drop it; returns their
+/// page ranges.
+pub fn revoke_grants(grants: &mut Vec<RecordGrant>, first: u64, end: u64) -> Vec<(u64, u64)> {
+    if grants.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    grants.retain(|g| {
+        if g.first < end && first < g.end {
+            if let Some(o) = g.owner.upgrade() {
+                o.revoke(g.first * PAGE);
+            }
+            out.push((g.first, g.end));
+            false
+        } else {
+            true
+        }
+    });
+    out
+}
+
 /// A shared window as one of the store's pinned windows.
 struct ArcWindow(std::sync::Arc<dyn SharedWindow>);
 
@@ -1392,6 +1429,10 @@ pub struct FakeFb {
     /// walked through (`bar_tlb_pages`); `CARAXES_BAR_TLB=0` walks every access.
     bar_tlb: RefCell<HashMap<(u64, u64), Target>>,
     bar_tlb_pages: RefCell<std::collections::HashSet<u64>>,
+    /// The display's FB record windows granted with the BAR1 pool on
+    /// ([`Self::share_record_window`]).
+    record_grants: RefCell<Vec<RecordGrant>>,
+    records_revoked: Cell<u64>,
     bar_tlb_on: bool,
     pub bar_tlb_stats: Cell<(u64, u64, u64)>,
     /// The software executor's translations ([`ExecTlb`], [`Self::translate_pages`]).
@@ -1447,6 +1488,8 @@ impl FakeFb {
             table_epoch: Cell::new(0),
             bar_tlb: RefCell::new(HashMap::new()),
             bar_tlb_pages: RefCell::new(std::collections::HashSet::new()),
+            record_grants: RefCell::new(Vec::new()),
+            records_revoked: Cell::new(0),
             bar_tlb_on: std::env::var("CARAXES_BAR_TLB").as_deref() != Ok("0"),
             bar_tlb_stats: Cell::new((0, 0, 0)),
             exec_tlb: RefCell::new(ExecTlb::default()),
@@ -2184,15 +2227,69 @@ impl FakeFb {
     /// too. `None` where the FB address is not the VRAM page itself for good: the BAR1 pool
     /// remaps pages and the BAR2 memfd holds the guest's latest bytes of the pages it maps,
     /// so with either on the records stay on the device path.
-    pub fn share_record_window(&mut self, pa: u64, len: usize) -> Option<std::sync::Arc<dyn SharedWindow>> {
-        if self.pool.borrow().is_some() || self.bar2.is_some() || self.bar1_pt.borrow().is_some() {
+    ///
+    /// With the BAR1 pool or the BAR2 memfd on, a region is granted only while none of its
+    /// pages is pooled, a replica's home or behind BAR2, and the grant is revoked (through
+    /// `owner`) before one becomes so: the BAR2 memfd's load of a page (bar2area.rs
+    /// `apply_unit`) and the pool's move or replica of one ([`Self::revoke_records`]) call it
+    /// first, under the device lock. Fixed BAR1 passthrough keeps records on the device path.
+    pub fn share_record_window(
+        &mut self,
+        pa: u64,
+        len: usize,
+        owner: &std::sync::Arc<dyn RecordRevoke>,
+    ) -> Option<std::sync::Arc<dyn SharedWindow>> {
+        if self.bar1_pt.borrow().is_some() {
             return None;
         }
         let end = pa.checked_add(len as u64)?;
         if end > self.size || self.private.iter().any(|&(b, e)| pa < e && b < end) {
             return None;
         }
-        self.store.share_window(pa, len)
+        let (first, last) = (pa / PAGE, end.div_ceil(PAGE));
+        if let Some(a) = self.bar2.as_deref() {
+            let live = a.live_keys();
+            let i = live.partition_point(|k| *k < first);
+            if live.get(i).is_some_and(|k| *k < last) {
+                return None;
+            }
+        }
+        if let Some(p) = self.pool.borrow().as_ref() {
+            if p.touches_home(first, last) {
+                return None;
+            }
+        }
+        let w = self.store.share_window(pa, len)?;
+        let grant = RecordGrant {
+            first,
+            end: last,
+            owner: std::sync::Arc::downgrade(owner),
+        };
+        if let Some(a) = self.bar2.as_deref() {
+            a.records.borrow_mut().push(grant.clone());
+        }
+        self.record_grants.borrow_mut().push(grant);
+        Some(w)
+    }
+
+    /// FB pages `[first, end)` are about to be pooled or replicated (bar1pool.rs): revoke
+    /// the display record windows over them first. One check when none is granted.
+    pub fn revoke_records(&self, first: u64, end: u64) {
+        let gone = revoke_grants(&mut self.record_grants.borrow_mut(), first, end);
+        if gone.is_empty() {
+            return;
+        }
+        self.records_revoked.set(self.records_revoked.get() + gone.len() as u64);
+        if let Some(a) = self.bar2.as_deref() {
+            let mut r = a.records.borrow_mut();
+            r.retain(|g| !gone.contains(&(g.first, g.end)));
+        }
+    }
+
+    /// Record windows revoked because a page of theirs was pooled, replicated or entered
+    /// BAR2.
+    pub fn records_revoked(&self) -> u64 {
+        self.records_revoked.get() + self.bar2.as_deref().map_or(0, |a| a.records_revoked.get())
     }
 
     /// Serve the range of `w` (reservation offsets) from `w` for good, outside the VRAM

@@ -97,8 +97,13 @@ windows-findings.md step 10 (C61).
   - Record windows (core_path.rs `RecordPins`): a window `UPDATE` that resolves a semaphore or
     notifier in FB maps its 2 MiB region once (at most 4) through the VRAM store
     (fb.rs `share_record_window`, `SharedWindow`). The store serves that range from the same
-    window. The BAR1 pool, the BAR2 memfd and BAR1 passthrough keep FB records on the device
-    path, since the page is not the VRAM page itself for good there.
+    window. With the BAR1 pool or the BAR2 memfd on, a region is granted
+    while none of its pages is pooled, a replica's home or behind BAR2 (fb.rs
+    `share_record_window`); before one becomes so (the pool's move or replica, the memfd's
+    load of the page) the window is taken back under the device lock (`RecordRevoke`: the
+    windows' write lock waits out a running tick) and the region stays on the device path.
+    Fixed BAR1 passthrough keeps FB records on the device path. Counted: the display line's
+    "window(s) taken back".
   - The ticker's driver tries the device mutex. When it is held, the tick runs without it
     (`DisplayRoute::tick`) and returns whether the FE line is asserted; the clock raises only then.
   - Routed registers: `Engine::handles` offsets (FE interrupt status, enables, head state, scan

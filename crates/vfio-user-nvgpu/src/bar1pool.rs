@@ -913,6 +913,14 @@ impl Bar1Pool {
         self.page_units.contains_key(&page)
     }
 
+    /// Whether any FB page in `[first, end)` (page numbers) is in the pool (its bytes at a
+    /// pool page) or a replica's home: a display record window over it would miss them
+    /// (fb.rs `share_record_window`).
+    pub fn touches_home(&self, first: u64, end: u64) -> bool {
+        self.table.fwd.range(first * PAGE..end * PAGE).next().is_some()
+            || (first..end).any(|p| self.replica_homes.contains(&p))
+    }
+
     pub fn tracks_page(&self, page: u64) -> bool {
         self.page_units.contains_key(&page) || self.replica_homes.contains(&page)
     }
@@ -1776,6 +1784,9 @@ fn merge_order(replicas: &BTreeMap<u64, Replica>) -> Vec<u64> {
 /// Make area page `g` a replica of FB page `x`: the pool page gets the page's bytes, and
 /// from now on the sync points merge the two ([`sync_untracked`]).
 fn make_replica(fb: &mut FakeFb, g: u64, x: u64) {
+    // A display record window over the home goes first: the replica mirrors what the device
+    // writes to the home, and the window's writes bypass that.
+    fb.revoke_records(x / PAGE, x / PAGE + 1);
     let mut b = vec![0u8; PAGE as usize];
     fb.read(x, &mut b);
     let p = fb.bar1_pool().expect("on").0 + g;
@@ -2599,6 +2610,8 @@ fn run_moves(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, b: &mut Batch, run: Vec<Op>
             // A replica at this area page (the page was refused before and may move now,
             // or the area page served another page): its last area writes go home first.
             merge_replica(fb, op.g, true);
+            // A display record window over the page goes before the page leaves home.
+            fb.revoke_records(op.x / PAGE, op.x / PAGE + 1);
             fb.copy_page_raw(op.x, p);
             let mut guard = fb.pool_mut();
             let pool = guard.as_mut().expect("on");

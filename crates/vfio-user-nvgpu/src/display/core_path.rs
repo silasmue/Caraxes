@@ -45,9 +45,30 @@ impl RecordWindow {
 #[derive(Default)]
 pub struct RecordPins {
     windows: RwLock<Vec<RecordWindow>>,
-    /// Regions the FB store could not share (the BAR1 pool, the BAR2 memfd, no VRAM).
+    /// Regions the FB store could not share (a page pooled or behind the BAR2 memfd, fixed
+    /// BAR1 passthrough, no VRAM) or took back.
     refused: AtomicU64,
     refused_regions: Mutex<Vec<u64>>,
+    /// Windows taken back because a page of theirs entered the BAR2 memfd or the BAR1 pool.
+    revoked: AtomicU64,
+}
+
+impl crate::fb::RecordRevoke for RecordPins {
+    /// Under the device lock, before a page of the region at `start` enters the BAR2 memfd
+    /// or the BAR1 pool: the window goes once no tick uses it (the write lock waits for the
+    /// ticks' read guards), and the region stays on the device path from then on.
+    fn revoke(&self, start: u64) {
+        let mut r = self.refused_regions.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut w = self.windows.write().unwrap_or_else(PoisonError::into_inner);
+        let before = w.len();
+        w.retain(|x| x.pa != start);
+        if w.len() != before {
+            self.revoked.fetch_add(1, Ordering::Relaxed);
+        }
+        if !r.contains(&start) {
+            r.push(start);
+        }
+    }
 }
 
 impl RecordPins {
@@ -59,7 +80,7 @@ impl RecordPins {
     /// Under the device mutex: make the FB record `[pa, pa + len)` reachable without it,
     /// mapping its 2 MiB region once. Returns a note for the trace when a window was mapped
     /// or a region refused for the first time.
-    pub fn ensure(&self, fb: &mut FakeFb, pa: u64, len: u64) -> Option<String> {
+    pub fn ensure(self: &Arc<Self>, fb: &mut FakeFb, pa: u64, len: u64) -> Option<String> {
         let start = pa & !(Self::REGION - 1);
         if (pa + len).div_ceil(Self::REGION) * Self::REGION - start > Self::REGION {
             return None; // a record across two regions stays on the device path
@@ -74,7 +95,8 @@ impl RecordPins {
             }
             let mut w = self.windows.write().unwrap_or_else(PoisonError::into_inner);
             if w.len() < Self::MAX {
-                if let Some(win) = fb.share_record_window(start, Self::REGION as usize) {
+                let owner: Arc<dyn crate::fb::RecordRevoke> = self.clone();
+                if let Some(win) = fb.share_record_window(start, Self::REGION as usize, &owner) {
                     w.push(RecordWindow { pa: start, len: Self::REGION, win });
                     return Some(format!(
                         "display: FB records at {start:#x} (+2 MiB) mapped for the display clock ({} window(s))",
@@ -86,7 +108,7 @@ impl RecordPins {
         }
         self.refused.fetch_add(1, Ordering::Relaxed);
         Some(format!(
-            "display: FB records at {start:#x} stay on the device path (no shared window: BAR1 pool, BAR2 memfd, no VRAM store or {} windows)",
+            "display: FB records at {start:#x} stay on the device path (no shared window: a page of the region in the BAR1 pool or behind the BAR2 memfd, fixed BAR1 passthrough, no VRAM store, or {} windows)",
             Self::MAX
         ))
     }
@@ -104,6 +126,11 @@ impl RecordPins {
     /// Windows mapped and regions refused, for the summary.
     pub fn counts(&self) -> (usize, u64) {
         (self.read().len(), self.refused.load(Ordering::Relaxed))
+    }
+
+    /// Windows taken back (a page entered the BAR2 memfd or the BAR1 pool).
+    pub fn revoked(&self) -> u64 {
+        self.revoked.load(Ordering::Relaxed)
     }
 }
 
@@ -237,9 +264,49 @@ pub fn write32(engine: &Mutex<Engine>, mem: &GuestMemory, off: u64, v: u32) -> b
 mod tests {
     use super::*;
 
+    /// A granted record window is taken back when a page of its region is about to be
+    /// pooled or enter the BAR2 memfd (fb.rs `revoke_records`, bar2area.rs `apply_unit`):
+    /// the display no longer reaches it, the region stays on the device path, and a page
+    /// outside the region revokes nothing.
+    #[test]
+    fn a_record_window_is_taken_back_before_its_page_leaves_home() {
+        let pins = Arc::new(RecordPins::default());
+        let mut fb = crate::fb::testing::shared_ram_fb(16 << 20);
+        assert!(pins.ensure(&mut fb, 0x40_0010, 16).unwrap().contains("1 window(s)"));
+        fb.revoke_records(0x80_0000 / 4096, 0x80_0000 / 4096 + 1);
+        assert_eq!((pins.read().len(), pins.revoked(), fb.records_revoked()), (1, 0, 0));
+        // The pool is about to move page 0x41_2000 (inside [0x40_0000, 0x60_0000)).
+        fb.revoke_records(0x41_2000 / 4096, 0x41_2000 / 4096 + 1);
+        assert_eq!((pins.read().len(), pins.revoked(), fb.records_revoked()), (0, 1, 1));
+        let w = pins.read();
+        let io = CoreIo { mem: &GuestMemory::new(), pins: &w };
+        assert!(!io.can(MemRef { target: 1, addr: 0x40_0010 }, 0, 16), "the device path now");
+        drop(w);
+        assert!(pins.ensure(&mut fb, 0x40_0010, 16).is_none(), "stays on the device path");
+        fb.revoke_records(0x41_2000 / 4096, 0x41_2000 / 4096 + 1);
+        assert_eq!(fb.records_revoked(), 1, "granted once, revoked once");
+    }
+
+    /// The grants over a page range are revoked and dropped, the others kept.
+    #[test]
+    fn revoke_grants_takes_only_the_overlapping_ones() {
+        let pins = Arc::new(RecordPins::default());
+        let owner: Arc<dyn crate::fb::RecordRevoke> = pins.clone();
+        let g = |first: u64| crate::fb::RecordGrant {
+            first,
+            end: first + 512,
+            owner: Arc::downgrade(&owner),
+        };
+        let mut grants = vec![g(0x400), g(0x600)];
+        assert_eq!(crate::fb::revoke_grants(&mut grants, 0x5FF, 0x600), vec![(0x400, 0x600)]);
+        assert_eq!(grants.len(), 1);
+        assert_eq!(crate::fb::revoke_grants(&mut grants, 0x800, 0x900), vec![]);
+        assert_eq!(grants.len(), 1);
+    }
+
     #[test]
     fn a_record_window_maps_its_2_mib_region_once() {
-        let pins = RecordPins::default();
+        let pins = Arc::new(RecordPins::default());
         let mut fb = crate::fb::testing::shared_ram_fb(16 << 20);
         let n = pins.ensure(&mut fb, 0x50_0010, 16).unwrap();
         assert!(n.contains("0x400000") && n.contains("1 window(s)"), "{n}");
