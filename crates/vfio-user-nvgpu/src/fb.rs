@@ -1586,13 +1586,13 @@ impl FakeFb {
             || self.bar_tlb_pages.borrow().contains(&page)
     }
 
-    /// The MMU invalidate's sync of the BAR2 memfd when no flush is owed (docs/caraxes/
-    /// bar2-memfd.md §3, rule 2): the MMU re-reads page tables from here on, so the live
-    /// pages that are table pages ([`Self::device_table_page`]) are compared and written
-    /// back, and the BAR2 tables followed (a page that leaves the mapping is written back
-    /// first). Data the guest wrote through BAR2 reaches VRAM at the hand-over that gives
-    /// it to an engine (a doorbell, a GSP command, a flush's owed sync). Returns false
-    /// when the memfd is off.
+    /// The MMU invalidate's sync of the BAR2 memfd (docs/caraxes/bar2-memfd.md §3, rules 2
+    /// and 3): the MMU re-reads page tables from here on, so the live pages that are table
+    /// pages ([`Self::device_table_page`]) are compared and written back, and the BAR2
+    /// tables followed (a page that leaves the mapping is written back first). Data the
+    /// guest wrote through BAR2 reaches VRAM at the engine start that gives it to an engine
+    /// (a doorbell, a GSP command, or the flush clock for an owed flush): an owed flush stays
+    /// owed. Returns false when the memfd is off.
     pub fn bar2_sync_tables(&mut self, root: Option<u64>, sys: Option<&GuestMemory>) -> bool {
         let Some(a) = self.bar2.as_deref() else {
             return false;
@@ -1628,6 +1628,7 @@ impl FakeFb {
         let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys), &view);
         drop(walks);
         a.stats.table_syncs += 1;
+        a.stats.table_syncs_owed += u64::from(a.flush_pending());
         a.stats.table_sync_pages += keys.len() as u64;
         a.stats.table_sync_ns += t0.elapsed().as_nanos() as u64;
         drop(pool);
