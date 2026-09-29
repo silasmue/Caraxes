@@ -20,7 +20,12 @@ echo "CARAXES-CHECK firmware"
 ls -la /lib/firmware/nvidia/tu106/gsp/ 2>&1
 echo "CARAXES-CHECK R1 probe"
 # debug=gsp=debug: the RPC and event lines of rm/r535/rpc.c; the rest at the default level.
-modprobe nouveau debug=gsp=debug; echo "modprobe nouveau rc=$?"
+# The image's NVIDIA packaging keeps nouveau off in modprobe.d (vm10-boot1: modprobe resolved
+# "nouveau" to a module "off", i.e. "alias nouveau off"; the grep below records the lines). Load
+# it without any modprobe.d configuration (-C /dev/null: no aliases, blacklists or options from
+# files; dependencies still come from modules.dep), with the options given here only.
+grep -rsn "nouveau" /etc/modprobe.d /lib/modprobe.d /usr/lib/modprobe.d /run/modprobe.d | head -n 10
+modprobe -C /dev/null nouveau debug=gsp=debug; echo "modprobe nouveau rc=$?"
 sleep 5
 dmesg | grep -iE "nouveau|gsp|drm" | tail -n 150
 echo "CARAXES-CHECK R2 accel"
