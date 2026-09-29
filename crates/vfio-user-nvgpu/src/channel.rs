@@ -2086,6 +2086,7 @@ impl Registry {
         loop {
             let inv = std::mem::take(&mut self.tlb_invalidates);
             if !inv.is_empty() {
+                let _spent = crate::dlock::Spend::new(crate::dlock::Part::Invalidate);
                 notes.extend(on_invalidates(self, mem, &inv));
             }
             // The invalidates of every stopped channel were handed over above: continuing
@@ -2179,7 +2180,11 @@ impl Registry {
             guard += 1;
             let mut e = [0u8; 8];
             let entry_va = ch.gpfifo_va + 8 * ch.gp_get as u64;
-            if let Err(err) = mem.read_va(root, entry_va, &mut e) {
+            let fetched = {
+                let _spent = crate::dlock::Spend::new(crate::dlock::Part::Fetch);
+                mem.read_va(root, entry_va, &mut e)
+            };
+            if let Err(err) = fetched {
                 notes.push(format!("chid {chid}: gpfifo entry {}: {err}", ch.gp_get));
                 break;
             }
@@ -2261,7 +2266,11 @@ impl Registry {
             }
             ch.gp_get = (ch.gp_get + 1) % entries;
             ch.entries_done += 1;
-            if !mem.write(userd_at(USERD_GP_GET), &ch.gp_get.to_le_bytes()) {
+            let stored = {
+                let _spent = crate::dlock::Spend::new(crate::dlock::Part::GpGet);
+                mem.write(userd_at(USERD_GP_GET), &ch.gp_get.to_le_bytes())
+            };
+            if !stored {
                 notes.push(format!("chid {chid}: GPGet write to {userd:?} failed"));
             }
             // The run's budget: stop between two entries, the slice clock continues.
@@ -2305,8 +2314,11 @@ impl Registry {
         hold: Option<&std::collections::BTreeSet<u64>>,
     ) -> Result<(Vec<String>, Stop), String> {
         let mut raw = vec![0u8; dwords * 4];
-        mem.read_va(root, va, &mut raw)
-            .map_err(|e| format!("pushbuffer: {e}"))?;
+        {
+            let _spent = crate::dlock::Spend::new(crate::dlock::Part::Fetch);
+            mem.read_va(root, va, &mut raw)
+        }
+        .map_err(|e| format!("pushbuffer: {e}"))?;
         let w: Vec<u32> = raw
             .chunks_exact(4)
             .map(|c| u32::from_le_bytes(c.try_into().unwrap()))

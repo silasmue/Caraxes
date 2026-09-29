@@ -838,7 +838,7 @@ impl Dispatcher {
         let maps0 = gm.fb.vram_stats().map_or(0, |v| v.maps);
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
         let spent = t0.elapsed();
-        let [translate, copy] = crate::dlock::take_spent();
+        let [translate, copy, fetch, inv_wait, gp_get] = crate::dlock::take_spent();
         let tlb1 = gm.fb.exec_tlb_stats();
         let maps = gm.fb.vram_stats().map_or(0, |v| v.maps) - maps0;
         let software = self.channels.software_runs != software_runs;
@@ -848,12 +848,15 @@ impl Dispatcher {
         if spent >= std::time::Duration::from_millis(1) {
             crate::dlock::tag(|| {
                 format!(
-                    "doorbell chid {chid} ({kind}) {} ms (translate {} ms: {} page hit(s), {} unit walk(s); CPU copy {} ms; {maps} window map(s))",
+                    "doorbell chid {chid} ({kind}) {} ms (translate {} ms: {} page hit(s), {} unit walk(s); CPU copy {} ms; fetch {} ms; invalidate wait {} ms; GPGet stores {} ms; {maps} window map(s))",
                     spent.as_millis(),
                     translate.as_millis(),
                     tlb1.0 - tlb0.0,
                     tlb1.1 - tlb0.1,
-                    copy.as_millis()
+                    copy.as_millis(),
+                    fetch.as_millis(),
+                    inv_wait.as_millis(),
+                    gp_get.as_millis()
                 )
             });
         }
