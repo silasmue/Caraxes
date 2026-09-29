@@ -1,0 +1,2 @@
+steam -silent, game started directly
+cgroup steam 2658: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-rb7a36ada1381414b83088d29befe47c1.scope

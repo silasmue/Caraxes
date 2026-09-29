@@ -1,0 +1,52 @@
+08:03:24 vm up
+      1 <value name="ExtraCommandLine" type="string">-benchmark</value>
+      1 <value name="ExtraCommandLineEnabled" type="integer">1</value>
+      2 <value name="FullscreenHeight" type="integer">1080</value>
+      2 <value name="FullscreenWidth" type="integer">1920</value>
+      1 <value name="GameOptionsDialogShouldShow" type="integer">0</value>
+      3 <value name="ScreenH" type="integer">1080</value>
+      3 <value name="ScreenW" type="integer">1920</value>
+modules-ok
+sunshine: active 0::/user.slice/user-1000.slice/user@1000.service/session.slice/app-dev.lizardbyte.app.Sunshine.service
+caraxes-dmem-cap (off): inactive
+caraxes-dmem-cap: enabled dmem in /user.slice/user-1000.slice/user@1000.service/cgroup.subtree_control
+caraxes-dmem-cap: nvidia/00000000:00:06.0/vidmem: free 4764.00 MiB, app.slice current 0.00 MiB, reserve 84.00 MiB (DP-1 1920x1080 S=8.44 MiB R=52.00 MiB; session 32 MiB): app.slice/dmem.max = 4907335680 (4680.00 MiB), read back ok
+Finished caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+Stopping caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: nvidia/00000000:00:06.0/vidmem: /user.slice/user-1000.slice/user@1000.service/app.slice/dmem.max = max
+Stopped caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+kernel 7.0.0-34-generic; dmem controller: yes
+== dmem.capacity
+nvidia/00000000:00:06.0/vidmem 5368709120
+== subtree_control: /[+dmem] /user.slice[+dmem] /user.slice/user-1000.slice[+dmem] /user.slice/user-1000.slice/user@1000.service[+dmem] 
+== /user.slice/user-1000.slice/user@1000.service nvidia/00000000:00:06.0/vidmem current 242668448 max max
+== /user.slice/user-1000.slice/user@1000.service/session.slice nvidia/00000000:00:06.0/vidmem current 103515968 max max
+== /user.slice/user-1000.slice/user@1000.service/app.slice nvidia/00000000:00:06.0/vidmem current 0 max max
+== /user.slice/user-1000.slice/user@1000.service/background.slice nvidia/00000000:00:06.0/vidmem current 0 max max
+pci.bus_id, memory.total [MiB], memory.reserved [MiB], memory.used [MiB], memory.free [MiB]
+00000000:00:06.0, 5120 MiB, 209 MiB, 252 MiB, 4660 MiB
+saves before: 0
+08:04:04 moonlight pid 2721766 alive=yes
+steam -silent, game started directly
+cgroup steam 2658: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-rb7a36ada1381414b83088d29befe47c1.scope
+08:09:54 host-free=1379 host-mean=0.0682864 host-rmse=- guest-mean=? | 06:09:49 vram=656 free=4256 gpu=8 app=298/max session=158 game=none nvkms_fail=0 xid=0 | result=none
+08:10:25 host-free=1385 host-mean=0.0682835 host-rmse=96.5397 guest-mean=- | 06:10:22 vram=662 free=4250 gpu=9 app=298/max session=158 game=none nvkms_fail=0 xid=0 | result=none
+08:10:57 host-free=1377 host-mean=0.0682832 host-rmse=89.8125 guest-mean=? | 06:10:54 vram=656 free=4256 gpu=9 app=298/max session=158 game=none nvkms_fail=0 xid=0 | result=none
+08:11:28 host-free=1382 host-mean=0.0697674 host-rmse=2371.49 guest-mean=- | 06:11:19 vram=1729 free=2680 gpu=1 app=2378/max session=158 game=7495 nvkms_fail=0 xid=0 | result=none
+08:11:59 host-free=1356 host-mean=0.0697674 host-rmse=0 guest-mean=? | 06:11:52 vram=4070 free=1226 gpu=1 app=2566/max session=158 game=7495 nvkms_fail=0 xid=0 | result=none
+08:12:30 host-free=1364 host-mean=0.0277964 host-rmse=13955.9 guest-mean=- | 06:12:25 vram=486 free=4298 gpu=2 app=71/max session=158 game=7495 nvkms_fail=0 xid=0 | result=none
+08:13:04 host-free=1358 host-mean=0.0440114 host-rmse=16149.9 guest-mean=0.0781407 | 06:12:58 vram=1936 free=2977 gpu=16 app=1504/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:13:34 host-free=1338 host-mean=0.0440157 host-rmse=341.075 guest-mean=- | 06:13:30 vram=1946 free=2966 gpu=13 app=1514/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:14:08 host-free=1371 host-mean=0.0439959 host-rmse=592.193 guest-mean=0.0780708 | 06:14:02 vram=1946 free=2966 gpu=11 app=1514/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:14:39 host-free=1380 host-mean=0.0439745 host-rmse=352.355 guest-mean=- | 06:14:34 vram=1963 free=2949 gpu=16 app=1531/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:15:12 host-free=1386 host-mean=0.234971 host-rmse=25194.6 guest-mean=0.364358 | 06:15:07 vram=1708 free=3203 gpu=6 app=1288/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:15:43 host-free=1386 host-mean=0.236311 host-rmse=1720.39 guest-mean=- | 06:15:39 vram=2950 free=1946 gpu=9 app=2531/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:16:17 host-free=1386 host-mean=0.23615 host-rmse=1717.23 guest-mean=0.366409 | 06:16:16 vram=4383 free=529 gpu=8 app=3951/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:16:48 host-free=1388 host-mean=0.232821 host-rmse=1875.41 guest-mean=- | 06:16:48 vram=4710 free=203 gpu=12 app=4274/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:17:22 host-free=1389 host-mean=0.228405 host-rmse=2099.29 guest-mean=0.352566 | 06:17:19 vram=4710 free=203 gpu=14 app=4274/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:17:53 host-free=1381 host-mean=0.230022 host-rmse=2215.65 guest-mean=- | 06:17:50 vram=4807 free=99 gpu=15 app=4382/max session=161 game=7495 nvkms_fail=0 xid=0 | result=none
+08:18:27 host-free=1389 host-mean=0.230022 host-rmse=1.67668 guest-mean=0.110252 | 06:18:22 vram=4861 free=51 gpu=86 app=4409/max session=161 game=7495 nvkms_fail=1 xid=0 | result=none
+08:18:58 host-free=1384 host-mean=0.230022 host-rmse=3.33164 guest-mean=- | 06:18:54 vram=4904 free=8 gpu=18 app=4451/max session=161 game=7495 nvkms_fail=1 xid=0 | result=none
+08:19:32 host-free=1382 host-mean=0.230022 host-rmse=32.7303 guest-mean=0.189524 | 06:19:26 vram=4654 free=258 gpu=51 app=4201/max session=161 game=7495 nvkms_fail=1 xid=0 | result=none
+08:20:03 host-free=1386 host-mean=0.230022 host-rmse=8.89222 guest-mean=- | 06:19:58 vram=4660 free=252 gpu=45 app=4207/max session=161 game=7496 nvkms_fail=1 xid=0 | result=none
+08:20:42 host-free=1378 host-mean=0.230022 host-rmse=32.7883 guest-mean=? | 06:20:14 vram=4660 free=252 gpu=71 app=4207/max session=161 game=7496 nvkms_fail=1 xid=0 | result=none
