@@ -197,6 +197,16 @@ const GSP_SWGEN0: u32 = 1 << 6;
 /// `NV_VGPU_MSG_EVENT_POST_EVENT` (rpc_global_enums.h).
 const POST_EVENT: u32 = 0x1003;
 
+/// The first guest access refused at the device's private pages leaves one line in the device
+/// log; the exit summary counts them all (`exec_summary`).
+fn private_refused_line(n: u64, pa: u64) {
+    if n == 1 {
+        eprintln!(
+            "vfio-user-nvgpu: guest BAR/PRAMIN access at FB {pa:#x} refused: the device's private pages (devce.rs PRIVATE_AT); later ones are counted in the exit summary"
+        );
+    }
+}
+
 /// The trace's words for a GPPut store the barrier held (device.rs makes it an event).
 pub const GP_PUT_HELD: &str = "GPPut of a mirrored channel held";
 
@@ -292,6 +302,12 @@ impl BootModel {
         self.fb = FakeFb::for_layout(&self.layout).with_store(Box::new(VramStore::new(
             Box::new(mapper),
             base,
+            end,
+        )));
+        // The device's private pages (devce.rs `PRIVATE_AT`) are no guest memory for BAR
+        // accesses either, as for the software CE and the shadow.
+        self.fb.set_private(Some((
+            end.saturating_sub(crate::devce::PRIVATE_AT).max(base),
             end,
         )));
         let r = self.regs;
@@ -845,6 +861,12 @@ impl BootModel {
                 st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written
             ));
         }
+        if self.fb.private_refused() > 0 {
+            s.push(format!(
+                "guest BAR/PRAMIN accesses refused at the device's private pages: {}",
+                self.fb.private_refused()
+            ));
+        }
         let (h, m, f) = self.fb.bar_tlb_stats.get();
         s.push(format!(
             "bar tlb: {h} hit(s), {m} walk(s), {f} flush(es) by a table write (docs/caraxes/mapping.md §3)"
@@ -948,7 +970,12 @@ impl BootModel {
         } else {
             String::new()
         };
+        let refused = self.fb.private_refused();
         let t = self.fb.bar_access(mem, root, offset, data, write);
+        if let (Target::Fb(pa), true) = (t, self.fb.private_refused() != refused) {
+            private_refused_line(refused + 1, pa);
+            return format!("fb {pa:#x} REFUSED: the device's private pages");
+        }
         match t {
             Target::Fb(pa) => format!("fb {pa:#x}{held}"),
             Target::Sys(pa) => format!("sys {pa:#x}"),
@@ -1267,7 +1294,12 @@ impl BootModel {
         if self.in_pramin(off) {
             let mut b = [0u8; 4];
             if (self.bar0_window >> 24) & 3 == 0 {
-                self.fb.read(self.pramin_pa(off), &mut b);
+                let pa = self.pramin_pa(off);
+                if self.fb.private_overlaps(pa, 4) {
+                    private_refused_line(self.fb.note_private_refused(), pa);
+                } else {
+                    self.fb.read(pa, &mut b);
+                }
             }
             return Some(u32::from_le_bytes(b));
         }
@@ -1338,7 +1370,12 @@ impl BootModel {
         if self.in_pramin(off) {
             if (self.bar0_window >> 24) & 3 == 0 {
                 let pa = self.pramin_pa(off);
-                if !self.fb.write(pa, &v.to_le_bytes()) {
+                if self.fb.private_overlaps(pa, 4) {
+                    private_refused_line(self.fb.note_private_refused(), pa);
+                    notes.push(format!(
+                        "pramin write at {pa:#x} REFUSED: the device's private pages"
+                    ));
+                } else if !self.fb.write(pa, &v.to_le_bytes()) {
                     notes.push(format!("pramin write beyond FB: {pa:#x}"));
                 }
             } else {
@@ -4104,6 +4141,34 @@ mod tests {
     /// A BootModel on a reserved layout with the BAR2 memfd (`defer`: flush reads defer
     /// their sync): BAR2 page 2 maps the data page `x`, the trapped page 0x1f the flush
     /// page. Returns the model, `x` and the guest's view of the memfd.
+    /// The PRAMIN window reaches any FB page the guest names: not the device's private pages
+    /// (devce.rs `PRIVATE_AT`), whose writes are dropped and reads come back zero.
+    #[test]
+    fn the_pramin_window_refuses_the_private_pages() {
+        const MIB: u64 = 1 << 20;
+        let (base, end) = (0x400_0000u64, 0x800_0000u64);
+        let layout = crate::fb::FbLayout::reserved(32 * MIB, 256 * MIB, base, end).unwrap();
+        let f = crate::fixture::rtx2070();
+        let mut b = BootModel::new(f.chip, layout, f.identity(256 * MIB));
+        let private = end - crate::devce::PRIVATE_AT;
+        b.fb.set_private(Some((private, end)));
+        b.fb.write_u64(private, 0x1234_5678);
+        let mem = GuestMemory::new();
+        let (window, pramin) = (b.regs.bar0_window, b.regs.pramin);
+        b.write32(window, (private >> 16) as u32, &mem);
+        let at = pramin + (private & 0xFFFF);
+        let notes = b.write32(at, 0xDEAD, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("REFUSED")), "{notes:?}");
+        assert_eq!(b.fb.read_u64(private), Some(0x1234_5678));
+        assert_eq!(b.read32(at), Some(0));
+        assert_eq!(b.fb.private_refused(), 2);
+        // Below the private pages the window works as before.
+        b.write32(window, ((private - 0x1_0000) >> 16) as u32, &mem);
+        b.write32(pramin + (private & 0xFFFF), 0xBEEF, &mem);
+        assert_eq!(b.read32(pramin + (private & 0xFFFF)), Some(0xBEEF));
+        assert_eq!(b.fb.private_refused(), 2);
+    }
+
     fn memfd_model(defer: bool) -> (BootModel, u64, crate::bar2area::SharedView) {
         use crate::bar2area::{Bar2Area, Config};
         const MIB: u64 = 1 << 20;

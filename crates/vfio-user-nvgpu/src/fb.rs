@@ -959,6 +959,12 @@ pub struct FakeFb {
     /// `gmmu-v3-57bit`): the walks below hand over to [`crate::gmmu_v3`]; false keeps the
     /// v2 walker of this file.
     mmu_v3: bool,
+    /// The device's private pages at the top of the reservation (devce.rs `PRIVATE_AT`:
+    /// the device CE's and the invalidator's tables and rings), with host execution: a
+    /// guest BAR access or BAR table there is refused ([`Self::bar_access`], the PRAMIN
+    /// window in boot.rs, the BAR2 memfd), and counted.
+    private: Option<(u64, u64)>,
+    private_refused: Cell<u64>,
 }
 
 impl Default for FakeFb {
@@ -988,7 +994,35 @@ impl FakeFb {
             bar2: None,
             device_ce: None,
             mmu_v3: false,
+            private: None,
+            private_refused: Cell::new(0),
         }
+    }
+
+    /// See [`FakeFb::private`]; the BAR2 memfd follows.
+    pub fn set_private(&mut self, private: Option<(u64, u64)>) {
+        self.private = private;
+        if let Some(a) = self.bar2.as_deref_mut() {
+            a.set_private(private);
+        }
+    }
+
+    /// Whether `[pa, pa + len)` touches the device's private pages.
+    pub fn private_overlaps(&self, pa: u64, len: u64) -> bool {
+        self.private
+            .is_some_and(|(b, e)| pa < e && b < pa.saturating_add(len.max(1)))
+    }
+
+    /// Count a guest access refused at the private pages (returns the new count).
+    pub fn note_private_refused(&self) -> u64 {
+        let n = self.private_refused.get() + 1;
+        self.private_refused.set(n);
+        n
+    }
+
+    /// Guest accesses refused at the private pages so far.
+    pub fn private_refused(&self) -> u64 {
+        self.private_refused.get()
     }
 
     /// The device-owned host copy engine for the software CE's large transfers (devce.rs).
@@ -1322,6 +1356,8 @@ impl FakeFb {
         if self.mmu_v3 {
             return Err("the BAR2 memfd follows GMMU v2 tables only (this chip uses v3)".into());
         }
+        let mut area = area;
+        area.set_private(self.private);
         self.bar2 = Some(Box::new(area));
         Ok(())
     }
@@ -1395,6 +1431,7 @@ impl FakeFb {
             drop(pool);
             self.store.flush();
             a.reset_mapping();
+            a.set_private(to.private);
             to.bar2 = Some(a);
         }
     }
@@ -1813,6 +1850,12 @@ impl FakeFb {
         }
         self.bar_tlb_stats.set((h, m + 1, f));
         let (t, pages) = self.walk_pages(root, va & !0xFFF);
+        // A guest BAR table in the private pages is no table (their words are host PAs).
+        let t = if pages.iter().any(|p| self.private_overlaps(p << 12, 0x1000)) {
+            Target::Unmapped { level: 0 }
+        } else {
+            t
+        };
         if matches!(t, Target::Fb(_) | Target::Sys(_)) {
             self.bar_tlb_pages.borrow_mut().extend(pages);
             self.bar_tlb.borrow_mut().insert(key, t);
@@ -1892,6 +1935,12 @@ impl FakeFb {
     ) -> Target {
         let t = self.bar_translate(root, va);
         match t {
+            Target::Fb(pa) if self.private_overlaps(pa, data.len() as u64) => {
+                self.note_private_refused();
+                if !write {
+                    data.fill(0);
+                }
+            }
             Target::Fb(pa) => {
                 if write {
                     self.write(pa, data);
@@ -2412,6 +2461,69 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    /// The device's private pages (devce.rs `PRIVATE_AT`) are no guest memory for BAR accesses:
+    /// a guest PTE there is refused (write dropped, read as zeros, counted), a guest BAR table
+    /// there is no table, and the BAR2 memfd never maps such a page.
+    fn guest_bar_accesses_to_the_private_pages_are_refused() {
+        use crate::bar2area::{Bar2Area, Config};
+        let mut fb = FakeFb::new(1 << 20);
+        fb.set_private(Some((0xF_0000, 0x10_0000)));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        let (root, pd2, pd1, pd0, pt) = (0x10000, 0x11000, 0x12000, 0x13000, 0x14000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        // VA 0x1000 maps a guest page, VA 0x2000 a private page the device wrote itself.
+        fb.write_u64(pt + 8, pte(0x20000));
+        fb.write_u64(pt + 16, pte(0xF_1000));
+        fb.write_u64(0xF_1000, 0x1234_5678);
+        let mem = GuestMemory::new();
+        let mut d = [0xAAu8; 8];
+        assert_eq!(
+            fb.bar_access(&mem, root, 0x2000, &mut d, true),
+            Target::Fb(0xF_1000)
+        );
+        assert_eq!(fb.read_u64(0xF_1000), Some(0x1234_5678));
+        let mut r = [0xFFu8; 8];
+        fb.bar_access(&mem, root, 0x2000, &mut r, false);
+        assert_eq!(r, [0; 8]);
+        // A piece reaching into the private pages from below is refused as a whole.
+        fb.write_u64(pt + 24, pte(0xE_F000));
+        fb.bar_access(&mem, root, 0x3FFC, &mut d, true);
+        assert_eq!(fb.private_refused(), 3);
+        fb.bar_access(&mem, root, 0x1000, &mut d, true);
+        assert_eq!(fb.read_u64(0x20000), Some(0xAAAA_AAAA_AAAA_AAAA));
+        assert_eq!(fb.private_refused(), 3);
+        // A guest BAR table in the private pages is no table.
+        fb.write_u64(0xF_2000, vid(pd2));
+        assert_eq!(
+            fb.bar_translate(0xF_2000, 0x1000),
+            Target::Unmapped { level: 0 }
+        );
+        fb.write_u64(pd1 + 8, vid(0xF_3000));
+        fb.write_u64(0xF_3000 + 8, vid(pt));
+        assert_eq!(fb.translate(root, (1 << 29) + 0x1000), Target::Fb(0x20000));
+        assert_eq!(
+            fb.bar_translate(root, (1 << 29) + 0x1000),
+            Target::Unmapped { level: 0 }
+        );
+        // The BAR2 memfd maps the guest page and leaves the private one out.
+        let cfg = Config {
+            traps: vec![0x1f000],
+            sync_doorbell: false,
+            defer_flush: false,
+            flush_page_memory: false,
+        };
+        fb.set_bar2_area(Bar2Area::create(0x20000, &cfg).unwrap())
+            .unwrap();
+        assert!(fb.bar2_sync(Some(root), None));
+        assert_eq!(fb.backing(0x20000), Backing::Bar2Memfd(0x1000));
+        assert_eq!(fb.backing(0xF_1000), Backing::Store);
+    }
 
     #[test]
     fn walk_small_and_big_pages() {

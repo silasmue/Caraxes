@@ -611,8 +611,12 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     outside VM backing;
   - the shadow's leaves end below it (mirror.rs `leaf_end`), so a guest leaf there is refused;
   - the device CE's window maps only the usable FB below the whole 2 MiB carve-out.
-- **Still open:** guest BAR1/BAR2 accesses that the device traps and serves through its BAR page
-  walk (boot.rs `bar_root`, fb.rs BAR TLB) are not yet checked against the private range; the
-  guest RM builds those BAR tables itself and could point one at the private pages. Next: refuse
-  a BAR PTE target inside `PRIVATE_AT` in the BAR walk.
+- **Closed next (BAR paths):** the guest RM builds its BAR tables itself and could point one at
+  the private pages; the PRAMIN window (BAR0) reaches any FB page the guest names.
+  - A trapped BAR1/BAR2 access whose target touches the private pages is refused: write dropped,
+    read as zeros (fb.rs `bar_access`); a guest BAR table there is no table (`bar_translate`).
+  - The BAR2 memfd never maps a private page nor reads one as a table (bar2area.rs).
+  - A PRAMIN read or write there is refused the same way (boot.rs).
+  - The first refusal leaves one line in gpu.log; the exit summary counts them all.
+  - BAR1 passthrough and the BAR1 pool already stop below the 2 MiB carve-out.
 - Depends on: R (the reservation and its carve-out).
