@@ -632,6 +632,28 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   reactor without the page, and a trace of the leaf values and acks.
 - Memory model: independent of the VRAM layout.
 
+## P38 (2026-09-29 04:35-05:02, the harvest fix and the BAR2 memfd's loss; slot 0, 4 GiB)
+
+- Binary 6d7db985 (P17 diagnostic applied). No host Xid in any arm, smoke PASS in all.
+
+  | | a: as now | b: memfd, sync per flush read | c2: memfd, sync per doorbell |
+  |---|---|---|---|
+  | device side p50 (ring to host doorbell) | 7.0 us (P37: 11.9) | 8.2 us | 61.3 us |
+  | short kernel median | 68.6 us | 919 us | 226 us |
+  | transformer first / rate | 12.3 s / 86008 tok/s | 4.8 s / 53747 | 4.9 s / 45493 |
+  | ResNet-18 first / rate | 62.3 s / 374.6 img/s | 30.2 s / 223.9 | 31.7 s / 219.8 |
+  | NVENC h264 / hevc | 130.2 / 136.9 fps | 67.3 / 78.1 | 62.1 / 64.6 |
+  | VRAM behind the memfd | - | 0 of 543 | 0 of 3865 |
+
+- The harvest fix (3d5dd954): the USERD step 9.6 -> 4.5 us, device lock p99 120 -> 53 us,
+  launch + synchronize 462 -> 348 us.
+- The BAR2 memfd's steady-state loss is not the deferred flush (b), not GPU writes the memfd
+  shows stale (drift 0), and not submission data written through BAR2 (c2: 278067 doorbell
+  syncs found 1877 dirty pages in all). The device's share per ring is unchanged; the guest's
+  time from a host doorbell to its next submission grows by about 40 us. Cause open; the memfd
+  stays off for Windows.
+- Memory model: independent of the VRAM layout.
+
 ## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
 
 - **Before (all builds up to 70614b41's parent):** the top of the reservation holds device-owned
