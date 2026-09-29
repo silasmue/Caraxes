@@ -981,11 +981,13 @@ NEW  caraxes/abi/gsp-570.144 (1104e673e5538c6d)
 - GSP_MSG_QUEUE_ELEMENT: MCTP_MAGIC=0x4d435450,NVDM_TYPE_RM_RPC=0x25 -> -
 - GSP_ARGUMENTS_CACHED: GSP_ARGUMENTS_MAGIC_VALUE=0x20505347 -> -
 
-## Boot and transport types resized (12)
+## Boot and transport types resized (14)
 
 - GSP_MSG_QUEUE_ELEMENT: 40 -> 80 bytes (stable yes -> no)
 - rpc_init_done_v17_00: 1 -> 4 bytes (stable no -> no)
 - rpc_gsp_rm_control_v03_00: 40 -> 24 bytes (stable no -> no)
+- NV_CHANNEL_ALLOC_PARAMS: 376 -> 368 bytes (stable no -> no)
+- NV_VASPACE_ALLOCATION_PARAMETERS: 56 -> 48 bytes (stable no -> no)
 - GspStaticConfigInfo: 1608 -> 1656 bytes (stable no -> no)
 - NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO: 56 -> 48 bytes (stable no -> no)
 - GspSystemInfo: 952 -> 928 bytes (stable no -> no)
@@ -996,7 +998,7 @@ NEW  caraxes/abi/gsp-570.144 (1104e673e5538c6d)
 - GSP_FMC_BOOT_PARAMS: 256 -> 80 bytes (stable yes -> no)
 - GSP_SPDM_PARAMS: 16 -> 24 bytes (stable yes -> no)
 
-## Field offsets changed (laid-out structs) (17)
+## Field offsets changed (laid-out structs) (25)
 
 - GSP_ARGUMENTS_CACHED: (sizeof) offset 0 size 184 -> offset 0 size 72; magic removed (was offset 0); size removed (was offset 4); flags removed (was offset 8); messageQueueInitArguments offset 16 size 64 -> offset 0 size 32; messageQueueInitArguments.flags removed (was offset 16); ... 31 more
 - GSP_FMC_BOOT_PARAMS: (sizeof) offset 0 size 256 -> offset 0 size 80; initParams offset 32 size 8 -> offset 0 size 4; initParams.regkeys offset 32 size 4 -> offset 0 size 4; bootGspRmParams offset 64 size 32 -> offset 8 size 32; bootGspRmParams.target offset 64 size 4 -> offset 8 size 4; bootGspRmParams.gspRmDescSize offset 68 size 4 -> offset 12 size 4; ... 15 more [not used by the device]
@@ -1010,7 +1012,15 @@ NEW  caraxes/abi/gsp-570.144 (1104e673e5538c6d)
 - NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS: (sizeof) offset 0 size 88 -> offset 0 size 80; cbcRegionSize removed (was offset 80) [not used by the device]
 - NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO: (sizeof) offset 0 size 56 -> offset 0 size 48; blackList offset 31 size 18 -> offset 31 size 17; regionTag removed (was offset 52)
 - NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS: targetTask removed (was offset 24); flag offset 26 size 1 -> offset 24 size 1 [not used by the device]
+- NV2080_CTRL_GPU_QUERY_ECC_STATUS_PARAMS: (sizeof) offset 0 size 1664 -> offset 0 size 1464; units[].enabled[40x41] removed (was offset 0); units[].scrubComplete[40x41] removed (was offset 1); units[].supported[40x41] removed (was offset 2); units[].dbe.count[40x41] removed (was offset 8); units[].dbeNonResettable.count[40x41] removed (was offset 16); ... 14 more
+- NV2080_CTRL_INTERNAL_STATIC_GRMGR_GET_SKYLINE_INFO_PARAMS: (sizeof) offset 0 size 724 -> offset 0 size 228; skylineTable[].skylineVgpcSize[][80x9][1x64] removed (was offset 0); skylineTable[].singletonVgpcMask[80x9] removed (was offset 64); skylineTable[].maxInstances[80x9] removed (was offset 68); skylineTable[].computeSizeFlag[80x9] removed (was offset 72); skylineTable[].numNonSingletonVgpcs[80x9] removed (was offset 76); ... 6 more
+- NV2080_CTRL_INTERNAL_STATIC_MIGMGR_GET_COMPUTE_PROFILES_PARAMS: profiles[].flags[24x8] removed (was offset 6) [not used by the device]
+- NV2080_CTRL_INTERNAL_STATIC_MIGMGR_GET_PROFILES_PARAMS: (sizeof) offset 0 size 6488 -> offset 0 size 4328; table[].partitionFlag[72x90] removed (was offset 8); table[].grCount[72x90] removed (was offset 12); table[].gfxGrCount[72x90] removed (was offset 16); table[].gpcCount[72x90] removed (was offset 20); table[].virtualGpcCount[72x90] removed (was offset 24); ... 25 more [not used by the device]
 - NVB0CC_CTRL_INTERNAL_PERMISSIONS_INIT_PARAMS: (sizeof) offset 0 size 6 -> offset 0 size 5; bDevProfilingPermitted offset 0 size 1 -> offset 1 size 1; bDevTracePermitted removed (was offset 1); bAsyncCeProfilingPermitted removed (was offset 5); bAdminProfilingPermitted added at offset 0 [not used by the device]
+- NVC637_CTRL_EXEC_PARTITIONS_CREATE_PARAMS: (sizeof) offset 0 size 492 -> offset 0 size 460; execPartInfo[].gpcCount[56x8] removed (was offset 12); execPartInfo[].gfxGpcCount[56x8] removed (was offset 16); execPartInfo[].veidCount[56x8] removed (was offset 20); execPartInfo[].ceCount[56x8] removed (was offset 24); execPartInfo[].nvEncCount[56x8] removed (was offset 28); ... 23 more [not used by the device]
+- NVC637_CTRL_EXEC_PARTITIONS_IMPORT_EXPORT_PARAMS: (sizeof) offset 0 size 104 -> offset 0 size 96; info.execPartFlags removed (was offset 88); bCreateCap offset 96 size 1 -> offset 88 size 1 [not used by the device]
+- NV_CHANNEL_ALLOC_PARAMS: (sizeof) offset 0 size 376 -> offset 0 size 368; hHandleVASpace removed (was offset 32); hUserdMemory offset 36 size 32 -> offset 32 size 32; userdOffset offset 72 size 64 -> offset 64 size 64; engineType offset 136 size 4 -> offset 128 size 4; cid offset 140 size 4 -> offset 132 size 4; ... 16 more
+- NV_VASPACE_ALLOCATION_PARAMETERS: (sizeof) offset 0 size 56 -> offset 0 size 48; pasid removed (was offset 48)
 - msgqTxHeader: versionMajor removed (was offset 0); versionMinor removed (was offset 2); entryOff offset 16 size 4 -> offset 28 size 4; reserved removed (was offset 20); version added at offset 0; writePtr added at offset 16; ... 2 more
 - rpc_gsp_rm_control_v03_00: (sizeof) offset 0 size 40 -> offset 0 size 24; rmapiRpcFlags removed (was offset 20); rmctrlFlags removed (was offset 24); rmctrlAccessRight removed (was offset 28); reserved0 removed (was offset 32); params offset 40 size flex -> offset 24 size flex; ... 1 more
 - rpc_init_done_v17_00: (sizeof) offset 0 size 1 -> offset 0 size 4; bIsD3Hot removed (was offset 0); not_used added at offset 0
@@ -1024,14 +1034,19 @@ NEW  caraxes/abi/gsp-570.144 (1104e673e5538c6d)
 - rpc_gsp_set_system_info_v17_00
 - rpc_run_cpu_sequencer_v17_00
 
-## Laid-out structs no longer laid out (9)
+## Laid-out structs no longer laid out (14)
 
 - GMCAPI_HEADER
 - GSP_MSG_QUEUE_ENCRYPTION_TAG
 - NV0073_CTRL_SPECIFIC_HDCP_CTRL_PARAMS
 - NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2
 - NV0080_CTRL_NVENC_GET_CAPS_V2_PARAMS
+- NV2080_CTRL_CE_UPDATE_PCE_LCE_MIG_MAPPINGS_PARAMS
+- NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_MIG_GPU_INSTANCE_PARAMS
+- NV2080_CTRL_ECC_GET_REPAIR_STATUS_PARAMS
+- NV2080_CTRL_ECC_GET_UNREPAIRABLE_MEMORY_FLAG_PARAMS
 - NV2080_CTRL_FB_GET_CARVEOUT_REGION_INFO_PARAMS
+- NV2080_CTRL_FB_GET_REMAPPED_BANKS_PARAMS
 - NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS
 - NV2080_CTRL_GPU_GET_DIELET_INFO_PARAMS
 - NV2080_CTRL_MC_GET_INTR_CATEGORY_SUBTREE_MAP_PARAMS
@@ -1724,7 +1739,7 @@ NEW  caraxes/abi/gsp-570.144 (1104e673e5538c6d)
 - class 0x007E NV01_EVENT_KERNEL_CALLBACK_EX: named -> -
 - class 0x0079 NV01_EVENT_OS_EVENT: acknowledged -> -
 
-## Changes to what the device implements (78)
+## Changes to what the device implements (84)
 
 - Control params resized: 0x0073010C NV0073_CTRL_CMD_SYSTEM_GET_ACTIVE: NV0073_CTRL_SYSTEM_GET_ACTIVE_PARAMS 20 -> 16 bytes (gsp) [device: synthesized]
 - Control params resized: 0x00731360 NV0073_CTRL_CMD_DP_GET_LINK_CONFIG: NV0073_CTRL_DP_GET_LINK_CONFIG_PARAMS 24 -> 20 bytes (gsp) [device: synthesized]
@@ -1780,6 +1795,8 @@ NEW  caraxes/abi/gsp-570.144 (1104e673e5538c6d)
 - Version constants changed: GSP_MSG_QUEUE_ELEMENT: MCTP_MAGIC=0x4d435450,NVDM_TYPE_RM_RPC=0x25 -> -
 - Boot and transport types resized: rpc_init_done_v17_00: 1 -> 4 bytes (stable no -> no)
 - Boot and transport types resized: rpc_gsp_rm_control_v03_00: 40 -> 24 bytes (stable no -> no)
+- Boot and transport types resized: NV_CHANNEL_ALLOC_PARAMS: 376 -> 368 bytes (stable no -> no)
+- Boot and transport types resized: NV_VASPACE_ALLOCATION_PARAMETERS: 56 -> 48 bytes (stable no -> no)
 - Boot and transport types resized: GspStaticConfigInfo: 1608 -> 1656 bytes (stable no -> no)
 - Boot and transport types resized: NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO: 56 -> 48 bytes (stable no -> no)
 - Boot and transport types resized: GspSystemInfo: 952 -> 928 bytes (stable no -> no)
@@ -1795,6 +1812,10 @@ NEW  caraxes/abi/gsp-570.144 (1104e673e5538c6d)
 - Field offsets changed (laid-out structs): GspSystemInfo: (sizeof) offset 0 size 952 -> offset 0 size 928; virtualConfigBits removed (was offset 840); bIsPassthru offset 842 size 1 -> offset 840 size 1; bIsUnixHdmiFrlComplianceEnabled removed (was offset 897); isGridBuild offset 898 size 1 -> offset 897 size 1; bIsCmcBasedHws removed (was offset 928); ... 8 more
 - Field offsets changed (laid-out structs): MESSAGE_QUEUE_INIT_ARGUMENTS: (sizeof) offset 0 size 64 -> offset 0 size 32; flags removed (was offset 0); sharedMemPhysAddr offset 8 size 8 -> offset 0 size 8; pageTableEntryCount offset 52 size 4 -> offset 8 size 4; queueElementHdrSize removed (was offset 32); queueElementSizeMin removed (was offset 36); ... 4 more
 - Field offsets changed (laid-out structs): NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO: (sizeof) offset 0 size 56 -> offset 0 size 48; blackList offset 31 size 18 -> offset 31 size 17; regionTag removed (was offset 52)
+- Field offsets changed (laid-out structs): NV2080_CTRL_GPU_QUERY_ECC_STATUS_PARAMS: (sizeof) offset 0 size 1664 -> offset 0 size 1464; units[].enabled[40x41] removed (was offset 0); units[].scrubComplete[40x41] removed (was offset 1); units[].supported[40x41] removed (was offset 2); units[].dbe.count[40x41] removed (was offset 8); units[].dbeNonResettable.count[40x41] removed (was offset 16); ... 14 more
+- Field offsets changed (laid-out structs): NV2080_CTRL_INTERNAL_STATIC_GRMGR_GET_SKYLINE_INFO_PARAMS: (sizeof) offset 0 size 724 -> offset 0 size 228; skylineTable[].skylineVgpcSize[][80x9][1x64] removed (was offset 0); skylineTable[].singletonVgpcMask[80x9] removed (was offset 64); skylineTable[].maxInstances[80x9] removed (was offset 68); skylineTable[].computeSizeFlag[80x9] removed (was offset 72); skylineTable[].numNonSingletonVgpcs[80x9] removed (was offset 76); ... 6 more
+- Field offsets changed (laid-out structs): NV_CHANNEL_ALLOC_PARAMS: (sizeof) offset 0 size 376 -> offset 0 size 368; hHandleVASpace removed (was offset 32); hUserdMemory offset 36 size 32 -> offset 32 size 32; userdOffset offset 72 size 64 -> offset 64 size 64; engineType offset 136 size 4 -> offset 128 size 4; cid offset 140 size 4 -> offset 132 size 4; ... 16 more
+- Field offsets changed (laid-out structs): NV_VASPACE_ALLOCATION_PARAMETERS: (sizeof) offset 0 size 56 -> offset 0 size 48; pasid removed (was offset 48)
 - Field offsets changed (laid-out structs): msgqTxHeader: versionMajor removed (was offset 0); versionMinor removed (was offset 2); entryOff offset 16 size 4 -> offset 28 size 4; reserved removed (was offset 20); version added at offset 0; writePtr added at offset 16; ... 2 more
 - Field offsets changed (laid-out structs): rpc_gsp_rm_control_v03_00: (sizeof) offset 0 size 40 -> offset 0 size 24; rmapiRpcFlags removed (was offset 20); rmctrlFlags removed (was offset 24); rmctrlAccessRight removed (was offset 28); reserved0 removed (was offset 32); params offset 40 size flex -> offset 24 size flex; ... 1 more
 - Field offsets changed (laid-out structs): rpc_init_done_v17_00: (sizeof) offset 0 size 1 -> offset 0 size 4; bIsD3Hot removed (was offset 0); not_used added at offset 0
@@ -1805,4 +1826,4 @@ NEW  caraxes/abi/gsp-570.144 (1104e673e5538c6d)
 - Stable enums removed: GMCAPI_VGPU_PLUGIN_EVENT
 - Stable enums removed: NVGMC_ENGINE_TYPE
 
-Summary: 615.71.09 -> 570.144: 1146 driver-side changes in 42 groups, 78 affecting what the device implements, 444 device-side changes; routed controls 844 -> 795, RPC functions 232 -> 227, events 45 -> 34, classes 224 -> 186.
+Summary: 615.71.09 -> 570.144: 1161 driver-side changes in 42 groups, 84 affecting what the device implements, 444 device-side changes; routed controls 844 -> 795, RPC functions 232 -> 227, events 45 -> 34, classes 224 -> 186.

@@ -980,6 +980,71 @@ pub fn element_layout() -> ElementLayout {
     }
 }
 
+/// `rpc_gsp_rm_control_v03_00` as a guest ABI frames it. `hClient`, `hObject`, `cmd`,
+/// `status`, `paramsSize` and the RPC flags word sit at 0 to 20 in every version; what
+/// follows differs:
+/// - 570.144: nothing, the params start at 24 (`flags` at 20; 570.144
+///   `src/nvidia/generated/g_rpc-structures.h:1388-1397`; nouveau's
+///   `nvkm/subdev/gsp/rm/r535/nvrm/ctrl.h:11-20` of Linux 7.2.7, used by its r570 path);
+/// - 595.91.07 and later: `rmctrlFlags` at 24, `rmctrlAccessRight` at 28, 8 reserved bytes,
+///   the params at 40 (595.91.07 `g_rpc-structures.h:1545-1557`, [`v610::RM_CONTROL_PARAMS`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RmControlFrame {
+    /// Where the params start: the size of the fixed part.
+    pub params: usize,
+    /// `rmctrlFlags` (GSS legacy caching), where the frame has it.
+    pub rmctrl_flags: Option<usize>,
+    /// `rmctrlAccessRight`, where the frame has it.
+    pub access_right: Option<usize>,
+}
+
+impl RmControlFrame {
+    pub const V570: RmControlFrame = RmControlFrame {
+        params: v570::RM_CONTROL_PARAMS,
+        rmctrl_flags: None,
+        access_right: None,
+    };
+    pub const V610: RmControlFrame = RmControlFrame {
+        params: v610::RM_CONTROL_PARAMS,
+        rmctrl_flags: Some(v610::RM_CONTROL_RMCTRL_FLAGS),
+        access_right: Some(v610::RM_CONTROL_RMCTRL_ACCESS_RIGHT),
+    };
+}
+
+impl GuestAbi {
+    /// The `GSP_RM_CONTROL` frame this guest sends and reads back.
+    pub fn rm_control(self) -> RmControlFrame {
+        match self {
+            GuestAbi::V570 => RmControlFrame::V570,
+            GuestAbi::V595 | GuestAbi::V610 | GuestAbi::V615 => RmControlFrame::V610,
+        }
+    }
+}
+
+/// The `GSP_RM_CONTROL` frame of the guest in force ([`guest`]).
+pub fn rm_control() -> RmControlFrame {
+    guest().rm_control()
+}
+
+/// RM alloc parameters of the guest in force in the layout the device handles (610.57.04),
+/// or `None` when they need no translation: a 570.144 guest's channel and VA space
+/// parameters ([`v570::alloc_params_up`]); every other guest ABI and class as they are.
+pub fn alloc_params_to_device(h_class: u32, params: &[u8]) -> Option<Vec<u8>> {
+    match guest() {
+        GuestAbi::V570 => v570::alloc_params_up(h_class, params),
+        _ => None,
+    }
+}
+
+/// The device's answer to an alloc (610.57.04 layout) in the layout the guest in force
+/// reads, or `None` when it needs no translation ([`v570::alloc_params_down`]).
+pub fn alloc_params_to_guest(h_class: u32, params: &[u8]) -> Option<Vec<u8>> {
+    match guest() {
+        GuestAbi::V570 => v570::alloc_params_down(h_class, params),
+        _ => None,
+    }
+}
+
 /// The events the device sends when it links message queue v0, in order: GSP_INIT_DONE
 /// for a 610 guest (`rpc_init_done_v17_00`, 1 byte in 610); for a 570 guest first an empty
 /// GSP_RUN_CPU_SEQUENCER and then GSP_INIT_DONE, because nova-core waits for the sequencer

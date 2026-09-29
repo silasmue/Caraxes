@@ -6,7 +6,7 @@
 
 /// sizeof(GspStaticConfigInfo) in 570.144.
 pub const SIZE: usize = 1656;
-/// sizeof(GspStaticConfigInfo) in 610.57.04, the layout the device builds.
+/// sizeof(GspStaticConfigInfo) in 610.57.04, the layout the table reads.
 pub const FROM_SIZE: usize = 1600;
 
 /// (from offset, to offset, length, first field of the run).

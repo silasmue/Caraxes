@@ -87,6 +87,8 @@
 #include "rmgspseq.h"                   /* GSP_SEQUENCER_BUFFER_CMD (570.144 rmgspseq.h:141-152) */
 #endif
 #include "nvVer.h"                      /* NV_VERSION_STRING, as kernel_gsp.c:62 */
+#include "nvos.h"                       /* NV_VASPACE_ALLOCATION_PARAMETERS */
+#include "alloc/alloc_channel.h"        /* NV_CHANNEL_ALLOC_PARAMS, NV_MEMORY_DESC_PARAMS */
 
 /* The driver headers are freestanding; libc is only needed for output. */
 int printf(const char *, ...);
@@ -444,6 +446,66 @@ int main(void)
     F(rpc_dup_object_v03_00, params.hObjectSrc);
     F(rpc_dup_object_v03_00, params.flags);
     F(rpc_dup_object_v03_00, params.status);
+
+    /*
+     * The RM alloc parameters whose layout differs between the guest ABIs the
+     * device serves, so that gsp-remap.py can translate a 570.144 guest's
+     * (nouveau's r570 path) into the layout the device handles and back
+     * (docs/research/open-render-2026-09-29.md). 610.57.04 inserted
+     * hHandleVASpace behind hVASpace (alloc/alloc_channel.h:306-313; absent in
+     * 570.144 and 595.91.07), which moves every later field by 8; 595.91.07
+     * appended pasid to the VA space parameters (nvos.h).
+     */
+    SECTION("RM alloc parameters that differ between guest ABIs");
+    TYPE(NV_MEMORY_DESC_PARAMS);
+    F(NV_MEMORY_DESC_PARAMS, base);
+    F(NV_MEMORY_DESC_PARAMS, size);
+    F(NV_MEMORY_DESC_PARAMS, addressSpace);
+    F(NV_MEMORY_DESC_PARAMS, cacheAttrib);
+
+    TYPE(NV_CHANNEL_ALLOC_PARAMS);
+    F(NV_CHANNEL_ALLOC_PARAMS, hObjectError);
+    F(NV_CHANNEL_ALLOC_PARAMS, hObjectBuffer);
+    F(NV_CHANNEL_ALLOC_PARAMS, gpFifoOffset);
+    F(NV_CHANNEL_ALLOC_PARAMS, gpFifoEntries);
+    F(NV_CHANNEL_ALLOC_PARAMS, flags);
+    F(NV_CHANNEL_ALLOC_PARAMS, hContextShare);
+    F(NV_CHANNEL_ALLOC_PARAMS, hVASpace);
+#if GSP_ABI >= 610
+    F(NV_CHANNEL_ALLOC_PARAMS, hHandleVASpace);
+#endif
+    F(NV_CHANNEL_ALLOC_PARAMS, hUserdMemory);
+    F(NV_CHANNEL_ALLOC_PARAMS, userdOffset);
+    F(NV_CHANNEL_ALLOC_PARAMS, engineType);
+    F(NV_CHANNEL_ALLOC_PARAMS, cid);
+    F(NV_CHANNEL_ALLOC_PARAMS, subDeviceId);
+    F(NV_CHANNEL_ALLOC_PARAMS, hObjectEccError);
+    F(NV_CHANNEL_ALLOC_PARAMS, instanceMem);
+    F(NV_CHANNEL_ALLOC_PARAMS, userdMem);
+    F(NV_CHANNEL_ALLOC_PARAMS, ramfcMem);
+    F(NV_CHANNEL_ALLOC_PARAMS, mthdbufMem);
+    F(NV_CHANNEL_ALLOC_PARAMS, hPhysChannelGroup);
+    F(NV_CHANNEL_ALLOC_PARAMS, internalFlags);
+    F(NV_CHANNEL_ALLOC_PARAMS, errorNotifierMem);
+    F(NV_CHANNEL_ALLOC_PARAMS, eccErrorNotifierMem);
+    F(NV_CHANNEL_ALLOC_PARAMS, ProcessID);
+    F(NV_CHANNEL_ALLOC_PARAMS, SubProcessID);
+    F(NV_CHANNEL_ALLOC_PARAMS, encryptIv);
+    F(NV_CHANNEL_ALLOC_PARAMS, decryptIv);
+    F(NV_CHANNEL_ALLOC_PARAMS, hmacNonce);
+    F(NV_CHANNEL_ALLOC_PARAMS, tpcConfigID);
+
+    TYPE(NV_VASPACE_ALLOCATION_PARAMETERS);
+    F(NV_VASPACE_ALLOCATION_PARAMETERS, index);
+    F(NV_VASPACE_ALLOCATION_PARAMETERS, flags);
+    F(NV_VASPACE_ALLOCATION_PARAMETERS, vaSize);
+    F(NV_VASPACE_ALLOCATION_PARAMETERS, vaStartInternal);
+    F(NV_VASPACE_ALLOCATION_PARAMETERS, vaLimitInternal);
+    F(NV_VASPACE_ALLOCATION_PARAMETERS, bigPageSize);
+    F(NV_VASPACE_ALLOCATION_PARAMETERS, vaBase);
+#if GSP_ABI >= 595
+    F(NV_VASPACE_ALLOCATION_PARAMETERS, pasid);
+#endif
 
     SECTION("Events GSP to CPU that the boot path accepts");
     TYPE(rpc_os_error_log_v17_00);

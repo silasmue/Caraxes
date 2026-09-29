@@ -1775,7 +1775,7 @@ impl BootModel {
                         rpc::FN_GSP_RM_CONTROL
                             if msg.payload.len() >= v::RM_CONTROL_PARAMS_SIZE + 4 =>
                         {
-                            v::RM_CONTROL_PARAMS + size_at(v::RM_CONTROL_PARAMS_SIZE)
+                            crate::ver::rm_control().params + size_at(v::RM_CONTROL_PARAMS_SIZE)
                         }
                         rpc::FN_GSP_RM_ALLOC
                             if msg.payload.len() >= v::RM_ALLOC_PARAMS_SIZE + 4 =>
@@ -1908,7 +1908,9 @@ impl BootModel {
                         Some((rpc::NV_OK, crate::ver::static_info_for_guest(info)))
                     }
                     rpc::FN_GSP_RM_CONTROL => {
-                        // rpc_gsp_rm_control_v03_00 (docs/caraxes/gsp-abi-610.md).
+                        // rpc_gsp_rm_control_v03_00 (docs/caraxes/gsp-abi-610.md) in the
+                        // guest's frame: the params at 40, or at 24 for 570.144
+                        // (crate::ver::RmControlFrame).
                         let p = &msg.payload;
                         let w =
                             |o: usize| u32::from_le_bytes(p[o..o + 4].try_into().unwrap_or([0; 4]));
@@ -1917,7 +1919,8 @@ impl BootModel {
                             w(v::RM_CONTROL_CMD),
                             w(v::RM_CONTROL_PARAMS_SIZE) as usize,
                         );
-                        let at = v::RM_CONTROL_PARAMS;
+                        let frame = crate::ver::rm_control();
+                        let at = frame.params;
                         let params = p.get(at..at + size).unwrap_or(&[]);
                         let t_ctl = crate::profile::on().then(std::time::Instant::now);
                         // Controls only newer chips' kernels send come from the chip first
@@ -1984,17 +1987,17 @@ impl BootModel {
                         reply.resize(at, 0);
                         let st = v::RM_CONTROL_STATUS;
                         reply[st..st + 4].copy_from_slice(&a.status.to_le_bytes());
-                        if cmd & v::CMD_GSS_LEGACY_BIT != 0 {
+                        if let (true, Some(f)) =
+                            (cmd & v::CMD_GSS_LEGACY_BIT != 0, frame.rmctrl_flags)
+                        {
                             // GSS legacy: the guest caches the reply by its rmctrlFlags
                             // (rpc.c:10899-10905 of 615): CACHEABLE for the proven static
                             // answers when CARAXES_LEGACY_CACHEABLE=1, 0 for the rest and
                             // by default (nvml.rs `legacy_reply_flags`); with the flag the
-                            // access right is written 0.
+                            // access right is written 0. A 570 frame has no such field.
                             let flags = crate::nvml::legacy_reply_flags(cmd, a.status);
-                            let f = v::RM_CONTROL_RMCTRL_FLAGS;
                             reply[f..f + 4].copy_from_slice(&flags.to_le_bytes());
-                            if flags != 0 {
-                                let r = v::RM_CONTROL_RMCTRL_ACCESS_RIGHT;
+                            if let (true, Some(r)) = (flags != 0, frame.access_right) {
                                 reply[r..r + 4].copy_from_slice(&0u32.to_le_bytes());
                                 notes.push(format!("ctrl {cmd:#x}: reply rmctrlFlags {flags:#x} (the guest caches it)"));
                             }
@@ -2023,6 +2026,11 @@ impl BootModel {
                             .get(at..at + size)
                             .or_else(|| msg.slot_payload.get(at..at + size))
                             .unwrap_or(&[]);
+                        // A guest whose parameters for this class differ from the layout
+                        // the device handles (a 570.144 guest's channel and VA space
+                        // allocations): translated here, and the answer back below.
+                        let translated = crate::ver::alloc_params_to_device(h_class, params);
+                        let params: &[u8] = translated.as_deref().unwrap_or(params);
                         let h_client = w(v::RM_ALLOC_H_CLIENT);
                         let t_alloc = crate::profile::on().then(std::time::Instant::now);
                         // The event-buffer classes the 615 event import allocates on GSP
@@ -2110,7 +2118,8 @@ impl BootModel {
                         reply.resize(at, 0);
                         let st = v::RM_ALLOC_STATUS;
                         reply[st..st + 4].copy_from_slice(&a.status.to_le_bytes());
-                        let mut out = a.params;
+                        let mut out = crate::ver::alloc_params_to_guest(h_class, &a.params)
+                            .unwrap_or(a.params);
                         out.resize(size, 0);
                         reply.extend_from_slice(&out);
                         Some((a.status, reply))
@@ -3208,10 +3217,31 @@ mod tests {
         let name = &payload[1260..1260 + 64];
         let name = &name[..name.iter().position(|&c| c == 0).expect("NUL-terminated")];
         assert!(std::str::from_utf8(name).unwrap().contains("RTX 2070"), "{name:?}");
+        // A control in the 570.144 frame (nouveau's r570 path): the params at 24, and the
+        // reply the same frame with the status at 12 (crate::ver::RmControlFrame::V570).
+        // 0x20800A36 is chip info for a 570 guest; its PCI ids sit at 12 of the params.
+        let mut ctl = vec![0u8; crate::ver::v570::RM_CONTROL_PARAMS + 88];
+        for (o, x) in [
+            (v::RM_CONTROL_H_CLIENT, crate::ctrl::INTERNAL_CLIENT),
+            (v::RM_CONTROL_H_OBJECT, 0xCA7A_0003),
+            (v::RM_CONTROL_CMD, 0x2080_0A36),
+            (v::RM_CONTROL_STATUS, 0xFFFF_FFFF),
+            (v::RM_CONTROL_PARAMS_SIZE, 88),
+        ] {
+            ctl[o..o + 4].copy_from_slice(&x.to_le_bytes());
+        }
+        send(&mut cmd, rpc::FN_GSP_RM_CONTROL, &ctl);
+        b.write32(queue_head, 0, &mem).unwrap();
+        let (function, len, reply) = status(3);
+        assert_eq!((function, len), (rpc::FN_GSP_RM_CONTROL, 32 + 24 + 88));
+        let at = |o: usize| u32::from_le_bytes(reply[o..o + 4].try_into().unwrap());
+        assert_eq!(at(v::RM_CONTROL_CMD), 0x2080_0A36);
+        assert_eq!(at(v::RM_CONTROL_STATUS), rpc::NV_OK);
+        assert_eq!(at(24 + 12), 0x1F02_10DE, "chip info's PCI ids at 12 of the params");
         // Unbind: UNLOADING_GUEST_DRIVER (newLevel 0), reply, MAILBOX0 bit 31.
         send(&mut cmd, crate::gsprpc::FN_UNLOADING_GUEST_DRIVER, &[0u8; 8]);
         b.write32(queue_head, 0, &mem).unwrap();
-        assert_eq!(status(3).0, crate::gsprpc::FN_UNLOADING_GUEST_DRIVER);
+        assert_eq!(status(4).0, crate::gsprpc::FN_UNLOADING_GUEST_DRIVER);
         assert_ne!(b.read32(gsp + falcon::MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, 0);
         // Booter Unload, then the re-probe: fresh queues from the CPU, a new Booter Load.
         b.write32(sec2 + falcon::MAILBOX0, 0xff, &mem);

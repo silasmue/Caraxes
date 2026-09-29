@@ -17,6 +17,9 @@ rpc_gsp_rm_alloc_v03_00	struct	32	3037a5d8f7ce	v03_00	no	yes	src/nvidia/generate
 rpc_gsp_rm_control_v03_00	struct	24	21181c748160	v03_00	no	yes	src/nvidia/generated/g_rpc-structures.h:1388
 rpc_free_v03_00	struct	16	74537ccd09be	v03_00	no	yes	src/nvidia/generated/g_rpc-structures.h:150
 rpc_dup_object_v03_00	struct	28	b93d3b7521a8	v03_00	no	yes	src/nvidia/generated/g_rpc-structures.h:188
+NV_MEMORY_DESC_PARAMS	struct	24	94eaa6727247	-	no	yes	src/common/sdk/nvidia/inc/alloc/alloc_channel.h:37
+NV_CHANNEL_ALLOC_PARAMS	struct	368	038bdfa0ce67	-	no	yes	src/common/sdk/nvidia/inc/alloc/alloc_channel.h:296
+NV_VASPACE_ALLOCATION_PARAMETERS	struct	48	505cee1034f8	-	no	yes	src/common/sdk/nvidia/inc/nvos.h:2767
 rpc_os_error_log_v17_00	struct	272	e014286aab16	v17_00	no	yes	src/nvidia/generated/g_rpc-structures.h:1458
 rpc_post_event_v17_00	struct	32	b3c7363dc0a3	v17_00	no	yes	src/nvidia/generated/g_rpc-structures.h:1424
 rpc_ucode_libos_print_v1E_08	struct	8	8801b72a5c0e	v1E_08	no	yes	src/nvidia/generated/g_rpc-structures.h:1535
