@@ -2187,18 +2187,25 @@ impl Mirror {
             return None;
         }
         let (lazy, worker) = (self.lazy.is_pending(), self.worker.pending());
-        let untrapped = self
-            .channels
-            .get(&chid)
-            .and_then(|c| c.shadow_root)
-            .is_some_and(|r| self.untrapped_roots(reg, gm.fb).contains(&r));
-        let line = self.hold.note_ahead(pending, || {
+        let root = self.channels.get(&chid).and_then(|c| c.shadow_root);
+        // Plans of the channel's own root: the only ones its entries translate through
+        // (a channel of root r uses r's shadow VAS only).
+        let (own_lazy, own_worker) = root.map_or((lazy, worker), |r| {
+            (self.lazy.is_pending_for(r), self.worker.pending_root(r))
+        });
+        let own = own_lazy || own_worker;
+        let untrapped = root.is_some_and(|r| self.untrapped_roots(reg, gm.fb).contains(&r));
+        let line = self.hold.note_ahead(pending, own, || {
             format!(
-                "untrapped GPPut: at {} chid {chid}'s host channel ran ahead of its doorbell (GPGet {get}, forwarded up to {fwd}, GPPut {put}) with plans pending (lazy {lazy}, worker {worker}, {since} unwaited invalidate plan(s) since the forward); USERD untrapped {untrapped}",
-                crate::untrapped::wall()
+                "untrapped GPPut: at {} chid {chid}'s host channel ran ahead of its doorbell (GPGet {get}, forwarded up to {fwd}, GPPut {put}) with plans pending (lazy {lazy}, worker {worker}, {since} unwaited invalidate plan(s) since the forward; of its own root {:#x}: lazy {own_lazy}, worker {own_worker}); USERD untrapped {untrapped}",
+                crate::untrapped::wall(),
+                root.unwrap_or(0)
             )
         })?;
-        eprintln!("vfio-user-nvgpu: ERROR {line}");
+        eprintln!(
+            "vfio-user-nvgpu: {} {line}",
+            if own { "ERROR" } else { "WARN (other roots' plans only)" }
+        );
         Some(line)
     }
 
@@ -5662,6 +5669,14 @@ impl ShadowWorker {
     /// Jobs submitted and not yet done.
     fn pending(&self) -> bool {
         self.thread.is_some() && !self.progress.idle()
+    }
+
+    /// Jobs of shadow root `root` submitted and not yet done.
+    fn pending_root(&self, root: u64) -> bool {
+        self.thread.is_some()
+            && !self
+                .progress
+                .is_done(&crate::invgate::Target::Roots(vec![(root, self.seqs.last_of(root))]))
     }
 
     /// The exit summary's worker part.

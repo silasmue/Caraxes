@@ -134,6 +134,10 @@ pub struct HoldStats {
     /// plans pending (lazy or in the worker).
     pub ahead: u64,
     pub ahead_pending: u64,
+    /// Of those, the ones that found plans of the channel's own shadow root pending: the
+    /// entries the host channel fetched may have met a stale or missing leaf. The others
+    /// found only other roots' plans pending, which the channel does not translate through.
+    pub ahead_own_root: u64,
     pub first: Vec<String>,
 }
 
@@ -152,12 +156,20 @@ impl HoldStats {
 
     /// A doorbell that found its host channel ahead; `pending` whether plans were pending.
     /// Returns the log line of the first few with plans pending.
-    pub fn note_ahead(&mut self, pending: bool, line: impl FnOnce() -> String) -> Option<String> {
+    pub fn note_ahead(
+        &mut self,
+        pending: bool,
+        own_root: bool,
+        line: impl FnOnce() -> String,
+    ) -> Option<String> {
         self.ahead += 1;
         if !pending {
             return None;
         }
         self.ahead_pending += 1;
+        if own_root {
+            self.ahead_own_root += 1;
+        }
         (self.first.len() < LOG_FIRST).then(|| {
             let l = line();
             self.first.push(l.clone());
@@ -167,7 +179,7 @@ impl HoldStats {
 
     pub fn summary(&self, on: bool) -> String {
         format!(
-            "untrapped GPPut: rule {} ({ENV}); {} invalidate(s) held until applied ({} ms in total, longest {} us); {} software MEM_OP invalidate(s) of a shadow root held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending (docs/caraxes/bar1-pool.md §9)",
+            "untrapped GPPut: rule {} ({ENV}); {} invalidate(s) held until applied ({} ms in total, longest {} us); {} software MEM_OP invalidate(s) of a shadow root held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending, {} with plans of the channel's own root pending (docs/caraxes/bar1-pool.md §9)",
             if on { "on" } else { "OFF" },
             self.held,
             self.held_total.as_millis(),
@@ -176,7 +188,8 @@ impl HoldStats {
             self.memop_total.as_millis(),
             self.memop_max.as_micros(),
             self.ahead,
-            self.ahead_pending
+            self.ahead_pending,
+            self.ahead_own_root
         )
     }
 }
@@ -271,12 +284,14 @@ mod tests {
     #[test]
     fn only_the_first_pending_cases_are_logged() {
         let mut s = HoldStats::default();
-        assert!(s.note_ahead(false, || "x".into()).is_none());
-        for _ in 0..LOG_FIRST {
-            assert!(s.note_ahead(true, || "y".into()).is_some());
+        assert!(s.note_ahead(false, false, || "x".into()).is_none());
+        for i in 0..LOG_FIRST {
+            assert!(s.note_ahead(true, i % 2 == 0, || "y".into()).is_some());
         }
-        assert!(s.note_ahead(true, || "z".into()).is_none());
+        assert!(s.note_ahead(true, true, || "z".into()).is_none());
         assert_eq!((s.ahead, s.ahead_pending), (LOG_FIRST as u64 + 2, LOG_FIRST as u64 + 1));
+        assert_eq!(s.ahead_own_root, LOG_FIRST as u64 / 2 + 1, "own-root cases counted apart");
+        assert!(s.summary(true).contains("with plans of the channel's own root pending"));
         s.note_held(Duration::from_micros(300));
         s.note_held(Duration::from_micros(100));
         assert_eq!((s.held, s.held_max), (2, Duration::from_micros(300)));
