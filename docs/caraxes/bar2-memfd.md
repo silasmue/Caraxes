@@ -268,6 +268,21 @@ guest's tables. So no other page needs to trap.
    The sets are cached per channel (channel, root, walk and table generations, set-B stamp) and
    intersected with the live pages when those change. The cost is a page compare (about 0.25 us)
    per observable live page per doorbell; KVM dirty logging (§2) would make it one per dirty page.
+5. **Reads** (2026-09-29, vm10-boot8). FB is one memory: a write through any aperture or engine is
+   what the next read through any other returns. A page behind BAR2 can have other writers:
+   nouveau clears a channel's USERD through BAR2 and writes GPPut through BAR1 (the BAR1 pool,
+   straight into VRAM), and the host PBDMA writes GPGet there. vm10-boot8 read USERD from the
+   memfd, saw GPPut 0, ran nothing, and nouveau's channel idle timed out after 15 s. The device now
+   reads VRAM (the store where the pool puts the page) with the bytes the guest wrote through BAR2
+   since the last sync over it (`Bar2Area::read_merged`: the memfd bytes that differ from the
+   snapshot). Page-table reads (`FakeFb::read_table`: the walks, the BAR TLB, the pool's area
+   walk) keep the memfd at RAM speed, which is exact for tables: no other writer (the pool never
+   holds a table page, no host engine writes the guest's tables). The sync still writes back only
+   the guest's BAR2 bytes, so GPPut and GPGet in VRAM survive it.
+   Left open: the guest's own BAR2 reads of such a page see the memfd, not the other writers (the
+   drift counter samples it); and a guest BAR2 write that is not yet synced lands after a later
+   BAR1 write to the same bytes. No trace shows either for the page-table and instance memory the
+   guests read back through BAR2.
 
 **Hazards, counted or stated:**
 

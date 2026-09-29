@@ -4966,6 +4966,29 @@ mod tests {
         assert_eq!(w.stats().doorbell_syncs, 1);
     }
 
+    /// vm10-boot8's failure: a channel whose USERD page is behind the BAR2 memfd (the guest
+    /// cleared it through BAR2) and whose GPPut the guest writes through the BAR1 pool,
+    /// straight into VRAM. The device must see that GPPut: the channel is pending, rung, and
+    /// its entry runs (GPGet 1); the stale memfd copy said GPPut 0 and nothing ran.
+    #[test]
+    fn a_gp_put_written_beside_the_bar2_memfd_is_seen_at_the_doorbell() {
+        let (userd, inst) = (DB_BASE + 0x11_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, false, userd, inst, true);
+        assert!(matches!(w.b.fb.backing(userd), crate::fb::Backing::Bar2Memfd(_)));
+        // The guest's BAR2 clear of USERD, handed over (the channel's RPC syncs it).
+        w.guest.write(0x3000 + 0x40, &[0u8; 0x60]);
+        let r = w.b.regs;
+        w.b.write32(r.mmu_invalidate, 0x8000_0005, &w.mem).unwrap();
+        // GPPut 1 through BAR1 into VRAM (a NOP control entry at GPFIFO VA 0x1000_0000).
+        w.b.fb.write_behind(userd + 0x8C, &1u32.to_le_bytes());
+        assert_eq!(w.b.ctrl.channels.channel_gp_get(5), Some(0));
+        w.b.doorbell_pending(&w.mem);
+        assert_eq!(w.b.ctrl.channels.channel_gp_get(5), Some(1), "the entry ran");
+        let mut p = [0u8; 4];
+        w.b.fb.read_raw(userd + 0x8C, &mut p);
+        assert_eq!(u32::from_le_bytes(p), 1, "no sync wrote the stale GPPut back");
+    }
+
     /// The GPPut barrier's decision (display-e.md §9): a store that covers USERD + 0x8C of
     /// a mirrored channel waits for the shadow worker; GPGet, the rest of USERD and other
     /// channels' USERD do not.

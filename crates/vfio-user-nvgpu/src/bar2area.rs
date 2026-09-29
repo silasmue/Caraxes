@@ -655,6 +655,34 @@ impl RemapTable {
         hit
     }
 
+    /// Over `buf`, which holds bytes `[in_page, in_page + buf.len())` of page `key` as VRAM
+    /// has them: the bytes the guest wrote through BAR2 since the last sync, i.e. those in
+    /// which a BAR2 page of `key` differs from the snapshot (across aliases the first
+    /// alias wins, as in [`Self::scan`]). Returns whether `key` is live.
+    pub fn overlay(&self, mem: &SharedView, key: u64, in_page: usize, buf: &mut [u8]) -> bool {
+        let Some(l) = self.live.get(&key) else {
+            return false;
+        };
+        // SAFETY: as `page_bytes`, read-only.
+        let snap: &[u8; 4096] = unsafe { &*(&*l.snap as *const PageBuf as *const [u8; 4096]) };
+        let snap = &snap[in_page..in_page + buf.len()];
+        let mut taken = vec![false; buf.len()];
+        let mut alias = vec![0u8; buf.len()];
+        for &va in &l.vas {
+            mem.read(va * PAGE + in_page as u64, &mut alias);
+            if alias[..] == snap[..] {
+                continue;
+            }
+            for i in 0..buf.len() {
+                if !taken[i] && alias[i] != snap[i] {
+                    buf[i] = alias[i];
+                    taken[i] = true;
+                }
+            }
+        }
+        true
+    }
+
     /// Forget every mapping (a function-level reset; the memfd content is left as it is).
     pub fn clear(&mut self) {
         self.va.clear();
@@ -689,8 +717,36 @@ pub fn identity(pa: u64) -> u64 {
     pa
 }
 
+/// Read `[pa, pa + buf.len())` of the FB (guest addresses) as every reader but the guest's
+/// BAR2 sees it (docs/caraxes/bar2-memfd.md §3, rule 5): VRAM, i.e. the store at
+/// `tr(address)`, which has what the guest wrote through the BAR1 pool and what a GPU engine
+/// wrote, overlaid for a page behind BAR2 with the bytes the guest wrote through BAR2 since
+/// the last sync ([`RemapTable::overlay`]). FB is one memory on the card: a write through any
+/// aperture or engine is what the next read of any other returns.
+fn read_merged(
+    remap: &RemapTable,
+    mem: &SharedView,
+    store: &dyn FbStore,
+    tr: Translate,
+    pa: u64,
+    buf: &mut [u8],
+) {
+    let mut done = 0usize;
+    while done < buf.len() {
+        let a = pa + done as u64;
+        let in_page = a % PAGE;
+        let n = (PAGE - in_page).min((buf.len() - done) as u64) as usize;
+        let piece = &mut buf[done..done + n];
+        store.read(tr(a), piece);
+        remap.overlay(mem, a / PAGE, in_page as usize, piece);
+        done += n;
+    }
+}
+
 /// Read `[pa, pa + buf.len())` of the FB (guest addresses): mapped pages from their BAR2
-/// page in the memfd, the rest from the store at `tr(address)`.
+/// page in the memfd, the rest from the store at `tr(address)`. Only for pages no one but
+/// the guest's BAR2 and the device writes (the page tables, [`Bar2Area::read_tables`]):
+/// then the memfd equals [`read_merged`] and costs a RAM read instead of a VRAM read.
 fn read_through(
     remap: &RemapTable,
     mem: &SharedView,
@@ -1168,9 +1224,21 @@ impl Bar2Area {
         self.remap.home(pa / PAGE).map(|va| va * PAGE + pa % PAGE)
     }
 
-    /// Read guest FB `[pa, pa + buf.len())`: the memfd for pages behind BAR2 (by guest
-    /// address), the store at `tr(address)` for the rest.
-    pub fn read_through(&self, store: &dyn FbStore, tr: Translate, pa: u64, buf: &mut [u8]) {
+    /// Read guest FB `[pa, pa + buf.len())` as the device and the GPU see it: VRAM (the
+    /// store at `tr(address)`) with the bytes the guest wrote through BAR2 since the last
+    /// sync over it ([`read_merged`]).
+    pub fn read_merged(&self, store: &dyn FbStore, tr: Translate, pa: u64, buf: &mut [u8]) {
+        read_merged(&self.remap, self.mem.view(), store, tr, pa, buf);
+    }
+
+    /// Read page-table memory `[pa, pa + buf.len())`: the memfd for pages behind BAR2, the
+    /// store at `tr(address)` for the rest. A page table has no writer but the guest (its
+    /// BAR2 writes land in the memfd, its trapped BAR1 and PRAMIN writes reach the memfd
+    /// as device writes) and the device: the BAR1 pool never holds a table page
+    /// (bar1-pool.md, the page-table hazard) and no host engine writes the guest's tables
+    /// (the shadow's are its own; the device CE takes no page behind the memfd). So the
+    /// memfd is what [`Self::read_merged`] would return, at RAM speed.
+    pub fn read_tables(&self, store: &dyn FbStore, tr: Translate, pa: u64, buf: &mut [u8]) {
         read_through(&self.remap, self.mem.view(), store, tr, pa, buf);
     }
 
