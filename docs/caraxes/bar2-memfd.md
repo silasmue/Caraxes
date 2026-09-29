@@ -298,7 +298,11 @@ guest's tables. So no other page needs to trap.
    - A channel whose memory the device cannot name (no VAS root, no cached walk of it) could observe
      anything: every live page is synced.
    The sets are cached per channel (channel, root, walk and table generations, set-B stamp) and
-   intersected with the live pages when those change. The cost is one `memcmp` of the BAR2 page
+   the live generation. A set is made again from the live pages, not from the VAS's leaves: the
+   walk keeps each 2 MiB unit's FB and guest-RAM span, and only a unit whose span holds a live
+   page is read (`WalkCache::observed_keys`; SotTR run F listed every leaf of the VAS for each of
+   82115 sets, the "BAR2 before the ring" of a trapped doorbell was 1.35 ms). The BAR1 pool's
+   replica homes (bar1-pool.md §16) are found the same way. The cost is one `memcmp` of the BAR2 page
    with its snapshot per observable live page per doorbell (0.14 us warm, 0.28 us for a set that
    no longer fits the cache, measured on this host); KVM dirty logging (§2) would make it one per
    dirty page. Write-protect tracking on the device's side cannot replace it: userfaultfd-wp,

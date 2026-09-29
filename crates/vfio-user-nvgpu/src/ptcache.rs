@@ -48,6 +48,91 @@ pub fn fresh_generation() -> u64 {
 /// [`WalkCache::observable`]: memory as `(start, bytes)`, and table page numbers.
 pub type Observable = (Vec<(Target, u64)>, Vec<u64>);
 
+/// The bit that marks a guest-RAM page in a page key (FB page number, or guest-RAM page
+/// number with this bit; bar2area.rs keys its live pages the same way).
+pub const SYS_KEY: u64 = 1 << 63;
+
+/// The page keys `[lo, hi)` that `n` bytes at `t` touch (empty for other targets).
+fn key_range(t: Target, n: u64) -> (u64, u64) {
+    match t {
+        _ if n == 0 => (0, 0),
+        Target::Fb(pa) => (pa >> 12, (pa.saturating_add(n - 1) >> 12) + 1),
+        Target::Sys(pa) => ((pa >> 12) | SYS_KEY, ((pa.saturating_add(n - 1) >> 12) + 1) | SYS_KEY),
+        _ => (0, 0),
+    }
+}
+
+/// The keys among `keys` (ascending) in `[lo, hi)`.
+fn keys_between(keys: &[u64], lo: u64, hi: u64) -> &[u64] {
+    let i = keys.partition_point(|k| *k < lo);
+    let j = i + keys[i..].partition_point(|k| *k < hi);
+    &keys[i..j]
+}
+
+/// The keys among `keys` (ascending page keys, [`SYS_KEY`] for guest RAM) that the memory
+/// `pieces` (`(start, bytes)`) touches, ascending.
+pub fn keys_in(pieces: &[(Target, u64)], keys: &[u64]) -> Vec<u64> {
+    let mut out = Vec::new();
+    for &(t, n) in pieces {
+        let (lo, hi) = key_range(t, n);
+        out.extend_from_slice(keys_between(keys, lo, hi));
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// VA ranges `[lo, hi)` sorted and merged, so that their ends ascend as well.
+fn merged_exclusions(exclude: &[(u64, u64)]) -> Vec<(u64, u64)> {
+    let mut ex: Vec<(u64, u64)> = exclude.iter().copied().filter(|(lo, hi)| lo < hi).collect();
+    ex.sort_unstable();
+    let mut merged: Vec<(u64, u64)> = Vec::with_capacity(ex.len());
+    for (lo, hi) in ex {
+        match merged.last_mut() {
+            Some(last) if lo <= last.1 => last.1 = last.1.max(hi),
+            _ => merged.push((lo, hi)),
+        }
+    }
+    merged
+}
+
+/// The memory of leaf `(va, t, size)` outside every range of `ex` ([`merged_exclusions`]):
+/// `f(start, bytes)` per piece.
+fn leaf_pieces(ex: &[(u64, u64)], &(va, t, size, _): &Leaf, mut f: impl FnMut(Target, u64)) {
+    let (lo, hi) = (va, va + size);
+    let mut at = lo;
+    let first = ex.partition_point(|(_, xhi)| *xhi <= lo);
+    for &(xlo, xhi) in &ex[first..] {
+        if xlo >= hi {
+            break;
+        }
+        if xlo > at {
+            f(offset(t, at - lo), xlo - at);
+        }
+        at = at.max(xhi);
+        if at >= hi {
+            break;
+        }
+    }
+    if at < hi {
+        f(offset(t, at - lo), hi - at);
+    }
+}
+
+/// The page-key spans `[lo, hi)` of a unit's FB and guest-RAM leaves (empty: `lo >= hi`).
+fn leaf_spans(leaves: &[Leaf]) -> [(u64, u64); 2] {
+    let mut spans = [(u64::MAX, 0), (u64::MAX, 0)];
+    for &(_, t, size, _) in leaves {
+        let (lo, hi) = key_range(t, size);
+        let s = &mut spans[usize::from(matches!(t, Target::Sys(_)))];
+        if lo < hi {
+            s.0 = s.0.min(lo);
+            s.1 = s.1.max(hi);
+        }
+    }
+    spans
+}
+
 /// `t` moved on by `by` bytes.
 fn offset(t: Target, by: u64) -> Target {
     match t {
@@ -85,6 +170,8 @@ struct Unit {
     /// The FB pages of its big and small page tables (for the use map).
     pages: Vec<u64>,
     leaves: Vec<Leaf>,
+    /// The page-key spans of its FB and guest-RAM leaves ([`leaf_spans`]).
+    spans: [(u64, u64); 2],
     /// Its malformed PTEs.
     bad: usize,
 }
@@ -699,6 +786,7 @@ impl WalkCache {
                 lo,
                 hi,
                 pages,
+                spans: leaf_spans(&leaves),
                 leaves,
                 bad,
             },
@@ -829,42 +917,54 @@ impl WalkCache {
         if !self.built || self.truncated {
             return None;
         }
-        let mut ex: Vec<(u64, u64)> = exclude.iter().copied().filter(|(lo, hi)| lo < hi).collect();
-        ex.sort_unstable();
-        // Merged, so that the ends ascend as well (the partition point below).
-        let mut merged: Vec<(u64, u64)> = Vec::with_capacity(ex.len());
-        for (lo, hi) in ex {
-            match merged.last_mut() {
-                Some(last) if lo <= last.1 => last.1 = last.1.max(hi),
-                _ => merged.push((lo, hi)),
-            }
-        }
-        let ex = merged;
+        let ex = merged_exclusions(exclude);
         let mut pieces = Vec::new();
-        for (va, t, size, _) in self.units.values().flat_map(|u| u.leaves.iter()) {
-            let (lo, hi) = (*va, va + size);
-            let mut at = lo;
-            // The parts of [lo, hi) outside every excluded range.
-            let first = ex.partition_point(|(_, xhi)| *xhi <= lo);
-            for &(xlo, xhi) in &ex[first..] {
-                if xlo >= hi {
-                    break;
-                }
-                if xlo > at {
-                    pieces.push((offset(*t, at - lo), xlo - at));
-                }
-                at = at.max(xhi);
-                if at >= hi {
-                    break;
-                }
-            }
-            if at < hi {
-                pieces.push((offset(*t, at - lo), hi - at));
-            }
+        for l in self.units.values().flat_map(|u| u.leaves.iter()) {
+            leaf_pieces(&ex, l, |t, n| pieces.push((t, n)));
         }
         let mut tables: Vec<u64> = self.uses.keys().copied().collect();
         tables.sort_unstable();
         Some((pieces, tables))
+    }
+
+    /// The keys among `keys` (ascending page keys, [`SYS_KEY`] for guest RAM) that this
+    /// walk's leaves less the VA ranges `exclude` touch, ascending: [`keys_in`] of
+    /// [`Self::observable`]'s pieces, without listing every leaf. A unit whose leaves'
+    /// spans hold none of the keys is skipped (SotTR run F: a doorbell's set, made again
+    /// after every walk change, listed every leaf of the VAS, about 1 ms). `None` as for
+    /// `observable`.
+    pub fn observed_keys(&self, exclude: &[(u64, u64)], keys: &[u64]) -> Option<Vec<u64>> {
+        if !self.built || self.truncated {
+            return None;
+        }
+        let mut out = Vec::new();
+        if keys.is_empty() {
+            return Some(out);
+        }
+        let ex = merged_exclusions(exclude);
+        // FB keys, then guest-RAM keys: most units lie outside the range of their kind's
+        // keys (two compares, no search).
+        let split = keys.partition_point(|k| *k < SYS_KEY);
+        let any = |ks: &[u64], (lo, hi): (u64, u64)| match (ks.first(), ks.last()) {
+            (Some(&kmin), Some(&kmax)) => {
+                lo < hi && lo <= kmax && hi > kmin && !keys_between(ks, lo, hi).is_empty()
+            }
+            _ => false,
+        };
+        for u in self.units.values() {
+            if !any(&keys[..split], u.spans[0]) && !any(&keys[split..], u.spans[1]) {
+                continue;
+            }
+            for l in &u.leaves {
+                leaf_pieces(&ex, l, |t, n| {
+                    let (lo, hi) = key_range(t, n);
+                    out.extend_from_slice(keys_between(keys, lo, hi));
+                });
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        Some(out)
     }
 
     /// Every cached leaf, ascending by unit, without a copy.
@@ -982,6 +1082,54 @@ mod tests {
         c.update(&m, false);
         assert_ne!(c.tables_generation(), tg);
         assert!(c.observable(&[]).unwrap().1.contains(&0x16));
+    }
+
+    /// `observed_keys` finds exactly the keys the pieces of `observable` touch, for any key
+    /// set and exclusions, while skipping the units whose spans hold none of the keys.
+    #[test]
+    fn observed_keys_are_the_keys_of_the_observable_pieces() {
+        let m = tree();
+        // Unit 1: a small page table with an FB leaf and a guest-RAM leaf.
+        let spte = |pa: u64| ((pa >> 12) << 8) | (0x06 << 56) | 0b101;
+        m.w(0x13000 + 16 + 8, vid(0x16000));
+        m.w(0x16000, pte(0x30000));
+        m.w(0x16000 + 8, spte(0x9000));
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        assert!(c.observed_keys(&[], &[0x20]).is_none(), "never built");
+        c.update(&m, false);
+        let all: Vec<u64> = (0x10..0x60).chain((0x8..0xB).map(|k| k | SYS_KEY)).collect();
+        let sets: Vec<Vec<u64>> = vec![
+            all.clone(),
+            vec![0x30],
+            vec![0x45],
+            vec![0x4F, 0x50],
+            vec![0x9 | SYS_KEY],
+            vec![0x1F, 0x21, 0x3F],
+            vec![],
+        ];
+        let excls: Vec<Vec<(u64, u64)>> = vec![
+            vec![],
+            vec![(0x13000, 0x16000), (0x12000, 0x14000)],
+            vec![(UNIT, UNIT + 0x1000)],
+            vec![(0, u64::MAX)],
+        ];
+        for ex in &excls {
+            let (pieces, _) = c.observable(ex).unwrap();
+            for keys in &sets {
+                assert_eq!(
+                    c.observed_keys(ex, keys).unwrap(),
+                    keys_in(&pieces, keys),
+                    "exclusions {ex:x?}, keys {keys:x?}"
+                );
+            }
+        }
+        assert_eq!(c.observed_keys(&[], &all).unwrap(), {
+            let mut v: Vec<u64> = (0x40..0x50).collect();
+            v.extend([0x20, 0x30, 0x9 | SYS_KEY]);
+            v.sort_unstable();
+            v
+        });
+        assert_eq!(c.observed_keys(&[], &[0x50]).unwrap(), Vec::<u64>::new());
     }
 
     /// The leaves an update took out of the walk, as FB ranges: what the host shadow still

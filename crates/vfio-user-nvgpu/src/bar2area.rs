@@ -68,6 +68,8 @@ pub const FLUSH_PAGE_ENV: &str = "CARAXES_BAR2_FLUSH_PAGE";
 pub const DEFAULT_TRAP: u64 = 0xfe_a000;
 /// Page key tag for a guest sysmem page (FB pages are plain page numbers).
 const SYS: u64 = 1 << 63;
+// One key space with the walks' (ptcache.rs `observed_keys`).
+const _: () = assert!(SYS == crate::ptcache::SYS_KEY);
 /// Leaves the BAR2 walk cache holds at most.
 const MAX_LEAVES: usize = 1 << 20;
 

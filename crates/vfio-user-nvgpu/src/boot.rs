@@ -61,13 +61,11 @@ fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 {
     }
 }
 
-/// The cached answer of `BootModel::bar2_observed` for one channel: the memory it could
-/// observe (as of `stamp`: its generation, VAS root, the walk's leaf and table generations,
-/// the set-B stamp) and the live BAR2 memfd pages among it (as of `live_gen`).
+/// The cached answer of `BootModel::bar2_observed` for one channel: the live BAR2 memfd
+/// pages its memory holds, as of `stamp` (its generation, VAS root, the walk's leaf and
+/// table generations, the set-B stamp) and `live_gen` (the BAR2 live set).
 struct ObserveEntry {
     stamp: [u64; 5],
-    pieces: Vec<(Target, u64)>,
-    tables: Vec<u64>,
     live_gen: u64,
     pages: Vec<u64>,
 }
@@ -1881,29 +1879,16 @@ impl BootModel {
                 return Some(v.clone());
             }
         }
-        let pieces: Vec<(Target, u64)> = match self.bar2_observe.get(&chid).filter(|e| e.stamp == stamp) {
-            Some(e) => e.pieces.clone(),
-            None => {
-                let exclude = excl.map_or(&[][..], |(_, r)| r);
-                let (mut pieces, _) = self
-                    .fb
-                    .with_walk(Target::Fb(root), |c| c.observable(exclude))
-                    .flatten()?;
-                pieces.extend(ch.structures.iter().copied());
-                if let Some(u) = ch.userd {
-                    pieces.push((u, USERD_SIZE as u64));
-                }
-                pieces
-            }
-        };
+        // The replicas' home pages (page-aligned FB addresses) as page keys, against the
+        // doorbell rule's pieces ([`Self::channel_keys`]).
+        let mut homes: Vec<u64> = replicas.iter().map(|&(_, x)| x >> 12).collect();
+        homes.sort_unstable();
+        homes.dedup();
+        let exclude = excl.map_or(Vec::new(), |(_, r)| r.to_vec());
+        let hit = self.channel_keys(chid, root, &exclude, &homes)?;
         let seen: Vec<u64> = replicas
             .into_iter()
-            .filter(|(_, x)| {
-                pieces.iter().any(|(t, len)| match t {
-                    Target::Fb(pa) => *pa < x + crate::bar1pool::PAGE && *x < pa + len,
-                    _ => false,
-                })
-            })
+            .filter(|(_, x)| hit.binary_search(&(x >> 12)).is_ok())
             .map(|(g, _)| g)
             .collect();
         self.pool_observe.insert(chid, (stamp, gen, seen.clone()));
@@ -1951,40 +1936,54 @@ impl BootModel {
             excl.map_or(0, |(g, _)| g),
         ];
         let live_gen = self.fb.bar2_area()?.live_generation();
-        if let Some(e) = self.bar2_observe.get(&chid).filter(|e| e.stamp == stamp) {
-            if e.live_gen == live_gen {
-                return Some(e.pages.clone());
-            }
-        } else {
-            let exclude = excl.map_or(&[][..], |(_, r)| r);
-            let (mut pieces, tables) = self
-                .fb
-                .with_walk(Target::Fb(root), |c| c.observable(exclude))
-                .flatten()?;
-            pieces.extend(ch.structures.iter().copied());
-            if let Some(u) = ch.userd {
-                pieces.push((u, USERD_SIZE as u64));
-            }
-            self.bar2_observe.insert(
-                chid,
-                ObserveEntry {
-                    stamp,
-                    pieces,
-                    tables,
-                    live_gen: u64::MAX,
-                    pages: Vec::new(),
-                },
-            );
+        if let Some(e) = self
+            .bar2_observe
+            .get(&chid)
+            .filter(|e| e.stamp == stamp && e.live_gen == live_gen)
+        {
+            return Some(e.pages.clone());
         }
-        let area = self.fb.bar2_area_mut()?;
-        let e = self.bar2_observe.get_mut(&chid).expect("just checked or inserted");
+        let live = self.fb.bar2_area()?.live_keys();
+        let exclude = excl.map_or(Vec::new(), |(_, r)| r.to_vec());
         // Page tables are not in the doorbell's set: the card re-reads them only after an
-        // MMU invalidate (rule 2), which syncs every live table page itself.
-        e.pages = area.observed(&e.pieces, &[]);
-        e.live_gen = live_gen;
-        let tables = area.observed(&[], &e.tables).len();
-        area.note_observe_set(e.pages.len(), tables);
-        Some(e.pages.clone())
+        // MMU invalidate (rule 2), which syncs every live table page itself. They are
+        // counted: the live pages the walk reads its tables from.
+        let pages = self.channel_keys(chid, root, &exclude, &live)?;
+        let tables = self
+            .fb
+            .with_walk(Target::Fb(root), |c| live.iter().filter(|&&k| c.watches(k)).count())
+            .unwrap_or(0);
+        self.fb.bar2_area_mut()?.note_observe_set(pages.len(), tables);
+        self.bar2_observe.insert(
+            chid,
+            ObserveEntry {
+                stamp,
+                live_gen,
+                pages: pages.clone(),
+            },
+        );
+        Some(pages)
+    }
+
+    /// The keys among `keys` (ascending page keys, FB page numbers and guest-RAM pages with
+    /// `ptcache::SYS_KEY`) that channel `chid`'s memory touches, ascending: the doorbell
+    /// rule's pieces ([`Self::bar2_observed`]), i.e. its VAS leaves under `root` less the
+    /// set-B ranges `exclude` (`WalkCache::observed_keys`), its instance structures and its
+    /// USERD. `None` when the channel or the walk of its root is unknown.
+    fn channel_keys(&self, chid: u32, root: u64, exclude: &[(u64, u64)], keys: &[u64]) -> Option<Vec<u64>> {
+        let ch = self.ctrl.channels.channel(chid)?;
+        let mut out = self
+            .fb
+            .with_walk(Target::Fb(root), |c| c.observed_keys(exclude, keys))
+            .flatten()?;
+        let mut pieces: Vec<(Target, u64)> = ch.structures.to_vec();
+        if let Some(u) = ch.userd {
+            pieces.push((u, USERD_SIZE as u64));
+        }
+        out.extend(crate::ptcache::keys_in(&pieces, keys));
+        out.sort_unstable();
+        out.dedup();
+        Some(out)
     }
 
     /// A doorbell the usermode page's reactor took (um_page.rs): the channel its value names
