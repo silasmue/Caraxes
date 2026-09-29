@@ -243,8 +243,10 @@ guest's tables. So no other page needs to trap.
    the BAR2 and BAR1 tables, the pool's area walk; `FakeFb::bar2_sync_tables`), and a BAR2 page
    that the walk re-points is written back before it leaves the mapping. Each walk's list of
    its live table pages is kept while the walk's table pages (its tables generation) and the
-   BAR2 live set (the remap generation) stay as they were; SotTR run E listed thousands of
-   watched pages to find about 110 live ones at each of 212840 invalidates (446 us each).
+   BAR2 live set (the remap generation) stay as they were. SotTR run F, per invalidate: 424 us
+   in the table sync, of it 62 us listing the table pages (about 112 live of every watched
+   page), 295 us scan and write-back (dirty table pages written back through the VRAM store's
+   BAR1 windows), 44 us following the BAR2 tables, 17 us drift samples.
    A flush owed stays owed (rule 3). Only while a host VA space walks the guest's own tables (a mirror VAS,
    `Mirror::walks_guest_tables`) is the invalidate a full sync. A doorbell syncs only what its
    channel could observe (rule 4),

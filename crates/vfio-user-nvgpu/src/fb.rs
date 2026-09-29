@@ -1742,8 +1742,8 @@ impl FakeFb {
         let t0 = std::time::Instant::now();
         // The table pages of every cache, kept where they are live. A walk's live list is
         // listed again only when its table pages or the BAR2 live set changed since (SotTR
-        // run E: 110 live of thousands of watched pages at each of 212840 invalidates, 446 us
-        // each); the other sets are small and listed every time.
+        // run F: 62 us of the 424 us per invalidate listed about 112 live of every watched
+        // page); the other sets are small and listed every time.
         let live_gen = a.live_generation();
         let mut memo = self.live_tables.borrow_mut();
         let (mut reused, mut listed) = (0u64, 0u64);
