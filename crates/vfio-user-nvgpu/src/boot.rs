@@ -725,6 +725,16 @@ impl BootModel {
                 if xid == crate::gspmem::XID_GR_EXCEPTION {
                     notes.extend(self.ctrl.gr_exception_postmortem(&gm, chid));
                 }
+                // Any RC of a GR channel (the Xid 109 CTX SWITCH TIMEOUT above all): the push
+                // the host fetched last, in the device log (preempt.rs step 0).
+                let gr0 = crate::ver::common::lookup(crate::ver::common::NV2080_ENGINE_TYPES, "GR0")
+                    .unwrap_or(1);
+                if eng == gr0 {
+                    if let Some(line) = self.ctrl.gr_rc_push_note(&gm, chid, xid) {
+                        eprintln!("vfio-user-nvgpu: {line}");
+                        notes.push(line);
+                    }
+                }
                 // RmLogonRC = 0: no Xid line (gspboot.rs, B3).
                 if self.registry.log_on_rc {
                     items.push(crate::events::Unsolicited::Event(
@@ -884,6 +894,10 @@ impl BootModel {
         }
         if let Some(m) = &self.ctrl.mirror {
             s.push(m.summary());
+            s.push(m.preemption_summary());
+        }
+        if let Some(p) = self.ctrl.channels.preemption_summary() {
+            s.push(p);
         }
         if let Some(p) = &self.ctrl.channels.tokens {
             s.push(p.summary());

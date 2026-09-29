@@ -643,8 +643,8 @@ fn bind_gfxp(host: &HostMemory, tsg: u32, mode: u32, addresses: &[u64; 5]) -> u3
 }
 
 /// `NV2080_CTRL_SET_CTXSW_PREEMPTION_MODE_COMPUTE_CTA`/`_CILP` (ctrl2080gr.h:856-857).
-pub const COMPUTE_CTA: u32 = 1;
-pub const COMPUTE_CILP: u32 = 2;
+pub const COMPUTE_CTA: u32 = crate::preempt::COMPUTE_CTA;
+pub const COMPUTE_CILP: u32 = crate::preempt::COMPUTE_CILP;
 
 /// `NV2080_CTRL_GR_CTXSW_PREEMPTION_BIND_PARAMS` for compute mode `mode` alone: flags
 /// CILP_SET (0:0), no buffer pointers, graphics ignored (ctrl2080gr.h:842-857, 917).
@@ -660,6 +660,35 @@ fn compute_bind_params(root: u32, tsg: u32, mode: u32) -> [u8; 112] {
 fn bind_compute(host: &HostMemory, tsg: u32, mode: u32) -> u32 {
     let mut p = compute_bind_params(host.root(), tsg, mode);
     host.control(host.subdevice(), CMD_BIND_CTXSW_PREEMPTION_MODE, &mut p)
+}
+
+/// Steps 0 and 1 (preempt.rs) on the mirror's own unprivileged host client: the GET on a
+/// host channel, the pointer-free compute BIND on a host TSG.
+impl crate::preempt::CtxswHost for HostMemory {
+    fn modes(&self, channel: u32) -> crate::preempt::Modes {
+        let mut p = [0u8; crate::preempt::MODES_SIZE];
+        p[..4].copy_from_slice(&channel.to_le_bytes());
+        let status = self.control(self.subdevice(), CMD_GET_CTXSW_PREEMPTION_MODE, &mut p);
+        crate::preempt::Modes::decode(status, &p)
+    }
+
+    fn bind_compute(&self, tsg: u32, mode: u32) -> u32 {
+        bind_compute(self, tsg, mode)
+    }
+}
+
+/// [`crate::preempt::CtxswHost`] taking the host lock per call, so an idle between the
+/// calls (`Mirror::idle_host_channels`, which locks itself) does not deadlock.
+struct LockedHost<'a>(&'a Mutex<HostMemory>);
+
+impl crate::preempt::CtxswHost for LockedHost<'_> {
+    fn modes(&self, channel: u32) -> crate::preempt::Modes {
+        crate::preempt::CtxswHost::modes(&*self.0.lock().unwrap(), channel)
+    }
+
+    fn bind_compute(&self, tsg: u32, mode: u32) -> u32 {
+        bind_compute(&self.0.lock().unwrap(), tsg, mode)
+    }
 }
 
 struct HostVas {
@@ -751,6 +780,20 @@ struct HostTsg {
     /// channel itself for a bare channel's own TSG.
     guest: (u32, u32),
     gfxp: Option<OwnedGfxp>,
+    /// Steps 0 and 1 of the GR preemption fix (preempt.rs) on a GR TSG.
+    preempt: TsgPreempt,
+}
+
+/// What the build check of a host GR TSG found and did (preempt.rs).
+#[derive(Clone, Copy, Debug, Default)]
+struct TsgPreempt {
+    /// The modes were read (and the guest's compute request applied) after the TSG's first
+    /// GR object, before that channel's first schedule.
+    checked: bool,
+    /// The last application: at the build, or at a SET after it.
+    outcome: Option<crate::preempt::Outcome>,
+    /// The modes were read at the teardown.
+    teardown_read: bool,
 }
 
 /// The key of the host TSG map (docs/caraxes/gsp-plan/classes.md §8, TSG): the kernel's
@@ -1337,6 +1380,8 @@ pub struct Mirror {
     /// [`Self::confirm_gfx_wfi`]): their channels built later are ready too. Cleared at the
     /// host TSG's free.
     preemption_ready_tsg: std::collections::BTreeSet<TsgKey>,
+    /// Steps 0 and 1 of the GR preemption fix (preempt.rs): the counters of the exit summary.
+    preempt: crate::preempt::Stats,
     /// Guest roots whose shadow VAS was handed to the teardown: the FB store drops their
     /// cached walks ([`Mirror::take_reaped_roots`]; before, a walk cache of up to 4M leaves
     /// stayed for every context that ever ran).
@@ -1517,6 +1562,7 @@ impl Mirror {
             stats: MirrorStats::default(),
             preemption_ready: std::collections::BTreeSet::new(),
             preemption_ready_tsg: std::collections::BTreeSet::new(),
+            preempt: crate::preempt::Stats::default(),
             reaped_roots: Vec::new(),
             released_roots: Vec::new(),
             exhausted: Default::default(),
@@ -2409,6 +2455,7 @@ impl Mirror {
                         engine: engine_type,
                         guest: tsg_guest,
                         gfxp: None,
+                        preempt: TsgPreempt::default(),
                     },
                 );
                 tsg
@@ -2420,6 +2467,17 @@ impl Mirror {
         let mut owned: Vec<u32> = Vec::new();
         let mut shadow_userd: Option<ShadowUserd> = None;
         let mut rc_page: Option<crate::hostmem::DevicePage> = None;
+        // Steps 0 and 1 of the GR preemption fix (preempt.rs), once per host GR TSG: after
+        // the first GR object made its context and before this channel's first
+        // GPFIFO_SCHEDULE, read the host modes and bind the guest's recorded compute request.
+        let gr_engine = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+        let preempt_check = self
+            .tsgs
+            .get(&tsg_key)
+            .is_some_and(|t| t.engine == gr_engine && !t.preempt.checked);
+        let preempt_request = if preempt_check { reg.preemption(tsg_guest) } else { None };
+        let sw_classes = [self.chip.channel.uvm_sw, 0x5080];
+        let mut preempt_applied: Option<crate::preempt::Applied> = None;
         let built = (|| -> Result<Built, (String, Option<u32>)> {
             // P21 design H: a USERD page the guest maps into the BAR1 pool area lives at
             // its pool page (fb.rs `remap`).
@@ -2592,6 +2650,16 @@ impl Mirror {
                     video_engine(engine).unwrap_or("copy engine")
                 ));
             }
+            // The GR context exists once an object of the GR engine does (not the UVM or
+            // deferred-API software classes); the channel is not scheduled yet.
+            if preempt_check && objects.iter().any(|(class, _)| !sw_classes.contains(class)) {
+                preempt_applied = Some(crate::preempt::apply_compute(
+                    &*h,
+                    tsg,
+                    channel,
+                    preempt_request.and_then(|r| r.compute),
+                ));
+            }
             if let Some(u) = shadow_userd.as_mut() {
                 // Initialize an unscheduled, empty ring once. Later copies never
                 // overwrite GPU-owned state; new GPPut is published before the doorbell.
@@ -2679,6 +2747,9 @@ impl Mirror {
             ));
         }
         drop(h);
+        if let Some(a) = preempt_applied {
+            self.note_preempt_build(tsg_key, tsg, chid, preempt_request, &a, &mut notes);
+        }
         // Restore the guest's GPGet/GPPut the host RM cleared at channel creation.
         if let Some((get_at, put_at, Some(get), Some(put))) = saved_userd
             .filter(|_| self.channels.get(&chid).is_some_and(|hc| hc.userd.is_none()))
@@ -3024,26 +3095,44 @@ impl Mirror {
             return Err(format!("owned {what} TSG changed while idling"));
         }
 
+        // The BIND and its GET are step 1's (preempt.rs `apply_compute`, shared with the
+        // guest-SET path): at most one BIND, and a context already at or above `mode` (CILP
+        // for a CTA request) is left as it is, never lowered.
         let host = self.hm.lock().unwrap();
-        let bind = bind_compute(&host, host_tsg, mode);
-        let (get, gfxp, cilp) = get_preemption_modes(&host, probe);
+        let a = crate::preempt::apply_compute(&*host, host_tsg, probe, Some(mode));
+        drop(host);
+        self.preempt.count(&a, true);
+        if let Some(t) = self.tsgs.get_mut(&key) {
+            t.preempt.outcome = Some(a.outcome);
+        }
+        let now = a.after.unwrap_or(a.before);
         let gfxp_want = if with_gfxp { 1 } else { gfxp_before };
-        if bind != sys::NV_OK || get != sys::NV_OK || gfxp != gfxp_want || cilp != mode {
+        let done = matches!(
+            a.outcome,
+            crate::preempt::Outcome::Bound(_) | crate::preempt::Outcome::Already(_)
+        );
+        if !done || !now.ok() || now.gfxp != gfxp_want {
             return Err(format!(
-                "{what} BIND/GET refused: bind {}, get {}, gfxp {gfxp:#x} (want {gfxp_want:#x}), cilp {cilp:#x}; target remains blocked",
-                status_name(bind), status_name(get)
+                "{what} BIND/GET refused: {}; gfxp want {gfxp_want:#x}; target remains blocked",
+                a.describe()
             ));
         }
-        drop(host);
         for (chid, generation, _) in &hosted {
             self.channels.get_mut(chid).unwrap().context_ready = true;
             self.note_preemption_ready(*chid, *generation);
         }
         self.preemption_ready_tsg.insert(key);
         Ok(vec![idle_note, format!(
-            "tsg {key}: host {what} (mode {mode}) bound for {} channel(s); graphics mode {gfxp_want} {} [host]",
+            "tsg {key}: host {what} (mode {mode}) bound for {} channel(s); graphics mode {gfxp_want} {}{} [host]",
             hosted.len(),
-            if with_gfxp { "(owned ordinary GFXP preserved)" } else { "(unchanged)" }
+            if with_gfxp { "(owned ordinary GFXP preserved)" } else { "(unchanged)" },
+            match a.outcome {
+                crate::preempt::Outcome::Already(m) => format!(
+                    "; the host context was in compute {} ({m}) already: no BIND sent, never lowered",
+                    crate::preempt::compute_name(m)
+                ),
+                _ => String::new(),
+            }
         )])
     }
 
@@ -3173,6 +3262,152 @@ impl Mirror {
     /// first is hosted, and the other seven waited for a bind of their own forever).
     pub fn tsg_context_ready(&self, reg: &Registry, chid: u32) -> bool {
         tsg_context_ready(&self.tsgs, &self.preemption_ready_tsg, reg, chid)
+    }
+
+    /// Steps 0 and 1 at a host GR TSG's build (preempt.rs, `shadow_channel`): mark it
+    /// checked, count, and leave one line in the device log (plus a WARN on a refusal).
+    fn note_preempt_build(
+        &mut self,
+        key: TsgKey,
+        host_tsg: u32,
+        chid: u32,
+        request: Option<crate::preempt::Recorded>,
+        a: &crate::preempt::Applied,
+        notes: &mut Vec<String>,
+    ) {
+        let Some(t) = self.tsgs.get_mut(&key) else {
+            return;
+        };
+        t.preempt.checked = true;
+        t.preempt.outcome = Some(a.outcome);
+        let guest = t.guest;
+        self.preempt.count(a, false);
+        if request
+            .and_then(|r| r.graphics)
+            .is_some_and(|g| g != crate::preempt::GFX_WFI)
+        {
+            self.preempt.gfxp_asked += 1;
+        }
+        let line = format!(
+            "preemption: tsg {key} (guest {:#x}/{:#x}, host TSG {host_tsg:#x}, chid {chid}) at build, before the first schedule: {}; {} [host]",
+            guest.0,
+            guest.1,
+            request.map_or("no guest SET".into(), |r| r.describe()),
+            a.describe()
+        );
+        eprintln!("vfio-user-nvgpu: {line}");
+        if a.refused() {
+            eprintln!(
+                "vfio-user-nvgpu: WARN preemption: tsg {key}: {}; the guest's SET was answered NV_OK [host]",
+                a.outcome.describe()
+            );
+        }
+        notes.push(line);
+    }
+
+    /// Step 0 at teardown: the modes of a checked host GR TSG, read once on its last hosted
+    /// channel right before that channel's free (read only).
+    fn preempt_teardown_read(&mut self, chid: u32, notes: &mut Vec<String>) {
+        let Some(hc) = self.channels.get(&chid) else {
+            return;
+        };
+        let (key, handle) = (hc.tsg, hc.handle);
+        if self.channels.iter().any(|(c, other)| *c != chid && other.tsg == key) {
+            return;
+        }
+        let Some(t) = self.tsgs.get_mut(&key) else {
+            return;
+        };
+        if !t.preempt.checked || t.preempt.teardown_read {
+            return;
+        }
+        t.preempt.teardown_read = true;
+        let (guest, outcome) = (t.guest, t.preempt.outcome);
+        let m = crate::preempt::CtxswHost::modes(&*self.hm.lock().unwrap(), handle);
+        self.preempt.teardown_reads += 1;
+        let line = format!(
+            "preemption: tsg {key} (guest {:#x}/{:#x}, chid {chid}, its last host channel) at teardown: host {}{} [host read]",
+            guest.0,
+            guest.1,
+            m.describe(),
+            outcome.map_or(String::new(), |o| format!("; earlier: {}", o.describe()))
+        );
+        eprintln!("vfio-user-nvgpu: {line}");
+        notes.push(line);
+    }
+
+    /// Step 1 for a guest SET on guest TSG (or bare channel) `guest` whose host TSG is built
+    /// and checked already: the recorded compute request is bound now, on the TSG idled
+    /// first (`FIFO_IDLE_CHANNELS` over its host channels). `None` when no host TSG stands
+    /// for it yet: its build binds the request.
+    pub fn guest_preemption_set(&mut self, reg: &Registry, guest: (u32, u32)) -> Option<String> {
+        let key = self.tsg_standing_for(guest)?;
+        let gr = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+        let t = self.tsgs.get(&key)?;
+        if t.engine != gr {
+            return Some(format!("host TSG ({key}) is not on GR: nothing bound"));
+        }
+        if !t.preempt.checked {
+            return Some(format!(
+                "host TSG ({key}) has no GR context yet: bound at its next channel's build"
+            ));
+        }
+        let host_tsg = t.handle;
+        let hosted: Vec<(u32, u32)> = self
+            .channels
+            .iter()
+            .filter(|(_, hc)| hc.tsg == key)
+            .map(|(c, hc)| (*c, hc.handle))
+            .collect();
+        let Some(&(probe_chid, probe)) = hosted.first() else {
+            return Some(format!("host TSG ({key}) has no host channel left: nothing bound"));
+        };
+        let requested = reg.preemption(guest).and_then(|r| r.compute);
+        let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
+            | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
+        let mut idle_note = None;
+        let a = {
+            let host = LockedHost(&self.hm);
+            crate::preempt::apply_compute_with(&host, host_tsg, probe, requested, || {
+                let (st, note) = self.idle_host_channels(&hosted, flags, 100_000);
+                idle_note = Some(note);
+                st == sys::NV_OK
+            })
+        };
+        self.preempt.count(&a, true);
+        if let Some(t) = self.tsgs.get_mut(&key) {
+            if !matches!(a.outcome, crate::preempt::Outcome::NoRequest) {
+                t.preempt.outcome = Some(a.outcome);
+            }
+        }
+        let line = format!(
+            "preemption: tsg {key} (guest {:#x}/{:#x}, host TSG {host_tsg:#x}, probe chid {probe_chid}, {} host channel(s)) SET after the build{}: {} [host]",
+            guest.0,
+            guest.1,
+            hosted.len(),
+            idle_note.map_or(String::new(), |n| format!(" ({n})")),
+            a.describe()
+        );
+        // A late SET that changes nothing stays in the trace; one that binds or is refused
+        // goes to the device log.
+        if !matches!(
+            a.outcome,
+            crate::preempt::Outcome::NoRequest | crate::preempt::Outcome::Already(_)
+        ) {
+            eprintln!("vfio-user-nvgpu: {line}");
+        }
+        if a.refused() {
+            eprintln!(
+                "vfio-user-nvgpu: WARN preemption: tsg {key}: {}; the guest's SET was answered NV_OK [host]",
+                a.outcome.describe()
+            );
+        }
+        Some(line)
+    }
+
+    /// The exit summary's line of steps 0 and 1 (preempt.rs).
+    pub fn preemption_summary(&self) -> String {
+        self.preempt.summary()
     }
 
     /// RM teardown idles the exact mirrored target, harvests its final GPGet and releases
@@ -3745,6 +3980,7 @@ impl Mirror {
                 engine,
                 guest,
                 gfxp: None,
+                preempt: TsgPreempt::default(),
             },
         );
         Ok(handle)
@@ -4786,6 +5022,8 @@ impl Mirror {
     }
 
     fn free_channel(&mut self, chid: u32, notes: &mut Vec<String>) -> bool {
+        // Step 0 at teardown (preempt.rs): the live modes, before an owned GFXP set unbinds.
+        self.preempt_teardown_read(chid, notes);
         if let Some(key) = self.channels.get(&chid).map(|hc| hc.tsg) {
             if !self.free_owned_gfxp(key, notes) { return false; }
         }
@@ -6151,6 +6389,7 @@ mod tests {
             engine: 1,
             guest,
             gfxp,
+            preempt: TsgPreempt::default(),
         };
         let mut tsgs = BTreeMap::new();
         let mut ready = std::collections::BTreeSet::new();
@@ -6170,6 +6409,63 @@ mod tests {
         // The same id under another guest TSG (a stale host TSG) is not ready for it.
         tsgs.insert(key, host((1, 0x31), None));
         assert!(!joins(&tsgs, &ready, 25));
+    }
+
+    /// Step 1's record-then-apply (preempt.rs): a guest SET is recorded under the guest
+    /// object the host TSG will stand for (`tsg_key_of`), whether it names the TSG (CUDA,
+    /// GL, Vulkan), a member channel, or a bare channel (Vulkan's 0xc46f SETs), so the build
+    /// finds it; it goes with its guest object.
+    #[test]
+    fn a_guest_set_is_recorded_for_the_host_tsg_of_its_guest_object() {
+        let gpfifo = crate::fixture::rtx2070().chip.data().channel.gpfifo;
+        let set = |h: u32, cilp: u32| {
+            let mut p = vec![0u8; 32];
+            p[0..4].copy_from_slice(&crate::preempt::FLAG_CILP_SET.to_le_bytes());
+            p[4..8].copy_from_slice(&h.to_le_bytes());
+            p[12..16].copy_from_slice(&cilp.to_le_bytes());
+            p
+        };
+        let mut reg = registry();
+        reg.record_alloc(1, 0x10, 0x30, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(22)));
+        reg.record_alloc(1, 0x30, 0x40, gpfifo, &channel_params(24, None));
+        reg.record_alloc(1, 0x30, 0x41, gpfifo, &channel_params(25, None));
+        reg.record_alloc(1, 0x10, 0x50, gpfifo, &channel_params(4, Some(7))); // bare
+        // Before any SET the build finds nothing (the host default stays).
+        let (_, _, guest) = tsg_key_of(&reg, reg.channel(24).unwrap());
+        assert_eq!(guest, (1, 0x30));
+        assert_eq!(reg.preemption(guest), None);
+        // CUDA names the TSG.
+        let (a, g) = crate::cuda::set_ctxsw_preemption_mode(1, &set(0x30, COMPUTE_CILP), &mut reg);
+        assert_eq!((a.status, a.params.len()), (sys::NV_OK, 32));
+        assert_eq!(g, Some(guest));
+        assert!(a.note.contains("compute CILP (2)"), "{}", a.note);
+        assert!(a.note.contains("recorded for guest TSG 0x1/0x30"), "{}", a.note);
+        assert_eq!(reg.preemption(guest).unwrap().compute, Some(COMPUTE_CILP));
+        // A member channel names its TSG: the same record, the later mode.
+        let (a, g) = crate::cuda::set_ctxsw_preemption_mode(1, &set(0x41, COMPUTE_CTA), &mut reg);
+        assert_eq!(g, Some(guest));
+        assert!(a.note.contains("(the TSG of channel 0x41)"), "{}", a.note);
+        let (_, _, g25) = tsg_key_of(&reg, reg.channel(25).unwrap());
+        assert_eq!(reg.preemption(g25).unwrap(), crate::preempt::Recorded { compute: Some(COMPUTE_CTA), graphics: None, sets: 2 });
+        // A bare channel stands for its own TSG.
+        let (_, _, bare) = tsg_key_of(&reg, reg.channel(4).unwrap());
+        let (a, g) = crate::cuda::set_ctxsw_preemption_mode(1, &set(0x50, COMPUTE_CTA), &mut reg);
+        assert_eq!(g, Some(bare));
+        assert!(a.note.contains("bare channel 0x1/0x50"), "{}", a.note);
+        // Unknown handles and short payloads: NV_OK as before, nothing recorded.
+        let (a, g) = crate::cuda::set_ctxsw_preemption_mode(1, &set(0x99, COMPUTE_CTA), &mut reg);
+        assert_eq!((a.status, g), (sys::NV_OK, None));
+        assert!(a.note.contains("not recorded"), "{}", a.note);
+        let (a, g) = crate::cuda::set_ctxsw_preemption_mode(1, &[1, 0, 0, 0], &mut reg);
+        assert_eq!((a.status, a.params.as_slice(), g), (sys::NV_OK, &[1u8, 0, 0, 0][..], None));
+        let s = reg.preemption_summary().unwrap();
+        assert!(s.contains("1 unresolved, 1 too short"), "{s}");
+        // Freed with the guest objects.
+        reg.record_free(1, 0x30);
+        assert_eq!(reg.preemption(guest), None);
+        assert!(reg.preemption(bare).is_some());
+        reg.record_free(1, 0x50);
+        assert_eq!(reg.preemption(bare), None);
     }
 
     /// The video engines by `NV2080_ENGINE_TYPE` (NVDEC0 0x13, NVENC0 0x1b on 610 and

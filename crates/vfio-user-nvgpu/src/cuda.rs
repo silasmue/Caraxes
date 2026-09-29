@@ -45,10 +45,6 @@ const ACKNOWLEDGED: &[(u32, &str)] = &[
         v::CMD_DEBUG_SET_EXCEPTION_MASK,
         "DEBUG_SET_EXCEPTION_MASK (no SM to trap)",
     ),
-    (
-        v::CMD_GR_SET_CTXSW_PREEMPTION_MODE,
-        "GR_SET_CTXSW_PREEMPTION_MODE (no context switch)",
-    ),
     (v::CMD_TSG_SET_TIMESLICE, "TSG SET_TIMESLICE (no scheduler)"),
     (
         v::CMD_TSG_PREEMPT,
@@ -120,6 +116,59 @@ pub fn answer_control(
         }
         _ => return None,
     })
+}
+
+/// `GR_SET_CTXSW_PREEMPTION_MODE` (0x20801210) of client `h_client`: NV_OK echo, as native
+/// and as before (matrix/traces/610.57.04: graphics clients ask compute CTA on their TSG,
+/// CUDA-class clients CILP). The payload is decoded and recorded under the guest TSG its
+/// hChannel stands for (channel.rs `record_preemption`); the mirror binds its compute mode
+/// on the host TSG at the build (preempt.rs, mirror.rs). The first SET of each payload
+/// shape goes to the device log. Returns the answer and the guest object recorded.
+pub fn set_ctxsw_preemption_mode(
+    h_client: u32,
+    params: &[u8],
+    channels: &mut Registry,
+) -> (Answer, Option<(u32, u32)>) {
+    use crate::preempt::SetRequest;
+    let Some(r) = SetRequest::decode(params) else {
+        channels.note_short_preemption();
+        return (
+            answer(
+                params.to_vec(),
+                "synthesized (NV_OK echo; too short to decode, nothing recorded)",
+                format!("GR_SET_CTXSW_PREEMPTION_MODE: {} bytes, not decoded", params.len()),
+            ),
+            None,
+        );
+    };
+    let (guest, rec, new_shape) = channels.record_preemption(h_client, &r);
+    let whom = match (guest, rec) {
+        (Some(g), Some(rec)) => format!(
+            "recorded for guest {} {:#x}/{:#x}{}: {}; the compute mode is bound on its host TSG at the build (step 1), graphics stays at the host default (step 2)",
+            if channels.tsg(g).is_some() { "TSG" } else { "bare channel" },
+            g.0,
+            g.1,
+            if g.1 == r.h_channel { String::new() } else { format!(" (the TSG of channel {:#x})", r.h_channel) },
+            rec.describe()
+        ),
+        _ => format!(
+            "hChannel names no TSG or channel of client {h_client:#x}: not recorded"
+        ),
+    };
+    let note = format!("GR_SET_CTXSW_PREEMPTION_MODE {{{}}}: {whom}", r.describe());
+    if new_shape {
+        eprintln!(
+            "vfio-user-nvgpu: preemption: guest SET of a new shape (client {h_client:#x}): {note} (every SET is counted in the exit summary)"
+        );
+    }
+    (
+        answer(
+            params.to_vec(),
+            "guest (NV_OK echo; recorded per guest TSG, the compute mode bound on its host TSG: preempt.rs)",
+            note,
+        ),
+        guest,
+    )
 }
 
 fn get32(b: &[u8], off: usize) -> Option<u32> {
@@ -322,6 +371,27 @@ mod tests {
             a.note
         );
         assert!(!ACKNOWLEDGED.iter().any(|(c, _)| *c == v::CMD_INTERNAL_PERF_BOOST_SET_2X));
+    }
+
+    /// The preemption SET is decoded and recorded (preempt.rs), no longer a blind echo; the
+    /// answer stays NV_OK with the params echoed, as native.
+    #[test]
+    fn the_preemption_set_is_decoded_not_blindly_acknowledged() {
+        assert!(!ACKNOWLEDGED.iter().any(|(c, _)| *c == v::CMD_GR_SET_CTXSW_PREEMPTION_MODE));
+        assert_eq!(v::CMD_GR_SET_CTXSW_PREEMPTION_MODE, crate::preempt::CMD_SET_CTXSW_PREEMPTION_MODE);
+        let f = crate::fixture::rtx2070();
+        let mut reg = Registry::new(f.chip.data().channel);
+        let mut p = vec![0u8; 32];
+        p[0] = 1;
+        p[4..8].copy_from_slice(&0x5c00_0012u32.to_le_bytes());
+        p[12] = 2;
+        let (a, g) = set_ctxsw_preemption_mode(0xc1d0_0001, &p, &mut reg);
+        assert_eq!((a.status, a.params.as_slice(), g), (NV_OK, p.as_slice(), None));
+        assert!(
+            a.note.starts_with("GR_SET_CTXSW_PREEMPTION_MODE {flags 0x1 (CILP_SET), hChannel 0x5c000012, graphics not set (field 0), compute CILP (2)}"),
+            "{}",
+            a.note
+        );
     }
 
     /// Forwarded on a 615 host, the chip's shim table on a 610 host (the control is
