@@ -171,40 +171,50 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
   - `RmDisplayReserveSizeMB`: 0 = automatic; N = N MiB, still cut into S chunks.
   - No mode key: the automatic source is sound.
 
-## Patch
+## Patch (redesign)
 
-- `patches/nvidia/0001-nvidia-add-a-display-reserve-for-kernel-display-allo.patch`, against 615.71.09, one commit, author Silas Müller, MIT like the files it touches. It changes:
-  - `src/nvidia/src/kernel/mem_mgr/display_reserve.c` and its header, which are new;
-  - the two registry keys;
-  - four hooks in `mem_mgr.c`;
-  - the retry and the allocation tracking in `video_mem.c`;
-  - `srcs.mk`.
-- **Host compile check** (615.71.09 against 7.2.7, gcc 16, `make -j4 modules`):
-  - no compiler warning;
-  - objtool reports the same "naked return" notes for the new functions as for every other function of the RM core (11672 before, 11684 after);
-  - the `displayReserve*` symbols are in `nvidia.ko`.
-  - No module was loaded on the host.
+- **File.** `patches/nvidia/0001-nvidia-nvidia-modeset-hold-a-video-memory-reserve-fo.patch`, against 615.71.09: one commit, author Silas Müller, MIT like the files it touches. It applies with `git apply` and `patch -p1`.
+- **What it changes.**
+  - RM: `src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c` and its header (new, 679 + 47 lines); the release in `_vidmemPmaAllocate`; four lifecycle hooks in `mem_mgr.c`; the control handler in `disp_common_kern_ctrl_minimal.c`; `srcs.mk`.
+  - Interface: `NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE` in `ctrl0073system.h`.
+  - Generated NVOC files:
+    - `g_disp_objs_nvoc.c/h`: the export entry, its trampoline and prototype; the table's index comments renumber after the insertion;
+    - `g_mem_mgr_nvoc.h`: `pDisplayReserve`.
+  - NVKMS: `nvRmUpdateDisplayReserve` in `nvkms-rm.c`, called from `nvSetDispModeEvo`; the release in `nvRmDestroyDisplays`; the cached declaration in `NVDispEvoRec`.
+  - `nvidia-modeset`: the `display_reserve_mib` parameter and its getter, in both copies of the os-interface header.
+- **Host compile check** (7.2.7, gcc 16, `make -j4 modules`):
+  - no new compiler warning (three in NVKMS exist in the pristine tree);
+  - `modinfo nvidia-modeset.ko` lists `display_reserve_mib`;
+  - `nvidia.ko` has the new symbols.
+  - Nothing was loaded on the host.
 
 ## Build and use (game tests only)
 
-- **The stock modules stay the default.** The stock 615.71.09 modules stay the default in every image; nothing goes to `updates/`, `dkms/` or `modprobe.d`, and depmod is not run.
+- **The stock modules stay the default.** Nothing goes to `updates/`, `dkms/` or `modprobe.d`, and depmod is not run.
 - **Build** (`crates/vfio-user-nvgpu/guest/display-reserve/build.sh`, in the guest).
-  - It checks the source tarball's sha256, applies the patch to the full 615.71.09 source and builds the RM core (`src/nvidia`) with the guest's gcc.
-  - It puts the RM core into a copy of the DKMS source (`/usr/src/nvidia-615.71.09`, whose `nvidia/nv-kernel.o_binary` is the prebuilt RM core) and builds there against the running kernel.
-  - It installs only `nvidia.ko` to `/opt/caraxes/display-reserve/<kernel>/`, with a MANIFEST of sources, sha256s and the version line.
-  - The patch touches only the RM core, so `nvidia-modeset`, `nvidia-drm` and `nvidia-uvm` stay the installed modules.
-- **Load** (`load.sh RmDisplayReserve=1 [NVreg_…]`).
-  - It unloads the NVIDIA modules, loads the modules `nvidia.ko` depends on, then `insmod`s the patched `nvidia.ko` with the options `modprobe.d` gives `nvidia`, adding the value to `NVreg_RegistryDwords` and appending the extra parameters.
-  - It fails unless the loaded module reports the build's version line.
-  - The bench's own `modprobe` of the other modules then finds `nvidia` loaded. The next boot is stock again.
+  - It checks the source tarball's sha256, applies the patch and builds the whole 615.71.09 tree against the running kernel with the guest's gcc.
+  - It installs only `nvidia.ko` and `nvidia-modeset.ko` to `/opt/caraxes/display-reserve-v2/<kernel>/`, with a MANIFEST of sources, sha256s and `nvidia.ko`'s version line.
+  - The first design's build under `/opt/caraxes/display-reserve/` stays for the runs made with it.
+- **Load** (`load.sh DISPLAY_RESERVE_MIB [NVreg_…]`).
+  - It unloads the NVIDIA modules and loads `nvidia.ko`'s dependencies.
+  - It `insmod`s both modules with their `modprobe.d` options, the extra `nvidia` parameters and `display_reserve_mib`.
+  - It fails unless `/proc/driver/nvidia/version` shows the build's version line and `nvidia_modeset` has the value asked for.
+  - The installed `nvidia-drm` and `nvidia-uvm` bind on top; the kernel's modversion check refuses them if an exported symbol differed.
+- **Run scripts.**
+  - `display-reserve-prepare.sh` builds in the guest and copies `drsv2-smoke/`.
+  - `drsv2-smoke/smoke.sh` loads the build, walks the connector through 1920x1080, 1280x720 and off as DRM master (`modeset.c`, raw ioctls), starts GNOME, then fills VRAM from CUDA and asks for 1080p dumb buffers.
+- **Expected** (declared = 5·S + 1 MiB of cursors; PMA = runs rounded to their page size):
+  - 1920x1080: S = 0x870000, runs 5 × 10 MiB + 1 MiB = 51 MiB;
+  - 1280x720: S = 0x3C0000, 5 × 4 MiB + 1 MiB = 21 MiB;
+  - off: 0.
 
 ## Logging
 
 - **Levels follow RM's convention for state.** State messages (enabled, cut, holds, next try) are `NV_PRINTF(LEVEL_INFO)`, as memacct's [T src/kernel/mem_mgr/memacct.c]. A release build does not print them: the runtime threshold is warnings [K nvidia/os-interface.c:843-862].
 - **A served refusal is `LEVEL_WARNING`** and is printed; failures are `LEVEL_ERROR`.
-- **Tests turn the state lines on with NVIDIA's RmMsg filter**, not with a code change: `NVreg_RmMsg=display_reserve.c` [K nvidia/nv-reg.h `RmMsg`; T src/kernel/diagnostics/nvlog_printf.c:953-974]. `load.sh` passes extra parameters and the bench sets this one.
+- **Tests turn the state lines on with NVIDIA's RmMsg filter**, not with a code change: `NVreg_RmMsg=display_reserve.c` [K nvidia/nv-reg.h `RmMsg`; T src/kernel/diagnostics/nvlog_printf.c:953-974]. `load.sh` passes extra `nvidia` parameters.
 
-## Smoke results (2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
+## Smoke results of the first design (history; 2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
 
 Evidence: `B/drsv-smoke3/`; the build is `B/drsv-build2/prepare.txt`.
 
@@ -220,7 +230,15 @@ Evidence: `B/drsv-smoke3/`; the build is `B/drsv-build2/prepare.txt`.
 - **`build.sh` dropped its modversion comparison.** `modprobe --dump-modversions` fails on these modules, so it compared two empty lists. The patch changes no exported symbol, and the kernel refuses a mismatch at load.
 - **Not yet exercised:** suspend/resume, the backoff timer (every fill so far succeeded at once), several GPUs.
 
-## Test plan
+## Test plan (redesign)
+
+1. **Smoke** (`display-reserve-prepare.sh`, then `drsv2-smoke/smoke.sh` in the 1 GiB guest).
+   - The reserve holds the declared size at 1080p, re-cuts to the 720p size, and is released when the head goes off.
+   - GNOME gives the 1080p size again.
+   - With VRAM filled, the dumb buffer is granted with one run released and refilled 1 s later; `display_reserve_mib=0` refuses it.
+2. **SotTR 1080p at 4 GiB** with `display_reserve_mib=-1`, and a control with 0. The bench gets `SOTTR_DISPLAY_RESERVE_MIB` once the first design's runs are done.
+
+## Test plan (first design, history)
 
 Linux B's disposable copy `desktop-b-dmem` on the stock 6.8.0-136 kernel (`DMEM_KERNEL=stock`; no dmem is needed), 4 GiB, SotTR 1080p, `sottr-bench-6g.sh` with `DMEM_CAP=off`. Commands: [caraxes/runs/dmem-2026-09-29/README.md](../../caraxes/runs/dmem-2026-09-29/README.md) "Display reserve".
 

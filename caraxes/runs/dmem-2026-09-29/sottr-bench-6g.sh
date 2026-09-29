@@ -148,6 +148,13 @@ while (( $(date +%s) - t0 < MAX )); do
     hf=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | tr -d ' ')
     log "host-free=$hf host-mean=${hm:-?} host-rmse=$diff guest-mean=${gm:-?} | $mon | result=${res:-none}"
     (( ${hf:-0} < 200 )) && { log "host free VRAM ${hf:-?} MiB below 200 MiB: stopping"; break; }
+    # A refusal freezes the stream while the game keeps drawing; at 720p that ended in a host
+    # Xid 109 about a minute later. End the game at the first refusal (the evidence is logged).
+    if [[ $mon =~ nvkms_fail=([1-9][0-9]*) ]]; then
+        log "NVKMS refusal seen: ending the game now (host Xid 109 risk of a frozen run)"
+        T=60 gssh 'G=Shadow; G="${G}OfTheTombRaider"; for p in $(pgrep -f "bin/$G"); do kill -9 $p; done'
+        break
+    fi
     [[ -n $res && $res != *"No such"* ]] && break
     sleep 30
 done

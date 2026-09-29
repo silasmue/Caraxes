@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
 # On the host, with desktop-b-dmem up (desktop-b-dmem-6g.sh up; wait): build the display
-# reserve nvidia.ko in the guest for its running kernel (docs/research/display-reserve-2026-09-29.md).
-# Copies the 615.71.09 source (git archive of the vendored tag), patches/nvidia/0001 and
-# crates/vfio-user-nvgpu/guest/display-reserve/ into the guest and runs build.sh there. The
-# build lands in /opt/caraxes/display-reserve/<kernel>/ and is loaded only by
-# sottr-bench-6g.sh with SOTTR_DISPLAY_RESERVE set. Log: OUT/prepare.txt.
+# reserve nvidia.ko and nvidia-modeset.ko in the guest for its running kernel
+# (docs/research/display-reserve-2026-09-29.md). Copies the 615.71.09 source (git archive of the
+# vendored tag), patches/nvidia/0001, crates/vfio-user-nvgpu/guest/display-reserve/ and the smoke
+# test (drsv2-smoke/, to ~/drsv2-smoke) into the guest and runs build.sh there. The build lands in
+# /opt/caraxes/display-reserve-v2/<kernel>/ and is loaded only by sottr-bench-6g.sh with
+# SOTTR_DISPLAY_RESERVE_MIB set, or by drsv2-smoke/smoke.sh. Log: OUT/prepare.txt.
 # Usage: display-reserve-prepare.sh OUT
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -35,5 +36,6 @@ gssh "cat > ~/caraxes-display-reserve/display-reserve.patch" < "$patch"
 tar -C "$REPO/crates/vfio-user-nvgpu/guest" -cf - display-reserve |
     gssh 'tar -C ~/caraxes-display-reserve --strip-components=1 -xf -'
 T=1800 gssh "cd ~/caraxes-display-reserve && sudo ./build.sh source.tar.gz $sha display-reserve.patch" || { echo "build failed"; exit 1; }
-gssh 'ls -la /opt/caraxes/display-reserve/*/ /opt/caraxes/display-reserve/load.sh'
+gssh 'ls -la /opt/caraxes/display-reserve-v2/*/ /opt/caraxes/display-reserve-v2/load.sh'
+tar -C "$HERE" -cf - drsv2-smoke | gssh 'rm -rf ~/drsv2-smoke && tar -xf - -C ~'
 echo "$(date +%T) done"

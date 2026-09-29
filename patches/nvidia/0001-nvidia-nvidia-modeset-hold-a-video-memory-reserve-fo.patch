@@ -1,0 +1,2407 @@
+From c14f81c330d2e601a5d2a6bc020530d61febe3c6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Silas=20M=C3=BCller?= <github@silasmueller.de>
+Date: Tue, 29 Sep 2026 09:47:47 +0200
+Subject: [PATCH] nvidia, nvidia-modeset: hold a video memory reserve for
+ scanout surfaces
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A scanout surface is physically contiguous video memory with no fallback:
+nvidia-drm falls back to system memory only for NO_SCANOUT buffers.  A
+process that sizes its pools to the free video memory, such as a game
+sizing them to the Vulkan memory budget, can leave no room for the next
+surface.  The refused allocation leaves Xwayland or the compositor without
+a buffer and the display stops updating.
+
+Let the display driver declare a reserve.  NVKMS knows the committed modes:
+after every successful modeset it computes, per active head, five XRGB8888
+surfaces of the head's ViewPortIn and four cursors of the maximum cursor
+size, and sends the sum and the largest surface size to RM with the new
+kernel-privileged control NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE.  It
+declares zero when it tears down its displays.  The nvidia-modeset
+parameter display_reserve_mib selects this (-1), a fixed size in MiB, or
+nothing (0, the default).
+
+RM holds the reserve as runs of PMA pages, one per surface with the page
+size RM gives such a surface, plus one run for the remainder.  The runs
+leave PMA's free count, so processes see less free video memory; they are
+not RM objects and are not charged to any cgroup.  When PMA refuses a
+scanout allocation of a kernel client (kernel privilege, ISO, physically
+contiguous, not NO_SCANOUT) in _vidmemPmaAllocate, runs that cover it are
+freed and the allocation is retried.  Allocations through the RM API hold
+the API lock for writing unless RmRoApiLock enables read-only allocations,
+so no other such allocation can take the freed pages first; UVM allocates
+from PMA directly and may, and then the next run is released.
+
+A release schedules a refill one second later, and a refill that falls
+short retries on a backoff of one to thirty seconds.  A new declaration
+re-cuts the reserve by allocating the new runs before freeing the old ones.
+Refills run as a work item with the API lock and without the GPU lock, and
+only at full GPU power with PMA initialized and MIG disabled.  The runs are
+freed in memmgrStatePreUnload, before unload, suspend and GC6/RTD3 entry,
+and refilled from memmgrStatePostLoad.  They are never mapped or written,
+so they are freed without scrubbing.
+
+Signed-off-by: Silas Müller <github@silasmueller.de>
+---
+ .../nvidia-modeset/nvidia-modeset-linux.c     |  10 +
+ .../nvidia-modeset-os-interface.h             |   1 +
+ .../nvidia/inc/ctrl/ctrl0073/ctrl0073system.h |  41 ++
+ src/nvidia-modeset/include/nvkms-rm.h         |   1 +
+ src/nvidia-modeset/include/nvkms-types.h      |   6 +
+ .../include/nvidia-modeset-os-interface.h     |   1 +
+ src/nvidia-modeset/src/nvkms-modeset.c        |   2 +
+ src/nvidia-modeset/src/nvkms-rm.c             | 115 +++
+ src/nvidia/generated/g_disp_objs_nvoc.c       | 263 +++----
+ src/nvidia/generated/g_disp_objs_nvoc.h       |  12 +
+ src/nvidia/generated/g_mem_mgr_nvoc.h         |   1 +
+ .../inc/kernel/gpu/mem_mgr/display_reserve.h  |  47 ++
+ .../gpu/disp/disp_common_kern_ctrl_minimal.c  |  31 +
+ .../src/kernel/gpu/mem_mgr/display_reserve.c  | 679 ++++++++++++++++++
+ src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c   |  12 +
+ src/nvidia/src/kernel/mem_mgr/video_mem.c     |  13 +
+ src/nvidia/srcs.mk                            |   1 +
+ 17 files changed, 1115 insertions(+), 121 deletions(-)
+ create mode 100644 src/nvidia/inc/kernel/gpu/mem_mgr/display_reserve.h
+ create mode 100644 src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c
+
+diff --git a/kernel-open/nvidia-modeset/nvidia-modeset-linux.c b/kernel-open/nvidia-modeset/nvidia-modeset-linux.c
+index 62986c4..d348071 100644
+--- a/kernel-open/nvidia-modeset/nvidia-modeset-linux.c
++++ b/kernel-open/nvidia-modeset/nvidia-modeset-linux.c
+@@ -104,6 +104,11 @@ module_param_named(debug_force_color_space, debug_force_color_space, uint, 0444)
+ static bool enable_overlay_layers = true;
+ module_param_named(enable_overlay_layers, enable_overlay_layers, bool, 0444);
+ 
++MODULE_PARM_DESC(display_reserve_mib,
++                 "Video memory RM holds in reserve for scanout surfaces (0 = none, -1 = five surfaces and four cursors per active head, N = N MiB)");
++static int display_reserve_mib = 0;
++module_param_named(display_reserve_mib, display_reserve_mib, int, 0444);
++
+ /* These parameters are used for fault injection tests.  Normally the defaults
+  * should be used. */
+ MODULE_PARM_DESC(fail_malloc, "Fail the Nth call to nvkms_alloc");
+@@ -284,6 +289,11 @@ NvBool nvkms_enable_overlay_layers(void)
+     return enable_overlay_layers;
+ }
+ 
++NvS32 nvkms_display_reserve_mib(void)
++{
++    return display_reserve_mib;
++}
++
+ NvBool nvkms_debug_logging(void)
+ {
+     return debug != 0;
+diff --git a/kernel-open/nvidia-modeset/nvidia-modeset-os-interface.h b/kernel-open/nvidia-modeset/nvidia-modeset-os-interface.h
+index dc33314..771510f 100644
+--- a/kernel-open/nvidia-modeset/nvidia-modeset-os-interface.h
++++ b/kernel-open/nvidia-modeset/nvidia-modeset-os-interface.h
+@@ -128,6 +128,7 @@ NvU32 nvkms_max_output_color_bpc(void);
+ NvBool nvkms_opportunistic_display_sync(void);
+ enum NvKmsDebugForceColorSpace nvkms_debug_force_color_space(void);
+ NvBool nvkms_enable_overlay_layers(void);
++NvS32 nvkms_display_reserve_mib(void);
+ NvBool nvkms_debug_logging(void);
+ void nvkms_extcon_report_hdmi(NvBool state);
+ void nvkms_extcon_report_hdmi_audio(NvBool state);
+diff --git a/src/common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h b/src/common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h
+index 2573f54..2b219b0 100644
+--- a/src/common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h
++++ b/src/common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h
+@@ -2710,5 +2710,46 @@ typedef struct NV0073_CTRL_SYSTEM_QUERY_UEFI_DISPLAY_BANDWIDTH_PARAMS {
+     NvU32 floorBandwidthKBPS;
+ } NV0073_CTRL_SYSTEM_QUERY_UEFI_DISPLAY_BANDWIDTH_PARAMS;
+ 
++/*
++ * NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE
++ *
++ * This command declares how much video memory RM holds in reserve for the
++ * scanout surfaces of the display.  A scanout surface is physically
++ * contiguous video memory with no fallback, so an allocation for it that
++ * fails because processes took all free video memory leaves the display
++ * without a surface.  RM holds the reserve as free video memory taken out of
++ * its allocator, and gives it back to a kernel client's scanout allocation
++ * that fails for lack of video memory.  The reserve is cut into pieces of
++ * surfaceSize, so each piece given back has the shape such an allocation
++ * needs.  A new declaration replaces the previous one; RM re-cuts the reserve
++ * and refills it in the background.  This command is only allowed for kernel
++ * clients.
++ *
++ *   subDeviceInstance
++ *     This parameter specifies the subdevice instance within the
++ *     NV04_DISPLAY_COMMON parent device to which the operation should be
++ *     directed.
++ *   reserveSize
++ *     The size of the reserve in bytes.  0 releases the reserve.
++ *   surfaceSize
++ *     The size in bytes of the largest scanout surface of the display.  It
++ *     must not be 0 when reserveSize is not 0.
++ *
++ * Possible status values returned are:
++ *   NV_OK
++ *   NV_ERR_INVALID_ARGUMENT
++ *   NV_ERR_NOT_SUPPORTED
++ */
++
++#define NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE (0x730162U) /* finn: Evaluated from "(FINN_NV04_DISPLAY_COMMON_SYSTEM_INTERFACE_ID << 8) | NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS_MESSAGE_ID" */
++
++#define NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS_MESSAGE_ID (0x62U)
++
++typedef struct NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS {
++    NvU32 subDeviceInstance;
++    NV_DECLARE_ALIGNED(NvU64 reserveSize, 8);
++    NV_DECLARE_ALIGNED(NvU64 surfaceSize, 8);
++} NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS;
++
+ /* _ctrl0073system_h_ */
+ 
+diff --git a/src/nvidia-modeset/include/nvkms-rm.h b/src/nvidia-modeset/include/nvkms-rm.h
+index 0385bf3..5e9cfe5 100644
+--- a/src/nvidia-modeset/include/nvkms-rm.h
++++ b/src/nvidia-modeset/include/nvkms-rm.h
+@@ -118,6 +118,7 @@ void nvRmFreeEvoDma(NVDevEvoPtr pDevEvo, NVEvoDmaPtr pDma);
+ NvBool nvRmQueryDpAuxLog(NVDispEvoRec *pDispEvo, NvS64 *pValue);
+ NvU64 nvRmGetGpuTime(NVDevEvoPtr pDevEvo);
+ NvBool nvRmSetGc6Allowed(NVDevEvoPtr pDevEvo, NvBool allowed);
++void nvRmUpdateDisplayReserve(NVDevEvoPtr pDevEvo);
+ NVRgLine1CallbackPtr
+ nvRmAddRgLine1Callback(NVDispEvoRec *pDispEvo,
+                        NvU32 head,
+diff --git a/src/nvidia-modeset/include/nvkms-types.h b/src/nvidia-modeset/include/nvkms-types.h
+index f0e917d..2dbbb46 100644
+--- a/src/nvidia-modeset/include/nvkms-types.h
++++ b/src/nvidia-modeset/include/nvkms-types.h
+@@ -2082,6 +2082,12 @@ typedef struct _NVDispEvoRec {
+     NvU32             isoBandwidthKBPS;
+     NvU32             dramFloorKBPS;
+ 
++    /* The video memory reserve last declared to RM for scanout surfaces. */
++    struct {
++        NvU64 reserveSize;
++        NvU64 surfaceSize;
++    } displayReserve;
++
+     /*
+      * The list of physical connector display IDs.  This is the union
+      * of pConnectorEvo->displayId values, which is also the union of
+diff --git a/src/nvidia-modeset/os-interface/include/nvidia-modeset-os-interface.h b/src/nvidia-modeset/os-interface/include/nvidia-modeset-os-interface.h
+index dc33314..771510f 100644
+--- a/src/nvidia-modeset/os-interface/include/nvidia-modeset-os-interface.h
++++ b/src/nvidia-modeset/os-interface/include/nvidia-modeset-os-interface.h
+@@ -128,6 +128,7 @@ NvU32 nvkms_max_output_color_bpc(void);
+ NvBool nvkms_opportunistic_display_sync(void);
+ enum NvKmsDebugForceColorSpace nvkms_debug_force_color_space(void);
+ NvBool nvkms_enable_overlay_layers(void);
++NvS32 nvkms_display_reserve_mib(void);
+ NvBool nvkms_debug_logging(void);
+ void nvkms_extcon_report_hdmi(NvBool state);
+ void nvkms_extcon_report_hdmi_audio(NvBool state);
+diff --git a/src/nvidia-modeset/src/nvkms-modeset.c b/src/nvidia-modeset/src/nvkms-modeset.c
+index f51f97b..ebc60cb 100644
+--- a/src/nvidia-modeset/src/nvkms-modeset.c
++++ b/src/nvidia-modeset/src/nvkms-modeset.c
+@@ -4361,6 +4361,8 @@ NvBool nvSetDispModeEvo(NVDevEvoPtr pDevEvo,
+         }
+     }
+ 
++    nvRmUpdateDisplayReserve(pDevEvo);
++
+     committed = TRUE;
+ 
+     /* fall through */
+diff --git a/src/nvidia-modeset/src/nvkms-rm.c b/src/nvidia-modeset/src/nvkms-rm.c
+index 7ad713b..cef2ad2 100644
+--- a/src/nvidia-modeset/src/nvkms-rm.c
++++ b/src/nvidia-modeset/src/nvkms-rm.c
+@@ -104,6 +104,9 @@
+ static NvU32 GetLegacyConnectorType(NVDispEvoPtr pDispEvo, NVDpyId dpyId);
+ 
+ static void RmFreeEvoChannel(NVDevEvoPtr pDevEvo, NVEvoChannelPtr pChannel);
++static void SetDisplayReserve(NVDispEvoPtr pDispEvo,
++                              NvU64 reserveSize,
++                              NvU64 surfaceSize);
+ 
+ static NvBool EngineListCheckOneSubdevice(const NVEvoSubDeviceRec *pSubDevice,
+                                           NvU32 engineType)
+@@ -2200,6 +2203,10 @@ void nvRmDestroyDisplays(NVDevEvoPtr pDevEvo)
+ 
+     FOR_ALL_EVO_DISPLAYS(pDispEvo, dispIndex, pDevEvo) {
+         const NvU32 subDevice = pDevEvo->pSubDevices[pDispEvo->displayOwner]->handle;
++
++        // Release the display memory reserve while RM still takes it.
++        SetDisplayReserve(pDispEvo, 0, 0);
++
+         // Before freeing anything, dump anything left in the RM's DisplayPort
+         // AUX channel log.
+         if (pDispEvo->dpAuxLoggingEnabled) {
+@@ -5143,6 +5150,114 @@ NvBool nvRmSetGc6Allowed(NVDevEvoPtr pDevEvo, NvBool allowed)
+ 
+     return TRUE;
+ }
++/*
++ * Tell RM how much video memory to hold in reserve for the scanout surfaces
++ * of pDispEvo (NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE), when that changed
++ * since the last declaration.  RM gives the reserve back to a scanout
++ * allocation of NVKMS that fails for lack of video memory.
++ */
++static void SetDisplayReserve(NVDispEvoPtr pDispEvo,
++                              NvU64 reserveSize,
++                              NvU64 surfaceSize)
++{
++    NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS params = { };
++    NVDevEvoPtr pDevEvo = pDispEvo->pDevEvo;
++    NvU32 ret;
++
++    if ((pDevEvo->displayCommonHandle == 0) ||
++        ((pDispEvo->displayReserve.reserveSize == reserveSize) &&
++         (pDispEvo->displayReserve.surfaceSize == surfaceSize))) {
++        return;
++    }
++
++    params.subDeviceInstance = pDispEvo->displayOwner;
++    params.reserveSize = reserveSize;
++    params.surfaceSize = surfaceSize;
++
++    ret = nvRmApiControl(nvEvoGlobal.clientHandle,
++                         pDevEvo->displayCommonHandle,
++                         NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE,
++                         &params, sizeof(params));
++    if (ret != NVOS_STATUS_SUCCESS) {
++        nvEvoLogDisp(pDispEvo, EVO_LOG_WARN,
++                     "Failed to set the display memory reserve to %llu KiB (0x%x)",
++                     reserveSize >> 10, ret);
++        return;
++    }
++
++    pDispEvo->displayReserve.reserveSize = reserveSize;
++    pDispEvo->displayReserve.surfaceSize = surfaceSize;
++}
++
++/*
++ * One XRGB8888 scanout surface of width x height as NVIDIA's GBM backend
++ * sizes it: the pitch in 64-byte units, the height in 128-line blocks, the
++ * whole rounded up to 64 KiB (0x870000 bytes at 1920x1080).
++ */
++static NvU64 ScanoutSurfaceSize(NvU32 width, NvU32 height)
++{
++    const NvU64 pitch = NV_ALIGN_UP64((NvU64)width * 4, 64);
++    const NvU64 lines = NV_ALIGN_UP64((NvU64)height, 128);
++
++    return NV_ALIGN_UP64(pitch * lines, 0x10000);
++}
++
++/*
++ * Declare the video memory reserve for the scanout surfaces of the committed
++ * configuration, as the display_reserve_mib module parameter asks: per
++ * active head five surfaces of its ViewPortIn and four cursors of the
++ * maximum cursor size, or a fixed size while any head is active.  The five
++ * surfaces cover the largest peak of display allocations above an idle
++ * desktop measured with GNOME 46 on one head (4.67 surfaces), and a
++ * compositor may hold four cursor images.  Called after every successful
++ * modeset.
++ */
++void nvRmUpdateDisplayReserve(NVDevEvoPtr pDevEvo)
++{
++    const NvS32 reserveMib = nvkms_display_reserve_mib();
++    const NvU64 cursorSize = (NvU64)pDevEvo->cursorHal->caps.maxSize *
++                             pDevEvo->cursorHal->caps.maxSize * 4;
++    NVDispEvoPtr pDispEvo;
++    NvU32 dispIndex;
++
++    if (reserveMib == 0) {
++        return;
++    }
++
++    if (reserveMib < -1) {
++        nvEvoLogDev(pDevEvo, EVO_LOG_WARN,
++                    "Invalid display_reserve_mib %d: no display memory reserve",
++                    reserveMib);
++        return;
++    }
++
++    FOR_ALL_EVO_DISPLAYS(pDispEvo, dispIndex, pDevEvo) {
++        NvU64 reserveSize = 0;
++        NvU64 surfaceSize = 0;
++        NvU32 apiHead;
++
++        for (apiHead = 0; apiHead < pDevEvo->numApiHeads; apiHead++) {
++            const NVHwModeViewPortEvo *pViewPort;
++            NvU64 size;
++
++            if (!nvApiHeadIsActive(pDispEvo, apiHead)) {
++                continue;
++            }
++
++            pViewPort = &pDispEvo->apiHeadState[apiHead].timings.viewPort;
++            size = ScanoutSurfaceSize(pViewPort->in.width, pViewPort->in.height);
++
++            surfaceSize = NV_MAX(surfaceSize, size);
++            reserveSize += 5 * size + 4 * cursorSize;
++        }
++
++        if ((reserveMib > 0) && (surfaceSize != 0)) {
++            reserveSize = (NvU64)reserveMib << 20;
++        }
++
++        SetDisplayReserve(pDispEvo, reserveSize, surfaceSize);
++    }
++}
+ 
+ typedef struct _NVRmRgLine1CallbackRec {
+     NVRgLine1CallbackRec base;
+diff --git a/src/nvidia/generated/g_disp_objs_nvoc.c b/src/nvidia/generated/g_disp_objs_nvoc.c
+index 620693e..41f1826 100644
+--- a/src/nvidia/generated/g_disp_objs_nvoc.c
++++ b/src/nvidia/generated/g_disp_objs_nvoc.c
+@@ -2845,6 +2845,12 @@ static NV_STATUS dispcmnCtrlCmdSystemQueryUefiDisplayBandwidth__EXPORT(void *pDi
+ }
+ #endif // !NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x00000004u)
+ 
++#if !NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x00000000u)
++static NV_STATUS dispcmnCtrlCmdSystemSetDisplayReserve__EXPORT(void *pDispCommon, void *pParams) {
++    return dispcmnCtrlCmdSystemSetDisplayReserve_IMPL(pDispCommon, pParams);
++}
++#endif // !NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x00000000u)
++
+ #if !NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x000000c4u)
+ static NV_STATUS dispcmnCtrlCmdSystemInternalAllocateDisplayBandwidth__EXPORT(void *pDispCommon, void *pParams) {
+     return dispcmnCtrlCmdSystemInternalAllocateDisplayBandwidth_IMPL(pDispCommon, pParams);
+@@ -4019,6 +4025,21 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+ #endif
+     },
+     {               /*  [38] */
++#if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x0u)
++        /*pFunc=*/      (void (*)(void)) NULL,
++#else
++        /*pFunc=*/      (void (*)(void)) &dispcmnCtrlCmdSystemSetDisplayReserve__EXPORT,
++#endif // NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x0u)
++        /*flags=*/      0x0u,
++        /*accessRight=*/0x0u,
++        /*methodId=*/   0x730162u,
++        /*paramSize=*/  sizeof(NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS),
++        /*pClassInfo=*/ &(__nvoc_class_def_DispCommon.classInfo),
++#if NV_PRINTF_STRINGS_ALLOWED
++        /*func=*/       "dispcmnCtrlCmdSystemSetDisplayReserve"
++#endif
++    },
++    {               /*  [39] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x48u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4033,7 +4054,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetI2cPortid"
+ #endif
+     },
+-    {               /*  [39] */
++    {               /*  [40] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x820046u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4048,7 +4069,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetType"
+ #endif
+     },
+-    {               /*  [40] */
++    {               /*  [41] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4063,7 +4084,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificFakeDevice"
+ #endif
+     },
+-    {               /*  [41] */
++    {               /*  [42] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4078,7 +4099,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetEdidV2"
+ #endif
+     },
+-    {               /*  [42] */
++    {               /*  [43] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4093,7 +4114,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetEdidV2"
+ #endif
+     },
+-    {               /*  [43] */
++    {               /*  [44] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x48u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4108,7 +4129,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetConnectorData"
+ #endif
+     },
+-    {               /*  [44] */
++    {               /*  [45] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4123,7 +4144,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetHdcpRepeaterInfo"
+ #endif
+     },
+-    {               /*  [45] */
++    {               /*  [46] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4138,7 +4159,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetHdmiEnable"
+ #endif
+     },
+-    {               /*  [46] */
++    {               /*  [47] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4153,7 +4174,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificCtrlHdmi"
+ #endif
+     },
+-    {               /*  [47] */
++    {               /*  [48] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4168,7 +4189,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetHdmiAudioMutestream"
+ #endif
+     },
+-    {               /*  [48] */
++    {               /*  [49] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4183,7 +4204,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetHdcpState"
+ #endif
+     },
+-    {               /*  [49] */
++    {               /*  [50] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4198,7 +4219,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetHdcpDiagnostics"
+ #endif
+     },
+-    {               /*  [50] */
++    {               /*  [51] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4213,7 +4234,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificHdcpCtrl"
+ #endif
+     },
+-    {               /*  [51] */
++    {               /*  [52] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x4u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4228,7 +4249,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetAcpiIdMapping"
+ #endif
+     },
+-    {               /*  [52] */
++    {               /*  [53] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4243,7 +4264,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetAcpiDodDisplayPortAttachment"
+ #endif
+     },
+-    {               /*  [53] */
++    {               /*  [54] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4258,7 +4279,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetAllHeadMask"
+ #endif
+     },
+-    {               /*  [54] */
++    {               /*  [55] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4273,7 +4294,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetOdPacket"
+ #endif
+     },
+-    {               /*  [55] */
++    {               /*  [56] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4288,7 +4309,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetOdPacketCtrl"
+ #endif
+     },
+-    {               /*  [56] */
++    {               /*  [57] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4303,7 +4324,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetPclkLimit"
+ #endif
+     },
+-    {               /*  [57] */
++    {               /*  [58] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x46u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4318,7 +4339,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificOrGetInfo"
+ #endif
+     },
+-    {               /*  [58] */
++    {               /*  [59] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4333,7 +4354,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificHdcpKsvListValidate"
+ #endif
+     },
+-    {               /*  [59] */
++    {               /*  [60] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4348,7 +4369,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificHdcpUpdate"
+ #endif
+     },
+-    {               /*  [60] */
++    {               /*  [61] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4363,7 +4384,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetBacklightBrightness"
+ #endif
+     },
+-    {               /*  [61] */
++    {               /*  [62] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4378,7 +4399,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetBacklightBrightness"
+ #endif
+     },
+-    {               /*  [62] */
++    {               /*  [63] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4393,7 +4414,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetHdmiSinkCaps"
+ #endif
+     },
+-    {               /*  [63] */
++    {               /*  [64] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4408,7 +4429,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetMonitorPower"
+ #endif
+     },
+-    {               /*  [64] */
++    {               /*  [65] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4423,7 +4444,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetHdmiFrlLinkConfig"
+ #endif
+     },
+-    {               /*  [65] */
++    {               /*  [66] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4438,7 +4459,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetHdmiFrlFlushMode"
+ #endif
+     },
+-    {               /*  [66] */
++    {               /*  [67] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4453,7 +4474,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetRegionalCrcs"
+ #endif
+     },
+-    {               /*  [67] */
++    {               /*  [68] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4468,7 +4489,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificApplyEdidOverrideV2"
+ #endif
+     },
+-    {               /*  [68] */
++    {               /*  [69] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4483,7 +4504,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetHdmiGpuCaps"
+ #endif
+     },
+-    {               /*  [69] */
++    {               /*  [70] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4498,7 +4519,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificDisplayChange"
+ #endif
+     },
+-    {               /*  [70] */
++    {               /*  [71] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4513,7 +4534,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetHdmiScdcData"
+ #endif
+     },
+-    {               /*  [71] */
++    {               /*  [72] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4528,7 +4549,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificIsDirectmodeDisplay"
+ #endif
+     },
+-    {               /*  [72] */
++    {               /*  [73] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4543,7 +4564,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetHdmiFrlCapacityComputation"
+ #endif
+     },
+-    {               /*  [73] */
++    {               /*  [74] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4558,7 +4579,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificSetSharedGenericPacket"
+ #endif
+     },
+-    {               /*  [74] */
++    {               /*  [75] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4573,7 +4594,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificAcquireSharedGenericPacket"
+ #endif
+     },
+-    {               /*  [75] */
++    {               /*  [76] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4588,7 +4609,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificReleaseSharedGenericPacket"
+ #endif
+     },
+-    {               /*  [76] */
++    {               /*  [77] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4603,7 +4624,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificDispI2cReadWrite"
+ #endif
+     },
+-    {               /*  [77] */
++    {               /*  [78] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x48u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4618,7 +4639,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificGetValidHeadWindowAssignment"
+ #endif
+     },
+-    {               /*  [78] */
++    {               /*  [79] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4633,7 +4654,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificDefaultAdaptivesyncDisplay"
+ #endif
+     },
+-    {               /*  [79] */
++    {               /*  [80] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4648,7 +4669,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSpecificHdcpKeyDecryption"
+ #endif
+     },
+-    {               /*  [80] */
++    {               /*  [81] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0xc0u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4663,7 +4684,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdInternalGetHotplugUnplugState"
+ #endif
+     },
+-    {               /*  [81] */
++    {               /*  [82] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0xc0u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4678,7 +4699,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdInternalDfpGetDispMuxStatus"
+ #endif
+     },
+-    {               /*  [82] */
++    {               /*  [83] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0xc0u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4693,7 +4714,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdInternalDfpSwitchDispMux"
+ #endif
+     },
+-    {               /*  [83] */
++    {               /*  [84] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4708,7 +4729,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdFrlConfigMacroPad"
+ #endif
+     },
+-    {               /*  [84] */
++    {               /*  [85] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x4au)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4723,7 +4744,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetInfo"
+ #endif
+     },
+-    {               /*  [85] */
++    {               /*  [86] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x48u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4738,7 +4759,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetDisplayportDongleInfo"
+ #endif
+     },
+-    {               /*  [86] */
++    {               /*  [87] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4753,7 +4774,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpSetEldAudioCaps"
+ #endif
+     },
+-    {               /*  [87] */
++    {               /*  [88] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4768,7 +4789,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetSpreadSpectrum"
+ #endif
+     },
+-    {               /*  [88] */
++    {               /*  [89] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4783,7 +4804,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpUpdateDynamicDfpCache"
+ #endif
+     },
+-    {               /*  [89] */
++    {               /*  [90] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4798,7 +4819,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpSetAudioEnable"
+ #endif
+     },
+-    {               /*  [90] */
++    {               /*  [91] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4813,7 +4834,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpAssignSor"
+ #endif
+     },
+-    {               /*  [91] */
++    {               /*  [92] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4828,7 +4849,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetPadlinkMask"
+ #endif
+     },
+-    {               /*  [92] */
++    {               /*  [93] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4843,7 +4864,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetLcdGpioPinNum"
+ #endif
+     },
+-    {               /*  [93] */
++    {               /*  [94] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4858,7 +4879,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpConfigTwoHeadOneOr"
+ #endif
+     },
+-    {               /*  [94] */
++    {               /*  [95] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4873,7 +4894,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpDscCrcControl"
+ #endif
+     },
+-    {               /*  [95] */
++    {               /*  [96] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4888,7 +4909,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpInitMuxData"
+ #endif
+     },
+-    {               /*  [96] */
++    {               /*  [97] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x4u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4903,7 +4924,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpSwitchDispMux"
+ #endif
+     },
+-    {               /*  [97] */
++    {               /*  [98] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4918,7 +4939,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpRunPreDispMuxOperations"
+ #endif
+     },
+-    {               /*  [98] */
++    {               /*  [99] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4933,7 +4954,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpRunPostDispMuxOperations"
+ #endif
+     },
+-    {               /*  [99] */
++    {               /*  [100] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x0u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4948,7 +4969,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetDispMuxStatus"
+ #endif
+     },
+-    {               /*  [100] */
++    {               /*  [101] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4963,7 +4984,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetDsiModeTiming"
+ #endif
+     },
+-    {               /*  [101] */
++    {               /*  [102] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x46u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4978,7 +4999,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetFixedModeTiming"
+ #endif
+     },
+-    {               /*  [102] */
++    {               /*  [103] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -4993,7 +5014,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpEnterDisplayPowerGating"
+ #endif
+     },
+-    {               /*  [103] */
++    {               /*  [104] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5008,7 +5029,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpExitDisplayPowerGating"
+ #endif
+     },
+-    {               /*  [104] */
++    {               /*  [105] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x4au)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5023,7 +5044,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpEdpDriverUnload"
+ #endif
+     },
+-    {               /*  [105] */
++    {               /*  [106] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5038,7 +5059,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSystemSetRegionRamRectangles"
+ #endif
+     },
+-    {               /*  [106] */
++    {               /*  [107] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5053,7 +5074,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdSystemConfigureSafetyInterrupts"
+ #endif
+     },
+-    {               /*  [107] */
++    {               /*  [108] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5068,7 +5089,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpGetDispPhyInfo"
+ #endif
+     },
+-    {               /*  [108] */
++    {               /*  [109] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x844u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5083,7 +5104,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpAuxchCtrl"
+ #endif
+     },
+-    {               /*  [109] */
++    {               /*  [110] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x844u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5098,7 +5119,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpCtrl"
+ #endif
+     },
+-    {               /*  [110] */
++    {               /*  [111] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5113,7 +5134,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetLaneData"
+ #endif
+     },
+-    {               /*  [111] */
++    {               /*  [112] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5128,7 +5149,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetLaneData"
+ #endif
+     },
+-    {               /*  [112] */
++    {               /*  [113] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5143,7 +5164,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetTestpattern"
+ #endif
+     },
+-    {               /*  [113] */
++    {               /*  [114] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5158,7 +5179,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetTestpattern"
+ #endif
+     },
+-    {               /*  [114] */
++    {               /*  [115] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5173,7 +5194,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetPreemphasisDrivecurrentPostcursor2Data"
+ #endif
+     },
+-    {               /*  [115] */
++    {               /*  [116] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5188,7 +5209,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetPreemphasisDrivecurrentPostcursor2Data"
+ #endif
+     },
+-    {               /*  [116] */
++    {               /*  [117] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5203,7 +5224,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpMainLinkCtrl"
+ #endif
+     },
+-    {               /*  [117] */
++    {               /*  [118] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5218,7 +5239,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetAudioMuteStream"
+ #endif
+     },
+-    {               /*  [118] */
++    {               /*  [119] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5233,7 +5254,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpASSRCtrl"
+ #endif
+     },
+-    {               /*  [119] */
++    {               /*  [120] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5248,7 +5269,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpTopologyAllocateDisplayId"
+ #endif
+     },
+-    {               /*  [120] */
++    {               /*  [121] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5263,7 +5284,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpTopologyFreeDisplayId"
+ #endif
+     },
+-    {               /*  [121] */
++    {               /*  [122] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5278,7 +5299,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetLinkConfig"
+ #endif
+     },
+-    {               /*  [122] */
++    {               /*  [123] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5293,7 +5314,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetEDPData"
+ #endif
+     },
+-    {               /*  [123] */
++    {               /*  [124] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5308,7 +5329,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpConfigStream"
+ #endif
+     },
+-    {               /*  [124] */
++    {               /*  [125] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5323,7 +5344,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetRateGov"
+ #endif
+     },
+-    {               /*  [125] */
++    {               /*  [126] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5338,7 +5359,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetManualDisplayPort"
+ #endif
+     },
+-    {               /*  [126] */
++    {               /*  [127] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5353,7 +5374,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetEcf"
+ #endif
+     },
+-    {               /*  [127] */
++    {               /*  [128] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5368,7 +5389,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSendACT"
+ #endif
+     },
+-    {               /*  [128] */
++    {               /*  [129] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x820046u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5383,7 +5404,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetCaps"
+ #endif
+     },
+-    {               /*  [129] */
++    {               /*  [130] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x4u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5398,7 +5419,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGenerateFakeInterrupt"
+ #endif
+     },
+-    {               /*  [130] */
++    {               /*  [131] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5413,7 +5434,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpConfigRadScratchReg"
+ #endif
+     },
+-    {               /*  [131] */
++    {               /*  [132] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5428,7 +5449,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpConfigSingleHeadMultiStream"
+ #endif
+     },
+-    {               /*  [132] */
++    {               /*  [133] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5443,7 +5464,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetTriggerSelect"
+ #endif
+     },
+-    {               /*  [133] */
++    {               /*  [134] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5458,7 +5479,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetTriggerAll"
+ #endif
+     },
+-    {               /*  [134] */
++    {               /*  [135] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x0u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5473,7 +5494,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpRetrieveDpRingBuffer"
+ #endif
+     },
+-    {               /*  [135] */
++    {               /*  [136] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5488,7 +5509,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetAuxLogData"
+ #endif
+     },
+-    {               /*  [136] */
++    {               /*  [137] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5503,7 +5524,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpConfigIndexedLinkRates"
+ #endif
+     },
+-    {               /*  [137] */
++    {               /*  [138] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5518,7 +5539,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetStereoMSAProperties"
+ #endif
+     },
+-    {               /*  [138] */
++    {               /*  [139] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5533,7 +5554,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpConfigureFec"
+ #endif
+     },
+-    {               /*  [139] */
++    {               /*  [140] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5548,7 +5569,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpConfigMacroPad"
+ #endif
+     },
+-    {               /*  [140] */
++    {               /*  [141] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5563,7 +5584,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpAuxchI2cTransferCtrl"
+ #endif
+     },
+-    {               /*  [141] */
++    {               /*  [142] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x844u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5578,7 +5599,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpEnableVrr"
+ #endif
+     },
+-    {               /*  [142] */
++    {               /*  [143] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5593,7 +5614,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetGenericInfoframe"
+ #endif
+     },
+-    {               /*  [143] */
++    {               /*  [144] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5608,7 +5629,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetMsaAttributes"
+ #endif
+     },
+-    {               /*  [144] */
++    {               /*  [145] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5623,7 +5644,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpInternalLcdOverdrive"
+ #endif
+     },
+-    {               /*  [145] */
++    {               /*  [146] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5638,7 +5659,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetMSAPropertiesv2"
+ #endif
+     },
+-    {               /*  [146] */
++    {               /*  [147] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x844u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5653,7 +5674,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDp2xLinkTrain"
+ #endif
+     },
+-    {               /*  [147] */
++    {               /*  [148] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5668,7 +5689,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDp2xGetLaneData"
+ #endif
+     },
+-    {               /*  [148] */
++    {               /*  [149] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5683,7 +5704,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDp2xSetLaneData"
+ #endif
+     },
+-    {               /*  [149] */
++    {               /*  [150] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5698,7 +5719,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDfpVariableBacklightCtrl"
+ #endif
+     },
+-    {               /*  [150] */
++    {               /*  [151] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5713,7 +5734,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetLevelInfoTableData"
+ #endif
+     },
+-    {               /*  [151] */
++    {               /*  [152] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5728,7 +5749,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpGetLevelInfoTableData"
+ #endif
+     },
+-    {               /*  [152] */
++    {               /*  [153] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5743,7 +5764,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDp2xSetLevelInfoTableData"
+ #endif
+     },
+-    {               /*  [153] */
++    {               /*  [154] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5758,7 +5779,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDp2xGetLevelInfoTableData"
+ #endif
+     },
+-    {               /*  [154] */
++    {               /*  [155] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x100u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5773,7 +5794,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdCalculateDpImp"
+ #endif
+     },
+-    {               /*  [155] */
++    {               /*  [156] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5788,7 +5809,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDPGetCableIDInfoFromMacro"
+ #endif
+     },
+-    {               /*  [156] */
++    {               /*  [157] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x40u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5803,7 +5824,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpNotifyLT"
+ #endif
+     },
+-    {               /*  [157] */
++    {               /*  [158] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -5818,7 +5839,7 @@ static const struct NVOC_EXPORTED_METHOD_DEF __nvoc_exported_method_def_DispComm
+         /*func=*/       "dispcmnCtrlCmdDpSetWarFlags"
+ #endif
+     },
+-    {               /*  [158] */
++    {               /*  [159] */
+ #if NVOC_EXPORTED_METHOD_DISABLED_BY_FLAG(0x44u)
+         /*pFunc=*/      (void (*)(void)) NULL,
+ #else
+@@ -6117,7 +6138,7 @@ NV_STATUS __nvoc_up_thunk_Notifier_dispcmnGetOrAllocNotifShare(struct DispCommon
+ 
+ const struct NVOC_EXPORT_INFO __nvoc_export_info__DispCommon = 
+ {
+-    .numEntries=     159,
++    .numEntries=     160,
+     .pExportEntries= __nvoc_exported_method_def_DispCommon
+ };
+ 
+diff --git a/src/nvidia/generated/g_disp_objs_nvoc.h b/src/nvidia/generated/g_disp_objs_nvoc.h
+index a7687f9..89867cf 100644
+--- a/src/nvidia/generated/g_disp_objs_nvoc.h
++++ b/src/nvidia/generated/g_disp_objs_nvoc.h
+@@ -2090,6 +2090,16 @@ static inline NV_STATUS dispcmnCtrlCmdSystemQueryUefiDisplayBandwidth(struct Dis
+ #define dispcmnCtrlCmdSystemQueryUefiDisplayBandwidth(pDispCommon, pParams) dispcmnCtrlCmdSystemQueryUefiDisplayBandwidth_IMPL(pDispCommon, pParams)
+ #endif // __nvoc_disp_objs_h_disabled
+ 
++NV_STATUS dispcmnCtrlCmdSystemSetDisplayReserve_IMPL(struct DispCommon *pDispCommon, NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS *pParams);
++#ifdef __nvoc_disp_objs_h_disabled
++static inline NV_STATUS dispcmnCtrlCmdSystemSetDisplayReserve(struct DispCommon *pDispCommon, NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS *pParams) {
++    NV_ASSERT_FAILED_PRECOMP("DispCommon was disabled!");
++    return NV_ERR_NOT_SUPPORTED;
++}
++#else // __nvoc_disp_objs_h_disabled
++#define dispcmnCtrlCmdSystemSetDisplayReserve(pDispCommon, pParams) dispcmnCtrlCmdSystemSetDisplayReserve_IMPL(pDispCommon, pParams)
++#endif // __nvoc_disp_objs_h_disabled
++
+ NV_STATUS dispcmnCtrlCmdSystemInternalAllocateDisplayBandwidth_IMPL(struct DispCommon *pDispCommon, NV0073_CTRL_SYSTEM_INTERNAL_ALLOCATE_DISPLAY_BANDWIDTH_PARAMS *pParams);
+ #ifdef __nvoc_disp_objs_h_disabled
+ static inline NV_STATUS dispcmnCtrlCmdSystemInternalAllocateDisplayBandwidth(struct DispCommon *pDispCommon, NV0073_CTRL_SYSTEM_INTERNAL_ALLOCATE_DISPLAY_BANDWIDTH_PARAMS *pParams) {
+@@ -3370,6 +3380,8 @@ NV_STATUS dispcmnCtrlCmdSystemAllocateDisplayBandwidth_IMPL(struct DispCommon *p
+ 
+ NV_STATUS dispcmnCtrlCmdSystemQueryUefiDisplayBandwidth_IMPL(struct DispCommon *pDispCommon, NV0073_CTRL_SYSTEM_QUERY_UEFI_DISPLAY_BANDWIDTH_PARAMS *pParams);
+ 
++NV_STATUS dispcmnCtrlCmdSystemSetDisplayReserve_IMPL(struct DispCommon *pDispCommon, NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS *pParams);
++
+ NV_STATUS dispcmnCtrlCmdSystemInternalAllocateDisplayBandwidth_IMPL(struct DispCommon *pDispCommon, NV0073_CTRL_SYSTEM_INTERNAL_ALLOCATE_DISPLAY_BANDWIDTH_PARAMS *pParams);
+ 
+ NV_STATUS dispcmnCtrlCmdSystemGetHotplugConfig_IMPL(struct DispCommon *pDispCommon, NV0073_CTRL_SYSTEM_GET_SET_HOTPLUG_CONFIG_PARAMS *pHotplugParams);
+diff --git a/src/nvidia/generated/g_mem_mgr_nvoc.h b/src/nvidia/generated/g_mem_mgr_nvoc.h
+index 8000641..9676b1e 100644
+--- a/src/nvidia/generated/g_mem_mgr_nvoc.h
++++ b/src/nvidia/generated/g_mem_mgr_nvoc.h
+@@ -742,6 +742,7 @@ struct MemoryManager {
+     NvBool bLocalizedMemorySupported;
+     NvU64 localizedMask;
+     NvHandle hGspHeapSysMemHandle;
++    struct DisplayReserve *pDisplayReserve;
+ };
+ 
+ 
+diff --git a/src/nvidia/inc/kernel/gpu/mem_mgr/display_reserve.h b/src/nvidia/inc/kernel/gpu/mem_mgr/display_reserve.h
+new file mode 100644
+index 0000000..0f4b064
+--- /dev/null
++++ b/src/nvidia/inc/kernel/gpu/mem_mgr/display_reserve.h
+@@ -0,0 +1,47 @@
++/*
++ * SPDX-FileCopyrightText: Copyright (c) 2026 Silas Müller <github@silasmueller.de>
++ * SPDX-License-Identifier: MIT
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ */
++#ifndef DISPLAY_RESERVE_H
++#define DISPLAY_RESERVE_H
++
++#include "core/core.h"
++#include "nvos.h"
++
++struct MemoryManager;
++
++//
++// Video memory held in reserve for the display's scanout surfaces, as the
++// display driver declares it with NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE.
++// See display_reserve.c.
++//
++
++NV_STATUS displayReserveInit(OBJGPU *pGpu, struct MemoryManager *pMemoryManager);
++void      displayReserveDestroy(OBJGPU *pGpu, struct MemoryManager *pMemoryManager);
++void      displayReserveStart(OBJGPU *pGpu, struct MemoryManager *pMemoryManager);
++void      displayReserveStop(OBJGPU *pGpu, struct MemoryManager *pMemoryManager);
++
++NV_STATUS displayReserveSetNeed(OBJGPU *pGpu, struct MemoryManager *pMemoryManager,
++                                NvU64 reserveSize, NvU64 surfaceSize);
++NvBool    displayReserveRelease(OBJGPU *pGpu, struct MemoryManager *pMemoryManager,
++                                const NV_MEMORY_ALLOCATION_PARAMS *pAllocData, NvU64 size);
++
++#endif // DISPLAY_RESERVE_H
+diff --git a/src/nvidia/src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c b/src/nvidia/src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c
+index 7242baa..ffa6191 100644
+--- a/src/nvidia/src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c
++++ b/src/nvidia/src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c
+@@ -37,6 +37,8 @@
+ #include "gpu/gpu.h"
+ #include "gpu/disp/kern_disp.h"
+ #include "gpu/disp/disp_objs.h"
++#include "gpu/mem_mgr/display_reserve.h"
++#include "gpu/mem_mgr/mem_mgr.h"
+ #include "rmapi/rs_utils.h"
+ #include "rmapi/rmapi.h"
+ #include "gpu/disp/head/kernel_head.h"
+@@ -172,6 +174,35 @@ dispcmnCtrlCmdSystemAllocateDisplayBandwidth_IMPL
+     return status;
+ }
+ 
++/*!
++ * @brief Declare the video memory reserve for the display's scanout surfaces.
++ */
++NV_STATUS
++dispcmnCtrlCmdSystemSetDisplayReserve_IMPL
++(
++    DispCommon *pDispCommon,
++    NV0073_CTRL_SYSTEM_SET_DISPLAY_RESERVE_PARAMS *pParams
++)
++{
++    OBJGPU    *pGpu;
++    NV_STATUS  status;
++
++    // client gave us a subdevice #: get right pGpu for it
++    status = dispapiSetUnicastAndSynchronize_HAL(
++                               staticCast(pDispCommon, DisplayApi),
++                               DISPAPI_GET_GPUGRP(pDispCommon),
++                               &pGpu,
++                               NULL,
++                               pParams->subDeviceInstance);
++    if (status != NV_OK)
++    {
++        return status;
++    }
++
++    return displayReserveSetNeed(pGpu, GPU_GET_MEMORY_MANAGER(pGpu),
++                                 pParams->reserveSize, pParams->surfaceSize);
++}
++
+ /*!
+  * @brief Query Display Bandwidth values set by UEFI.
+  */
+diff --git a/src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c b/src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c
+new file mode 100644
+index 0000000..0878762
+--- /dev/null
++++ b/src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c
+@@ -0,0 +1,679 @@
++/*
++ * SPDX-FileCopyrightText: Copyright (c) 2026 Silas Müller <github@silasmueller.de>
++ * SPDX-License-Identifier: MIT
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ */
++
++//
++// Display reserve.
++//
++// A scanout surface is physically contiguous video memory with no fallback.
++// When processes that size themselves to the free video memory (a game
++// sizing its pools to the Vulkan memory budget) have taken it all, the
++// display driver's next scanout allocation fails and the display stops.
++//
++// The display driver declares how much video memory to hold in reserve for
++// its scanout surfaces, and the size of its largest surface, with
++// NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE; NVKMS derives both from the
++// committed modes of its heads.  RM holds the reserve as runs of PMA pages:
++// each full run covers one surface with the page size RM gives such a
++// surface, and one rest run holds the remainder.  The runs leave PMA's free
++// count, so the reserve counts as used video memory.
++//
++// When PMA refuses a scanout allocation of a kernel client (kernel privilege,
++// ISO, physically contiguous, not NO_SCANOUT) for lack of memory,
++// _vidmemPmaAllocate calls displayReserveRelease() to free runs that cover
++// it and retries.  Allocations through the RM API hold the API lock for
++// writing unless RmRoApiLock enables read-only allocations, so no other such
++// allocation takes the freed pages before the retry; UVM allocates from PMA
++// directly and may, and then the next run is released.
++//
++// A release schedules a refill one second later.  A refill that cannot fill
++// the reserve retries on a backoff of one second, doubling up to thirty.  A
++// new declaration re-cuts the reserve: the refill allocates the new runs
++// before it frees the old ones.
++//
++// Runs are never mapped or written.  PMA hands out zeroed pages when it
++// scrubs on free, so the runs are freed with PMA_FREE_SKIP_SCRUB; this also
++// keeps the scrubber, which is destroyed before memmgrStatePreUnload at
++// unload, out of the free.
++//
++// Locking: pMutex guards the fields below it in DisplayReserve and is never
++// held across a PMA call.  The refill runs as a work item with the API lock
++// held for writing and without the GPU lock, as PMA must not be entered
++// under the GPU lock.  displayReserveStop() runs with the GPU lock, possibly
++// without the API lock (GC6/RTD3 entry), and clears bStarted; the refill
++// checks bStarted after each PMA allocation and frees what it got once it is
++// clear.
++//
++
++#include "gpu/mem_mgr/display_reserve.h"
++#include "gpu/gpu.h"
++#include "gpu/mem_mgr/mem_mgr.h"
++#include "gpu/mem_mgr/heap.h"
++#include "gpu/mem_mgr/phys_mem_allocator/phys_mem_allocator.h"
++#include "gpu/timer/objtmr.h"
++#include "kernel/gpu/mig_mgr/kernel_mig_manager.h"
++#include "core/locks.h"
++#include "os/os.h"
++#include "resserv/rs_server.h"
++
++// At most this many full runs; a larger reserve makes each run cover more.
++#define DISPLAY_RESERVE_MAX_RUNS            64
++#define DISPLAY_RESERVE_RUN_ALIGN           0x10000ULL
++
++#define DISPLAY_RESERVE_REFILL_NS           (1ULL * 1000 * 1000 * 1000)
++#define DISPLAY_RESERVE_BACKOFF_MAX_NS      (30ULL * 1000 * 1000 * 1000)
++
++typedef struct
++{
++    NvU64 size;         // bytes the run covers
++    NvU64 pageSize;
++    NvU64 pageCount;
++    NvU64 base;         // physical address of the first page; 0 while not held
++} DisplayReserveRun;
++
++struct DisplayReserve
++{
++    TMR_EVENT          *pRefillEvent;
++    PORT_MUTEX         *pMutex;
++
++    // Declared by the display driver.
++    NvU64               reserveSize;
++    NvU64               surfaceSize;
++
++    // The runs, cut for cutReserveSize and cutSurfaceSize.  The last one is
++    // the rest run when its size is below the others'.
++    NvU64               cutReserveSize;
++    NvU64               cutSurfaceSize;
++    NvU32               numRuns;
++    DisplayReserveRun   runs[DISPLAY_RESERVE_MAX_RUNS + 1];
++    NvU64               heldBytes;      // PMA bytes of the runs held
++    NvU64               targetBytes;    // PMA bytes of all runs
++
++    NvU64               backoffNs;
++    NvBool              bStarted;
++};
++
++typedef struct DisplayReserve DisplayReserve;
++
++static PMA *
++_displayReserveGetPma(MemoryManager *pMemoryManager)
++{
++    return MEMORY_MANAGER_GET_HEAP(pMemoryManager)->pPmaObject;
++}
++
++//
++// The PMA page size RM gives a scanout allocation of this size: the one
++// memmgrDeterminePageSize() returns for NVKMS's request
++// (NVKMS_KAPI_ALLOCATION_TYPE_SCANOUT, pitch), raised to PMA's minimum as
++// _vidmemPmaAllocate() does.
++//
++static NvU64
++_displayReserveRunPageSize(MemoryManager *pMemoryManager, NvU64 size)
++{
++    NvU32 attr  = DRF_DEF(OS32, _ATTR, _FORMAT, _PITCH) |
++                  DRF_DEF(OS32, _ATTR, _LOCATION, _VIDMEM) |
++                  DRF_DEF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS);
++    NvU32 attr2 = DRF_DEF(OS32, _ATTR2, _GPU_CACHEABLE, _NO) |
++                  DRF_DEF(OS32, _ATTR2, _ISO, _YES);
++    NvU64 pageSize;
++
++    pageSize = memmgrDeterminePageSize(pMemoryManager, pMemoryManager->hClient, size,
++                                       NVOS32_ATTR_FORMAT_PITCH,
++                                       NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE |
++                                       NVOS32_ALLOC_FLAGS_FORCE_MEM_GROWS_UP,
++                                       &attr, &attr2);
++
++    return NV_MAX(pageSize, RM_PAGE_SIZE_64K);
++}
++
++//
++// Cut runs for a reserve of reserveSize bytes and surfaces of surfaceSize
++// bytes: full runs of one surface each, or of more when that would take more
++// than DISPLAY_RESERVE_MAX_RUNS of them, and one rest run for the remainder.
++// Returns the number of runs.
++//
++static NvU32
++_displayReserveCut
++(
++    MemoryManager     *pMemoryManager,
++    NvU64              reserveSize,
++    NvU64              surfaceSize,
++    DisplayReserveRun *pRuns
++)
++{
++    NvU64 runSize;
++    NvU64 restSize;
++    NvU32 numFull;
++    NvU32 numRuns = 0;
++    NvU32 i;
++
++    if ((reserveSize == 0) || (surfaceSize == 0))
++        return 0;
++
++    runSize  = NV_MAX(surfaceSize,
++                      NV_ALIGN_UP64(NV_DIV_AND_CEIL(reserveSize, DISPLAY_RESERVE_MAX_RUNS),
++                                    DISPLAY_RESERVE_RUN_ALIGN));
++    numFull  = (NvU32)(reserveSize / runSize);
++    restSize = reserveSize - (NvU64)numFull * runSize;
++
++    for (i = 0; i < numFull + ((restSize != 0) ? 1 : 0); i++)
++    {
++        NvU64 size = (i < numFull) ? runSize : restSize;
++
++        pRuns[numRuns].size      = size;
++        pRuns[numRuns].pageSize  = _displayReserveRunPageSize(pMemoryManager, size);
++        pRuns[numRuns].pageCount = NV_DIV_AND_CEIL(size, pRuns[numRuns].pageSize);
++        pRuns[numRuns].base      = 0;
++        numRuns++;
++    }
++
++    return numRuns;
++}
++
++static NvU64
++_displayReserveRunBytes(const DisplayReserveRun *pRun)
++{
++    return pRun->pageCount * pRun->pageSize;
++}
++
++static NV_STATUS
++_displayReserveAllocRun(PMA *pPma, DisplayReserveRun *pRun)
++{
++    PMA_ALLOCATION_OPTIONS allocOptions = {0};
++
++    allocOptions.flags     = PMA_ALLOCATE_PINNED |
++                             PMA_ALLOCATE_CONTIGUOUS |
++                             PMA_ALLOCATE_FORCE_ALIGNMENT;
++    allocOptions.alignment = pRun->pageSize;
++
++    return pmaAllocatePages(pPma, pRun->pageCount, pRun->pageSize, &allocOptions, &pRun->base);
++}
++
++static void
++_displayReserveFreeRun(PMA *pPma, DisplayReserveRun *pRun)
++{
++    pmaFreePages(pPma, &pRun->base, 1, _displayReserveRunBytes(pRun), PMA_FREE_SKIP_SCRUB);
++    pRun->base = 0;
++}
++
++static void
++_displayReserveFreeRuns(PMA *pPma, DisplayReserveRun *pRuns, NvU32 numRuns)
++{
++    NvU32 i;
++
++    for (i = 0; i < numRuns; i++)
++    {
++        if (pRuns[i].base != 0)
++            _displayReserveFreeRun(pPma, &pRuns[i]);
++    }
++}
++
++//
++// (Re)arm the refill timer, which needs the GPU lock.  The refill work item
++// and _vidmemPmaAllocate(), the callers, do not hold it.
++//
++static void
++_displayReserveScheduleRefill(OBJGPU *pGpu, DisplayReserve *pReserve, NvU64 delayNs)
++{
++    OBJTMR    *pTmr = GPU_GET_TIMER(pGpu);
++    NvBool     bLockAcquired = NV_FALSE;
++    NV_STATUS  status;
++
++    if (!rmDeviceGpuLockIsOwner(pGpu->gpuInstance))
++    {
++        status = rmDeviceGpuLocksAcquire(pGpu, GPUS_LOCK_FLAGS_NONE, RM_LOCK_MODULES_MEM);
++        if (status != NV_OK)
++        {
++            NV_PRINTF(LEVEL_ERROR, "display reserve: cannot schedule a refill (0x%x)\n", status);
++            return;
++        }
++        bLockAcquired = NV_TRUE;
++    }
++
++    status = tmrEventScheduleRel(pTmr, pReserve->pRefillEvent, delayNs);
++    if (status != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "display reserve: cannot schedule a refill (0x%x)\n", status);
++
++    if (bLockAcquired)
++        rmDeviceGpuLocksRelease(pGpu, GPUS_LOCK_FLAGS_NONE, NULL);
++}
++
++static void _displayReserveRefillWorkItem(NvU32 gpuInstance, void *pArgs);
++
++static void
++_displayReserveQueueRefill(OBJGPU *pGpu)
++{
++    NV_STATUS status;
++
++    status = osQueueWorkItem(pGpu, _displayReserveRefillWorkItem, NULL,
++                             (OsQueueWorkItemFlags){
++                                 .bDontFreeParams = NV_TRUE,
++                                 .bDropOnUnloadQueueFlush = NV_TRUE,
++                                 .apiLock = WORKITEM_FLAGS_API_LOCK_READ_WRITE});
++    if (status != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "display reserve: cannot queue a refill (0x%x)\n", status);
++}
++
++static NV_STATUS
++_displayReserveRefillCallback(OBJGPU *pGpu, OBJTMR *pTmr, TMR_EVENT *pEvent)
++{
++    _displayReserveQueueRefill(pGpu);
++    return NV_OK;
++}
++
++//
++// Bring the runs to the declared cut and allocate the runs not held.
++//
++static void
++_displayReserveRefillWorkItem(NvU32 gpuInstance, void *pArgs)
++{
++    OBJGPU            *pGpu = gpumgrGetGpu(gpuInstance);
++    MemoryManager     *pMemoryManager;
++    DisplayReserve    *pReserve;
++    PMA               *pPma;
++    DisplayReserveRun  runs[DISPLAY_RESERVE_MAX_RUNS + 1];
++    NvU64              reserveSize;
++    NvU64              surfaceSize;
++    NvU64              heldBytes;
++    NvU64              targetBytes;
++    NvU32              numRuns;
++    NvU32              i;
++    NvBool             bStopped = NV_FALSE;
++    NV_STATUS          status = NV_OK;
++
++    if ((pGpu == NULL) || !gpuIsGpuFullPower(pGpu) || IS_MIG_ENABLED(pGpu))
++        return;
++
++    pMemoryManager = GPU_GET_MEMORY_MANAGER(pGpu);
++    pReserve = pMemoryManager->pDisplayReserve;
++    if ((pReserve == NULL) || !memmgrIsPmaInitialized(pMemoryManager))
++        return;
++
++    pPma = _displayReserveGetPma(pMemoryManager);
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    bStopped    = !pReserve->bStarted;
++    reserveSize = pReserve->reserveSize;
++    surfaceSize = pReserve->surfaceSize;
++    portSyncMutexRelease(pReserve->pMutex);
++
++    if (bStopped)
++        return;
++
++    //
++    // A new declaration: allocate the new runs first, then swap them in and
++    // free the old ones, so the reserve is never empty in between.
++    //
++    if ((reserveSize != pReserve->cutReserveSize) || (surfaceSize != pReserve->cutSurfaceSize))
++    {
++        DisplayReserveRun oldRuns[DISPLAY_RESERVE_MAX_RUNS + 1];
++        NvU32             numOldRuns;
++
++        numRuns = _displayReserveCut(pMemoryManager, reserveSize, surfaceSize, runs);
++        for (i = 0; (i < numRuns) && (status == NV_OK); i++)
++            status = _displayReserveAllocRun(pPma, &runs[i]);
++
++        portSyncMutexAcquire(pReserve->pMutex);
++        bStopped = !pReserve->bStarted;
++        if (!bStopped)
++        {
++            portMemCopy(oldRuns, sizeof(oldRuns), pReserve->runs, sizeof(pReserve->runs));
++            numOldRuns = pReserve->numRuns;
++
++            portMemCopy(pReserve->runs, sizeof(pReserve->runs), runs, sizeof(runs));
++            pReserve->numRuns        = numRuns;
++            pReserve->cutReserveSize = reserveSize;
++            pReserve->cutSurfaceSize = surfaceSize;
++            pReserve->heldBytes      = 0;
++            pReserve->targetBytes    = 0;
++            for (i = 0; i < numRuns; i++)
++            {
++                pReserve->targetBytes += _displayReserveRunBytes(&runs[i]);
++                if (runs[i].base != 0)
++                    pReserve->heldBytes += _displayReserveRunBytes(&runs[i]);
++            }
++        }
++        portSyncMutexRelease(pReserve->pMutex);
++
++        if (bStopped)
++        {
++            _displayReserveFreeRuns(pPma, runs, numRuns);
++            return;
++        }
++        _displayReserveFreeRuns(pPma, oldRuns, numOldRuns);
++
++        NV_PRINTF(LEVEL_INFO,
++                  "display reserve: %llu KiB for %llu KiB scanout surfaces, %u runs, %llu KiB in PMA\n",
++                  reserveSize >> 10, surfaceSize >> 10, numRuns, pReserve->targetBytes >> 10);
++    }
++
++    // Allocate the runs not held.
++    status = NV_OK;
++    for (i = 0; (i < pReserve->numRuns) && (status == NV_OK) && !bStopped; i++)
++    {
++        DisplayReserveRun run;
++
++        if (pReserve->runs[i].base != 0)
++            continue;
++
++        run = pReserve->runs[i];
++        status = _displayReserveAllocRun(pPma, &run);
++        if (status != NV_OK)
++            break;
++
++        portSyncMutexAcquire(pReserve->pMutex);
++        bStopped = !pReserve->bStarted;
++        if (!bStopped)
++        {
++            pReserve->runs[i].base = run.base;
++            pReserve->heldBytes += _displayReserveRunBytes(&run);
++        }
++        portSyncMutexRelease(pReserve->pMutex);
++
++        if (bStopped)
++            _displayReserveFreeRun(pPma, &run);
++    }
++
++    if (bStopped)
++        return;
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    heldBytes   = pReserve->heldBytes;
++    targetBytes = pReserve->targetBytes;
++    portSyncMutexRelease(pReserve->pMutex);
++
++    if (heldBytes == targetBytes)
++    {
++        NV_PRINTF(LEVEL_INFO, "display reserve: holds %llu KiB\n", heldBytes >> 10);
++        pReserve->backoffNs = DISPLAY_RESERVE_REFILL_NS;
++        return;
++    }
++
++    NV_PRINTF(LEVEL_INFO, "display reserve: holds %llu of %llu KiB (0x%x), next try in %llu s\n",
++              heldBytes >> 10, targetBytes >> 10, status,
++              pReserve->backoffNs / DISPLAY_RESERVE_REFILL_NS);
++
++    _displayReserveScheduleRefill(pGpu, pReserve, pReserve->backoffNs);
++    pReserve->backoffNs = NV_MIN(pReserve->backoffNs * 2, DISPLAY_RESERVE_BACKOFF_MAX_NS);
++}
++
++/*!
++ * Set up the display reserve of pGpu.  Called from memmgrStateInitLocked.
++ * Without PMA there is no reserve, and the display driver's declaration is
++ * refused.
++ */
++NV_STATUS
++displayReserveInit
++(
++    OBJGPU        *pGpu,
++    MemoryManager *pMemoryManager
++)
++{
++    DisplayReserve *pReserve;
++    NV_STATUS       status;
++
++    if (!memmgrIsPmaInitialized(pMemoryManager))
++        return NV_OK;
++
++    pReserve = portMemAllocNonPaged(sizeof(*pReserve));
++    if (pReserve == NULL)
++        return NV_ERR_NO_MEMORY;
++    portMemSet(pReserve, 0, sizeof(*pReserve));
++
++    pReserve->pMutex = portSyncMutexCreate(portMemAllocatorGetGlobalNonPaged());
++    if (pReserve->pMutex == NULL)
++    {
++        portMemFree(pReserve);
++        return NV_ERR_NO_MEMORY;
++    }
++
++    status = tmrEventCreate(GPU_GET_TIMER(pGpu), &pReserve->pRefillEvent,
++                            _displayReserveRefillCallback, NULL, TMR_FLAG_USE_OS_TIMER);
++    if (status != NV_OK)
++    {
++        portSyncMutexDestroy(pReserve->pMutex);
++        portMemFree(pReserve);
++        return status;
++    }
++
++    pReserve->backoffNs = DISPLAY_RESERVE_REFILL_NS;
++    pMemoryManager->pDisplayReserve = pReserve;
++
++    return NV_OK;
++}
++
++/*!
++ * Remove the display reserve of pGpu.  Called from memmgrStateDestroy, after
++ * displayReserveStop() freed the runs.
++ */
++void
++displayReserveDestroy
++(
++    OBJGPU        *pGpu,
++    MemoryManager *pMemoryManager
++)
++{
++    DisplayReserve *pReserve = pMemoryManager->pDisplayReserve;
++
++    if (pReserve == NULL)
++        return;
++
++    pMemoryManager->pDisplayReserve = NULL;
++
++    tmrEventDestroy(GPU_GET_TIMER(pGpu), pReserve->pRefillEvent);
++    portSyncMutexDestroy(pReserve->pMutex);
++    portMemFree(pReserve);
++}
++
++/*!
++ * Start holding the declared reserve.  Called from memmgrStatePostLoad: at
++ * load, after resume and after GC6/RTD3 exit.
++ */
++void
++displayReserveStart
++(
++    OBJGPU        *pGpu,
++    MemoryManager *pMemoryManager
++)
++{
++    DisplayReserve *pReserve = pMemoryManager->pDisplayReserve;
++    NvBool          bDeclared;
++
++    if (pReserve == NULL)
++        return;
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    pReserve->bStarted  = NV_TRUE;
++    pReserve->backoffNs = DISPLAY_RESERVE_REFILL_NS;
++    bDeclared = (pReserve->reserveSize != 0);
++    portSyncMutexRelease(pReserve->pMutex);
++
++    if (bDeclared)
++        _displayReserveQueueRefill(pGpu);
++}
++
++/*!
++ * Free every run and stop refilling.  Called from memmgrStatePreUnload with
++ * the GPU lock: at unload, before suspend and at GC6/RTD3 entry.  The
++ * declaration is kept for displayReserveStart().
++ */
++void
++displayReserveStop
++(
++    OBJGPU        *pGpu,
++    MemoryManager *pMemoryManager
++)
++{
++    DisplayReserve    *pReserve = pMemoryManager->pDisplayReserve;
++    DisplayReserveRun  runs[DISPLAY_RESERVE_MAX_RUNS + 1];
++    NvU32              numRuns;
++
++    if (pReserve == NULL)
++        return;
++
++    tmrEventCancel(GPU_GET_TIMER(pGpu), pReserve->pRefillEvent);
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    pReserve->bStarted = NV_FALSE;
++    portMemCopy(runs, sizeof(runs), pReserve->runs, sizeof(pReserve->runs));
++    numRuns = pReserve->numRuns;
++    portMemSet(pReserve->runs, 0, sizeof(pReserve->runs));
++    pReserve->numRuns        = 0;
++    pReserve->cutReserveSize = 0;
++    pReserve->cutSurfaceSize = 0;
++    pReserve->heldBytes      = 0;
++    pReserve->targetBytes    = 0;
++    portSyncMutexRelease(pReserve->pMutex);
++
++    _displayReserveFreeRuns(_displayReserveGetPma(pMemoryManager), runs, numRuns);
++}
++
++/*!
++ * Record the display driver's declaration and re-cut the reserve in the
++ * background.  Called for NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE.
++ */
++NV_STATUS
++displayReserveSetNeed
++(
++    OBJGPU        *pGpu,
++    MemoryManager *pMemoryManager,
++    NvU64          reserveSize,
++    NvU64          surfaceSize
++)
++{
++    DisplayReserve *pReserve = pMemoryManager->pDisplayReserve;
++    NvBool          bStarted;
++
++    if ((pReserve == NULL) || IS_MIG_ENABLED(pGpu))
++        return NV_ERR_NOT_SUPPORTED;
++
++    if ((reserveSize != 0) && (surfaceSize == 0))
++        return NV_ERR_INVALID_ARGUMENT;
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    pReserve->reserveSize = reserveSize;
++    pReserve->surfaceSize = (reserveSize != 0) ? surfaceSize : 0;
++    pReserve->backoffNs   = DISPLAY_RESERVE_REFILL_NS;
++    bStarted = pReserve->bStarted;
++    portSyncMutexRelease(pReserve->pMutex);
++
++    NV_PRINTF(LEVEL_INFO, "display reserve: declared %llu KiB for %llu KiB scanout surfaces\n",
++              reserveSize >> 10, surfaceSize >> 10);
++
++    if (bStarted)
++        _displayReserveQueueRefill(pGpu);
++
++    return NV_OK;
++}
++
++/*!
++ * Called by _vidmemPmaAllocate() when PMA refused an allocation of size
++ * bytes for lack of memory.  For a scanout allocation of a kernel client
++ * (kernel privilege, ISO, physically contiguous, not NO_SCANOUT), free runs
++ * that together cover it, the rest run first when it does alone, and
++ * schedule a refill.  Returns NV_TRUE if runs were freed and the caller
++ * should retry.
++ */
++NvBool
++displayReserveRelease
++(
++    OBJGPU                            *pGpu,
++    MemoryManager                     *pMemoryManager,
++    const NV_MEMORY_ALLOCATION_PARAMS *pAllocData,
++    NvU64                              size
++)
++{
++    DisplayReserve    *pReserve = pMemoryManager->pDisplayReserve;
++    CALL_CONTEXT      *pCallContext = resservGetTlsCallContext();
++    DisplayReserveRun  runs[DISPLAY_RESERVE_MAX_RUNS + 1];
++    NvU64              released = 0;
++    NvU64              heldBytes;
++    NvU64              targetBytes;
++    NvU32              numRuns = 0;
++    NvU32              i;
++
++    if ((pReserve == NULL) ||
++        (pCallContext == NULL) ||
++        (pCallContext->secInfo.privLevel < RS_PRIV_LEVEL_KERNEL) ||
++        !FLD_TEST_DRF(OS32, _ATTR2, _ISO, _YES, pAllocData->attr2) ||
++        !FLD_TEST_DRF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS, pAllocData->attr) ||
++        ((pAllocData->flags & NVOS32_ALLOC_FLAGS_NO_SCANOUT) != 0))
++    {
++        return NV_FALSE;
++    }
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    while ((released < size) && (pReserve->numRuns != 0))
++    {
++        // The rest run is the last one when it is smaller than the others.
++        NvU32  rest     = pReserve->numRuns - 1;
++        NvBool bHasRest = (pReserve->numRuns > 1) &&
++                          (pReserve->runs[rest].size < pReserve->runs[0].size);
++        NvBool bRestHeld = bHasRest && (pReserve->runs[rest].base != 0);
++        NvU32  pick     = pReserve->numRuns;
++
++        if (bRestHeld &&
++            (_displayReserveRunBytes(&pReserve->runs[rest]) >= size - released))
++        {
++            pick = rest;
++        }
++        else
++        {
++            for (i = bHasRest ? rest : pReserve->numRuns; i > 0; i--)
++            {
++                if (pReserve->runs[i - 1].base != 0)
++                {
++                    pick = i - 1;
++                    break;
++                }
++            }
++            if ((pick == pReserve->numRuns) && bRestHeld)
++                pick = rest;
++        }
++
++        if (pick == pReserve->numRuns)
++            break;
++
++        runs[numRuns] = pReserve->runs[pick];
++        pReserve->runs[pick].base = 0;
++        pReserve->heldBytes -= _displayReserveRunBytes(&runs[numRuns]);
++        released += _displayReserveRunBytes(&runs[numRuns]);
++        numRuns++;
++    }
++    heldBytes   = pReserve->heldBytes;
++    targetBytes = pReserve->targetBytes;
++    portSyncMutexRelease(pReserve->pMutex);
++
++    if (numRuns == 0)
++        return NV_FALSE;
++
++    _displayReserveFreeRuns(_displayReserveGetPma(pMemoryManager), runs, numRuns);
++
++    NV_PRINTF(LEVEL_WARNING,
++              "display reserve: released %llu KiB for a refused scanout allocation of %llu KiB, "
++              "holds %llu of %llu KiB\n",
++              released >> 10, size >> 10, heldBytes >> 10, targetBytes >> 10);
++
++    _displayReserveScheduleRefill(pGpu, pReserve, DISPLAY_RESERVE_REFILL_NS);
++
++    return NV_TRUE;
++}
+diff --git a/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c b/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c
+index 73bebf9..6337ea8 100644
+--- a/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c
++++ b/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c
+@@ -53,6 +53,7 @@
+ #include "gpu/gsp/kernel_gsp.h"
+ #include "gpu/conf_compute/conf_compute.h"
+ #include "gpu/mem_mgr/mem_mapper.h"
++#include "gpu/mem_mgr/display_reserve.h"
+ #include "platform/sli/sli.h"
+ #include "virtualization/hypervisor/hypervisor.h"
+ #include "gpu/device/device.h"
+@@ -825,6 +826,12 @@ failed:
+ 
+     memacctInitGpuInfo(pGpu);
+ 
++    status = displayReserveInit(pGpu, pMemoryManager);
++    if (status != NV_OK)
++    {
++        NV_PRINTF(LEVEL_ERROR, "display reserve setup failed (0x%x)\n", status);
++    }
++
+     return NV_OK;
+ }
+ 
+@@ -943,6 +950,8 @@ memmgrStatePreUnload_IMPL
+     KernelMemorySystem *pKernelMemorySystem = GPU_GET_KERNEL_MEMORY_SYSTEM(pGpu);
+     NV_ASSERT((flags & GPU_STATE_FLAGS_PRESERVING) || !_memmgrIsZbcSurfaceReferenced(pGpu, pMemoryManager));
+ 
++    displayReserveStop(pGpu, pMemoryManager);
++
+     if ((flags & GPU_STATE_FLAGS_PRESERVING))
+     {
+         //
+@@ -987,6 +996,7 @@ memmgrStateDestroy_IMPL
+     NvU32 i;
+ 
+     memacctRemoveGpu(pGpu);
++    displayReserveDestroy(pGpu, pMemoryManager);
+ 
+     _memmgrFreeInternalClientObjects(pMemoryManager);
+ 
+@@ -4042,6 +4052,8 @@ memmgrStatePostLoad_IMPL
+             return NV_ERR_INVALID_ARGUMENT;
+         }
+     }
++
++    displayReserveStart(pGpu, pMemoryManager);
+     return NV_OK;
+ }
+ 
+diff --git a/src/nvidia/src/kernel/mem_mgr/video_mem.c b/src/nvidia/src/kernel/mem_mgr/video_mem.c
+index c55c2ff..ce79bce 100644
+--- a/src/nvidia/src/kernel/mem_mgr/video_mem.c
++++ b/src/nvidia/src/kernel/mem_mgr/video_mem.c
+@@ -23,6 +23,7 @@
+ 
+ #include "mem_mgr/video_mem.h"
+ #include "gpu/mem_mgr/mem_desc.h"
++#include "gpu/mem_mgr/display_reserve.h"
+ #include "gpu/mem_mgr/heap.h"
+ #include "gpu/mem_mgr/phys_mem_allocator/phys_mem_allocator.h"
+ #include "gpu/mem_mgr/mem_mgr.h"
+@@ -319,6 +320,18 @@ retry_alloc:
+     // Get the allocation from PMA.
+     status = pmaAllocatePages(pPma, pageCount, pageSize, &allocOptions,
+                               pAllocRequest->pPmaAllocInfo[subdevInst]->pageArray);
++
++    //
++    // A scanout allocation of a kernel client has no fallback: take its room
++    // from the display reserve and retry.
++    //
++    while ((status == NV_ERR_NO_MEMORY) && bContig &&
++           displayReserveRelease(pGpu, pMemoryManager, pAllocData, ((NvU64)pageCount) * pageSize))
++    {
++        status = pmaAllocatePages(pPma, pageCount, pageSize, &allocOptions,
++                                  pAllocRequest->pPmaAllocInfo[subdevInst]->pageArray);
++    }
++
+     if (NV_OK != status)
+     {
+         portMemFree(pAllocRequest->pPmaAllocInfo[subdevInst]);
+diff --git a/src/nvidia/srcs.mk b/src/nvidia/srcs.mk
+index af8dacd..11e82ec 100644
+--- a/src/nvidia/srcs.mk
++++ b/src/nvidia/srcs.mk
+@@ -692,6 +692,7 @@ SRCS += src/kernel/gpu/mem_mgr/arch/turing/mem_mgr_tu102_base.c
+ SRCS += src/kernel/gpu/mem_mgr/ce_utils.c
+ SRCS += src/kernel/gpu/mem_mgr/channel_utils.c
+ SRCS += src/kernel/gpu/mem_mgr/context_dma.c
++SRCS += src/kernel/gpu/mem_mgr/display_reserve.c
+ SRCS += src/kernel/gpu/mem_mgr/dma.c
+ SRCS += src/kernel/gpu/mem_mgr/fbsr.c
+ SRCS += src/kernel/gpu/mem_mgr/heap.c
+-- 
+2.55.0
+
