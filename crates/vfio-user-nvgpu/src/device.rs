@@ -1468,6 +1468,9 @@ impl Device {
         if let Some(b) = self.bar0.boot() {
             b.ctrl.display.eng().pins.clear();
         }
+        // The model first (its old interrupt sources stop with it: the mirror's host event
+        // thread is joined when the old mirror drops), then what they raised goes.
+        self.bar0.reset();
         if let Some(s) = &self.intr {
             let dropped = s.reset_pending();
             if dropped.iter().any(|&p| p != 0) {
@@ -1477,7 +1480,6 @@ impl Device {
                 ));
             }
         }
-        self.bar0.reset();
         self.load_guest_aliases();
         self.publish_display();
     }

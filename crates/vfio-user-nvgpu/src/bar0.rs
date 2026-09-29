@@ -334,11 +334,15 @@ impl Bar0 {
         if let Some((r, v)) = crate::families::devinit_scratch(self.chip.data()) {
             self.latched.insert(r, v);
         }
-        if let Some(p) = &self.page {
-            p.reset();
-        }
+        // The boot model first: its old interrupt sources (the mirror's host event thread,
+        // joined when the old mirror drops) stop before the interrupt page forgets what was
+        // raised (C65: two host notifier raises of the old mirror reached the fresh tree,
+        // the guest enabled the vector and never serviced it).
         if let Some(b) = self.boot.as_mut() {
             b.reset();
+        }
+        if let Some(p) = &self.page {
+            p.reset();
         }
     }
 
