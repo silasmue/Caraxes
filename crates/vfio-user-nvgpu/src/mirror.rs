@@ -6628,7 +6628,7 @@ impl Mirror {
             },
             self.hold_summary(),
             self.extents.summary()
-        ) + &self
+        ) + "; " + &self.hm.lock().unwrap_or_else(|e| e.into_inner()).gather_cache_line() + &self
             .device_ce
             .as_ref()
             .map_or(String::new(), |c| format!("; {}", c.lock().unwrap_or_else(|e| e.into_inner()).summary()))
