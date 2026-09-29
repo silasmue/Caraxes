@@ -2,7 +2,8 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # The display on its own clock and lock (plan, 2026-09-29)
 
-Status: plan for review, nothing coded. Evidence: windows-findings.md step 10 (C61).
+Status: stages 1-3 coded on win-ch-2026-09-29 (§7), not yet measured on a guest. Evidence:
+windows-findings.md step 10 (C61).
 
 ## 1. Why
 
@@ -80,3 +81,33 @@ Status: plan for review, nothing coded. Evidence: windows-findings.md step 10 (C
   the acquire (the pool's install happens under the device mutex, which tells the core first).
 - BAR2 memfd pages: the record window reads VRAM; unsynced BAR2 bytes of the KMD (a CPU reset of
   a record) must be merged as `FakeFb::read` does, so the pin carries the memfd view of that page.
+
+## 7. As built (2026-09-29)
+
+- **Stage 1** (1355def5): the interrupt page's trapped stores and the MSI re-arm are routed before
+  the device mutex (device.rs `Routes`).
+- **Stage 2** (f2795e86): guest memory is reached through a published view (guestmem.rs
+  `MemView`), republished at every map, unmap and registration.
+- **Stage 3:**
+  - Record I/O goes through a trait (engine.rs `RecordIo`). `DeviceIo` is the FB store under the
+    device mutex; `CoreIo` (display/core_path.rs) is the view plus the pinned FB record windows.
+    A latch whose acquire, previous release, notifier or owed FINISHED is not reachable on the
+    path writes nothing and waits.
+  - `Display::engine` is `Arc<Mutex<Engine>>`, the display lock.
+  - Record windows (core_path.rs `RecordPins`): a window `UPDATE` that resolves a semaphore or
+    notifier in FB maps its 2 MiB region once (at most 4) through the VRAM store
+    (fb.rs `share_record_window`, `SharedWindow`). The store serves that range from the same
+    window. The BAR1 pool, the BAR2 memfd and BAR1 passthrough keep FB records on the device
+    path, since the page is not the VRAM page itself for good there.
+  - The ticker's driver tries the device mutex. When it is held, the tick runs without it
+    (`DisplayRoute::tick`) and returns whether the FE line is asserted; the clock raises only then.
+  - Routed registers: `Engine::handles` offsets (FE interrupt status, enables, head state, scan
+    position) are read and written under the display lock only. The display page keeps its own
+    path.
+  - Device: the engine is published in `DisplaySlot` at start and after every reset. A reset
+    first unpublishes it, waits out a running tick and clears the old record windows; the shutdown
+    clears them before the FB store's.
+  - Counted in the exit summary: "without the device mutex: N clock ticks, N register reads,
+    N register writes, N FB record window(s), N region(s) left to the device path".
+- **Not yet:** display channel kicks (`PUT` writes: the pushbuffer walk and `UPDATE`) and the
+  core PIO pages still take the device mutex.

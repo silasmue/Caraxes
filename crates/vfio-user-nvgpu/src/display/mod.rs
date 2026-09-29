@@ -21,6 +21,7 @@
 //! and latches them on a per-head clock that also raises vblank.
 
 pub mod aux;
+pub mod core_path;
 pub mod edid;
 pub mod dump;
 pub mod engine;
@@ -366,8 +367,11 @@ pub struct Display {
     /// NV2080_NOTIFIERS_HOTPLUG events the guest allocated (hClient, hEvent), for
     /// POST_EVENT (docs/caraxes/display-cd.md, phase D).
     pub hotplug_events: Vec<(u32, u32)>,
-    /// Phase C: methods, heads, the clock and the interrupt registers (engine.rs).
-    pub engine: engine::Engine,
+    /// Phase C: methods, heads, the clock and the interrupt registers (engine.rs), behind
+    /// the display lock: the display clock and the routed status accesses reach it without
+    /// the device mutex (docs/caraxes/display-own-clock.md §2.1). Lock order: device mutex,
+    /// then this; code holding it never takes the device mutex.
+    pub engine: std::sync::Arc<std::sync::Mutex<engine::Engine>>,
     /// `dump auto` (display-ctl): window 0's scanout dumped after new latches, at most one
     /// per `AUTO_DUMP_PERIOD`, the last `AUTO_DUMP_KEEP` kept (dump.rs).
     pub auto_dump: Option<AutoDump>,
@@ -521,7 +525,7 @@ impl Display {
             fec: false,
             notes: Vec::new(),
             hotplug_events: Vec::new(),
-            engine: engine::Engine::new(0, 0),
+            engine: std::sync::Arc::new(std::sync::Mutex::new(engine::Engine::new(0, 0))),
             auto_dump: None,
         }
     }
@@ -568,9 +572,12 @@ impl Display {
             });
         }
         disp.enabled = true;
-        disp.engine = engine::Engine::new(chip.heads as usize, chip.windows as usize);
+        disp.engine = std::sync::Arc::new(std::sync::Mutex::new(engine::Engine::new(
+            chip.heads as usize,
+            chip.windows as usize,
+        )));
         if let Some(p) = fe_page() {
-            disp.engine.attach_page(p);
+            disp.eng().attach_page(p);
         }
         if let Some(i) = intr_shared() {
             engine::ticker().attach(i, chip.intr_vector);
@@ -582,6 +589,11 @@ impl Display {
 
     fn chip(&self) -> &ChipDisplay {
         self.chip.as_ref().expect("enabled display has chip data")
+    }
+
+    /// The engine, under the display lock (held for one statement at a time here).
+    pub fn eng(&self) -> std::sync::MutexGuard<'_, engine::Engine> {
+        engine::lock(&self.engine)
     }
 
     fn supported_mask(&self) -> u32 {
@@ -676,7 +688,7 @@ impl Display {
                     get32(params, d::WRITE_INST_MEM_ADDR_SPACE),
                 );
                 self.inst_mem = Some((pa, size, aspace));
-                self.engine.inst = Some(pa);
+                self.eng().inst = Some(pa);
                 ok(
                     b,
                     GUEST,
@@ -829,18 +841,18 @@ impl Display {
             // `head_sor`), and the display is the connector on that SOR.
             d::CMD_SYSTEM_GET_ACTIVE => {
                 let head = get32(params, d::GET_ACTIVE_HEAD);
-                if head as usize >= self.engine.heads.len() {
+                if head as usize >= self.eng().heads.len() {
                     return Some(fail(
                         NV_ERR_INVALID_ARGUMENT,
                         b,
                         SYNTH,
                         format!(
                             "head {head} active: not a head of this chip ({} heads; the header's INVALID_ARGUMENT)",
-                            self.engine.heads.len()
+                            self.eng().heads.len()
                         ),
                     ));
                 }
-                let sor = self.engine.head_sor(head as usize);
+                let sor = self.eng().head_sor(head as usize);
                 let did = sor
                     .and_then(|s| self.connectors.iter().find(|c| c.sor == s))
                     .map_or(0, |c| c.display_id);
@@ -864,7 +876,7 @@ impl Display {
             d::CMD_SYSTEM_GET_BOOT_DISPLAYS => ok(vec![0u8; n], BOARD, "boot displays: none"),
             d::CMD_SYSTEM_GET_SCANLINE => {
                 let head = get32(params, 4) as usize;
-                let line = self.engine.scanline(head, engine::now_ns());
+                let line = self.eng().scanline(head, engine::now_ns());
                 put32(&mut b, d::GET_SCANLINE_CURRENT, line);
                 ok(b, SYNTH, format!("scanline of head {head}: {line} (device clock)"))
             }
@@ -1146,7 +1158,7 @@ impl Display {
                 // A window UPDATE is pending until the clock latches it (NVKMS's
                 // IsChannelMethodPending, nvkms-evo3.c:6474-6490).
                 let latching = class == d::NVC57E_WINDOW_CHANNEL_DMA
-                    && self.engine.window_busy(inst as usize);
+                    && self.eng().window_busy(inst as usize);
                 let idle = !latching
                     && userd_base(class, inst)
                         .and_then(|base| self.channels.get(&base))
@@ -1688,8 +1700,9 @@ impl Display {
         if off == NV_PDISP_VGA_WORKSPACE_BASE {
             return Some(self.chip().vga_workspace_base);
         }
-        if let Some(v) = self.engine.read32(off, engine::now_ns()) {
-            return Some(v);
+        let v = self.eng().read32(off, engine::now_ns());
+        if v.is_some() {
+            return v;
         }
         if (NV_PDISP_FE_SW..NV_PDISP_FE_SW + CAPS_PAGE_SIZE).contains(&off) {
             let rel = (off - NV_PDISP_FE_SW) as u32;
@@ -1715,11 +1728,12 @@ impl Display {
                 }
             }
             if base == CORE_USERD {
-                if let Some(h) = core_pio_head(rel, CORE_GET_RG_SCAN_LINE, self.engine.heads.len()) {
-                    return Some(self.engine.rg_scan_line(h, engine::now_ns()));
+                let heads = self.eng().heads.len();
+                if let Some(h) = core_pio_head(rel, CORE_GET_RG_SCAN_LINE, heads) {
+                    return Some(self.eng().rg_scan_line(h, engine::now_ns()));
                 }
-                if let Some(h) = core_pio_head(rel, CORE_SET_GET_BLANKING_CTRL, self.engine.heads.len()) {
-                    return Some(self.engine.blanking_ctrl(h));
+                if let Some(h) = core_pio_head(rel, CORE_SET_GET_BLANKING_CTRL, heads) {
+                    return Some(self.eng().blanking_ctrl(h));
                 }
             }
             if base >= CURSOR_USERD && rel == CURSOR_FREE {
@@ -1749,7 +1763,7 @@ impl Display {
     /// interrupt handler sees the state of now, with the notifiers already written.
     pub fn read32_io(&mut self, off: u64, fb: &mut FakeFb, mem: &GuestMemory) -> Option<u32> {
         if self.enabled && engine::Engine::handles(off) {
-            self.engine.catch_up(engine::now_ns(), fb, mem);
+            self.eng().catch_up(engine::now_ns(), fb, mem);
             self.maybe_auto_dump(fb, mem);
         }
         self.read32(off)
@@ -1757,7 +1771,7 @@ impl Display {
 
     /// Whether the display interrupt line is asserted (the FE's status, engine.rs).
     pub fn line(&self) -> bool {
-        self.enabled && self.engine.pending()
+        self.enabled && self.eng().pending()
     }
 
     /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`):
@@ -1768,7 +1782,7 @@ impl Display {
             return Vec::new();
         }
         let t0 = engine::now_ns();
-        self.engine.catch_up(t0, fb, mem);
+        self.eng().catch_up(t0, fb, mem);
         engine::ticker().note_catch_up(engine::now_ns().saturating_sub(t0) / 1000);
         self.maybe_auto_dump(fb, mem);
         let mut n = self.take_engine_notes();
@@ -1787,8 +1801,8 @@ impl Display {
         mem: &GuestMemory,
         path: &std::path::Path,
     ) -> Result<String, String> {
-        let win = self.engine.windows.get(w).ok_or_else(|| format!("no window {w}"))?;
-        let s = &win.latched;
+        let latched = self.eng().windows.get(w).map(|win| win.latched.clone());
+        let s = &latched.ok_or_else(|| format!("no window {w}"))?;
         let m = s.mem.ok_or_else(|| format!("window {w} scans out no surface"))?;
         let (width, height) = (s.width as u64, s.height as u64);
         if width == 0 || height == 0 || width > 16384 || height > 16384 {
@@ -1868,21 +1882,25 @@ impl Display {
             return;
         }
         let now = engine::now_ns();
-        let Some(w) = self.engine.windows.first() else {
-            return;
+        let (flips, latched, blanked) = {
+            let e = engine::lock(&self.engine);
+            let Some(w) = e.windows.first() else {
+                return;
+            };
+            let blanked = w.head.and_then(|h| e.heads.get(h)).is_none_or(|h| h.blanked);
+            (w.flips, w.latched.clone(), blanked)
         };
-        let blanked = w.head.and_then(|h| self.engine.heads.get(h)).is_none_or(|h| h.blanked);
-        if w.flips == a.flips || now < a.next_ns || blanked || w.latched.mem.is_none() {
+        if flips == a.flips || now < a.next_ns || blanked || latched.mem.is_none() {
             return;
         }
-        a.flips = w.flips;
-        match surface_span(&w.latched) {
+        a.flips = flips;
+        match surface_span(&latched) {
             Ok(span) => {
                 a.capture = Some(Capture {
-                    surface: w.latched.clone(),
+                    surface: latched,
                     raw: vec![0u8; span as usize],
                     done: 0,
-                    flips: w.flips,
+                    flips,
                     steps: 0,
                     lock_ns: 0,
                 });
@@ -1899,7 +1917,7 @@ impl Display {
     /// Notes of the engine not yet in the trace.
     pub fn take_engine_notes(&mut self) -> Vec<String> {
         let mut n = std::mem::take(&mut self.notes);
-        n.append(&mut self.engine.notes);
+        n.append(&mut engine::lock(&self.engine).notes);
         n
     }
 
@@ -1930,8 +1948,8 @@ impl Display {
             return None;
         }
         if engine::Engine::handles(off) {
-            self.engine.catch_up(engine::now_ns(), fb, mem);
-            let n = self.engine.write32(off, v).unwrap_or_default();
+            self.eng().catch_up(engine::now_ns(), fb, mem);
+            let n = self.eng().write32(off, v).unwrap_or_default();
             let mut notes = self.take_engine_notes();
             if !n.is_empty() {
                 notes.push(n);
@@ -1951,21 +1969,21 @@ impl Display {
         }
         let (base, rel) = page_of(off);
         if base == CORE_USERD {
-            let heads = self.engine.heads.len();
+            let heads = self.eng().heads.len();
             if core_pio_head(rel, CORE_GET_RG_SCAN_LINE, heads).is_some() {
                 return Some(vec![format!(
                     "display: write {v:#x} to GET_RG_SCAN_LINE at {off:#x} (read-only) dropped [guest]"
                 )]);
             }
             if let Some(h) = core_pio_head(rel, CORE_SET_GET_BLANKING_CTRL, heads) {
-                return Some(vec![self.engine.set_blanking_ctrl(h, v)]);
+                return Some(vec![self.eng().set_blanking_ctrl(h, v)]);
             }
         }
         if rel == 0 && base < CURSOR_USERD {
             if let Some(mut ch) = self.channels.get(&base).copied() {
                 ch.put = v;
                 ch.kicks += 1;
-                self.engine.catch_up(engine::now_ns(), fb, mem);
+                self.eng().catch_up(engine::now_ns(), fb, mem);
                 let note = self.kick(base, &mut ch, mem, fb);
                 self.channels.insert(base, ch);
                 let mut notes = vec![note];
@@ -2047,7 +2065,7 @@ impl Display {
                                     let a = self.core_assembly.clone();
                                     self.core_armed.extend(a);
                                     let armed = self.core_armed.clone();
-                                    self.engine.core_update(&armed, engine::now_ns(), fb, mem);
+                                    self.eng().core_update(&armed, engine::now_ns(), fb, mem);
                                 } else {
                                     self.core_assembly.insert(m, data);
                                 }
@@ -2056,9 +2074,9 @@ impl Display {
                                 if let Some(w) = window {
                                     if m == 0x200 {
                                         updates += 1;
-                                        self.engine.window_update(w, engine::now_ns(), fb, mem);
+                                        self.eng().window_update(w, engine::now_ns(), fb, mem);
                                     } else {
-                                        self.engine.window_method(w, m, data);
+                                        self.eng().window_method(w, m, data);
                                     }
                                 } else if m == 0x200 {
                                     updates += 1;

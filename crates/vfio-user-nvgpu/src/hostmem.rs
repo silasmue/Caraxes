@@ -130,9 +130,15 @@ fn valid_host_userd(addr: u64, size: u64, contiguous: bool) -> bool {
         && addr.checked_add(size).is_some_and(|end| end <= USERD_LIMIT)
 }
 
-// SAFETY: the mapping is owned by the window and only ever touched from the server
-// thread that owns the FB model; the raw pointer carries no thread affinity.
+// SAFETY: the mapping is owned by the window; the raw pointer carries no thread affinity.
 unsafe impl Send for Window {}
+// SAFETY: through `&Window` only `read`, `write` and `flush` touch the mapping: bounds-checked
+// volatile loads and stores of at most 16 bytes to device memory (VRAM behind BAR1) that the
+// GPU and other mappings of the same pages access concurrently anyway, and an sfence. The
+// descriptor and the unmap cookie are used only at drop (`&mut`). A window shared between
+// threads (the display core's record windows, fb.rs `SharedWindow`) is thus as safe to use
+// from two threads as the device memory under it is from the CPU and the GPU.
+unsafe impl Sync for Window {}
 
 impl Window {
     /// Whether `[pa, pa + len)` of the reservation (reservation offsets) lies in the window.

@@ -1260,7 +1260,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 }));
             }
             match bar0.boot_mut() {
-                Some(b) if b.ctrl.display.enabled => b.ctrl.display.engine.attach_page(fe.clone()),
+                Some(b) if b.ctrl.display.enabled => b.ctrl.display.eng().attach_page(fe.clone()),
                 _ => bail!(
                     "{}=1: the display engine is not present",
                     fe_page::DISPLAY_PAGE_ENV
@@ -1489,13 +1489,18 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     };
     // Trapped accesses served without the device mutex (device.rs `Routes`,
     // docs/caraxes/display-own-clock.md §2.4): the interrupt page's two pages and, with the
-    // page, the MSI re-arm.
+    // page, the MSI re-arm; with the display, its status registers (display/core_path.rs).
+    let display_route = a.display.then(|| vfio_user_nvgpu::device::DisplayRoute {
+        slot: device.display_slot(),
+        mem: device.mem_view(),
+    });
     let routes = Routes {
         intr_page: intr_page.clone(),
         rearm: intr_page.as_ref().and_then(|_| {
             let b = &chip.data().bar0;
             (b.pcfg_size >= NV_XVE_CYA_2 + 4).then_some(b.pcfg + NV_XVE_CYA_2)
         }),
+        display: display_route.clone(),
     };
     let rearm = if msi_rearm {
         let b = &chip.data().bar0;
@@ -1611,9 +1616,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         // the tick whether or not the guest reads a display register then (with the display
         // page its status reads no longer trap at all; without it a KMD waiting for FINISHED
         // in memory reads none either).
+        // While the device mutex is held (a mirror build, a shadow walk) the tick runs
+        // without it, through guest memory and the pinned FB record windows
+        // (display/core_path.rs, docs/caraxes/display-own-clock.md §2.5); what those cannot
+        // reach waits for the next tick that gets the mutex.
         let d = device.clone();
+        let route = display_route.clone();
         vfio_user_nvgpu::display::engine::ticker().set_driver(Arc::new(move || {
-            vfio_user_nvgpu::dlock::lock(&d, "display clock tick").display_tick()
+            match vfio_user_nvgpu::dlock::try_lock(&d, "display clock tick") {
+                Some(mut g) => g.display_tick(),
+                None => route.as_ref().is_some_and(|r| r.tick()),
+            }
         }));
     }
     // The held-ring completer (ringgate.rs, docs/caraxes/execution.md §9.1): while doorbells

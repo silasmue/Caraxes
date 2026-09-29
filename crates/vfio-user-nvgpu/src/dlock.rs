@@ -220,6 +220,25 @@ pub fn lock<'a, T>(m: &'a Mutex<T>, label: &'static str) -> Held<'a, T> {
     }
 }
 
+/// Take `m` for `label` if nobody holds it; `None` while it is held (the display clock
+/// then ticks without it, display/core_path.rs).
+pub fn try_lock<'a, T>(m: &'a Mutex<T>, label: &'static str) -> Option<Held<'a, T>> {
+    let guard = match m.try_lock() {
+        Ok(g) => g,
+        Err(std::sync::TryLockError::Poisoned(p)) => p.into_inner(),
+        Err(std::sync::TryLockError::WouldBlock) => return None,
+    };
+    if DEPTH.with(|d| d.replace(d.get() + 1)) == 0 {
+        HOLD_TAGS.with(|t| t.borrow_mut().clear());
+    }
+    Some(Held {
+        guard: Some(guard),
+        label,
+        detail: None,
+        t0: Instant::now(),
+    })
+}
+
 impl<'a, T> Held<'a, T> {
     /// The detail a long hold keeps (the register of a trapped access), computed only then.
     pub fn detail(&mut self, f: impl FnOnce() -> String + 'a) {
