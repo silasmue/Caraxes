@@ -3353,7 +3353,17 @@ impl Registry {
                 "CE LAUNCH_DMA {v:#x}: protected/reserved operation refused"
             ));
         }
-        if multi && transfer != 0 && ((v & (1 << 8) == 0) || (!remap && v & (1 << 7) == 0)) {
+        // SET_REMAP_COMPONENTS as far as this transfer uses it: a constant remap (a memset)
+        // reads no source; a general one (a source component or NO_WRITE) runs on the CPU
+        // element by element ([`RemapShape`]).
+        let shape = if remap && transfer != 0 {
+            Some(RemapShape::of(c.remap_components)?)
+        } else {
+            None
+        };
+        let general = shape.is_some_and(|s| !s.constant());
+        let reads_src = shape.is_none_or(|s| s.reads_source());
+        if multi && transfer != 0 && ((v & (1 << 8) == 0) || (reads_src && v & (1 << 7) == 0)) {
             return Err("CE multiline block-linear transfer is not implemented".into());
         }
         let src = ((c.offset_in.0 as u64) << 32) | c.offset_in.1 as u64;
@@ -3387,6 +3397,14 @@ impl Registry {
             } else {
                 c.line_length_in as u64
             };
+            // With a remap LINE_LENGTH_IN counts elements: the source reads NUM_SRC_COMPONENTS
+            // components of each, the destination writes NUM_DST_COMPONENTS.
+            let src_bytes_per_line = match shape {
+                Some(s) => (c.line_length_in as u64)
+                    .checked_mul(s.src_elem() as u64)
+                    .ok_or("CE remap size overflow")?,
+                None => bytes_per_line,
+            };
             let bytes = bytes_per_line
                 .checked_mul(lines)
                 .ok_or("CE transfer size overflow")?;
@@ -3394,8 +3412,16 @@ impl Registry {
             // size of the transfer, so it gets the larger fill budget: the guest's scrubber
             // clears freed allocations in one LAUNCH_DMA (132448256 bytes seen, 615 with
             // scrub-on-free, 2026-09-28). A copy keeps the copy budget.
-            let max = if remap { CE_MAX_FILL_BYTES } else { CE_MAX_BYTES };
-            if lines > CE_MAX_LINES || bytes_per_line > max || bytes > max {
+            let max = if remap && !reads_src {
+                CE_MAX_FILL_BYTES
+            } else {
+                CE_MAX_BYTES
+            };
+            if lines > CE_MAX_LINES
+                || bytes_per_line > max
+                || bytes > max
+                || (reads_src && src_bytes_per_line.saturating_mul(lines) > max)
+            {
                 return Err(format!(
                     "CE transfer {lines} lines/{bytes} bytes exceeds software budget"
                 ));
@@ -3414,7 +3440,13 @@ impl Registry {
             let row_at = |base: u64, pitch: u32, line: u64| {
                 base.checked_add(if multi { line * pitch as u64 } else { 0 })
             };
-            let what = if remap { "memset" } else { "memcopy" };
+            let what = if general {
+                "remap"
+            } else if remap {
+                "memset"
+            } else {
+                "memcopy"
+            };
             // The device CE (devce.rs): a large transfer's bytes on the device-owned host copy
             // engine, submitted once and waited for through the held replay (the vfio-user
             // loop never waits for it). The guest's semaphore follows as on the CPU path; a
@@ -3446,6 +3478,7 @@ impl Registry {
                     }
                 }
             } else if c.progress.is_none()
+                && !general
                 && (bytes >= crate::devce::MIN_BYTES || (!remap && bytes >= DEVCE_VRAM_READ_MIN))
             {
                 if let Some(engine) = mem.fb.device_ce() {
@@ -3555,14 +3588,14 @@ impl Registry {
                                 .ok_or("CE source address overflow")?;
                             let d_at = row_at(dst, c.pitch_out, line)
                                 .ok_or("CE destination address overflow")?;
-                            if !remap {
+                            if reads_src {
                                 ce_pieces(
                                     mem,
                                     root,
                                     src_phys,
                                     c.src_phys,
                                     s_at,
-                                    bytes_per_line,
+                                    src_bytes_per_line,
                                     fb_range,
                                 )?;
                             }
@@ -3580,13 +3613,22 @@ impl Registry {
                     (0, 0)
                 }
             };
-            let elem = if remap { remap_elem(c)? } else { Vec::new() };
-            // A fill chunk is written from one pattern buffer; a copy chunk is read into a
-            // buffer first (VRAM reads through the BAR1 windows ran at 10 MB/s, run P29).
-            let chunk = if remap {
-                CE_FILL_CHUNK as u64
+            let elem = if remap && !general {
+                remap_elem(c)?
             } else {
-                CE_COPY_CHUNK as u64
+                Vec::new()
+            };
+            // A fill chunk is written from one pattern buffer; a copy chunk is read into a
+            // buffer first (VRAM reads through the BAR1 windows ran at 10 MB/s, run P29). A
+            // general remap works in whole destination elements (a row is a whole number of
+            // them, so every chunk and slice starts on one).
+            let chunk = match shape {
+                Some(s) if general => {
+                    let e = s.dst_elem() as u64;
+                    (CE_COPY_CHUNK as u64 / e).max(1) * e
+                }
+                Some(_) => CE_FILL_CHUNK as u64,
+                None => CE_COPY_CHUNK as u64,
             };
             let mut data = Vec::new();
             while line < lines {
@@ -3598,7 +3640,23 @@ impl Registry {
                     .ok_or("CE destination address overflow")?;
                 let n = (bytes_per_line - offset).min(chunk);
                 let to = ce_pieces(mem, root, dst_phys, c.dst_phys, d_at, n, fb_range)?;
-                if remap {
+                if let Some(s) = shape.filter(|_| general) {
+                    // Elements [first, first + count) of this row.
+                    let first = offset / s.dst_elem() as u64;
+                    let count = (n / s.dst_elem() as u64) as usize;
+                    data.clear();
+                    if s.reads_source() {
+                        let s_at = row_at(src, c.pitch_in, line)
+                            .and_then(|a| a.checked_add(first * s.src_elem() as u64))
+                            .ok_or("CE source address overflow")?;
+                        let len = (count * s.src_elem()) as u64;
+                        let from = ce_pieces(mem, root, src_phys, c.src_phys, s_at, len, fb_range)?;
+                        data.resize(len as usize, 0);
+                        ce_read(mem, &from, &mut data)?;
+                    }
+                    let (out, mask) = s.apply(&data, count, c.remap_const_a, c.remap_const_b);
+                    ce_write_masked(mem, &to, &out, &mask)?;
+                } else if remap {
                     // The pattern continues at this offset of the row.
                     let phase = (offset % elem.len().max(1) as u64) as usize;
                     let rotated: Vec<u8> = elem[phase..]
@@ -3622,8 +3680,7 @@ impl Registry {
                     mem.fb.flush();
                     c.progress = Some(CeProgress { key, line, offset });
                     return Ok(CeOutcome::Sliced(format!(
-                        "ce {} {} of {bytes} bytes in this slice's {} us; continued in the next slice [guest]",
-                        if remap { "memset" } else { "memcopy" },
+                        "ce {what} {} of {bytes} bytes in this slice's {} us; continued in the next slice [guest]",
                         line * bytes_per_line + offset,
                         start.elapsed().as_micros()
                     )));
@@ -3642,7 +3699,12 @@ impl Registry {
                 format!("va {dst:#x}")
             };
             parts.push(format!(
-                "ce {what} {bytes} bytes -> {dst_desc} [guest{}]",
+                "ce {what} {bytes} bytes -> {dst_desc}{} [guest{}]",
+                if general {
+                    format!(" (components {:#x})", c.remap_components)
+                } else {
+                    String::new()
+                },
                 on_device.map_or(String::new(), |seq| format!(", device CE push {seq}"))
             ));
         }
@@ -3914,6 +3976,147 @@ fn ce_fill(mem: &mut GpuMem, pieces: &[(Target, usize)], elem: &[u8]) -> Result<
     Ok(())
 }
 
+/// `SET_REMAP_COMPONENTS_DST_*` selects (clc5b5.h:160-191): SRC_X..SRC_W are 0-3.
+const REMAP_CONST_A: u8 = 4;
+const REMAP_CONST_B: u8 = 5;
+const REMAP_NO_WRITE: u8 = 6;
+
+/// `SET_REMAP_COMPONENTS` (clc5b5.h:159-206): DST_X/Y/Z/W (2:0, 6:4, 10:8, 14:12) each
+/// select a source component (SRC_X..SRC_W, 0-3), CONST_A (4), CONST_B (5) or NO_WRITE (6);
+/// COMPONENT_SIZE (17:16), NUM_SRC_COMPONENTS (21:20) and NUM_DST_COMPONENTS (25:24) are
+/// one less than the size in bytes and the counts. With the remap on, LINE_LENGTH_IN counts
+/// elements: a source element is NUM_SRC_COMPONENTS components of COMPONENT_SIZE bytes, a
+/// destination element NUM_DST_COMPONENTS of them. A NO_WRITE component keeps the
+/// destination's bytes: they are not written at all (Heaven on Windows, C87/C88: a remap
+/// with DST_Z NO_WRITE on the KMD's paging channel, until lf23 an RC and a TDR).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RemapShape {
+    comp: usize,
+    nsrc: usize,
+    ndst: usize,
+    /// The select of each destination component; the first `ndst` are used.
+    sel: [u8; 4],
+}
+
+impl RemapShape {
+    /// The shape of `components`; a select of a source component beyond
+    /// NUM_SRC_COMPONENTS or the reserved select 7 is refused (an RC, as before).
+    fn of(components: u32) -> Result<Self, String> {
+        let comp = ((components >> 16) & 3) as usize + 1;
+        let nsrc = ((components >> 20) & 3) as usize + 1;
+        let ndst = ((components >> 24) & 3) as usize + 1;
+        let mut sel = [REMAP_NO_WRITE; 4];
+        for (k, s) in sel.iter_mut().enumerate().take(ndst) {
+            let v = ((components >> (4 * k)) & 7) as u8;
+            if v <= 3 && v as usize >= nsrc {
+                return Err(format!(
+                    "remap component {k} selects source component {v} of {nsrc} (components {components:#x})"
+                ));
+            }
+            if v == 7 {
+                return Err(format!(
+                    "remap component {k} selects 7, reserved (components {components:#x})"
+                ));
+            }
+            *s = v;
+        }
+        Ok(RemapShape {
+            comp,
+            nsrc,
+            ndst,
+            sel,
+        })
+    }
+
+    fn used(&self) -> &[u8] {
+        &self.sel[..self.ndst]
+    }
+
+    /// Every destination component a constant: a memset ([`remap_elem`], [`ce_fill`]).
+    fn constant(&self) -> bool {
+        self.used()
+            .iter()
+            .all(|&s| s == REMAP_CONST_A || s == REMAP_CONST_B)
+    }
+
+    fn reads_source(&self) -> bool {
+        self.used().iter().any(|&s| s <= 3)
+    }
+
+    fn src_elem(&self) -> usize {
+        self.comp * self.nsrc
+    }
+
+    fn dst_elem(&self) -> usize {
+        self.comp * self.ndst
+    }
+
+    /// `count` destination elements from `src` (`count` source elements, empty when no
+    /// component reads it) and the constants: the bytes and which of them are written.
+    fn apply(&self, src: &[u8], count: usize, a: u32, b: u32) -> (Vec<u8>, Vec<bool>) {
+        let (e, c) = (self.dst_elem(), self.comp);
+        let (ca, cb) = (a.to_le_bytes(), b.to_le_bytes());
+        let mut out = vec![0u8; count * e];
+        let mut mask = vec![false; count * e];
+        for i in 0..count {
+            for (k, &s) in self.used().iter().enumerate() {
+                let bytes = match s {
+                    REMAP_CONST_A => &ca[..c],
+                    REMAP_CONST_B => &cb[..c],
+                    REMAP_NO_WRITE => continue,
+                    s => {
+                        let from = i * self.src_elem() + s as usize * c;
+                        &src[from..from + c]
+                    }
+                };
+                let at = i * e + k * c;
+                out[at..at + c].copy_from_slice(bytes);
+                mask[at..at + c].fill(true);
+            }
+        }
+        (out, mask)
+    }
+}
+
+/// Write the bytes of `data` that `mask` marks over `pieces`, each run of marked bytes in one
+/// write; unmarked bytes (NO_WRITE components) are never touched.
+fn ce_write_masked(
+    mem: &mut GpuMem,
+    pieces: &[(Target, usize)],
+    data: &[u8],
+    mask: &[bool],
+) -> Result<(), String> {
+    let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
+    let mut off = 0usize;
+    for &(target, n) in pieces {
+        let mut i = 0usize;
+        while i < n {
+            if !mask[off + i] {
+                i += 1;
+                continue;
+            }
+            let mut j = i;
+            while j < n && mask[off + j] {
+                j += 1;
+            }
+            let at = match target {
+                Target::Fb(pa) => Target::Fb(pa + i as u64),
+                Target::Sys(pa) => Target::Sys(pa + i as u64),
+                t => t,
+            };
+            let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
+            if !mem.write(at, &data[off + i..off + j])
+                || mem.fb.vram_stats().map_or(0, |s| s.failed) != failed
+            {
+                return Err(format!("CE write {at:?}+{:#x} failed", j - i));
+            }
+            i = j;
+        }
+        off += n;
+    }
+    Ok(())
+}
+
 /// One element of a constant remap (memset): the components the remap selects, each the
 /// component size wide.
 fn remap_elem(c: &CeState) -> Result<Vec<u8>, String> {
@@ -3927,7 +4130,7 @@ fn remap_elem(c: &CeState) -> Result<Vec<u8>, String> {
             5 => c.remap_const_b,
             s => {
                 return Err(format!(
-                    "remap component {k} selects {s}, only constants modelled"
+                    "remap component {k} selects {s}: not a constant remap (RemapShape::apply runs it)"
                 ))
             }
         };
@@ -6632,5 +6835,125 @@ mod tests {
         let m = reg.promoted((1, 0x15)).unwrap();
         assert!(!m.contains_key(&PROMOTE_ID_FALCON_CTX));
         assert_eq!(m[&0].virt, Some(0x7000));
+    }
+
+    /// Heaven on Windows (C87/C88): the KMD's paging channel remaps with DST_Z and DST_W
+    /// NO_WRITE; the constants land in X and Y of every 16-byte element, Z and W keep the
+    /// destination's bytes, across chunks and slices.
+    #[test]
+    fn a_remap_with_no_write_components_keeps_the_destination_bytes() {
+        let (mut fb, sys, path, root) = world("ce-remap-nowrite");
+        let elements = 10_000u32;
+        let len = elements as usize * 16;
+        assert!(fb.write(0x300_0000, &vec![0xEE; len + 16]));
+        let mut gm = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        // COMPONENT_SIZE FOUR, NUM_DST_COMPONENTS FOUR; X CONST_A, Y CONST_B, Z/W NO_WRITE.
+        let mut ce = CeState {
+            offset_out: (0, 0x300_0000),
+            line_length_in: elements,
+            remap_const_a: 0x1122_3344,
+            remap_const_b: 0x5566_7788,
+            remap_components: 0x0303_6654,
+            ..Default::default()
+        };
+        let zero = std::time::Duration::ZERO;
+        let mut slices = 0;
+        let note = loop {
+            match Registry::launch_dma(&mut ce, &mut gm, root, 0x2582, 1, None, zero).unwrap() {
+                CeOutcome::Sliced(_) => slices += 1,
+                CeOutcome::Done(note) => break note,
+            }
+        };
+        assert!(slices >= 2, "{slices} slices");
+        assert!(note.contains(&format!("ce remap {len} bytes")), "{note}");
+        assert!(note.contains("components 0x3036654"), "{note}");
+        let mut got = vec![0u8; len + 16];
+        assert!(gm.fb.read(0x300_0000, &mut got));
+        for (i, e) in got[..len].chunks(16).enumerate() {
+            assert_eq!(&e[..4], &[0x44, 0x33, 0x22, 0x11], "X of element {i}");
+            assert_eq!(&e[4..8], &[0x88, 0x77, 0x66, 0x55], "Y of element {i}");
+            assert_eq!(&e[8..], &[0xEE; 8], "Z/W of element {i} written");
+        }
+        assert_eq!(&got[len..], &[0xEE; 16], "written past the transfer");
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A remap copy: source components swizzled (BGRA from RGBA), a constant W, and a
+    /// multi-line pitch transfer whose row gaps stay untouched.
+    #[test]
+    fn a_remap_copy_swizzles_source_components_line_by_line() {
+        let (mut fb, sys, path, root) = world("ce-remap-swizzle");
+        let (w, h, pitch_in, pitch_out) = (5u32, 3u32, 32u32, 24u32);
+        let mut src = vec![0u8; (pitch_in * h) as usize];
+        for (i, b) in src.iter_mut().enumerate() {
+            *b = i as u8;
+        }
+        assert!(fb.write(0x100_0000, &src));
+        assert!(fb.write(0x200_0000, &vec![0xAB; (pitch_out * h) as usize]));
+        let mut gm = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        // COMPONENT_SIZE ONE, four source and four destination components:
+        // X SRC_Z, Y SRC_Y, Z SRC_X, W CONST_A.
+        let mut ce = CeState {
+            offset_in: (0, 0x100_0000),
+            offset_out: (0, 0x200_0000),
+            pitch_in,
+            pitch_out,
+            line_length_in: w,
+            line_count: h,
+            remap_const_a: 0xFF,
+            remap_components: 0x0330_4012,
+            ..Default::default()
+        };
+        // Physical source and destination, pitch both, remap, multi-line.
+        let v = PHYS_COPY | (1 << 10) | (1 << 9);
+        let second = std::time::Duration::from_secs(1);
+        let note = match Registry::launch_dma(&mut ce, &mut gm, root, v, 1, None, second).unwrap() {
+            CeOutcome::Done(note) => note,
+            CeOutcome::Sliced(s) => panic!("sliced: {s}"),
+        };
+        assert!(note.contains("ce remap 60 bytes"), "{note}");
+        let mut got = vec![0u8; (pitch_out * h) as usize];
+        assert!(gm.fb.read(0x200_0000, &mut got));
+        for y in 0..h as usize {
+            let row = &got[y * pitch_out as usize..][..pitch_out as usize];
+            for x in 0..w as usize {
+                let s = y * pitch_in as usize + 4 * x;
+                let want = [s as u8 + 2, s as u8 + 1, s as u8, 0xFF];
+                assert_eq!(&row[4 * x..4 * x + 4], &want, "pixel {x},{y}");
+            }
+            assert_eq!(&row[4 * w as usize..], &[0xAB; 4], "row gap {y} written");
+        }
+        std::fs::remove_file(path).ok();
+    }
+
+    /// The fields of SET_REMAP_COMPONENTS (clc5b5.h:159-206), component sizes and counts
+    /// that differ between source and destination, and the selects that are refused.
+    #[test]
+    fn remap_shapes_follow_the_class() {
+        // COMPONENT_SIZE TWO, one source component, two destination components:
+        // X SRC_X, Y CONST_B (a 16-bit value widened with a constant half).
+        let s = RemapShape::of(0x0101_0050).unwrap();
+        assert_eq!((s.comp, s.nsrc, s.ndst), (2, 1, 2));
+        assert!(!s.constant() && s.reads_source());
+        assert_eq!((s.src_elem(), s.dst_elem()), (2, 4));
+        let (out, mask) = s.apply(&[0x01, 0x02, 0x03, 0x04], 2, 0, 0xBBAA);
+        assert_eq!(out, [0x01, 0x02, 0xAA, 0xBB, 0x03, 0x04, 0xAA, 0xBB]);
+        assert!(mask.iter().all(|&m| m));
+        // Constants only: the memset path; components past NUM_DST_COMPONENTS are ignored.
+        let m = RemapShape::of(0x0002_7704).unwrap();
+        assert!(m.constant() && !m.reads_source());
+        // NO_WRITE only: nothing written.
+        let n = RemapShape::of(0x0300_6666).unwrap();
+        let (_, mask) = n.apply(&[], 3, 0, 0);
+        assert!(mask.iter().all(|&m| !m));
+        // A source component beyond NUM_SRC_COMPONENTS, and the reserved select 7.
+        assert!(RemapShape::of(0x0000_0001).is_err());
+        assert!(RemapShape::of(0x0000_0007).is_err());
     }
 }
