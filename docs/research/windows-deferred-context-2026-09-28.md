@@ -27,6 +27,10 @@ must be off.
   idles the exact host channel, harvests its final USERD, frees the host TSG and
   synchronizes the software cursor. One target channel per TSG is supported;
   shared-group eviction is unsupported.
+- EVICT and the management retirement wait under the device lock only for the
+  target root's plans, not for the shadow VAS's teardown, which the worker runs
+  in bounded steps (2026-09-29: waiting for it held the lock 300-345 ms in Windows
+  C70; nothing can run on a VAS whose channels and TSG are freed).
 - Guest physical context addresses are validated against the VM reservation,
   but are not passed to host RM. The host driver's GR object constructor owns
   the actual context allocation, initialization and promotion.
