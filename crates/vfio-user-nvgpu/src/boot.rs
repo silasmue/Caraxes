@@ -824,12 +824,7 @@ impl BootModel {
             let dir = crate::display::engine::ticker().control_dir().unwrap_or_default();
             match rest.trim() {
                 "auto" => {
-                    self.ctrl.display.auto_dump = Some(crate::display::AutoDump {
-                        dir: dir.clone(),
-                        next_ns: 0,
-                        flips: 0,
-                        count: 0,
-                    });
+                    self.ctrl.display.auto_dump = Some(crate::display::AutoDump::new(dir.clone()));
                     self.ctrl.display.notes.push(format!(
                         "display: auto dump on: window 0's scanout after new latches, at most one per 3 s, {}/scanout-auto-<0..9>.png",
                         dir.display()
@@ -837,7 +832,9 @@ impl BootModel {
                     return;
                 }
                 "off" => {
-                    self.ctrl.display.auto_dump = None;
+                    if let Some(mut a) = self.ctrl.display.auto_dump.take() {
+                        a.join();
+                    }
                     self.ctrl.display.notes.push("display: auto dump off".into());
                     return;
                 }

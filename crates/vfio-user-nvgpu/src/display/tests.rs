@@ -690,6 +690,62 @@ fn a_page_kick_is_the_trapped_kick() {
     assert_eq!(disp.channels[&w6].kicks, 1);
 }
 
+/// A channel page's lower half reads back the assembly state, the upper half (+2048) the
+/// ARMED state the last `UPDATE` promoted (dev_display_withoffset.ref.txt:5956-5973): the
+/// Windows KMD reads window 0's ARMED `SET_PARAMS` (+0xA2C) and `SET_COMPOSITION_CONTROL`
+/// (+0xAEC) after each flip. The ARMED half is read-only; the cursor's PIO methods arm too.
+#[test]
+fn channel_pages_read_back_assembly_and_armed_state() {
+    let mut disp = display();
+    let mut mem = GuestMemory::new();
+    let f = tempfile_4k();
+    mem.map(0x10_0000, 0x1000, 0, &f).unwrap();
+    // Window 0: SET_PARAMS (0x22C) = 0xCF, SET_COMPOSITION_CONTROL (0x2EC) = 0xFF0; then
+    // UPDATE; then SET_PARAMS = 0xE6 without UPDATE.
+    let words = [
+        1u32 << 18 | 0x22C, 0xCF,
+        1 << 18 | 0x2EC, 0xFF0,
+        1 << 18 | 0x200, 0,
+        1 << 18 | 0x22C, 0xE6,
+    ];
+    for (i, w) in words.iter().enumerate() {
+        assert!(mem.write(0x10_0000 + 4 * i as u64, &w.to_le_bytes()));
+    }
+    let mut p = vec![0u8; d::PUSHBUFFER_SIZE];
+    put32(&mut p, d::PUSHBUFFER_ADDRESS_SPACE, 1);
+    p[8..16].copy_from_slice(&0x10_0000u64.to_le_bytes());
+    p[16..24].copy_from_slice(&0xFFFu64.to_le_bytes());
+    put32(&mut p, d::PUSHBUFFER_HCLASS, d::NVC57E_WINDOW_CHANNEL_DMA);
+    p[d::PUSHBUFFER_VALID] = 1;
+    disp.control(d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER, &p);
+    disp.alloc(d::NVC57E_WINDOW_CHANNEL_DMA, &vec![0; d::CHANNELDMA_ALLOC_SIZE])
+        .unwrap();
+    let mut fb = crate::fb::FakeFb::new(1 << 20);
+    let w0 = WIN_USERD;
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x22C), Some(0));
+    disp.write32(w0, 24, &mem, &mut fb).unwrap();
+    assert_eq!(disp.read32(w0 + 0x22C), Some(0xCF));
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x22C), Some(0xCF));
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x2EC), Some(0xFF0));
+    // Assembly moves on; ARMED waits for the next UPDATE.
+    disp.write32(w0, 32, &mem, &mut fb).unwrap();
+    assert_eq!(disp.read32(w0 + 0x22C), Some(0xE6));
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x22C), Some(0xCF));
+    // PUT and GET are unchanged by the readback.
+    assert_eq!(disp.read32(w0), Some(32));
+    assert_eq!(disp.read32(w0 + 4), Some(32));
+    let notes = disp.write32(w0 + CHN_ARMED + 0x22C, 1, &mem, &mut fb).unwrap();
+    assert!(notes[0].contains("read-only"), "{notes:?}");
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x22C), Some(0xCF));
+    // The cursor (PIO): a method write shows in the assembly half, UPDATE arms it.
+    let c0 = CURSOR_USERD;
+    disp.write32(c0 + 0x208, 0x0010_0020, &mem, &mut fb).unwrap();
+    assert_eq!(disp.read32(c0 + 0x208), Some(0x0010_0020));
+    assert_eq!(disp.read32(c0 + CHN_ARMED + 0x208), Some(0));
+    disp.write32(c0 + 0x200, 0, &mem, &mut fb).unwrap();
+    assert_eq!(disp.read32(c0 + CHN_ARMED + 0x208), Some(0x0010_0020));
+}
+
 /// The core channel's PIO registers (clc57d.h:285-297): SET_GET_BLANKING_CTRL takes a
 /// request (BLANK 0:0, UNBLANK 1:1, NO_CHANGE or ENABLE) that the model carries out at once,
 /// and a read gives the state reached in the same fields (the Windows KMD writes BLANK and
@@ -750,7 +806,7 @@ fn auto_dump_writes_new_latches_rate_limited() {
     }
     let dir = std::env::temp_dir().join(format!("caraxes-autodump-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    disp.auto_dump = Some(AutoDump { dir: dir.clone(), next_ns: 0, flips: 0, count: 0 });
+    disp.auto_dump = Some(AutoDump::new(dir.clone()));
     let w = &mut disp.engine.windows[0];
     w.head = Some(0);
     w.flips = 1;
@@ -764,13 +820,14 @@ fn auto_dump_writes_new_latches_rate_limited() {
         block_height_log2: 0,
     };
     disp.maybe_auto_dump(&fb, &mem);
+    disp.auto_dump.as_mut().unwrap().join();
     let f = dir.join("scanout-auto-0.png");
     let png = std::fs::read(&f).unwrap();
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
     // IDAT holds stored rows: filter 0, then R, G, B of pixel 0 (0, 0, 0), pixel 1 (0, 0, 1).
     let at = png.windows(4).position(|c| c == b"IDAT").unwrap() + 4 + 2 + 5;
     assert_eq!(&png[at..at + 7], &[0, 0, 0, 0, 0, 0, 1]);
-    assert!(disp.notes.iter().any(|n| n.contains("auto #0")), "{:?}", disp.notes);
+    assert!(disp.notes.iter().any(|n| n.contains("auto dump #0") && n.contains("1 step(s)")), "{:?}", disp.notes);
     // A new flip within the period: no second file.
     disp.engine.windows[0].flips = 2;
     disp.maybe_auto_dump(&fb, &mem);

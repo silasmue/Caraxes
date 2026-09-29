@@ -529,7 +529,7 @@ impl MemRef {
         }
     }
 
-    fn describe(&self) -> String {
+    pub fn describe(&self) -> String {
         format!(
             "{} {:#x}",
             if self.target == 1 { "fb" } else { "sys" },

@@ -11,8 +11,8 @@
 //!   (`chips/<chip>/display.toml`), the board's connectors (`boards/<board>.toml`
 //!   `[display]`) and one [`dp_sink::DpSink`] per connector ([`aux`] adapts the NV0073
 //!   AUX encoding onto it);
-//! - the BAR0 pages of the channels (USERD PUT/GET, the core channel's ARMED state
-//!   mirror, cursor `Free`) and the NVC573 capabilities page.
+//! - the BAR0 pages of the channels (USERD PUT/GET, every channel's assembly and ARMED
+//!   method state, cursor `Free`) and the NVC573 capabilities page.
 //!
 //! Nothing here is forwarded to the host: every answer is `synthesized` (chip data),
 //! `board` (the connector table) or `guest` (derived from what the guest wrote), D9.
@@ -57,6 +57,15 @@ pub const CORE_GET_RG_SCAN_LINE: u64 = 0x220;
 pub const CORE_SET_GET_BLANKING_CTRL: u64 = 0x240;
 pub const CORE_ARMED: u64 = 0x0068_8000;
 pub const WIN_USERD: u64 = 0x0069_0000;
+/// Methods start at 0x200 of a channel's page (`UPDATE`, clc57e.h:53); below are the
+/// channel's control words (PUT, GET, cursor `Free`).
+pub const CHN_METHODS: u64 = 0x200;
+/// A window, window-immediate or cursor channel's page is its assembly state, the upper
+/// half its ARMED state: `NV_UDISP_FE_CHN_ARMED_BASEADR_WIN(i)` is
+/// `NV_UDISP_FE_CHN_ASSY_BASEADR_WIN(i)` plus 2048, likewise `WINIM` and `CURS` (NVIDIA
+/// open-gpu-doc, volta/gv100/dev_display_withoffset.ref.txt:5956-5973; the core's ARMED
+/// half is `CORE_ARMED`).
+pub const CHN_ARMED: u64 = 0x800;
 pub const CURSOR_USERD: u64 = 0x006D_8000;
 pub const USERD_END: u64 = 0x006E_0000;
 /// `NVC57A_FREE` (+0x08 of the cursor PIO page): space for methods; must be non-zero.
@@ -292,6 +301,42 @@ pub struct Channel {
     pub methods: u32,
 }
 
+/// A window, window-immediate or cursor channel's method state: `assembly` holds what the
+/// methods wrote, `armed` what the last `UPDATE` promoted (the EVO/NVDisplay ASSEMBLY ->
+/// ARMED step; the core channel's is `core_assembly`/`core_armed`).
+#[derive(Clone, Debug, Default)]
+pub struct ChanState {
+    pub assembly: BTreeMap<u32, u32>,
+    pub armed: BTreeMap<u32, u32>,
+}
+
+impl ChanState {
+    /// Method `m` with `data`: `UPDATE` (0x200) arms the assembly state. Returns the page
+    /// words that changed (offset in the page, value).
+    fn method(&mut self, m: u32, data: u32) -> Vec<(u64, u32)> {
+        let mut changed = Vec::new();
+        if m as u64 == CHN_METHODS {
+            for (&k, &v) in &self.assembly {
+                if self.armed.insert(k, v) != Some(v) {
+                    changed.push((CHN_ARMED + k as u64, v));
+                }
+            }
+        } else if (m as u64) < CHN_ARMED && self.assembly.insert(m, data) != Some(data) {
+            changed.push((m as u64, data));
+        }
+        changed
+    }
+
+    /// The word at `rel` of the channel's page, for `rel` at or above [`CHN_METHODS`].
+    fn read(&self, rel: u64) -> Option<u32> {
+        if rel >= CHN_ARMED {
+            Some(self.armed.get(&((rel - CHN_ARMED) as u32)).copied().unwrap_or(0))
+        } else {
+            self.assembly.get(&(rel as u32)).copied()
+        }
+    }
+}
+
 /// The display state of one device.
 pub struct Display {
     pub enabled: bool,
@@ -305,6 +350,9 @@ pub struct Display {
     /// Core channel method state: assembly (written) and armed (after `UPDATE`).
     pub core_assembly: BTreeMap<u32, u32>,
     pub core_armed: BTreeMap<u32, u32>,
+    /// The other channels' method state by USERD base, read back through the page's lower
+    /// (assembly) and upper (ARMED, [`CHN_ARMED`]) half.
+    pub chan_state: BTreeMap<u64, ChanState>,
     /// Latched writes to display pages without a model.
     latched: BTreeMap<u64, u32>,
     /// The AUX transcript in dp-sink's format (`aux::record_line`).
@@ -326,18 +374,51 @@ pub struct Display {
 }
 
 /// The state of `dump auto`.
-#[derive(Clone, Debug)]
+#[derive(Debug, Default)]
 pub struct AutoDump {
     pub dir: std::path::PathBuf,
     pub next_ns: u64,
     pub flips: u64,
     pub count: u64,
+    /// The surface being read, a chunk per step ([`AUTO_DUMP_CHUNK`]).
+    pub capture: Option<Capture>,
+    /// The thread that decodes and writes the last capture (off the device lock).
+    pub writer: Option<std::thread::JoinHandle<()>>,
+}
+
+impl AutoDump {
+    pub fn new(dir: std::path::PathBuf) -> Self {
+        AutoDump { dir, ..Default::default() }
+    }
+
+    /// Wait for the last PNG to be written (tests, `dump off`).
+    pub fn join(&mut self) {
+        if let Some(w) = self.writer.take() {
+            let _ = w.join();
+        }
+    }
+}
+
+/// An automatic dump in progress: the latched surface and the bytes read so far.
+#[derive(Debug)]
+pub struct Capture {
+    pub surface: engine::Surface,
+    pub raw: Vec<u8>,
+    pub done: usize,
+    pub flips: u64,
+    pub steps: u32,
+    pub lock_ns: u64,
 }
 
 /// At most one automatic dump per 3 s (each reads the whole surface through the FB store
 /// under the device lock), and the last 10 files kept (`scanout-auto-<n % 10>.png`).
 pub const AUTO_DUMP_PERIOD_NS: u64 = 3_000_000_000;
 pub const AUTO_DUMP_KEEP: u64 = 10;
+/// Bytes of the surface one step of an automatic dump reads under the device lock. The FB
+/// reads through the host's BAR1 at about 14 MB/s (uncached): a 1080p surface in one piece
+/// held the lock for 591 ms (C53). A step runs at each engine catch-up (every tick and
+/// display register read), so a frame is read in about 128 steps of ~4 ms.
+pub const AUTO_DUMP_CHUNK: usize = 64 << 10;
 
 fn put32(b: &mut [u8], off: usize, v: u32) {
     if off + 4 <= b.len() {
@@ -433,6 +514,7 @@ impl Display {
             channels: BTreeMap::new(),
             core_assembly: BTreeMap::new(),
             core_armed: BTreeMap::new(),
+            chan_state: BTreeMap::new(),
             latched: BTreeMap::new(),
             aux_transcript: Vec::new(),
             link: None,
@@ -1643,6 +1725,21 @@ impl Display {
             if base >= CURSOR_USERD && rel == CURSOR_FREE {
                 return Some(CURSOR_FREE_ENTRIES);
             }
+            if rel >= CHN_METHODS {
+                if base == CORE_USERD {
+                    if let Some(&v) = self.core_assembly.get(&(rel as u32)) {
+                        return Some(v);
+                    }
+                } else {
+                    let st = self.chan_state.get(&base);
+                    if rel >= CHN_ARMED {
+                        return Some(st.and_then(|s| s.read(rel)).unwrap_or(0));
+                    }
+                    if let Some(v) = st.and_then(|s| s.read(rel)) {
+                        return Some(v);
+                    }
+                }
+            }
             return Some(self.latched.get(&off).copied().unwrap_or(0));
         }
         None
@@ -1692,32 +1789,13 @@ impl Display {
         if width == 0 || height == 0 || width > 16384 || height > 16384 {
             return Err(format!("window {w}: surface {width}x{height}"));
         }
-        dump::rgb(s.format, 0).ok_or_else(|| format!("window {w}: format {:#x} not decoded (32-bit RGB only)", s.format))?;
-        // Pitch layout: `pitch` in 64-byte units; block-linear: blocks of one GOB width.
-        let span = if s.pitch_layout {
-            s.pitch as u64 * 64 * height
-        } else {
-            let gob_rows = 8u64 << s.block_height_log2;
-            s.pitch as u64 * 512 * (height.div_ceil(gob_rows) << s.block_height_log2)
-        };
+        let span = surface_span(s).map_err(|e| format!("window {w}: {e}"))?;
         let mut raw = vec![0u8; span as usize];
         let ok = if m.target == 1 { fb.read(m.addr, &mut raw) } else { mem.read(m.addr, &mut raw) };
         if !ok {
             return Err(format!("window {w}: {} bytes at {m:?} not readable", raw.len()));
         }
-        let mut rgb = Vec::with_capacity((width * height * 3) as usize);
-        for y in 0..height {
-            for x in 0..width {
-                let o = if s.pitch_layout {
-                    y * s.pitch as u64 * 64 + x * 4
-                } else {
-                    dump::block_linear_offset(x * 4, y, s.pitch as u64, s.block_height_log2)
-                } as usize;
-                let px = u32::from_le_bytes(raw[o..o + 4].try_into().unwrap());
-                rgb.extend_from_slice(&dump::rgb(s.format, px).unwrap_or_default());
-            }
-        }
-        let png = dump::png(width as u32, height as u32, &rgb);
+        let png = surface_png(s, &raw);
         std::fs::write(path, &png).map_err(|e| format!("{}: {e}", path.display()))?;
         Ok(format!(
             "display: window {w} surface {} {width}x{height} format {:#x} {} written to {} ({} bytes)",
@@ -1730,11 +1808,60 @@ impl Display {
     }
 
     /// `dump auto`: after the engine advanced, dump window 0's scanout when it latched a new
-    /// surface since the last dump, its head is unblanked and the period has passed.
+    /// surface since the last dump, its head is unblanked and the period has passed. The
+    /// surface is read [`AUTO_DUMP_CHUNK`] bytes per call (the device lock is held), then
+    /// decoded and written by a thread of its own.
     pub fn maybe_auto_dump(&mut self, fb: &FakeFb, mem: &GuestMemory) {
-        let Some(a) = self.auto_dump.as_ref() else {
+        let Some(a) = self.auto_dump.as_mut() else {
             return;
         };
+        if let Some(c) = a.capture.as_mut() {
+            let t0 = std::time::Instant::now();
+            let m = c.surface.mem.expect("a capture has a surface");
+            let end = (c.done + AUTO_DUMP_CHUNK).min(c.raw.len());
+            let buf = &mut c.raw[c.done..end];
+            let at = m.addr + c.done as u64;
+            let ok = if m.target == 1 { fb.read(at, buf) } else { mem.read(at, buf) };
+            c.steps += 1;
+            c.lock_ns += t0.elapsed().as_nanos() as u64;
+            if !ok {
+                let note = format!("display: auto dump abandoned: {} bytes at {at:#x} not readable", end - c.done);
+                a.capture = None;
+                a.next_ns = engine::now_ns() + AUTO_DUMP_PERIOD_NS;
+                self.notes.push(note);
+                return;
+            }
+            c.done = end;
+            if c.done < c.raw.len() {
+                return;
+            }
+            let c = a.capture.take().expect("checked");
+            let path = a.dir.join(format!("scanout-auto-{}.png", a.count % AUTO_DUMP_KEEP));
+            let s = &c.surface;
+            self.notes.push(format!(
+                "display: auto dump #{} of window 0 (flip {}): {}x{} format {:#x} at {}, {} bytes read in {} step(s), {} ms under the device lock in all; decoding to {}",
+                a.count,
+                c.flips,
+                s.width,
+                s.height,
+                s.format,
+                m.describe(),
+                c.raw.len(),
+                c.steps,
+                c.lock_ns / 1_000_000,
+                path.display()
+            ));
+            a.join();
+            a.writer = Some(std::thread::spawn(move || {
+                let png = surface_png(&c.surface, &c.raw);
+                if let Err(e) = std::fs::write(&path, &png) {
+                    eprintln!("vfio-user-nvgpu: display: auto dump: {}: {e}", path.display());
+                }
+            }));
+            a.count += 1;
+            a.next_ns = engine::now_ns() + AUTO_DUMP_PERIOD_NS;
+            return;
+        }
         let now = engine::now_ns();
         let Some(w) = self.engine.windows.first() else {
             return;
@@ -1743,18 +1870,24 @@ impl Display {
         if w.flips == a.flips || now < a.next_ns || blanked || w.latched.mem.is_none() {
             return;
         }
-        let (flips, n, dir) = (w.flips, a.count, a.dir.clone());
-        let path = dir.join(format!("scanout-auto-{}.png", n % AUTO_DUMP_KEEP));
-        let t0 = std::time::Instant::now();
-        let note = match self.dump_window(0, fb, mem, &path) {
-            Ok(n) => format!("{n} (auto #{}, flip {flips}, {} ms under the device lock)", a.count, t0.elapsed().as_millis()),
-            Err(e) => format!("display: auto dump refused: {e}"),
-        };
-        self.notes.push(note);
-        if let Some(a) = self.auto_dump.as_mut() {
-            a.flips = flips;
-            a.count += 1;
-            a.next_ns = engine::now_ns() + AUTO_DUMP_PERIOD_NS;
+        a.flips = w.flips;
+        match surface_span(&w.latched) {
+            Ok(span) => {
+                a.capture = Some(Capture {
+                    surface: w.latched.clone(),
+                    raw: vec![0u8; span as usize],
+                    done: 0,
+                    flips: w.flips,
+                    steps: 0,
+                    lock_ns: 0,
+                });
+                // The first chunk now.
+                self.maybe_auto_dump(fb, mem);
+            }
+            Err(e) => {
+                a.next_ns = now + AUTO_DUMP_PERIOD_NS;
+                self.notes.push(format!("display: auto dump refused: window 0: {e}"));
+            }
         }
     }
 
@@ -1835,6 +1968,16 @@ impl Display {
                 return Some(notes);
             }
         }
+        if base != CORE_USERD && rel >= CHN_ARMED {
+            return Some(vec![format!(
+                "display: write {v:#x} to the ARMED state at {off:#x} (read-only) dropped [guest]"
+            )]);
+        }
+        if base >= CURSOR_USERD && rel >= CHN_METHODS {
+            // The cursor channel is PIO (NVC57A): its methods are these writes, `UPDATE`
+            // (0x200) arms them.
+            self.chan_state.entry(base).or_default().method(rel as u32, v);
+        }
         self.latched.insert(off, v);
         Some(Vec::new())
     }
@@ -1860,6 +2003,8 @@ impl Display {
             _ => 0,
         };
         let mut unreadable = false;
+        // Assembly and ARMED words this kick changed, for the kick page (chan_page.rs).
+        let mut published: Vec<(u64, u32)> = Vec::new();
         if ch.valid && ch.pb_aspace == 1 && end <= ch.pb_limit + 1 {
             let mut pos = start;
             let mut budget = 4096u32;
@@ -1901,15 +2046,18 @@ impl Display {
                                 } else {
                                     self.core_assembly.insert(m, data);
                                 }
-                            } else if let Some(w) = window {
-                                if m == 0x200 {
+                            } else {
+                                published.extend(self.chan_state.entry(base).or_default().method(m, data));
+                                if let Some(w) = window {
+                                    if m == 0x200 {
+                                        updates += 1;
+                                        self.engine.window_update(w, engine::now_ns(), fb, mem);
+                                    } else {
+                                        self.engine.window_method(w, m, data);
+                                    }
+                                } else if m == 0x200 {
                                     updates += 1;
-                                    self.engine.window_update(w, engine::now_ns(), fb, mem);
-                                } else {
-                                    self.engine.window_method(w, m, data);
                                 }
-                            } else if m == 0x200 {
-                                updates += 1;
                             }
                         }
                     }
@@ -1919,6 +2067,11 @@ impl Display {
         }
         ch.methods += methods;
         ch.get = ch.put;
+        if let Some(p) = chan_page() {
+            for (rel, v) in published {
+                p.publish(base, rel, v);
+            }
+        }
         // HEAD_SET_RASTER_SIZE/SYNC_END/BLANK_END/BLANK_START(h) = 0x2064-0x2070 + 0x400h
         // (clc57d.h): an UPDATE carrying them is a modeset (display-adapter.md §5).
         let raster = seen
@@ -2047,6 +2200,41 @@ fn page_of(off: u64) -> (u64, u64) {
     } else {
         (off & !0xFFF, off & 0xFFF)
     }
+}
+
+/// The bytes a latched surface spans: pitch layout `pitch` 64-byte units per row;
+/// block-linear, `pitch` blocks of one GOB width per row of blocks (dump.rs).
+pub fn surface_span(s: &engine::Surface) -> Result<u64, String> {
+    let (width, height) = (s.width as u64, s.height as u64);
+    if width == 0 || height == 0 || width > 16384 || height > 16384 {
+        return Err(format!("surface {width}x{height}"));
+    }
+    dump::rgb(s.format, 0)
+        .ok_or_else(|| format!("format {:#x} not decoded (32-bit RGB only)", s.format))?;
+    Ok(if s.pitch_layout {
+        s.pitch as u64 * 64 * height
+    } else {
+        let gob_rows = 8u64 << s.block_height_log2;
+        s.pitch as u64 * 512 * (height.div_ceil(gob_rows) << s.block_height_log2)
+    })
+}
+
+/// The PNG of a surface from its raw bytes ([`surface_span`] of them).
+pub fn surface_png(s: &engine::Surface, raw: &[u8]) -> Vec<u8> {
+    let (width, height) = (s.width as u64, s.height as u64);
+    let mut rgb = Vec::with_capacity((width * height * 3) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let o = if s.pitch_layout {
+                y * s.pitch as u64 * 64 + x * 4
+            } else {
+                dump::block_linear_offset(x * 4, y, s.pitch as u64, s.block_height_log2)
+            } as usize;
+            let px = raw.get(o..o + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
+            rgb.extend_from_slice(&dump::rgb(s.format, px).unwrap_or_default());
+        }
+    }
+    dump::png(width as u32, height as u32, &rgb)
 }
 
 /// The USERD page of a channel (disp/v03_00/dev_disp.h `NV_UDISP_FE_CHN_ASSY_BASEADR*`).

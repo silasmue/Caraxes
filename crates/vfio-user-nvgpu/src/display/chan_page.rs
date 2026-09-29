@@ -142,6 +142,17 @@ impl ChanPage {
         self.maps[i].word(0).store(put, Ordering::Release);
     }
 
+    /// A method-state word of a channel's page (its assembly half from 0x200, its ARMED
+    /// half from 0x800, display/mod.rs `ChanState`), stored for the guest's direct reads.
+    /// PUT and GET (below 0x200) are not touched.
+    pub fn publish(&self, base: u64, rel: u64, v: u32) {
+        if !self.covers(base) || !(super::CHN_METHODS..PAGE).contains(&rel) || rel % 4 != 0 {
+            return;
+        }
+        let (i, _) = Self::page(base);
+        self.maps[i].word(rel).store(v, Ordering::Release);
+    }
+
     pub fn read32(&self, off: u64) -> u32 {
         let (i, rel) = Self::page(off & !3);
         self.maps[i].word(rel).load(Ordering::Acquire)
@@ -319,6 +330,25 @@ mod tests {
         assert_eq!(p.stats.no_channel.load(Ordering::Relaxed), 1);
         assert!(p.summary().contains("1 guest store(s) to GET restored"));
         assert!(p.summary().contains("2 kick(s) run") || p.summary().contains("1 kick(s) run"));
+    }
+
+    /// The device's method-state words land in the page for direct reads; PUT, GET and
+    /// words outside the page are never touched.
+    #[test]
+    fn published_state_words_show_in_the_page() {
+        let p = page();
+        let w0 = 0x69_0000;
+        p.set_channel(w0, 0x40, 0x40);
+        p.publish(w0, 0xA2C, 0xCF);
+        p.publish(w0, 0x22C, 0xE6);
+        p.publish(w0, 0, 7);
+        p.publish(w0, 4, 7);
+        p.publish(w0, PAGE, 7);
+        p.publish(0x6D_8000, 0xA2C, 7);
+        assert_eq!(p.read32(w0 + 0xA2C), 0xCF);
+        assert_eq!(p.read32(w0 + 0x22C), 0xE6);
+        assert_eq!((p.read32(w0), p.read32(w0 + 4)), (0x40, 0x40));
+        assert_eq!(p.read32(w0 + PAGE), 0);
     }
 
     /// The watchdog: a kick seen and not completed within the period is counted once.
