@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# The delegatee's half of the dmem display reserve (caraxes-dmem-cap): once the graphical
+# session is up, cap app.slice at dmem.current + free VRAM - R. It runs in session.slice,
+# outside the cap, and after a stream server that starts with the session, so that their
+# steady use is part of the measurement. `systemctl --user reload caraxes-dmem-cap` measures
+# again; stopping it removes the cap. Installed to /etc/systemd/user/ by install.sh.
+[Unit]
+Description=Caraxes display reserve: cap app.slice device memory (dmem)
+Documentation=https://docs.kernel.org/admin-guide/cgroup-v2.html#dmem
+Wants=app.slice
+After=graphical-session.target app.slice app-dev.lizardbyte.app.Sunshine.service
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Slice=session.slice
+ExecStart=/usr/local/libexec/caraxes/caraxes-dmem-cap apply
+ExecReload=/usr/local/libexec/caraxes/caraxes-dmem-cap apply
+ExecStop=/usr/local/libexec/caraxes/caraxes-dmem-cap clear
+
+[Install]
+WantedBy=graphical-session.target
