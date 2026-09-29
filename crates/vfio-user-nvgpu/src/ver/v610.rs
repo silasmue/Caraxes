@@ -1253,6 +1253,7 @@ pub const TSG_ENGINE_TYPE: usize =
 /// (src/nvidia/inc/kernel/vgpu/rm_plugin_shared_code.h:66-67).
 pub const MEM_DESC_BASE: usize = offset_of!(ffi::NV_MEMORY_DESC_PARAMS, base);
 pub const MEM_DESC_ADDRESS_SPACE: usize = offset_of!(ffi::NV_MEMORY_DESC_PARAMS, addressSpace);
+pub const MEM_DESC_SIZE: usize = offset_of!(ffi::NV_MEMORY_DESC_PARAMS, size);
 pub const ADDR_SYSMEM: u32 = 1;
 pub const ADDR_FBMEM: u32 = 2;
 
@@ -1659,7 +1660,7 @@ mod tests {
             (0, 8, 16, 20)
         );
         assert_eq!((TSG_HVASPACE, TSG_ENGINE_TYPE), (8, 12));
-        assert_eq!((MEM_DESC_BASE, MEM_DESC_ADDRESS_SPACE), (0, 16));
+        assert_eq!((MEM_DESC_BASE, MEM_DESC_SIZE, MEM_DESC_ADDRESS_SPACE), (0, 8, 16));
         assert_eq!(
             size_of::<ffi::NV2080_CTRL_GPU_GET_INFO_V2_PARAMS>(),
             580,

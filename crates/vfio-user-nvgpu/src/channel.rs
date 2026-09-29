@@ -320,6 +320,13 @@ pub struct Channel {
     /// The VAS the channel runs in: its own `hVASpace` or its TSG's.
     pub vas: Option<(u32, u32)>,
     pub error_notifier: Option<Target>,
+    /// The memory the guest handed for the channel's own structures, which the card reads by
+    /// physical address: `instanceMem` (the instance block, `NV_RAMIN`, 4 KiB,
+    /// maxwell/gm107/dev_ram.h:37), `ramfcMem` (`NV_RAMIN_RAMFC`, turing/tu102/dev_ram.h:27,
+    /// 52) and `mthdbufMem` (`NV_RAMIN_ENG_METHOD_BUFFER_ADDR`, :41-42), each `(start,
+    /// bytes)`; USERD is [`Self::userd`]. The BAR2 memfd's doorbell rule counts them as
+    /// memory the channel's work could observe (boot.rs `bar2_observed`).
+    pub structures: Vec<(Target, u64)>,
     /// 615: the internal TSG the kernel created for a bare channel
     /// (`NV_KERNELCHANNEL_ALLOC_INTERNALFLAGS_INTERNAL_TSG_ID` 23:8, `_VALID` 24,
     /// src/nvidia/generated/g_kernel_channel_nvoc.h:199-202 of 615;
@@ -1385,6 +1392,19 @@ impl Registry {
                         params,
                         <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem,
                     ),
+                    structures: [
+                        (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_instanceMem, 0x1000),
+                        (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_ramfcMem, 0x200),
+                        (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_mthdbufMem, 0),
+                    ]
+                    .into_iter()
+                    .filter_map(|(off, least)| {
+                        let t = mem_desc(params, off)?;
+                        // A guest's size is bounded (a method buffer is some pages).
+                        let size = rd64(params, off + v::MEM_DESC_SIZE).clamp(least, 1 << 24);
+                        (size > 0).then_some((t, size))
+                    })
+                    .collect(),
                     internal_tsg_id: Some(rd32(
                         params,
                         <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags,

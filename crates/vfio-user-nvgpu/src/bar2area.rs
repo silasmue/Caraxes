@@ -413,6 +413,8 @@ pub struct Scan {
 pub struct RemapTable {
     va: BTreeMap<u64, u64>,
     live: HashMap<u64, Live>,
+    /// Bumped whenever a page enters or leaves `live` ([`Self::generation`]).
+    generation: u64,
 }
 
 impl RemapTable {
@@ -448,6 +450,19 @@ impl RemapTable {
     /// Pages mapped through BAR2.
     pub fn live_pages(&self) -> usize {
         self.live.len()
+    }
+
+    /// Changes whenever the set of pages mapped through BAR2 does: equal generations, equal
+    /// live sets (what the doorbell rule caches, [`Bar2Area::observed`]).
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// The live page keys, ascending.
+    pub fn live_keys(&self) -> Vec<u64> {
+        let mut k: Vec<u64> = self.live.keys().copied().collect();
+        k.sort_unstable();
+        k
     }
 
     /// BAR2 pages that map something.
@@ -498,6 +513,7 @@ impl RemapTable {
                 l.vas.retain(|&v| v != va);
                 if l.vas.is_empty() {
                     self.live.remove(&o);
+                    self.generation += 1;
                     ch.left = Some(o);
                 }
             }
@@ -521,6 +537,7 @@ impl RemapTable {
                             snap,
                         },
                     );
+                    self.generation += 1;
                     ch.loaded = true;
                 }
             }
@@ -539,11 +556,25 @@ impl RemapTable {
         mem: &SharedView,
         write_back: &mut dyn FnMut(u64, usize, &[u8]),
     ) -> Scan {
+        self.scan_keys(mem, None, write_back)
+    }
+
+    /// [`Self::scan`] of the live pages among `only` (all of them for `None`).
+    pub fn scan_keys(
+        &mut self,
+        mem: &SharedView,
+        only: Option<&[u64]>,
+        write_back: &mut dyn FnMut(u64, usize, &[u8]),
+    ) -> Scan {
         let mut out = Scan::default();
         let mut buf: Box<PageBuf> = Box::new([0; WORDS]);
         let mut cmask: Box<PageBuf> = Box::new([0; WORDS]);
-        let mut keys: Vec<u64> = self.live.keys().copied().collect();
+        let mut keys: Vec<u64> = match only {
+            Some(k) => k.iter().copied().filter(|k| self.live.contains_key(k)).collect(),
+            None => self.live.keys().copied().collect(),
+        };
         keys.sort_unstable();
+        keys.dedup();
         for key in keys {
             let l = self.live.get_mut(&key).expect("listed");
             let mut merged: Option<Box<PageBuf>> = None;
@@ -628,6 +659,7 @@ impl RemapTable {
     pub fn clear(&mut self) {
         self.va.clear();
         self.live.clear();
+        self.generation += 1;
     }
 }
 
@@ -734,6 +766,64 @@ pub enum Settle {
     Doorbell,
     /// The flush clock, [`DEFER_BOUND`] after the flush read, with no hand-over since.
     Clock,
+}
+
+/// The points at which what the guest wrote through BAR2 must be in VRAM, because the
+/// card lets an engine, the MMU or GSP-RM consume it from there on (docs/caraxes/
+/// bar2-memfd.md §3). A full sync runs at each, except that a flush (read or
+/// `NV_UFLUSH_FB_FLUSH`) with the deferral on only marks the sync owed ([`DeferredFlush`]);
+/// a channel doorbell without an owed flush syncs only the pages its channel could observe
+/// ([`Bar2Area::sync_pages`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Point {
+    /// A read of the trapped flush page: `kbusFlushSingle_GV100` reads FB address 0 through
+    /// BAR2 "in order to trigger a flush" (615 kern_bus_gv100.c:384-399); by PCIe ordering
+    /// the read completes after every earlier posted write.
+    FlushRead,
+    /// `NV_UFLUSH_FB_FLUSH` (BAR0 0x070000, maxwell/gm107/dev_flush.h:30): the sysmembar
+    /// that "flush[es] all outstanding writes to the GPU from the PCIE path" (615
+    /// kern_bus_gh100.c:2946-2950, its XAL successor); started by writing PENDING (bit 0)
+    /// and done when PENDING and OUTSTANDING (bit 1) read 0 (Linux 7.2.7
+    /// nvkm/subdev/bar/g84.c:29-40).
+    FbFlush,
+    /// `NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE` with TRIGGER (turing/tu102/dev_vm.h:120-131):
+    /// the MMU walks the page tables again.
+    MmuInvalidate,
+    /// `NV_PGSP_QUEUE_HEAD(0)` (turing/tu102/dev_gsp.h:38): GSP-RM consumes the command
+    /// queue. On a GSP system the runlist submit is GSP-RM's own register write; the CPU's
+    /// equivalents (channel and TSG allocation, `NVA06F_CTRL_CMD_BIND`,
+    /// `NVA06C/NVA06F_CTRL_CMD_GPFIFO_SCHEDULE`, `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS`) are
+    /// RPCs through this queue, so this point covers them.
+    GspQueueHead,
+    /// `NV_PBUS_BAR2_BLOCK`: BAR2 (re)bound, its tables live from here on.
+    Bar2Bind,
+    /// A channel doorbell (`NV_VIRTUAL_FUNCTION_DOORBELL`, turing/tu102/dev_vm.h:229) that
+    /// found a flush owed.
+    Doorbell,
+    /// The flush clock, [`DEFER_BOUND`] after an owed flush with no hand-over since.
+    Clock,
+}
+
+const POINTS: usize = 7;
+
+impl Point {
+    /// How a sync at this point counts when it settles an owed flush.
+    pub fn settle(self) -> Settle {
+        match self {
+            Point::Doorbell => Settle::Doorbell,
+            Point::Clock => Settle::Clock,
+            _ => Settle::SyncPoint,
+        }
+    }
+
+    /// The point a settle cause stands for ([`Settle`] callers without a point).
+    pub fn of(cause: Settle) -> Point {
+        match cause {
+            Settle::Doorbell => Point::Doorbell,
+            Settle::Clock => Point::Clock,
+            Settle::SyncPoint => Point::FlushRead,
+        }
+    }
 }
 
 /// A flush read whose sync is owed (docs/caraxes/display-pacing.md).
@@ -878,6 +968,22 @@ pub struct Bar2Stats {
     pub drift_checked: u64,
     pub drift_found: u64,
     pub drift_first: Vec<u64>,
+    /// Full syncs by [`Point`] (in its order).
+    pub by_point: [u64; POINTS],
+    /// `NV_UFLUSH_FB_FLUSH` writes that started a flush.
+    pub fb_flushes: u64,
+    /// The doorbell rule (channel doorbells without an owed flush, [`Bar2Area::sync_pages`]):
+    /// doorbells checked; those whose channels could observe nothing behind the memfd; those
+    /// with a channel whose memory the device cannot name (all live pages count); the
+    /// partial syncs, their page compares, the dirty pages they found and their time.
+    pub doorbells_checked: u64,
+    pub doorbells_clean: u64,
+    pub doorbells_unknown: u64,
+    pub doorbell_syncs: u64,
+    pub doorbell_compared: u64,
+    pub doorbell_dirty: u64,
+    pub doorbell_ns: u64,
+    pub doorbell_ns_max: u64,
 }
 
 /// What one sync changed, for the FB's caches.
@@ -909,6 +1015,8 @@ pub struct Bar2Area {
     /// The device's private FB pages (devce.rs `PRIVATE_AT`): never mapped into the memfd
     /// nor read as a BAR2 table; a guest access there traps (fb.rs `bar_access` refuses it).
     private: Vec<(u64, u64)>,
+    /// The live page keys, ascending, as of the remap generation they were listed at.
+    live_sorted: RefCell<(u64, Vec<u64>)>,
 }
 
 impl Bar2Area {
@@ -941,6 +1049,7 @@ impl Bar2Area {
             private: Vec::new(),
             drift_cursor: 0,
             drift_at: None,
+            live_sorted: RefCell::new((0, Vec::new())),
         })
     }
 
@@ -969,6 +1078,89 @@ impl Bar2Area {
 
     pub fn has_live(&self) -> bool {
         !self.remap.is_empty()
+    }
+
+    /// See [`RemapTable::generation`].
+    pub fn live_generation(&self) -> u64 {
+        self.remap.generation()
+    }
+
+    /// Every live page key, ascending (a channel whose memory the device cannot name could
+    /// observe any of them).
+    pub fn live_keys(&self) -> Vec<u64> {
+        self.live_sorted().clone()
+    }
+
+    fn live_sorted(&self) -> std::cell::Ref<'_, Vec<u64>> {
+        let gen = self.remap.generation();
+        if self.live_sorted.borrow().0 != gen {
+            *self.live_sorted.borrow_mut() = (gen, self.remap.live_keys());
+        }
+        std::cell::Ref::map(self.live_sorted.borrow(), |(_, k)| k)
+    }
+
+    /// The live page keys a channel could observe, ascending: those inside `pieces`
+    /// (memory as `(start, bytes)`, FB or guest sysmem) and among `pages` (FB page numbers).
+    pub fn observed(&self, pieces: &[(Target, u64)], pages: &[u64]) -> Vec<u64> {
+        let live = self.live_sorted();
+        let mut out = Vec::new();
+        if live.is_empty() {
+            return out;
+        }
+        let mut take = |lo: u64, hi: u64| {
+            let i = live.partition_point(|k| *k < lo);
+            out.extend(live[i..].iter().copied().take_while(|k| *k < hi));
+        };
+        for &(t, n) in pieces {
+            if n == 0 {
+                continue;
+            }
+            match t {
+                Target::Fb(pa) => take(pa / PAGE, pa.saturating_add(n - 1) / PAGE + 1),
+                Target::Sys(pa) => {
+                    take((pa / PAGE) | SYS, (pa.saturating_add(n - 1) / PAGE + 1) | SYS)
+                }
+                _ => {}
+            }
+        }
+        for &p in pages {
+            take(p, p + 1);
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// Count a full sync at `p`.
+    pub fn count_point(&mut self, p: Point) {
+        self.stats.by_point[p as usize] += 1;
+    }
+
+    /// An `NV_UFLUSH_FB_FLUSH` write that started a flush: as a flush read
+    /// ([`Self::defer_flush`]), with the deferral on it marks the sync owed and returns true
+    /// (the caller skips it); otherwise false (the caller syncs now). Counted apart from the
+    /// flush reads.
+    pub fn defer_fb_flush(&mut self) -> bool {
+        self.stats.fb_flushes += 1;
+        match &self.defer {
+            Some(d) => {
+                d.mark();
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Count a channel doorbell the rule checked: `observed` pages behind the memfd, and
+    /// whether a channel's memory was unknown (all live pages).
+    pub fn note_doorbell(&mut self, observed: usize, unknown: bool) {
+        self.stats.doorbells_checked += 1;
+        if observed == 0 {
+            self.stats.doorbells_clean += 1;
+        }
+        if unknown {
+            self.stats.doorbells_unknown += 1;
+        }
     }
 
     /// The memfd offset holding FB address `pa`, when its page is mapped through BAR2.
@@ -1064,34 +1256,9 @@ impl Bar2Area {
     ) -> SyncReport {
         let t0 = std::time::Instant::now();
         let mut rep = SyncReport::default();
-        let mut sys_skipped = 0u64;
-        let scan = self.remap.scan(
-            &self.mem.view,
-            &mut |key, off, bytes| match target_of(key) {
-                Target::Fb(pa) => store.write(tr(pa) + off as u64, bytes),
-                Target::Sys(pa) => match sys {
-                    Some(m) => {
-                        m.write(pa + off as u64, bytes);
-                    }
-                    None => sys_skipped += 1,
-                },
-                _ => {}
-            },
-        );
+        let scan = self.scan_back(store, sys, tr, None, &mut rep);
         self.stats.syncs += 1;
         self.stats.compared += scan.compared as u64;
-        self.stats.dirty += scan.dirty.len() as u64;
-        self.stats.bytes_written_back += scan.bytes as u64;
-        self.stats.conflicts += scan.conflicts as u64;
-        self.stats.sys_skipped += sys_skipped;
-        rep.dirty = scan.dirty.into_iter().filter(|k| k & SYS == 0).collect();
-        if let Some(c) = self.cache.borrow_mut().as_mut() {
-            for &p in &rep.dirty {
-                if c.watches(p) {
-                    c.mark_dirty(p);
-                }
-            }
-        }
         if let Some(root) = root {
             self.follow_tables(store, fb_size, root, sys, tr, &mut rep);
         }
@@ -1109,6 +1276,77 @@ impl Bar2Area {
             "",
         );
         rep
+    }
+
+    /// The doorbell rule's partial sync (docs/caraxes/bar2-memfd.md §3): scan and write back
+    /// only the live pages among `keys` ([`Self::observed`]). A BAR2 table page among them
+    /// is marked dirty in the BAR2 walk as at a full sync and followed at the next one (a
+    /// BAR2 PTE change is followed by a flush and an MMU invalidate, rule 1).
+    pub fn sync_pages(
+        &mut self,
+        store: &mut dyn FbStore,
+        sys: Option<&GuestMemory>,
+        tr: Translate,
+        keys: &[u64],
+    ) -> SyncReport {
+        let t0 = std::time::Instant::now();
+        let mut rep = SyncReport::default();
+        let scan = self.scan_back(store, sys, tr, Some(keys), &mut rep);
+        let ns = t0.elapsed().as_nanos() as u64;
+        self.stats.doorbell_syncs += 1;
+        self.stats.doorbell_compared += scan.compared as u64;
+        self.stats.doorbell_dirty += scan.dirty.len() as u64;
+        self.stats.doorbell_ns += ns;
+        self.stats.doorbell_ns_max = self.stats.doorbell_ns_max.max(ns);
+        crate::profile::record(
+            crate::profile::Key::Window("bar2 memfd: doorbell syncs (units: pages compared)"),
+            std::time::Duration::from_nanos(ns),
+            scan.compared as u64,
+            None,
+            "",
+        );
+        rep
+    }
+
+    /// Scan the live pages (those among `only`, when given) and write the changed bytes back
+    /// (FB pages to the store at `tr(address)`, sysmem pages to guest RAM); the dirty FB
+    /// pages go into `rep` and are marked dirty in the BAR2 walk.
+    fn scan_back(
+        &mut self,
+        store: &mut dyn FbStore,
+        sys: Option<&GuestMemory>,
+        tr: Translate,
+        only: Option<&[u64]>,
+        rep: &mut SyncReport,
+    ) -> Scan {
+        let mut sys_skipped = 0u64;
+        let scan = self.remap.scan_keys(
+            &self.mem.view,
+            only,
+            &mut |key, off, bytes| match target_of(key) {
+                Target::Fb(pa) => store.write(tr(pa) + off as u64, bytes),
+                Target::Sys(pa) => match sys {
+                    Some(m) => {
+                        m.write(pa + off as u64, bytes);
+                    }
+                    None => sys_skipped += 1,
+                },
+                _ => {}
+            },
+        );
+        self.stats.dirty += scan.dirty.len() as u64;
+        self.stats.bytes_written_back += scan.bytes as u64;
+        self.stats.conflicts += scan.conflicts as u64;
+        self.stats.sys_skipped += sys_skipped;
+        rep.dirty = scan.dirty.iter().copied().filter(|k| k & SYS == 0).collect();
+        if let Some(c) = self.cache.borrow_mut().as_mut() {
+            for &p in &rep.dirty {
+                if c.watches(p) {
+                    c.mark_dirty(p);
+                }
+            }
+        }
+        scan
     }
 
     /// At most once per [`DRIFT_EVERY`], after the write-back: compare one mapped FB page's
@@ -1313,6 +1551,30 @@ impl Bar2Area {
         self.cache_root.set(u64::MAX);
     }
 
+    /// The sync points' part of the summary line.
+    fn points_line(&self, s: &Bar2Stats) -> String {
+        let p = |x: Point| s.by_point[x as usize];
+        format!(
+            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; channel doorbells: {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
+            p(Point::FlushRead),
+            p(Point::FbFlush),
+            s.fb_flushes,
+            p(Point::MmuInvalidate),
+            p(Point::GspQueueHead),
+            p(Point::Bar2Bind),
+            p(Point::Doorbell),
+            p(Point::Clock),
+            s.doorbells_checked,
+            s.doorbells_clean,
+            s.doorbells_unknown,
+            s.doorbell_syncs,
+            s.doorbell_compared,
+            s.doorbell_dirty,
+            s.doorbell_ns / 1000,
+            s.doorbell_ns_max / 1000,
+        )
+    }
+
     /// The exit-summary line.
     pub fn summary(&self) -> String {
         let s = self.stats();
@@ -1322,7 +1584,7 @@ impl Bar2Area {
             .map(|p| format!("{:#x}", p * PAGE))
             .collect();
         format!(
-            "bar2 memfd: BAR2 [0, {:#x}) in host RAM, trapped page(s) [{}] with {} access(es); {} sync(s) ({} us total, {} us max), {} page compare(s), {} dirty page(s), {} byte(s) written back, {} alias conflict(s); {} BAR2 table walk(s), {} page(s) entered ({} loaded), {} left; now {} page(s) mapped at {} BAR2 page(s), at most {} live and {} alias(es) of one page; {} sysmem write-back(s) skipped; flush reads {}; VRAM behind the memfd: {} of {} sampled page(s) changed{} (docs/caraxes/bar2-memfd.md, display-pacing.md)",
+            "bar2 memfd: BAR2 [0, {:#x}) in host RAM, trapped page(s) [{}] with {} access(es); {} sync(s) ({} us total, {} us max), {} page compare(s), {} dirty page(s), {} byte(s) written back, {} alias conflict(s); {} BAR2 table walk(s), {} page(s) entered ({} loaded), {} left; now {} page(s) mapped at {} BAR2 page(s), at most {} live and {} alias(es) of one page; {} sysmem write-back(s) skipped; flush reads {}; {}; VRAM behind the memfd: {} of {} sampled page(s) changed{} (docs/caraxes/bar2-memfd.md, display-pacing.md)",
             self.size,
             traps.join(" "),
             s.trapped,
@@ -1350,6 +1612,7 @@ impl Bar2Area {
             } else {
                 "sync at once".to_string()
             },
+            self.points_line(&s),
             s.drift_found,
             s.drift_checked,
             if s.drift_first.is_empty() {
@@ -1512,6 +1775,50 @@ mod tests {
         });
         assert!(s.dirty.is_empty());
         assert_eq!(s.compared, 2);
+    }
+
+    /// The doorbell rule's pieces (docs/caraxes/bar2-memfd.md §3, rule 4): the live keys
+    /// inside `(start, bytes)` pieces or among page numbers, FB and sysmem apart; the live
+    /// generation moves only when a page enters or leaves; a scan of some keys writes back
+    /// only those and leaves the others' changes to a later scan.
+    #[test]
+    fn observed_pages_and_a_keyed_scan() {
+        let cfg = config_from(Some("none"), false, true, None).unwrap();
+        let mut a = Bar2Area::create(16 * PAGE, &cfg).unwrap();
+        let guest = a.mem.map_again().unwrap();
+        assert!(a.observed(&[(Target::Fb(0), u64::MAX)], &[]).is_empty(), "nothing live");
+        let g0 = a.live_generation();
+        let sys = key_of(Target::Sys(0x500_0000)).unwrap();
+        for (va, key) in [(1, 0x100), (2, 0x101), (3, 0x200), (4, sys)] {
+            a.remap.set(va, Some(key), &a.mem.view, &mut |_| filled(0));
+        }
+        let g1 = a.live_generation();
+        assert_ne!(g1, g0);
+        a.remap.set(5, Some(0x100), &a.mem.view, &mut |_| filled(0));
+        assert_eq!(a.live_generation(), g1, "an alias adds no page");
+        // 0x100800..0x101800 touches FB pages 0x100 and 0x101.
+        assert_eq!(a.observed(&[(Target::Fb(0x10_0800), 0x1000)], &[]), vec![0x100, 0x101]);
+        assert_eq!(a.observed(&[], &[0x200, 0x300]), vec![0x200]);
+        assert_eq!(a.observed(&[(Target::Sys(0x500_0000), 1)], &[]), vec![sys]);
+        assert_eq!(a.observed(&[(Target::Fb(0x500_0000), 1)], &[]), Vec::<u64>::new(), "FB, not sysmem");
+        assert!(a.observed(&[(Target::Fb(0x30_0000), 0x10_0000), (Target::Fb(0), 0)], &[]).is_empty());
+        assert_eq!(a.observed(&[(Target::Fb(u64::MAX - 1), 16)], &[]), Vec::<u64>::new(), "no overflow");
+        assert_eq!(a.live_keys(), vec![0x100, 0x101, 0x200, sys]);
+        // The guest writes pages 0x100 (through its alias 5) and 0x200; a scan of 0x100 and
+        // an unmapped key writes back 0x100 only.
+        guest.write(5 * PAGE + 8, &1u64.to_le_bytes());
+        guest.write(3 * PAGE, &3u64.to_le_bytes());
+        let mut wb = Vec::new();
+        let s = a.remap.scan_keys(&a.mem.view, Some(&[0x100, 0x999]), &mut |k, off, b| {
+            wb.push((k, off, b.to_vec()))
+        });
+        assert_eq!((s.compared, s.dirty.clone()), (2, vec![0x100]), "two aliases compared");
+        assert_eq!(wb, vec![(0x100, 8, vec![1])]);
+        let s = a.remap.scan(&a.mem.view, &mut |_, _, _| {});
+        assert_eq!(s.dirty, vec![0x200], "left for the full scan");
+        a.remap.set(3, None, &a.mem.view, &mut |_| filled(0));
+        assert_ne!(a.live_generation(), g1);
+        assert_eq!(a.live_keys(), vec![0x100, 0x101, sys]);
     }
 
     #[test]

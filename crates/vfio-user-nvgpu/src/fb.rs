@@ -1413,6 +1413,31 @@ impl FakeFb {
         self.bar2.as_deref()
     }
 
+    /// The BAR2 memfd, when on (its counters).
+    pub fn bar2_area_mut(&mut self) -> Option<&mut crate::bar2area::Bar2Area> {
+        self.bar2.as_deref_mut()
+    }
+
+    /// The doorbell rule's partial sync of the BAR2 memfd (bar2area.rs `Bar2Area::sync_pages`):
+    /// only the live pages among `keys` are compared and written back; the changed ones are
+    /// reported to the caches as at a full sync. Returns false when the memfd is off.
+    pub fn bar2_sync_pages(&mut self, sys: Option<&GuestMemory>, keys: &[u64]) -> bool {
+        let Some(a) = self.bar2.as_deref_mut() else {
+            return false;
+        };
+        let pool = self.pool.borrow();
+        let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
+        let tr = |pa: u64| table.map_or(pa, |t| t.translate(pa));
+        let r = a.sync_pages(&mut *self.store, sys, &tr, keys);
+        drop(pool);
+        if !r.dirty.is_empty() {
+            // The written-back bytes must reach VRAM before the doorbell is forwarded.
+            self.store.flush();
+        }
+        self.note_pages_changed(&r.dirty);
+        true
+    }
+
     /// A sync of the BAR2 memfd (bar2area.rs `Bar2Area::sync`): guest writes found by the
     /// dirty scan are written back to VRAM and reported to the caches, then the BAR2
     /// tables under `root` (the BAR2 page directory) are followed. Returns false when the

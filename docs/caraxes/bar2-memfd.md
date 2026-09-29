@@ -154,6 +154,18 @@ the same function.
 | `NV_PBUS_BAR2_BLOCK` write | `:621-626` | BAR2 (re)bound: its tables are live from here on |
 | GSP command-queue doorbell | `:717-720` | an RPC may name memory the guest filled through BAR2 |
 | every usermode doorbell, only with `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1` | `:636-637`, `:746-750` | the reference for the rule of §3 |
+
+Since 2026-09-29 (`bar2area.rs` `Point`, `boot.rs` `bar2_doorbell_sync`), the points are named after
+the card's registers and counted in the exit line (`full syncs by point: ...; channel doorbells: ...`):
+
+| Point | Register (published headers of 615) | What starts consuming |
+|---|---|---|
+| flush read | `pReadToFlush`, FB address 0 through BAR2 (kern_bus_gv100.c:384-399) | nothing; the flush itself (a read completes after every earlier posted write) |
+| FB flush | `NV_UFLUSH_FB_FLUSH` 0x070000 (maxwell/gm107/dev_flush.h:30); semantics in kern_bus_gh100.c:2946-2950 | nothing; the sysmembar. Treated as a flush read: owed, or synced at once without the deferral |
+| MMU invalidate | `NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE(_PDB)` (turing/tu102/dev_vm.h:120-131) | the MMU (page tables) |
+| GSP queue head | `NV_PGSP_QUEUE_HEAD(0)` (turing/tu102/dev_gsp.h:38) | GSP-RM; on a GSP system the runlist submit is GSP-RM's own write, and the CPU's equivalents (channel/TSG alloc, `NVA06F_CTRL_CMD_BIND`, `GPFIFO_SCHEDULE`, `FIFO_DISABLE_CHANNELS`) are RPCs through this queue |
+| BAR2 bind | `NV_PBUS_BAR2_BLOCK` | the BAR2 MMU |
+| channel doorbell | `NV_VIRTUAL_FUNCTION_DOORBELL` (turing/tu102/dev_vm.h:229) | the channel's PBDMA and engines: rule 4 of §3 |
 | function-level reset (`FakeFb::carry_bar2_area`, `fb.rs:958`) | `:456` | write back, then hand the memfd to the fresh model with nothing mapped |
 
 **Exit summary** (`boot.rs:309`). One line:
@@ -226,14 +238,36 @@ guest's tables. So no other page needs to trap.
    overwritten when the page is loaded. On hardware such a write would use a stale TLB entry.
 2. A page-table change is followed by an MMU invalidate before any engine uses it. The shadow is
    resynced at that invalidate (mapping.md §4), right after the sync, so it sees the change.
-   Doorbells do not sync by default. `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1` is the reference setting
-   that tests this rule.
+   A doorbell syncs only what its channel could observe (rule 4); `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`,
+   a full sync at every doorbell, is the reference setting that tests this rule. The channel's
+   VAS leaves are taken as of the last walk update (the shadow's resync at the invalidate): a
+   mapping the guest made without an invalidate is not guaranteed to reach the engine on
+   hardware either.
 3. BAR2 data the GPU consumes (instance memory, scrubbed buffers) is flushed by the RM before it
    is handed to the GPU (`kern_bus_gm107.c:3339-3342`), and reaches VRAM at that flush.
    Since 2026-09-26 the flush read only marks the sync owed, and the hand-over settles it: the
    MMU invalidate, the GSP command-queue doorbell, a channel doorbell, or the 1 ms flush clock
    ([display-pacing.md](display-pacing.md) §3; `CARAXES_BAR2_MEMFD_DEFER_FLUSH=0` syncs at every
    flush read again).
+4. **The doorbell rule** (2026-09-29, for guests whose flush the device does not see: nouveau
+   reads FB address 0 through its own BAR2 mapping at 0x8000, not at the trapped 0xfea000). A
+   channel doorbell with no flush owed syncs the live pages the rung channels could observe, and
+   only those (`Bar2Area::sync_pages`):
+   - through the VAS: every leaf of the guest's tables under the channel's root, less the shadow's
+     set-B ranges (the promoted context buffers the host builds itself). The GPFIFO is among them
+     wherever it lives (`NV_RAMFC_GP_BASE` is a VA, gm107/dev_ram.h:72-73), in VRAM as the Windows
+     KMD puts it or in sysmem;
+   - by physical address: the page tables (`NV_RAMIN_PAGE_DIR_BASE`, gm107/dev_ram.h:58-66, and the
+     directories below), USERD (`NV_RAMFC_USERD`, tu102/dev_ram.h:29-30; the host channel of a
+     mirror uses the guest's USERD page itself), the instance block with RAMFC and the method
+     buffer (`instanceMem`, `ramfcMem`, `mthdbufMem`; `NV_RAMIN_RAMFC`, `NV_RAMIN_ENG_METHOD_BUFFER_ADDR`,
+     tu102/dev_ram.h:27, 41-42). Runlist entries name the instance block and USERD by physical
+     address (`NV_RAMRL_ENTRY_CHAN_USERD_TARGET`, :46-50); the runlist memory is GSP-RM's.
+   - A channel whose memory the device cannot name (no VAS root, no cached walk of it) could observe
+     anything: every live page is synced.
+   The sets are cached per channel (channel, root, walk and table generations, set-B stamp) and
+   intersected with the live pages when those change. The cost is a page compare (about 0.25 us)
+   per observable live page per doorbell; KVM dirty logging (§2) would make it one per dirty page.
 
 **Hazards, counted or stated:**
 

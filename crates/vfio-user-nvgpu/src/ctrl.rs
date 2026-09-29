@@ -358,6 +358,32 @@ impl Dispatcher {
         self.host.take()
     }
 
+    /// The guest channels a doorbell write of `token` rings ([`Self::doorbell`]), without
+    /// ringing them: the pool token's channel, else the channel the value names and the
+    /// channel whose host token it also is (`route_token`). For the BAR2 memfd's doorbell
+    /// rule, which must know them before the ring (boot.rs `bar2_doorbell_sync`).
+    pub fn doorbell_targets(&self, token: u32) -> Vec<u32> {
+        if let Some(p) = self.channels.tokens.as_ref().filter(|p| p.contains(token)) {
+            return p.chid(token).into_iter().collect();
+        }
+        let host_owner = self
+            .mirror
+            .as_ref()
+            .and_then(|m| m.chid_of_host_token(token));
+        let route = route_token(&self.channels, token, host_owner);
+        std::iter::once(route.chid).chain(route.also).collect()
+    }
+
+    /// The channels with GPFIFO entries published since their last doorbell, which the
+    /// token-less doorbell rings ([`Self::doorbell_pending`]).
+    pub fn pending_channels(&self, gm: &crate::channel::GpuMem) -> Vec<u32> {
+        let chids: Vec<u32> = self.channels.channels().map(|c| c.chid).collect();
+        chids
+            .into_iter()
+            .filter(|c| self.channels.pending(gm, *c))
+            .collect()
+    }
+
     /// A doorbell write: a channel the mirror takes runs on the physical GPU (created
     /// on first use), every other channel on the software executor.
     pub fn doorbell(&mut self, gm: &mut crate::channel::GpuMem, token: u32) -> Vec<String> {

@@ -94,7 +94,10 @@ usermode_doorbell = 0x00BB_0090
 # Unverified for GB206 (kmemsysDoCacheOp HAL): the N gate trace settles it.
 l2_flush_dirty = 0x0010_F810
 l2_sysmem_invalidate = [0x00B8_0F10, 0x00B8_0F14]
-l2_ops_local = [0x0010_F800, 0x0010_F804, 0x0010_F808, 0x0010_F80C]
+# NV_XAL_EP_ZB_UFLUSH_FB_FLUSH (dev_nv_xal_ep_zb.h:36): from GH100 on a read starts it
+# (kern_bus_gh100.c:3000-3007), so a write never does; no BAR2 memfd on GMMU v3 anyway.
+fb_flush = 0x0010_F800
+l2_ops_local = [0x0010_F804, 0x0010_F808, 0x0010_F80C]
 
 # engineCaps: the NV2080_ENGINE_TYPE list of the host's GET_ENGINES_V2
 # (caraxes/reference/gb206/rm-tools/fifo-host-query.txt:4). TU106 also lists HOST

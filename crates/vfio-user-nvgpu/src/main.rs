@@ -1076,7 +1076,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             match made {
                 Ok(r) => {
                     eprintln!(
-                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at {}, MMU invalidates, BAR2 binds and GSP doorbells{} (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)",
+                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at {}, NV_UFLUSH_FB_FLUSH writes (as a flush read), MMU invalidates, BAR2 binds and GSP doorbells; a channel doorbell syncs the live pages its channel could observe (its VAS leaves less set B, page tables, USERD, instance block){} (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md §3)",
                         r.areas.len(),
                         cfg.traps.iter().map(|t| format!("{t:#x}")).collect::<Vec<_>>(),
                         if cfg.flush_page_memory {
@@ -1086,7 +1086,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                         } else {
                             "the trapped pages (CARAXES_BAR2_MEMFD_DEFER_FLUSH=0)"
                         },
-                        if cfg.sync_doorbell { " and every doorbell" } else { "" }
+                        if cfg.sync_doorbell { "; CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1: every doorbell syncs all" } else { "" }
                     );
                     bar2_region = Some(r);
                 }

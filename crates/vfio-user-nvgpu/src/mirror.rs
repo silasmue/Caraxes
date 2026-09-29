@@ -826,6 +826,8 @@ struct ShadowSpace {
     front: crate::shadow::ShadowFront,
     vas: u32,
     exclude: Vec<(u64, u64)>,
+    /// A fresh stamp whenever `exclude` is assigned ([`Mirror::shadow_exclusions`]).
+    exclude_gen: u64,
     /// The inputs `exclude` was last computed from ([`GlobalExtents::refresh`]); `None`:
     /// compute it again at the next refresh.
     set_b_stamp: Option<SetBStamp>,
@@ -843,6 +845,7 @@ impl ShadowSpace {
             front,
             vas,
             exclude: Vec::new(),
+            exclude_gen: crate::ptcache::fresh_generation(),
             set_b_stamp: None,
             held: BTreeMap::new(),
             chids: Default::default(),
@@ -1319,6 +1322,7 @@ impl GlobalExtents {
         let added = now.iter().filter(|x| !sp.exclude.contains(x)).count();
         let released = sp.exclude.iter().filter(|x| !now.contains(x)).count();
         sp.exclude = now;
+        sp.exclude_gen = crate::ptcache::fresh_generation();
         notes.push(format!(
             "shadow: root {root:#x} set-B exclusions recomputed: {added} added, {released} released back to set A [guest]"
         ));
@@ -2180,6 +2184,15 @@ impl Mirror {
             .collect()
     }
 
+    /// The set-B VA ranges of shadow root `root` (the promoted context buffers the host
+    /// builds itself: the shadow VAS never maps the guest's pages there) and a stamp that
+    /// changes whenever they do; `None` for a root without a shadow VAS.
+    pub fn shadow_exclusions(&self, root: u64) -> Option<(u64, &[(u64, u64)])> {
+        self.shadows
+            .get(&root)
+            .map(|sp| (sp.exclude_gen, sp.exclude.as_slice()))
+    }
+
     /// P21 design H: the guest roots that have a shadow VAS.
     pub fn shadow_roots(&self) -> Vec<u64> {
         self.shadows.keys().copied().collect()
@@ -2466,6 +2479,7 @@ impl Mirror {
         let leaf_end = self.leaf_end();
         let sp = self.shadows.get_mut(&root).expect("built");
         sp.exclude = new_b;
+        sp.exclude_gen = crate::ptcache::fresh_generation();
         sp.set_b_stamp = None;
         sp.chids.insert(chid);
         sp.tsgs.insert(tsg_key);

@@ -72,10 +72,14 @@ usermode_doorbell = 0x00BB_0090
 # SYSMEM_INVALIDATE (invalidate, which the host RM promotes to write-back + invalidate).
 l2_flush_dirty = 0x0007_0010
 l2_sysmem_invalidate = [0x0007_0004, 0x00B8_0F00]
-# Completed without a host operation: NV_UFLUSH_FB_FLUSH (sysmembar; the host issues
-# its own before every cache op), L2_PEERMEM_INVALIDATE (no peers) and
+# NV_UFLUSH_FB_FLUSH (maxwell/gm107/dev_flush.h:30), the sysmembar: "all outstanding
+# writes to the GPU from the PCIE path" reach the GPU (615 kern_bus_gh100.c:2946-2950).
+# A BAR2 memfd sync point (docs/caraxes/bar2-memfd.md §1); no host operation (the host
+# issues its own before every cache op).
+fb_flush = 0x0007_0000
+# Completed without a host operation: L2_PEERMEM_INVALIDATE (no peers) and
 # L2_CLEAN_COMPTAGS (D16: no guest comptag line ever reaches the host).
-l2_ops_local = [0x0007_0000, 0x0007_0008, 0x0007_000C, 0x00B8_0F04]
+l2_ops_local = [0x0007_0008, 0x0007_000C, 0x00B8_0F04]
 
 # engineCaps[3] of GspStaticConfigInfo: the NV2080_ENGINE_TYPE bits of the TU106
 # engines (kern_gpu_tu102.c:177-205; cl2080_notification.h).
