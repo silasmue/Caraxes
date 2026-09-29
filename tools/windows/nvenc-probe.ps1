@@ -106,12 +106,12 @@ public static class Probe {
     IntPtr op = Block(SZ_OPEN, V_OPEN);
     Marshal.WriteInt32(op, OPEN_DEVTYPE, DEV_CUDA);
     Marshal.WriteIntPtr(op, OPEN_DEVICE, ctx);
-    Marshal.WriteInt32(op, OPEN_APIVER, (int)API_VERSION);
+    Marshal.WriteInt32(op, OPEN_APIVER, unchecked((int)API_VERSION));
     Nv(Fn<FOpen>(FL_OPEN)(op, out enc), "nvEncOpenEncodeSessionEx");
     s.AppendLine(String.Format("INFO NVENC session opened in {0:F1} ms", clock.Elapsed.TotalMilliseconds));
 
     IntPtr pc = Block(SZ_PRESET, V_PRESET);
-    Marshal.WriteInt32(pc, PRESET_CFG, (int)V_CFG);
+    Marshal.WriteInt32(pc, PRESET_CFG, unchecked((int)V_CFG));
     Nv(Fn<FPreset>(FL_PRESETEX)(enc, codec, P1, TUNING_ULL, pc), "nvEncGetEncodePresetConfigEx");
     IntPtr cfg = Marshal.AllocHGlobal(SZ_CFG);
     byte[] tmp = new byte[SZ_CFG]; Marshal.Copy(pc + PRESET_CFG, tmp, 0, SZ_CFG); Marshal.Copy(tmp, 0, cfg, SZ_CFG);
@@ -179,7 +179,7 @@ public static class Probe {
       IntPtr input; int inPitch; int fmt = FMT_NV12;
       if (mode == "lock") {
         double tf = te.Elapsed.TotalMilliseconds;
-        Marshal.WriteInt32(li, 0, (int)V_LIN);
+        Marshal.WriteInt32(li, 0, unchecked((int)V_LIN));
         Marshal.WriteIntPtr(li, LIN_BUF, inbuf);
         Nv(Fn<FP>(FL_LOCKIN)(enc, li), "nvEncLockInputBuffer");
         IntPtr data = Marshal.ReadIntPtr(li, LIN_PTR); inPitch = Marshal.ReadInt32(li, LIN_PITCH);
