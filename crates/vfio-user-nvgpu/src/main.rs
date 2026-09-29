@@ -1768,17 +1768,21 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         std::thread::Builder::new()
             .name("ce-slices".into())
             .spawn(move || {
+                // Whether the last pass continued a run: the next one comes after 50 us.
+                let mut busy = false;
                 while !stop.load(std::sync::atomic::Ordering::Acquire) {
                     // A run stopped at its budget continues after a short pause, in which the
                     // accesses waiting for the device lock take it (Windows C81: the KMD's
                     // paging channel is the critical path of a context creation; a 1 ms pause
-                    // after every 2 ms run idled a third of it).
-                    std::thread::sleep(if vfio_user_nvgpu::channel::ce_slices_pending() {
+                    // after every 2 ms run idled a third of it). The flag is read once per
+                    // pass: reading it takes it.
+                    std::thread::sleep(if busy {
                         std::time::Duration::from_micros(50)
                     } else {
                         std::time::Duration::from_millis(1)
                     });
-                    if vfio_user_nvgpu::channel::ce_slices_pending() {
+                    busy = vfio_user_nvgpu::channel::ce_slices_pending();
+                    if busy {
                         vfio_user_nvgpu::dlock::lock(&d, "software run continuation")
                             .continue_ce_slices();
                     }
