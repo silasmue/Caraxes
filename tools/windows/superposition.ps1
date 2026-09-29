@@ -20,7 +20,10 @@ Remove-Item -Recurse -Force $autoDir -ErrorAction SilentlyContinue
 $a = @("-sound_app", "openal", "-system_script", "superposition/system_script.cpp",
        "-data_path", "../", "-engine_config", "../data/superposition/unigine.cfg",
        "-video_mode", "-1", "-project_name", "Superposition", "-video_resizable", "1",
-       "-console_command", "config_readonly 1 && world_load superposition/superposition",
+       # Start-Process joins the list with spaces and quotes nothing (Windows PowerShell 5.1): an
+       # unquoted command is split, the engine then runs only "config_readonly" and loads no world
+       # (a black scene at 500-870 fps, C87/C90).
+       "-console_command", '"config_readonly 1 && world_load superposition/superposition"',
        "-mode", "2", "-preset", "0", "-video_width", "1920", "-video_height", "1080",
        "-video_fullscreen", "0", "-video_app", "direct3d11",
        "-shaders_quality", $q, "-textures_quality", $q)
