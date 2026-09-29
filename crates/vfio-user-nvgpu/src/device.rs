@@ -226,7 +226,17 @@ pub fn spawn_token_reader(
     readers: Vec<File>,
     reactor: crate::poll::Reactor,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    spawn_token_reader_hooked(device, doorbell, readers, Vec::new(), reactor, None, None, None)
+    spawn_token_reader_hooked(
+        device,
+        doorbell,
+        readers,
+        Vec::new(),
+        reactor,
+        None,
+        None,
+        None,
+        Routes::default(),
+    )
 }
 
 /// As [`spawn_token_reader`], with a hook the reactor runs on every iteration (the
@@ -247,6 +257,7 @@ pub fn spawn_token_reader_hooked(
     hook: Option<Box<dyn crate::poll::Hook>>,
     rearm: Option<(u64, File)>,
     rpc: Option<(u64, File)>,
+    routes: Routes,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
     let tokens = readers.len();
     let values: Vec<u32> = guest.iter().map(|(v, _)| *v).collect();
@@ -263,13 +274,26 @@ pub fn spawn_token_reader_hooked(
     reactor.spawn_hooked(
         readers,
         move |rings, seen, st| {
+            // The MSI re-arm with the interrupt page: taken by the page, never waiting for
+            // the device mutex (`Routes`).
+            let routed_rearm = match (rearm_at, routes.intr_page.as_ref()) {
+                (Some((i, _)), Some(p)) if p.exact() && rings.iter().any(|r| r.0 == i) => {
+                    p.note_routed();
+                    p.rearm();
+                    Some(i)
+                }
+                _ => None,
+            };
+            if routed_rearm.is_some() && rings.iter().all(|r| Some(r.0) == routed_rearm) {
+                return;
+            }
             let mut d = lock(&device);
             st.lock_wait.record(seen.elapsed());
             crate::launch::mark(crate::launch::Step::Lock);
             if rearm_at.is_none() && rpc_at.is_none() && values.is_empty() {
                 return d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host));
             }
-            for r in rings {
+            for r in rings.iter().filter(|r| Some(r.0) != routed_rearm) {
                 match (rearm_at, rpc_at) {
                     _ if r.0 < tokens => {
                         d.doorbell_tokens(doorbell, std::slice::from_ref(r), &mut |host| {
@@ -331,10 +355,63 @@ pub fn spawn_doorbell_reader_hooked(
 
 /// The device as the vfio-user server loop sees it when the doorbell reader thread
 /// shares it.
-pub struct SharedDevice(pub Arc<Mutex<Device>>);
+pub struct SharedDevice(pub Arc<Mutex<Device>>, pub Routes);
+
+/// Trapped BAR0 accesses the server serves without the device mutex, each on its own
+/// lock (docs/caraxes/display-own-clock.md §2.4): a device operation that holds the mutex
+/// (a mirror build, a shadow walk) must not stall the guest's interrupt service.
+#[derive(Clone, Default)]
+pub struct Routes {
+    /// The interrupt page: accesses of its two pages (the tree's stores in exact mode are
+    /// applied at once under the page's lock; page 0 is latched memory).
+    pub intr_page: Option<Arc<crate::intr_page::IntrPage>>,
+    /// BAR0 offset of the MSI re-arm (`NV_PCFG` + [`NV_XVE_CYA_2`]), taken by the page.
+    pub rearm: Option<u64>,
+}
+
+impl Routes {
+    /// Serve a trapped write without the device mutex; false when it is not routed.
+    pub fn write(&self, region: u32, offset: u64, data: &[u8]) -> bool {
+        let Some(p) = self.intr_page.as_ref().filter(|_| region == VFIO_PCI_BAR0_REGION_INDEX) else {
+            return false;
+        };
+        // The re-arm only in exact mode: with the tagged page the trapped re-arm is also
+        // where the boot model's own pending MSI goes out (`after_write`), as before.
+        if self.rearm == Some(offset) && p.exact() {
+            p.note_routed();
+            p.rearm();
+            return true;
+        }
+        if p.covers(offset) {
+            p.note_routed();
+            p.write(offset, data);
+            return true;
+        }
+        false
+    }
+
+    /// Serve a trapped read without the device mutex; false when it is not routed.
+    pub fn read(&self, region: u32, offset: u64, data: &mut [u8]) -> bool {
+        let Some(p) = self.intr_page.as_ref().filter(|_| region == VFIO_PCI_BAR0_REGION_INDEX) else {
+            return false;
+        };
+        if !p.covers(offset) || !p.covers(offset + data.len().max(1) as u64 - 1) {
+            return false;
+        }
+        p.note_routed();
+        for (i, b) in data.iter_mut().enumerate() {
+            let o = offset + i as u64;
+            *b = (p.read32(o & !3) >> ((o & 3) * 8)) as u8;
+        }
+        true
+    }
+}
 
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
+        if self.1.read(region, offset, data) {
+            return Ok(());
+        }
         if !crate::profile::on() {
             return lock(&self.0).region_read(region, offset, data);
         }
@@ -350,6 +427,9 @@ impl ServerBackend for SharedDevice {
     }
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
+        if self.1.write(region, offset, data) {
+            return Ok(());
+        }
         let timing = crate::launch::on() && region == VFIO_PCI_BAR0_REGION_INDEX;
         if !crate::profile::on() && !timing {
             return lock(&self.0).region_write(region, offset, data);
@@ -2070,6 +2150,7 @@ mod tests {
             None,
             Some((at, rearm_reader)),
             Some((0x11_0C00, rpc_reader)),
+            Routes::default(),
         )
         .unwrap();
         let t0 = std::time::Instant::now();
@@ -2089,6 +2170,63 @@ mod tests {
     /// The guest-token sub-regions (CARAXES_DOORBELL_GUEST_TOKENS): one datamatch entry and
     /// one eventfd per value, in the order given; the reactor hands a wakeup of one to
     /// `doorbell_guest_tokens` with its value, beside the pool's slots.
+    /// Trapped accesses of the interrupt page and the MSI re-arm are served while the
+    /// device mutex is held elsewhere (display-own-clock.md §2.4): the tree's stores apply
+    /// (exact mode), reads come from the page, the re-arm resends the MSI of a pending
+    /// vector; other offsets and the tagged page's re-arm still go to the device.
+    #[test]
+    fn routed_intr_page_accesses_do_not_need_the_device_mutex() {
+        use std::io::Read;
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let shared = crate::intr::IntrShared::new();
+        let (msi_w, mut msi_r) = {
+            // SAFETY: a plain syscall; checked.
+            let raw = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC | libc::EFD_NONBLOCK) };
+            assert!(raw >= 0);
+            // SAFETY: a new descriptor.
+            let f = unsafe { File::from_raw_fd(raw) };
+            (f.try_clone().unwrap(), f)
+        };
+        shared.set_msi_fd(Some(msi_w));
+        shared.set_msi_enabled(true);
+        let tree = 0x00B8_1000;
+        let page = crate::intr_page::IntrPage::create(
+            16 << 20,
+            tree,
+            crate::fixture::rtx2070().chip.data().identity,
+            shared.clone(),
+            crate::intr_page::Config::default(),
+        )
+        .unwrap();
+        let (_hook, wake) = crate::intr_page::PageHook::new(page.clone()).unwrap();
+        shared.attach_page(wake);
+        let rearm = 0x88704;
+        let routes = Routes { intr_page: Some(page.clone()), rearm: Some(rearm) };
+        let held = lock(&device);
+        // Tagged page: the re-arm is not routed.
+        assert!(!routes.write(0, rearm, &0u32.to_le_bytes()));
+        // A tree store: exact mode, applied.
+        assert!(routes.write(0, tree + 0x200, &0x10u32.to_le_bytes()));
+        assert!(routes.write(0, tree + 0x608, &1u32.to_le_bytes()));
+        assert!(page.exact());
+        let mut b = [0u8; 4];
+        assert!(routes.read(0, tree + 0x400, &mut b));
+        assert_eq!(u32::from_le_bytes(b), 0x10, "LEAF_EN_CLEAR reads the enables");
+        assert!(shared.raise(4));
+        page.scan();
+        let mut c = [0u8; 8];
+        msi_r.read_exact(&mut c).unwrap();
+        // The re-arm while vector 4 is pending: routed, the MSI again.
+        assert!(routes.write(0, rearm, &0u32.to_le_bytes()));
+        msi_r.read_exact(&mut c).unwrap();
+        // Not the page's: the device.
+        assert!(!routes.write(0, 0x10_0000, &0u32.to_le_bytes()));
+        assert!(!routes.read(0, 0x10_0000, &mut b));
+        assert!(!routes.write(1, tree, &0u32.to_le_bytes()), "BAR0 only");
+        drop(held);
+        assert!(page.summary().contains("served without the device mutex"));
+    }
+
     #[test]
     fn guest_token_eventfds_are_datamatch_entries_read_by_the_token_reactor() {
         use std::io::Write;
@@ -2127,6 +2265,7 @@ mod tests {
             None,
             None,
             None,
+            Routes::default(),
         )
         .unwrap();
         let t0 = std::time::Instant::now();

@@ -26,7 +26,7 @@ use vfio_user_nvgpu::device::{
     msi_rearm_ioeventfd_requested, msi_rearm_sub_region, region_size, regions_with_pages,
     rpc_head_sub_region, rpc_ioeventfd_requested, RPC_IOEVENTFD_ENV,
     spawn_doorbell_reader_hooked, spawn_token_reader_hooked, Bar0Areas, Bar1Area, Bar2Region,
-    Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV, MSI_REARM_IOEVENTFD_ENV,
+    Device, GuestRam, Routes, SharedDevice, DOORBELL_IOEVENTFD_ENV, MSI_REARM_IOEVENTFD_ENV,
     NV_XVE_CYA_2,
 };
 use vfio_user_nvgpu::display::fe_page::{self, FePage};
@@ -1487,6 +1487,16 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
+    // Trapped accesses served without the device mutex (device.rs `Routes`,
+    // docs/caraxes/display-own-clock.md §2.4): the interrupt page's two pages and, with the
+    // page, the MSI re-arm.
+    let routes = Routes {
+        intr_page: intr_page.clone(),
+        rearm: intr_page.as_ref().and_then(|_| {
+            let b = &chip.data().bar0;
+            (b.pcfg_size >= NV_XVE_CYA_2 + 4).then_some(b.pcfg + NV_XVE_CYA_2)
+        }),
+    };
     let rearm = if msi_rearm {
         let b = &chip.data().bar0;
         if b.pcfg_size < NV_XVE_CYA_2 + 4 {
@@ -1649,6 +1659,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 page_hook.take(),
                 rearm,
                 rpc,
+                routes.clone(),
             )
             .context("doorbell token reader")?,
         ));
@@ -1714,7 +1725,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .context("spawn the software CE slice clock")?
     };
     let result = server
-        .run(&mut SharedDevice(device.clone()))
+        .run(&mut SharedDevice(device.clone(), routes))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
     soak_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = ce_slices.join();
