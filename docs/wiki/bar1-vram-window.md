@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # BAR1: the scarce VRAM window
 
 BAR1 is the CPU's window onto video memory, translated by GMMU page tables that the RM

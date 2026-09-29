@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # RM controls
 
 A control is a command on an RM object: a 32-bit id whose high half names the object's

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! `vfio-user-nvgpu`: serve the synthetic GPU (by default the RTX 2070: board data
 //! `rtx2070`, chip `tu106`, driver 610.57.04) on a vfio-user socket, or check a
 //! running server from the client side.

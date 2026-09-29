@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The read-only getter sweep of the lab kit (docs/caraxes/gsp-plan/lab-kit.md): every control
 //! of the list made by caraxes/tools/sweep-list.py (the category A, B and E getters of one
 //! driver version) issued once on the card's own objects of a private RM client, with its

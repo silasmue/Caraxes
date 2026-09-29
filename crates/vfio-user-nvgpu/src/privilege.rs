@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The one privilege the device may use (decision D12): CAP_SYS_ADMIN, raised into
 //! the effective set only around the host RM controls that are PRIVILEGED, today
 //! `NV0041_CTRL_CMD_GET_SURFACE_PHYS_ATTR` for the IOVAs of registered guest RAM.

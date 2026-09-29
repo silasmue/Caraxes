@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # TU106 BAR0 register names for the trace, from docs/caraxes/registers-turing.md.
 # [lo, hi) byte ranges; the first matching entry names an access. An offset in no

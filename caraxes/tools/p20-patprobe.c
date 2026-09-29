@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 // P20 pattern probe (docs/caraxes/parallel.md, items 3d and 4b), CUDA driver API only.
 //
 //   p20-patprobe fill <MiB> <tag> <hold_s>

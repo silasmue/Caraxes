@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # The feature families: what TU106 refuses because it lacks the feature, implemented from source for the chips that have it
 
 Category E of [../gsp-surface.md](../gsp-surface.md) and the 102 category D rows that

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Driver 610.57.04: the GSP RPC vocabulary, message layouts, RM classes, control
 //! numbers and control parameter layouts the device speaks (docs/caraxes/versatility.md,
 //! "Driver-version axis").

@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # The TU106 firmware-boot model (src/chip/turing.rs): the registers and constants of
 # the GFW, FWSEC-FRTS, Booter and GSP RISC-V side effects the CPU checks, without any

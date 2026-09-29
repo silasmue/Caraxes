@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Per-function execution counts of the device crate from two LLVM coverage profiles.
 
 The device of `run.sh map` is built with -C instrument-coverage (target/cov-instr); its

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * wlframes: the phase C frame-callback probe (docs/caraxes/display-cd.md). A small
  * xdg_toplevel with a wl_shm buffer commits once per wl_surface.frame callback, each

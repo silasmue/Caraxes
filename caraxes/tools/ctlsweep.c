@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //
 // ctlsweep: issue, inside the guest, through the stock RM ioctl path, every getter control of
 // the generated table (ctlsweep-table.h, caraxes/tools/ctlsweep-gen.py from controls.tsv), once,

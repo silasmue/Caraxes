@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Caraxes: a synthetic NVIDIA PCI device served over vfio-user for unmodified
 //! NVIDIA guest drivers (docs/caraxes/architecture.md). The first device is a TU106
 //! (GeForce RTX 2070) for driver 610.57.04.

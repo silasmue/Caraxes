@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # nova-core as a guest driver of the synthetic TU106
 
 The operator's direction (2026-09-25): let nova-core run in a 1 GiB guest against the device,

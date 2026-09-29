@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Identity and costume
 
 Scope: where each guest-visible identity fact comes from, which layers may lie over the executing TU106 and which must stay true, and how far the costume ladder reached per rung.

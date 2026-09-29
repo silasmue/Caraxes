@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Phase C of docs/caraxes/display-connector.md: what the display engine does with the
 //! methods, and the per-head clock (docs/caraxes/display-cd.md).
 //!

@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Leandro wiki
 
 One page per concept that [LEANDRO.md](../LEANDRO.md) names: the NVIDIA driver as a virtual

@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # GSP RPC functions, events and classes
 
 Scope: what a 615.71.09 GSP client on TU106 sends to GSP-RM (RPC functions, allocations), what it expects back as events, and how the device answers each.

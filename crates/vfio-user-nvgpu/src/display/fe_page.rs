@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The display front-end interrupt page (`CARAXES_DISPLAY_PAGE=1`, docs/caraxes/
 //! intr-page.md §10): BAR0 page 0x611000 as a third sparse mmap area of the interrupt
 //! page's memfd (intr_page.rs).

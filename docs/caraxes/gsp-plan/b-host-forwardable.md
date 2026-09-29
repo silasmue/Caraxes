@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 <!-- Research by a read-only subagent on 2026-09-24 for the GSP surface programme (P23). Sources: the 610.57.04 tree (vendor/open-gpu-kernel-modules of the main checkout) and the 615.71.09 tree (Leandro's vendor/open-gpu-kernel-modules), the crate at 61e0b6a, the native traces under matrix/traces/610.57.04 and the run logs under caraxes/runs. Nothing was run against a GPU. -->
 # Category B, host-forwardable controls: the implementation plan
 

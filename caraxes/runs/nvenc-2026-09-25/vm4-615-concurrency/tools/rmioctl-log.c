@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //
 // LD_PRELOAD logger of a process's NVIDIA RM escapes, for the guest: every RM_CONTROL
 // (cmd, params size, status, the first params bytes) and RM_ALLOC (class, parent, status),

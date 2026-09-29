@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Boot the synthetic GPU in pure emulation (no host RM, no reservation, no GPU) to
 # RmInitAdapter and nvidia-smi, the check that keeps the regressions of 2026-09-24 from
 # recurring silently (docs/caraxes/blackwell-gate.md section 5).

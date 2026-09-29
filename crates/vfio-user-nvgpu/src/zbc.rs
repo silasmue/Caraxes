@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The guest-local ZBC clear table (docs/caraxes/gsp-plan/d-device-model.md 6.2, roadmap R3,
 //! pulled forward: the display gate sends `SET_ZBC_COLOR_CLEAR`,
 //! caraxes/runs/gsp-d-2026-09-24/after/gate-dscan.txt).

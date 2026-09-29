@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """The forward cache off against on (run.sh off, run.sh on): per nvidia-smi workload window,
 the device time of the guest's controls, the host RM control calls, and for the cached
 getters (src/fwdcache.rs STATIC) the guest controls against the host calls; the cache's

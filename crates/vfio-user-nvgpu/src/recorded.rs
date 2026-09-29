@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Pure-emulation answers for the controls a host RM would answer: the RTX 2070's own
 //! answers from the native control traces (matrix/traces/610.57.04/control, extracted by
 //! caraxes/tools/recorded-controls.py into chips/tu106/recorded-controls.tsv), and chip

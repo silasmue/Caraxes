@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! EDID 1.4 generator for a DisplayPort monitor, with an optional CTA-861 extension.
 //!
 //! The first monitor ([`EdidSpec::first_monitor`]): digital input over DisplayPort at

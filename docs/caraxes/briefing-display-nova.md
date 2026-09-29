@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Briefing (operator, 2026-09-23): DisplayPort, NVIDIA display engine, Nova compatibility
 
 Source report and implementation briefing handed over by the operator on 2026-09-23 as a

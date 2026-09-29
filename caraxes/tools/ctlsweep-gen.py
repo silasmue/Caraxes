@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Generate the guest control sweep's table (caraxes/tools/ctlsweep.c) from controls.tsv.
 
 The sweep issues, inside the guest, through the stock RM ioctl path, every control that

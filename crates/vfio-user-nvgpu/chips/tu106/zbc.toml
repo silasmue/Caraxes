@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # The ZBC clear table defaults of TU106 (docs/caraxes/gsp-plan/d-device-model.md 6.2): the
 # seed of the device's guest-local ZBC table (src/zbc.rs). Every VM starts from these entries;

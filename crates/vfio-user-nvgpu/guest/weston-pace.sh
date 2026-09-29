@@ -1,7 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Guest side of the Caraxes phase C compositor check (docs/caraxes/display-cd.md): start
 # Weston on card0 with the DRM backend (atomic KMS), run a Wayland client whose frame
 # callbacks and wp_presentation feedback are measured, stop Weston, print the logs.

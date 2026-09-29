@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # caraxes_dma_range guest module: build inside the GUEST (needs
 # linux-headers-$(uname -r)). Temporary aid, see README.md.
 #

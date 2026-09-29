@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The CPU interrupt tree of the virtual-function window (docs/caraxes/
 //! kernel-rm-hw-surface.md §C, `dev_vm.h`): 8 leaf registers of 32 vectors,
 //! leaf enables, one top register whose bit s summarizes subtree s (leaves 2s

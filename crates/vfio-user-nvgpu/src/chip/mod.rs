@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The silicon axis (decision D14): what differs between chips, behind the [`Chip`]
 //! trait. A chip supplies its tables as data ([`ChipData`], loaded once from
 //! `chips/<chip>/*.toml`) and its firmware-boot behaviour as code

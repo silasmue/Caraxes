@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # ABI baseline
 
 Scope: the recorded GSP ABI snapshot of 615.71.09 under `caraxes/abi/`, the tool that makes and diffs it, the 610-to-615 delta, and the workflow and drift check for the next driver.

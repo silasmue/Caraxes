@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """dscan.py: the category D controls in a device trace window (docs/caraxes/gsp-plan/
 d-device-model.md §8, Q1 and Q3): every `ctrl 0x...` answer line whose id is a row of
 d-controls.tsv, with the plan's answer and the label the device gave, the watched ids of

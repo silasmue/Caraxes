@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Driver 570.144's GSP boot vocabulary: what nova-core of Linux 7.2.7 speaks
 //! (`drivers/gpu/nova-core/gsp/fw/r570_144.rs`, `FIRMWARE_VERSION = "570.144"`), as far as
 //! the device answers it (docs/caraxes/nova-guest.md), and the RM control frame nouveau's

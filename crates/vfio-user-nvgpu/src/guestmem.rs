@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Guest RAM as the client offered it through `DMA_MAP` with file descriptors
 //! (Cloud Hypervisor maps every memory zone of a `--memory shared=on` VM).
 //! The device reads the structures the driver places in sysmem: the bootloader

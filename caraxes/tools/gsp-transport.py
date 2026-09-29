@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """gsp-transport.py: the transport class of every GSP-routed control of 615.71.09.
 
 For each control the kernel RM sends to GSP (controls.tsv, route "gsp"), plus the GSS-legacy

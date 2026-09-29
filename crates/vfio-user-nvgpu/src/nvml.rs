@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The controls `nvidia-smi` and `nvidia-smi -q` make the guest kernel send to GSP
 //! (docs/caraxes/phase5-rpcs.md §2, docs/caraxes/nvml.md). Decision D9: telemetry is
 //! forwarded to the host card where the control is public and the layout is the same

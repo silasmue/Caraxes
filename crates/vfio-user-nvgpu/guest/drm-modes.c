@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //
 // A libdrm-free DRM readout for the guest (docs/caraxes/display-ab.md, gate D3): every
 // connector of /dev/dri/card0 (or argv[1]) with its type, status and mode list, each mode

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Messages GSP-RM sends unasked: RPC events and the GMCAPI requests of the GSP-to-CPU
 //! direction (docs/caraxes/gsp-plan/events.md). The boot model sends them on the status
 //! queue ([`crate::msgq::QueueState::send`] for an event,

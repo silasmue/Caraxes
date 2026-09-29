@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """gsp-remap.py: the field-by-field copy table that turns a struct the device builds in the
 emulated version's layout into another driver version's layout, from the compiler-measured
 layouts.tsv of two gsp-abi.py snapshots (docs/caraxes/gsp-abi-615.md). Nothing is typed by

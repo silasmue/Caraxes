@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Driver 615.71.09 as the guest's driver (docs/caraxes/gsp-transport-615.md).
 //!
 //! Paths are relative to the open-gpu-kernel-modules tree at tag 615.71.09 (commit

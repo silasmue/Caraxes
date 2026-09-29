@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Trap census, 2026-09-25 (vm3)
 
 The runs behind [docs/caraxes/optimization-backlog.md](../../../docs/caraxes/optimization-backlog.md).

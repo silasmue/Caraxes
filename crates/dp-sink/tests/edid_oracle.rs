@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The EDID generator checked by two oracles that share no code with it: a small parser
 //! written here from the VESA EDID 1.4 layout, and the external `edid-decode` tool when it
 //! is installed (set `EDID_DECODE` to point elsewhere; the test says when it skips).

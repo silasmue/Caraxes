@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # The shadow's host RM calls, 2026-09-25 (vm0)
 
 Backlog item 2 of [docs/caraxes/optimization-backlog.md](../../../docs/caraxes/optimization-backlog.md).

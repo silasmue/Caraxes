@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """The coverage map from one `run.sh map` directory (docs/caraxes/coverage-map.md).
 
 Reads RUN/marks.tsv and the dumps RUN/profile/dev.<n>.tsv; workload n is dump n minus dump

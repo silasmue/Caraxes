@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * kmsflip: a libdrm-free KMS pacing probe for the Caraxes display (docs/caraxes/display-cd.md).
  * Sets a mode on the first connected connector with two dumb buffers (legacy SETCRTC), then

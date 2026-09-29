@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Guest DMA addressing: every route and what each one has to patch
 
 Written 2026-09-23 on the operator's question: "think about a method that needs no patches,

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # Build and run caraxes/tools/host-exec.rs (docs/caraxes/host-exec.md): the host-side
 # execution primitive that proves the physical RTX 2070 walks a GMMU v2 page table built

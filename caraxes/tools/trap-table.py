@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """The per-frame trap table of a compositor (docs/caraxes/display-e.md, series F).
 
 Reads a device trace window (plain or .xz) of vfio-user-nvgpu with access tracing on and

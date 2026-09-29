@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Guest half of run.sh: one workload of the coverage map per call, run from ~/cov, where run.sh
 # copied covwork.c, covtorch.py and this script. `covguest.sh build` compiles covwork in the
 # guest (gcc against the venv's cuda.h, -lcuda from the driver's libdir); `covguest.sh inventory`

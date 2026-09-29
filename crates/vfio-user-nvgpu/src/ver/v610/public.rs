@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The public controls of the GSP plan (docs/caraxes/gsp-plan/b-host-forwardable.md and
 //! c-guest-state.md) that are not a plain forward: forwards whose answer is filtered
 //! before it reaches the guest, answers the device owns, controls on the guest's own

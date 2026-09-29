@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The HOST driver's ABI, chosen at start-up (docs/caraxes/cutover-615.md).
 //!
 //! The device has two driver versions to agree with, and they are separate axes:

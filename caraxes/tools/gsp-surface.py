@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """gsp-surface.py: the GSP-facing surface of the vendored NVIDIA open kernel driver,
 crossed with what the Caraxes device (crates/vfio-user-nvgpu) answers.
 

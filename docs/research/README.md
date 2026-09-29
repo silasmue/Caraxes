@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Caraxes research notes
 
 Rule: short and precise; bullets; every fact with its evidence; long form lives in [docs/caraxes](../caraxes/README.md); records under `caraxes/runs`.

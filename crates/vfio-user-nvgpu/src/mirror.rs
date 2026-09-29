@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Execution on the physical GPU (E5b part 2, docs/caraxes/execution.md): for each guest
 //! channel that can run on the host, a **mirror** of the guest's RM objects on the
 //! device's own host RM client, wired as docs/caraxes/host-exec.md §2 specifies.

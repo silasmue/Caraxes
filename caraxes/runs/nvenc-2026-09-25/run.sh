@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # NVENC and NVDEC through the mirror (docs/caraxes/video-engines.md), 2026-09-25. vm2 only,
 # 610 guest, 2 GiB guest RAM, 1 GiB profile at reservation slot 3, in the environment of
 # caraxes/runs/night-2026-09-24/env.sh plus the recommended configuration (interrupt page,

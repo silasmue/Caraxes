@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """P20 isolation checker (docs/caraxes/parallel.md item 3a and 3c).
 
 Usage: p20-check.py <A-dir> <B-dir> [host-xid.txt]

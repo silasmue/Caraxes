@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Windows 11 under Cloud Hypervisor (README.md): the EDK2 CLOUDHV.fd, swtpm over --tpm (the
 # state install-qemu.sh created), the installed virtio-blk disk, virtio-net on the tap caraxes4
 # (192.168.104.1/24, NAT to the uplink like the SotTR stage), serial into a log. Headless: reach

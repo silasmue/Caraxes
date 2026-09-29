@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Briefing section 6: a stored AUX request sequence replayed against the sink with exactly
 //! the stored replies, and a test that changes the lane configuration and the EDID offset
 //! so that a hard-wired success transcript cannot pass.

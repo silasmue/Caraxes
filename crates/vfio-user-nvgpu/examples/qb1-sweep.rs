@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Q-B1 of docs/caraxes/gsp-plan/b-host-forwardable.md §7: which of the 30 forward
 //! candidates (groups F1 and F2) the host card answers, and with what. Read-only: each
 //! control is a getter, issued once with a zeroed buffer of the struct's size on the

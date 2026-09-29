@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Answers for the RM API RPCs of phase 5 (docs/caraxes/phase5-rpcs.md), one handler
 //! per row, each labelled with the provenance of its answer (decision D9): `host`
 //! (forwarded to the host RM as an unprivileged client), `guest` (derived from what

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Measurement Q5 (d-device-model.md §8): the one read-only sweep of the host's ZBC clear
 # table, as an unprivileged RM client (caraxes/tools/zbc-probe.rs without --set: RM_ALLOC
 # of root, device, subdevice and GF100_ZBC_CLEAR, GET_ZBC_CLEAR_TABLE_SIZE and

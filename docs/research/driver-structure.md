@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Driver structure
 
 Scope: how the 615.71.09 kernel RM picks its runtime variant and HAL, what it must be configured with, and what it reads from the device on a TU106 identity.

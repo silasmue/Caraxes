@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The fake framebuffer for milestone 1 (docs/caraxes/fb-model.md §4): sparse
 //! host RAM sized to the advertised FB, reached by the guest through the PRAMIN
 //! window (BAR0 0x700000 plus `NV_PBUS_BAR0_WINDOW`) and through BAR3/BAR1 with a

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The NV0073 adapter of `DP_AUXCH_CTRL` (0x731341) onto the transport-neutral sink
 //! (dp-sink README section 6, display-adapter.md sections 1.2 and 7 item 1).
 //!

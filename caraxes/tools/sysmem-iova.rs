@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Host IOVAs of guest-RAM-like OS descriptors (docs/caraxes/sysmem-iova.md).
 //!
 //! Registers a memfd-backed (or anonymous) buffer with the host RM as

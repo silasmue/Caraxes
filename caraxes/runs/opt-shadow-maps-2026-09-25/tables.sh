@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Regenerate the tables of every run of this series from its census trace: calls.md (calls.py),
 # census-rpc-cost.md (caraxes/tools/rpc-cost.py, with the RM call histogram), compare.md
 # (compare.py) and bench-summary.md (caraxes/tools/bench-summary.py over the bench-run.sh runs).

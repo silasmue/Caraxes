@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """QEMU monitor (QMP) helper for the Windows run: $W/qmp.sock (run-qemu-gpu.sh).
 
   qmp.py screendump <file.png>   screenshot of the guest display (PNG)

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * kmsgrab: readback checks for the Caraxes display gates (docs/caraxes/display-cd.md,
  * testing.md). Everything read here is memory the guest can reach; nothing scans out.

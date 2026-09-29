@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Isolation and Xids
 
 Scope: the isolation rules a Caraxes device enforces on the shared RTX 2070 (reservation, comptags, privilege, teardown, scrub) and the catalogue of every Xid recorded, with cause and fix.

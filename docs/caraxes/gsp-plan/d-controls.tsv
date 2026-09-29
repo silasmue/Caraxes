@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Category D of the GSP surface (615.71.09 and 610.57.04), one row per control; see d-device-model.md.
 id	name	group	nvoc_class	privilege	rmctrl_flags	params	size_610	size_615	layout_change	define_615	define_610	params_615	params_610	answer	rank	client	truth	risk	reclass	caller	gsp	note
 0x0080170F	NV0080_CTRL_CMD_FIFO_SET_CHANNEL_PROPERTIES	fifo	Device	non-priv	0x48	NV0080_CTRL_FIFO_SET_CHANNEL_PROPERTIES_PARAMS	16	16		ctrl0080/ctrl0080fifo.h:274	ctrl0080/ctrl0080fifo.h:274	ctrl0080/ctrl0080fifo.h:278	ctrl0080/ctrl0080fifo.h:278	REFUSE	5	tools	none	high: forwarded it would corrupt or fault a host channel	E: verification-only properties, not in shipping clients	no caller in the tree (kernel-open, nvidia-modeset, src/common, UVM grep empty); user-space callers closed, none in the 79 native traces	Closed firmware; overrides channel internals (invalid PDB target, reset engine context, NOOP preempt), every property marked VERIF ONLY (ctrl0080fifo.h:219-266).	Answer NV_ERR_NOT_SUPPORTED, one of the listed statuses (:270).

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The driver-version axis (decision D14): everything the device speaks that the
 //! vendored driver release fixes and that no chip changes. That is the GSP RPC
 //! vocabulary and its message layouts (`rpc_*_v03_00`, `rpc_*_v17_00`,

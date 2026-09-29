@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The boot model: everything behind BAR0 once `--boot-model` is on. The chip's
 //! firmware-boot model ([`crate::chip::FirmwareBoot`]; Turing: GFW, FWSEC, Booter,
 //! the falcons, WPR2) produces the CPU-visible side effects of a boot that never runs

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """The shadow's host RM calls per census operation (docs/caraxes/memory-model.md §7).
 
 Reads a device trace of census-cu processes (plain or .xz) and splits it at census-cu's marker

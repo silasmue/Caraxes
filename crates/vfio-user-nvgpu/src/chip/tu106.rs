@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! TU106 (Turing, the RTX 2070's chip): the tables in `chips/tu106/*.toml`, compiled
 //! into the binary and parsed once, and the Turing firmware-boot model.
 

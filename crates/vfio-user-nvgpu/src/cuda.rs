@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Rows the CUDA path needs beyond nvidia-smi and nvidia-uvm (experiment E5c,
 //! docs/caraxes/experiments.md; the ordered call list is docs/caraxes/testing.md §8).
 //! Each answer carries its provenance label (decision D9). Host-forwarded CUDA rows

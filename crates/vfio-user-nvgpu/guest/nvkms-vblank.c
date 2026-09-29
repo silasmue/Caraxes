@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * nvkms-vblank: exercise the vblank (LAST_DATA) half of the Caraxes display clock
  * (docs/caraxes/display-cd.md). It opens /dev/nvidia-modeset as an NVKMS client, allocates

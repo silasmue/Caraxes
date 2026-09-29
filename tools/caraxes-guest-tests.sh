@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Guest half of tools/caraxes-gate.sh cuda|gpu. `tools/caraxes-vm.sh sync-tests` installs
 # it as ~/caraxes-tests/caraxes/run-tests.sh beside the Leandro-Test material in
 # ~/caraxes-tests/leandro-test (docs/caraxes/testing.md). It runs inside the guest for
