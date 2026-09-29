@@ -93,6 +93,9 @@ pub struct Device {
     guest_token_writes: u64,
     /// MSI re-arm ioeventfd (`CARAXES_MSI_REARM_IOEVENTFD=1`): wakeups and guest writes.
     rearm_wakeups: u64,
+    /// Posted doorbells are being rung (`ring_posted`): a guest-signal handler reached from
+    /// one of them does not ring the newer ones before the older ones left.
+    ringing_posted: bool,
     rearm_writes: u64,
     /// BAR0 writes that landed in the config-space mirror (the MSI re-arm among them), after
     /// which the BAR1 pool's poll did not run (`after_bar0_write`), and the polls that held
@@ -358,8 +361,20 @@ pub fn spawn_doorbell_reader_hooked(
 }
 
 /// The device as the vfio-user server loop sees it when the doorbell reader thread
-/// shares it.
-pub struct SharedDevice(pub Arc<Mutex<Device>>, pub Routes);
+/// shares it, with the trapped accesses it serves without the device mutex (`Routes`). A
+/// trapped write of the usermode doorbell is posted (execution.md §9.9): queued in the
+/// ring gate without the device lock and answered at once, so it costs the guest one BAR0
+/// exit; the ring completer rings it under the lock (main.rs). Every other access that
+/// takes the device lock rings the posted writes first, before its own work, so none
+/// passes a doorbell the guest wrote before it (as on PCIe, where a read or write does not
+/// pass a posted write), whatever the client does with its token.
+pub struct SharedDevice {
+    device: Arc<Mutex<Device>>,
+    routes: Routes,
+    /// The usermode doorbell's BAR0 offset (`None`: no boot model, nothing is posted).
+    doorbell: Option<u64>,
+    gate: Arc<crate::ringgate::RingGate>,
+}
 
 /// The current display engine, for the paths without the device mutex (`Device::display_slot`).
 pub type DisplaySlot = Arc<std::sync::RwLock<Option<Arc<Mutex<crate::display::engine::Engine>>>>>;
@@ -485,6 +500,53 @@ impl Routes {
     }
 }
 
+impl SharedDevice {
+    /// The process's device with the process's ring gate, whose completer (main.rs) rings
+    /// the posted doorbells.
+    pub fn new(device: Arc<Mutex<Device>>, routes: Routes) -> Self {
+        Self::with_gate(device, routes, crate::ringgate::global())
+    }
+
+    fn with_gate(device: Arc<Mutex<Device>>, routes: Routes, gate: Arc<crate::ringgate::RingGate>) -> Self {
+        let doorbell = device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .bar0
+            .boot()
+            .map(|b| b.usermode_doorbell());
+        Self {
+            device,
+            routes,
+            doorbell,
+            gate,
+        }
+    }
+
+    /// The device lock for a trapped access or another vfio-user message: the posted
+    /// doorbells are rung first.
+    fn lock(&self, label: &'static str) -> crate::dlock::Held<'_, Device> {
+        let mut d = crate::dlock::lock(&self.device, label);
+        d.ring_posted(&self.gate, true);
+        d
+    }
+
+    /// A trapped write of the usermode doorbell, posted.
+    fn post_doorbell(&self, region: u32, offset: u64, data: &[u8]) -> bool {
+        if region != VFIO_PCI_BAR0_REGION_INDEX || Some(offset) != self.doorbell {
+            return false;
+        }
+        let Ok(token) = <[u8; 4]>::try_from(data) else {
+            return false;
+        };
+        let t0 = std::time::Instant::now();
+        self.gate.post(u32::from_le_bytes(token), t0);
+        if crate::profile::on() {
+            crate::profile::access(region, true, offset, Some("usermode doorbell (posted)"), t0);
+        }
+        true
+    }
+}
+
 /// The device-lock label of a trapped access (dlock.rs).
 fn access_label(region: u32, write: bool) -> &'static str {
     match (region, write) {
@@ -499,31 +561,31 @@ fn access_label(region: u32, write: bool) -> &'static str {
     }
 }
 
-/// The device lock for a trapped access at `offset` of `region`; a long hold keeps the
-/// register (dlock.rs).
+/// The device lock for a trapped access at `offset` of `region`, the posted doorbells rung
+/// first; a long hold keeps the register (dlock.rs).
 fn lock_access<'a>(
-    device: &'a Mutex<Device>,
+    shared: &'a SharedDevice,
     region: u32,
     offset: u64,
     write: bool,
 ) -> crate::dlock::Held<'a, Device> {
-    let mut d = crate::dlock::lock(device, access_label(region, write));
+    let mut d = shared.lock(access_label(region, write));
     d.detail(move || format!("region {region} {} {offset:#x}", if write { "W" } else { "R" }));
     d
 }
 
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
-        if self.1.read(region, offset, data) {
+        if self.routes.read(region, offset, data) {
             return Ok(());
         }
         if !crate::profile::on() {
-            return lock_access(&self.0, region, offset, false).region_read(region, offset, data);
+            return lock_access(self, region, offset, false).region_read(region, offset, data);
         }
         // The profile's trapped access: from the message to the answer, the lock wait
         // included (profile.rs).
         let t0 = std::time::Instant::now();
-        let mut d = lock_access(&self.0, region, offset, false);
+        let mut d = lock_access(self, region, offset, false);
         let r = d.region_read(region, offset, data);
         let name = d.register_name(region, offset);
         drop(d);
@@ -532,15 +594,15 @@ impl ServerBackend for SharedDevice {
     }
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
-        if self.1.write(region, offset, data) {
+        if self.post_doorbell(region, offset, data) || self.routes.write(region, offset, data) {
             return Ok(());
         }
         let timing = crate::launch::on() && region == VFIO_PCI_BAR0_REGION_INDEX;
         if !crate::profile::on() && !timing {
-            return lock_access(&self.0, region, offset, true).region_write(region, offset, data);
+            return lock_access(self, region, offset, true).region_write(region, offset, data);
         }
         let t0 = std::time::Instant::now();
-        let mut d = lock_access(&self.0, region, offset, true);
+        let mut d = lock_access(self, region, offset, true);
         // A trapped doorbell is a ring of the launch chain too (launch.rs `begin_trapped`).
         let ring = timing && d.is_usermode_doorbell(offset);
         if ring {
@@ -567,15 +629,15 @@ impl ServerBackend for SharedDevice {
         size: u64,
         fd: Option<File>,
     ) -> std::io::Result<()> {
-        crate::dlock::lock(&self.0, "dma map").dma_map(flags, offset, address, size, fd)
+        self.lock("dma map").dma_map(flags, offset, address, size, fd)
     }
 
     fn dma_unmap(&mut self, flags: DmaUnmapFlags, address: u64, size: u64) -> std::io::Result<()> {
-        crate::dlock::lock(&self.0, "dma unmap").dma_unmap(flags, address, size)
+        self.lock("dma unmap").dma_unmap(flags, address, size)
     }
 
     fn reset(&mut self) -> std::io::Result<()> {
-        crate::dlock::lock(&self.0, "reset").reset()
+        self.lock("reset").reset()
     }
 
     fn set_irqs(
@@ -586,7 +648,7 @@ impl ServerBackend for SharedDevice {
         count: u32,
         fds: Vec<File>,
     ) -> std::io::Result<()> {
-        crate::dlock::lock(&self.0, "set irqs").set_irqs(index, flags, start, count, fds)
+        self.lock("set irqs").set_irqs(index, flags, start, count, fds)
     }
 }
 
@@ -800,6 +862,7 @@ impl Device {
             guest_token_rings: 0,
             guest_token_writes: 0,
             rearm_wakeups: 0,
+            ringing_posted: false,
             rearm_writes: 0,
             mirror_writes_unsynced: 0,
             slow_pool_polls: 0,
@@ -823,6 +886,7 @@ impl Device {
     /// the value the boot model reconstructs from the command ring
     /// (`BootModel::cmd_head_from_ring`); a write that published nothing is noted only.
     pub fn rpc_ioeventfd(&mut self, offset: u64, writes: u64) {
+        self.ring_posted_first();
         self.rpc_wakeups += 1;
         crate::profile::window("rpc eventfd: wakeups (units: guest head writes)", writes);
         for _ in 0..writes {
@@ -871,6 +935,7 @@ impl Device {
     /// poll, docs/caraxes/sottr-stage.md §11). Several writes between two wakeups are one
     /// re-arm: each would repeat the same idempotent steps.
     pub fn msi_rearm_ioeventfd(&mut self, offset: u64, writes: u64) {
+        self.ring_posted_first();
         self.rearm_wakeups += 1;
         self.rearm_writes += writes;
         crate::profile::window("msi re-arm eventfd: wakeups (units: guest writes)", writes);
@@ -889,6 +954,7 @@ impl Device {
     /// and gets no host mirror. Returns when the first host doorbell was written, if one
     /// was.
     pub fn doorbell_ioeventfd(&mut self, doorbell: u64, writes: u64) -> Option<std::time::Instant> {
+        self.ring_posted_first();
         self.doorbell_wakeups += 1;
         self.doorbell_writes += writes;
         crate::profile::window("doorbell eventfd: wakeups (units: guest writes)", writes);
@@ -921,6 +987,7 @@ impl Device {
         rings: &[(usize, u64)],
         rung: &mut dyn FnMut(Option<std::time::Instant>),
     ) {
+        self.ring_posted_first();
         let mem = &self.mem;
         let Some(boot) = self.bar0.boot_mut() else {
             self.trace
@@ -1593,6 +1660,77 @@ impl Device {
         }
     }
 
+    /// A guest access that did not trap (an eventfd, a shared page's reactor) rings the
+    /// posted doorbells first, as a trapped access does, so it does not pass a doorbell the
+    /// guest wrote before it (execution.md §9.9).
+    fn ring_posted_first(&mut self) {
+        let gate = crate::ringgate::global_ref();
+        if gate.has_posted() && !self.ringing_posted {
+            self.ring_posted(gate, true);
+        }
+    }
+
+    /// Ring the doorbell writes posted in `gate` (execution.md §9.9), in the guest's order,
+    /// each exactly as its trapped write would have been handled (`region_write` on BAR0:
+    /// the trace, the ring, the steps after a BAR0 write). `by_access`: a guest access
+    /// rings them before its own work (its launch chain, if timed, stays its own), else the
+    /// completer (each ring timed as a trapped ring of the launch chain from its post).
+    pub fn ring_posted(&mut self, gate: &crate::ringgate::RingGate, by_access: bool) {
+        if !gate.has_posted() || self.ringing_posted {
+            return;
+        }
+        let rings = gate.take_posted();
+        if rings.is_empty() {
+            return;
+        }
+        let start = std::time::Instant::now();
+        self.ringing_posted = true;
+        if let Some(offset) = self.bar0.boot().map(|b| b.usermode_doorbell()) {
+            for p in &rings {
+                let t0 = std::time::Instant::now();
+                crate::profile::record(
+                    crate::profile::Key::Window("posted doorbell: posted to rung"),
+                    t0.saturating_duration_since(p.at),
+                    1,
+                    None,
+                    "",
+                );
+                if !by_access {
+                    crate::launch::begin_trapped(p.at);
+                    crate::launch::mark(crate::launch::Step::Lock);
+                }
+                let r = ServerBackend::region_write(
+                    self,
+                    VFIO_PCI_BAR0_REGION_INDEX,
+                    offset,
+                    &p.token.to_le_bytes(),
+                );
+                if !by_access {
+                    crate::launch::end();
+                }
+                // The trapped access row keeps the posting (one BAR0 exit); the ring's device
+                // time is its own row.
+                crate::profile::record(
+                    crate::profile::Key::Window("posted doorbell: rung (device time)"),
+                    t0.elapsed(),
+                    1,
+                    None,
+                    "",
+                );
+                if let Err(e) = r {
+                    self.note(&format!("posted doorbell {:#x}: {e}", p.token));
+                }
+            }
+        }
+        self.ringing_posted = false;
+        crate::dlock::work(
+            if by_access { "guest access" } else { "posted doorbells" },
+            "posted doorbell rings".into(),
+            start.elapsed(),
+        );
+        gate.note_rung(&rings, start, by_access);
+    }
+
     /// The completer thread (main.rs, ringgate.rs): forward the held rings that are ready,
     /// under the device lock briefly, and trace them.
     pub fn complete_held_rings(&mut self) {
@@ -1609,6 +1747,7 @@ impl Device {
     /// The invalidate page's trigger (inv_page.rs, docs/caraxes/intr-page.md §11.3): run
     /// the invalidate as the trapped trigger write does and trace its notes.
     pub fn invalidate_from_page(&mut self, t: crate::inv_page::Trigger) {
+        self.ring_posted_first();
         let mem = &self.mem;
         let notes = match self.bar0.boot_mut() {
             Some(b) => b.mmu_invalidate_from_page(mem, t.pdb, t.upper, t.value),
@@ -1634,6 +1773,7 @@ impl Device {
     /// docs/caraxes/intr-page.md §12.3): run the kick as the trapped write did, then the
     /// steps after a BAR0 write. Returns the channel's `GET`.
     pub fn display_kick_from_page(&mut self, base: u64, put: u32) -> Option<u32> {
+        self.ring_posted_first();
         let mem = &self.mem;
         let (get, notes) = match self.bar0.boot_mut() {
             Some(b) => b.display_kick_from_page(mem, base, put),
@@ -1653,6 +1793,7 @@ impl Device {
     /// watchdog (`None`): scan the channels and ring the pending ones (um_page.rs,
     /// docs/caraxes/intr-page.md §12.2). Returns the channels rung.
     pub fn doorbell_from_page(&mut self, hint: Option<u32>) -> usize {
+        self.ring_posted_first();
         let mem = &self.mem;
         let Some(boot) = self.bar0.boot_mut() else {
             return 0;
@@ -1678,6 +1819,11 @@ impl Device {
                 "doorbell ioeventfd: {} guest write(s) in {} wakeup(s)\n",
                 self.doorbell_writes, self.doorbell_wakeups
             ));
+        }
+        let posted = crate::ringgate::global().post_stats();
+        if posted.writes > 0 {
+            s.push_str(&posted.line());
+            s.push('\n');
         }
         if self.mirror_writes_unsynced > 0 || self.slow_pool_polls > 0 {
             s.push_str(&format!(
@@ -2273,6 +2419,62 @@ mod tests {
     /// without datamatch, accepted by the server beside the token pool's sub-regions; the
     /// token reactor hands its wakeups to `msi_rearm_ioeventfd` and never to a token, and a
     /// re-arm through it leaves config space as the trapped write does.
+    /// A trapped doorbell write is posted (execution.md §9.9): answered while another thread
+    /// holds the device lock, and rung as the trapped write by the next trapped access
+    /// before its own work, or by the completer. A second write of a queued token joins it.
+    #[test]
+    fn a_trapped_doorbell_is_posted_and_rung_before_the_next_access() {
+        const MIB: u64 = 1 << 20;
+        let l = crate::fb::FbLayout::reserved(32 * MIB, 256 * MIB, 0x400_0000, 0x800_0000).unwrap();
+        let f = crate::fixture::rtx2070();
+        let mut d = rtx2070_device();
+        d.bar0 = Bar0::new(f.chip, vec![0x55, 0xAA, 0x76], None).with_boot_model(
+            crate::boot::BootModel::new(f.chip, l, f.identity(256 * MIB)),
+        );
+        // A pool token counts its trapped rings (stale here: no channel holds it).
+        d.bar0.boot_mut().unwrap().ctrl.channels.tokens = Some(crate::tokens::TokenPool::new(4));
+        let rung = |d: &Arc<Mutex<Device>>| {
+            lock(d).bar0.boot_mut().unwrap().token_pool_mut().unwrap().stats.trapped_pool_rings
+        };
+        let doorbell = d.bar0.boot().unwrap().usermode_doorbell();
+        let device = Arc::new(Mutex::new(d));
+        let gate = Arc::new(crate::ringgate::RingGate::default());
+        let mut shared = SharedDevice::with_gate(device.clone(), Routes::default(), gate.clone());
+        assert_eq!(shared.doorbell, Some(doorbell));
+        let token = crate::tokens::TOKEN_BASE.to_le_bytes();
+        // The device lock is held elsewhere: the write is answered anyway.
+        let held = lock(&device);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            shared.region_write(VFIO_PCI_BAR0_REGION_INDEX, doorbell, &token).unwrap();
+            tx.send(shared).unwrap();
+        });
+        let mut shared = rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("the posted doorbell waited for the device lock");
+        assert!(gate.has_posted());
+        drop(held);
+        assert_eq!(rung(&device), 0, "not rung yet");
+        // The next trapped access rings it first.
+        let mut boot0 = [0u8; 4];
+        shared.region_read(VFIO_PCI_BAR0_REGION_INDEX, 0, &mut boot0).unwrap();
+        assert!(!gate.has_posted());
+        assert_eq!(rung(&device), 1, "rung as the trapped write");
+        let s = gate.post_stats();
+        assert_eq!((s.writes, s.by_access, s.by_completer), (1, 1, 0));
+        // Two writes of one token before the completer: one ring.
+        shared.region_write(VFIO_PCI_BAR0_REGION_INDEX, doorbell, &token).unwrap();
+        shared.region_write(VFIO_PCI_BAR0_REGION_INDEX, doorbell, &token).unwrap();
+        lock(&device).ring_posted(&gate, false);
+        assert_eq!(rung(&device), 2);
+        let s = gate.post_stats();
+        assert_eq!((s.writes, s.coalesced, s.by_access, s.by_completer), (3, 1, 1, 1));
+        // Another register's write is not posted.
+        shared.region_write(VFIO_PCI_BAR0_REGION_INDEX, 0xb8_30a0, &[0; 4]).unwrap();
+        assert!(!gate.has_posted());
+        assert_eq!(gate.post_stats().writes, 3);
+    }
+
     #[test]
     fn the_msi_rearm_ioeventfd_is_read_by_the_token_reactor() {
         use std::io::Write;

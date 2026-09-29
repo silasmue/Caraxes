@@ -1632,7 +1632,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     // The held-ring completer (ringgate.rs, docs/caraxes/execution.md §9.1): while doorbells
     // are held for their root's shadow jobs, it waits for the worker's progress without the
-    // device lock and takes the lock briefly to forward the rings that are ready.
+    // device lock and takes the lock briefly to forward the rings that are ready. It also
+    // rings the doorbell writes the vfio-user loop posted without the lock (§9.9).
     let completer = {
         let d = device.clone();
         let gate = vfio_user_nvgpu::ringgate::global();
@@ -1642,6 +1643,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 let mut seen = u64::MAX;
                 while let Some(g) = gate.wait_ready(seen, std::time::Duration::from_millis(50)) {
                     seen = g;
+                    if gate.has_posted() {
+                        vfio_user_nvgpu::dlock::lock(&d, "posted doorbells").ring_posted(&gate, false);
+                    }
                     if gate.waiting() == 0 {
                         continue;
                     }
@@ -1755,7 +1759,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .context("spawn the software CE slice clock")?
     };
     let result = server
-        .run(&mut SharedDevice(device.clone(), routes))
+        .run(&mut SharedDevice::new(device.clone(), routes))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
     soak_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = ce_slices.join();
