@@ -316,15 +316,27 @@ impl ServerBackend for SharedDevice {
     }
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
-        if !crate::profile::on() {
+        let timing = crate::launch::on() && region == VFIO_PCI_BAR0_REGION_INDEX;
+        if !crate::profile::on() && !timing {
             return lock(&self.0).region_write(region, offset, data);
         }
         let t0 = std::time::Instant::now();
         let mut d = lock(&self.0);
+        // A trapped doorbell is a ring of the launch chain too (launch.rs `begin_trapped`).
+        let ring = timing && d.is_usermode_doorbell(offset);
+        if ring {
+            crate::launch::begin_trapped(t0);
+            crate::launch::mark(crate::launch::Step::Lock);
+        }
         let r = d.region_write(region, offset, data);
-        let name = d.register_name(region, offset);
-        drop(d);
-        crate::profile::access(region, true, offset, name, t0);
+        if ring {
+            crate::launch::end();
+        }
+        if crate::profile::on() {
+            let name = d.register_name(region, offset);
+            drop(d);
+            crate::profile::access(region, true, offset, name, t0);
+        }
         r
     }
 
@@ -873,6 +885,13 @@ impl Device {
         if let Some(s) = &self.intr {
             s.set_msi_enabled(self.cfg.msi_enabled());
         }
+    }
+
+    /// Whether BAR0 `offset` is the usermode doorbell (`NOTIFY_CHANNEL_PENDING`).
+    pub fn is_usermode_doorbell(&self, offset: u64) -> bool {
+        self.bar0
+            .boot()
+            .is_some_and(|b| b.usermode_doorbell() == offset)
     }
 
     /// An event for the trace only.

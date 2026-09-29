@@ -13,9 +13,10 @@
 //! The submission steps are timed on the thread that handles the ring: [`begin`] starts a
 //! ring at the instant `epoll_wait` returned, each [`mark`] records the time since the
 //! previous mark (or the start) into its step, [`end`] closes the ring. A trapped doorbell
-//! (the vfio-user server thread) never calls [`begin`], so its marks record nothing. The
-//! completion steps cross threads and are timed from shared timestamps: the last host
-//! doorbell ([`Step::HostRing`]), the last host event ([`host_event`]) and the last raise.
+//! (the vfio-user server thread, every Windows doorbell under QEMU) starts its ring with
+//! [`begin_trapped`] when its message arrived (device.rs `SharedDevice`). The completion
+//! steps cross threads and are timed from shared timestamps: the oldest host doorbell no
+//! host event answered yet ([`host_event`]), the last host event and the last raise.
 //!
 //! Nothing here allocates after start or takes a lock; the counters are relaxed atomics.
 
@@ -63,7 +64,7 @@ pub enum Step {
     /// The last host doorbell to the next ring's `epoll_wait` return: the GPU, the
     /// completion as the guest sees it, the guest's next submission and its exit.
     HostToNext,
-    /// The last host doorbell to a host non-stall event reaching the event thread.
+    /// The oldest host doorbell no event answered yet to the next host non-stall event.
     HostEvent,
     /// A host event reaching the event thread to its raise done (the wake of the reactor).
     Raise,
@@ -102,7 +103,7 @@ impl Step {
             Step::Tail => "tail after the host doorbell",
             Step::ToHost => "ring to host doorbell (sum)",
             Step::HostToNext => "host doorbell to the next ring",
-            Step::HostEvent => "host doorbell to host event",
+            Step::HostEvent => "host doorbell to the next host event",
             Step::Raise => "host event to raise",
             Step::Msi => "raise to MSI",
         }
@@ -219,6 +220,11 @@ pub struct Chain {
     /// reactor was asleep: the scheduler wake-up lies before `seen`).
     pub rings: AtomicU64,
     pub rings_after_block: AtomicU64,
+    /// Doorbells the vfio-user server thread handled (trapped, [`begin_trapped`]).
+    pub trapped_rings: AtomicU64,
+    /// Host events with no host doorbell waiting for one (another channel's work, or a
+    /// channel that fetched its GPPut without a doorbell): not in [`Step::HostEvent`].
+    pub events_unarmed: AtomicU64,
     /// Host doorbell writes (any thread).
     pub host_doorbells: AtomicU64,
     /// Host non-stall events, by the age of the last host doorbell of this device at
@@ -229,6 +235,8 @@ pub struct Chain {
     pub events_older: AtomicU64,
     /// Nanoseconds since [`epoch`] of the last host doorbell, host event and raise; 0: none.
     last_host_ns: AtomicU64,
+    /// The oldest host doorbell since the last host event (0: none waiting).
+    armed_ns: AtomicU64,
     last_event_ns: AtomicU64,
     last_raise_ns: AtomicU64,
 }
@@ -239,12 +247,15 @@ impl Default for Chain {
             hist: STEPS.iter().map(|_| Hist::default()).collect(),
             rings: AtomicU64::new(0),
             rings_after_block: AtomicU64::new(0),
+            trapped_rings: AtomicU64::new(0),
+            events_unarmed: AtomicU64::new(0),
             host_doorbells: AtomicU64::new(0),
             events_no_doorbell: AtomicU64::new(0),
             events_1ms: AtomicU64::new(0),
             events_100ms: AtomicU64::new(0),
             events_older: AtomicU64::new(0),
             last_host_ns: AtomicU64::new(0),
+            armed_ns: AtomicU64::new(0),
             last_event_ns: AtomicU64::new(0),
             last_raise_ns: AtomicU64::new(0),
         }
@@ -262,10 +273,12 @@ impl Chain {
     /// The exit summary: one header line and one line per step that recorded anything.
     pub fn summary(&self) -> String {
         let mut s = format!(
-            "launch timing: {} ring(s) by the reactor ({} after a blocking wait), {} host doorbell(s); host events by the age of the last host doorbell: {} none yet, {} < 1 ms, {} < 100 ms, {} older ({TIMING_ENV}=1, docs/caraxes/launch-path.md)\n",
+            "launch timing: {} ring(s) by the reactor ({} after a blocking wait), {} trapped, {} host doorbell(s); host events: {} with no host doorbell waiting; by the age of the last host doorbell: {} none yet, {} < 1 ms, {} < 100 ms, {} older ({TIMING_ENV}=1, docs/caraxes/launch-path.md)\n",
             self.rings.load(Relaxed),
             self.rings_after_block.load(Relaxed),
+            self.trapped_rings.load(Relaxed),
             self.host_doorbells.load(Relaxed),
+            self.events_unarmed.load(Relaxed),
             self.events_no_doorbell.load(Relaxed),
             self.events_1ms.load(Relaxed),
             self.events_100ms.load(Relaxed),
@@ -612,6 +625,23 @@ pub fn begin(seen: Instant, blocked: bool) {
     SEEN.set(Some(seen));
 }
 
+/// A trapped doorbell's ring starts: `seen` is when its vfio-user message arrived, before
+/// the Device mutex (the [`Step::Lock`] wait follows). Ended by [`end`].
+pub fn begin_trapped(seen: Instant) {
+    if !on() {
+        return;
+    }
+    let Some(c) = chain() else { return };
+    c.trapped_rings.fetch_add(1, Relaxed);
+    let last = c.last_host_ns.load(Relaxed);
+    let now = ns_of(seen);
+    if last != 0 && now > last {
+        c.hist(Step::HostToNext).record_ns(now - last);
+    }
+    AT.set(Some(seen));
+    SEEN.set(Some(seen));
+}
+
 /// The step `s` of this thread's ring ended now.
 #[inline]
 pub fn mark(s: Step) {
@@ -650,6 +680,8 @@ fn host_doorbell_slow() {
     let now = Instant::now();
     c.host_doorbells.fetch_add(1, Relaxed);
     c.last_host_ns.store(ns_of(now), Relaxed);
+    // The oldest doorbell waiting for an event stays; a later one does not move it.
+    let _ = c.armed_ns.compare_exchange(0, ns_of(now), Relaxed, Relaxed);
     if let Some(t) = AT.get() {
         c.hist(Step::HostRing)
             .record_ns(now.saturating_duration_since(t).as_nanos() as u64);
@@ -688,8 +720,16 @@ pub fn host_event() {
         c.events_no_doorbell.fetch_add(1, Relaxed);
         return;
     }
+    // The completion time: from the oldest host doorbell this event is the first answer
+    // to. An event with none waiting is not a completion of a doorbell (on Windows most
+    // are: channels that fetched GPPut from USERD without one, the KMD's own events).
+    match c.armed_ns.swap(0, Relaxed) {
+        0 => {
+            c.events_unarmed.fetch_add(1, Relaxed);
+        }
+        armed => c.hist(Step::HostEvent).record_ns(now.saturating_sub(armed)),
+    }
     let age = now.saturating_sub(last);
-    c.hist(Step::HostEvent).record_ns(age);
     let bin = if age < 1_000_000 {
         &c.events_1ms
     } else if age < 100_000_000 {
@@ -860,10 +900,30 @@ mod tests {
         mark(Step::Lock);
         assert_eq!(c.hist(Step::Lock).count(), n);
         // The completion side: event, raise, MSI.
+        let events = c.hist(Step::HostEvent).count();
         host_event();
         raised();
         msi_for_raise();
-        assert!(c.hist(Step::HostEvent).count() >= 1);
+        assert_eq!(c.hist(Step::HostEvent).count(), events + 1);
+        // A second event with no host doorbell since is not a completion.
+        let unarmed = c.events_unarmed.load(Relaxed);
+        host_event();
+        assert_eq!(c.hist(Step::HostEvent).count(), events + 1);
+        assert_eq!(c.events_unarmed.load(Relaxed), unarmed + 1);
+        // Two doorbells, one event: timed from the older one.
+        host_doorbell();
+        std::thread::sleep(Duration::from_micros(300));
+        host_doorbell();
+        host_event();
+        assert!(c.hist(Step::HostEvent).quantile_us(1.0) >= 300.0);
+        // A trapped doorbell times its ring from its message.
+        let (trapped, to_host) = (c.trapped_rings.load(Relaxed), c.hist(Step::ToHost).count());
+        begin_trapped(Instant::now());
+        mark(Step::Lock);
+        host_doorbell();
+        end();
+        assert_eq!(c.trapped_rings.load(Relaxed), trapped + 1);
+        assert_eq!(c.hist(Step::ToHost).count(), to_host + 1);
         assert!(c.hist(Step::Raise).count() >= 1);
         assert!(c.hist(Step::Msi).count() >= 1);
         // A second MSI without a raise records nothing.

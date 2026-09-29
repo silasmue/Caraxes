@@ -41,7 +41,7 @@ the exit summary. Off, every hook is one relaxed load. The steps:
 
 | Step | From, to | Where |
 |---|---|---|
-| lock | `epoll_wait` returned, Device mutex held | device.rs `spawn_token_reader_hooked` |
+| lock | `epoll_wait` returned (a trapped doorbell: its message arrived), Device mutex held | device.rs `spawn_token_reader_hooked`, `SharedDevice::region_write` |
 | dispatch | mutex held, the shadow doorbell entered (token to channel, BAR2 memfd check, `note_rung`, notes) | mirror.rs:815 |
 | ran-ahead check | `note_ran_ahead`: GPGet and GPPut of USERD | mirror.rs:819 |
 | plan | lazy flush and shadow re-sync planning | mirror.rs:830 |
@@ -51,13 +51,17 @@ the exit summary. Off, every hook is one relaxed load. The steps:
 | host doorbell write | the store to the host's doorbell page | mirror.rs:1935 |
 | tail | host doorbell to the end of the ring (error scan, notes, trace) | launch.rs `end` |
 | ring to host doorbell (sum) | `epoll_wait` returned to the host doorbell | launch.rs `host_doorbell` |
-| host doorbell to host event | last host doorbell to a host non-stall event in the event thread | mirror.rs `event_loop` |
+| host doorbell to the next host event | the oldest host doorbell no event answered yet to the next host non-stall event (events with none waiting are counted apart) | mirror.rs `event_loop`, launch.rs `host_event` |
 | host event to raise | the event to `IntrShared::raise` done | mirror.rs `event_loop` |
 | raise to MSI | the raise to the MSI eventfd write by the interrupt page's reactor | intr_page.rs:686 |
 
 The reactor also counts the rings whose `epoll_wait` had blocked (the scheduler wake-up lies
 before `seen` and is not in the histograms) and the host events by the age of the last host
-doorbell (item 5's population).
+doorbell (item 5's population). Trapped doorbells (every Windows doorbell under QEMU) are rings
+too since 2026-09-29, counted apart. Until then the host-event step took the age of the last
+host doorbell, which on Windows put every sample in the overflow bucket (P36: p10 = max =
+15.8 s): most of its events answer no doorbell (channels fetching GPPut from USERD, the KMD's
+own events).
 
 The guest side: `bench-cu launch 1000` (caraxes/tools/bench-cu.c, metric `launch1k` of
 `bench-run.sh`) launches the 1000-cycle spin kernel 1000 times, each followed by

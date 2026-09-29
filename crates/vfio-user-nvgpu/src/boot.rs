@@ -1051,6 +1051,11 @@ impl BootModel {
         notes
     }
 
+    /// BAR0 offset of the usermode doorbell (`NOTIFY_CHANNEL_PENDING`).
+    pub fn usermode_doorbell(&self) -> u64 {
+        self.regs.usermode_doorbell
+    }
+
     /// The first host doorbell write since the last call (ctrl.rs `host_doorbell_at`).
     pub fn take_host_doorbell(&mut self) -> Option<std::time::Instant> {
         self.ctrl.host_doorbell_at.take()
