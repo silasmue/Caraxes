@@ -68,6 +68,8 @@ pub const FLUSH_PAGE_ENV: &str = "CARAXES_BAR2_FLUSH_PAGE";
 pub const DEFAULT_TRAP: u64 = 0xfe_a000;
 /// Page key tag for a guest sysmem page (FB pages are plain page numbers).
 const SYS: u64 = 1 << 63;
+// One key space with the walks' (ptcache.rs `observed_keys`).
+const _: () = assert!(SYS == crate::ptcache::SYS_KEY);
 /// Leaves the BAR2 walk cache holds at most.
 const MAX_LEAVES: usize = 1 << 20;
 
@@ -1095,6 +1097,10 @@ pub struct Bar2Stats {
     pub table_syncs: u64,
     pub table_syncs_owed: u64,
     pub table_sync_pages: u64,
+    /// The walks' live table page lists those syncs reused (the walk's table pages and the
+    /// BAR2 live set unchanged since) and listed again (fb.rs `bar2_sync_tables`).
+    pub table_key_lists_reused: u64,
+    pub table_key_lists_listed: u64,
     pub table_sync_ns: u64,
     /// The doorbell rule's sets as last computed per channel: how many times, and the most
     /// live pages one held; the most live table pages of a channel left to the invalidate.
@@ -1358,6 +1364,12 @@ impl Bar2Area {
     /// Whether page `page` is a table page of the BAR2 walk.
     pub fn watches_table(&self, page: u64) -> bool {
         self.cache.borrow().as_ref().is_some_and(|c| c.watches(page))
+    }
+
+    /// The BAR2 walk's tables generation (ptcache.rs `WalkCache::tables_generation`):
+    /// equal generations, equal table pages. `None` before the walk exists.
+    pub fn tables_generation(&self) -> Option<u64> {
+        self.cache.borrow().as_ref().map(|c| c.tables_generation())
     }
 
     /// The table pages of the BAR2 walk.
@@ -1630,10 +1642,16 @@ impl Bar2Area {
         let scan = self.scan_back(store, sys, tr, only, &mut rep);
         self.stats.syncs += 1;
         self.stats.compared += scan.compared as u64;
+        let kind = if only.is_some() { "BAR2 table sync" } else { "BAR2 full sync" };
+        crate::dlock::work(kind, "scan and write-back".into(), t0.elapsed());
+        let t1 = std::time::Instant::now();
         if let Some(root) = root {
             self.follow_tables(store, fb_size, root, sys, tr, &mut rep, view);
         }
+        crate::dlock::work(kind, "BAR2 table walk".into(), t1.elapsed());
+        let t2 = std::time::Instant::now();
         self.check_drift(store, tr, t0);
+        crate::dlock::work(kind, "drift sample".into(), t2.elapsed());
         self.stats.max_live = self.stats.max_live.max(self.remap.live_pages() as u64);
         self.stats.max_aliases = self.stats.max_aliases.max(self.remap.max_aliases() as u64);
         let ns = t0.elapsed().as_nanos() as u64;
@@ -2010,7 +2028,7 @@ impl Bar2Area {
             format!("{} ({} us)", s.by_point[x as usize], s.point_ns[x as usize] / 1000)
         };
         format!(
-            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates: {} table sync(s) of {} live table page(s) ({} us), {} of them with a flush owed left to the next engine start; channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
+            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates: {} table sync(s) of {} live table page(s) ({} us; walks' live lists {} reused, {} listed), {} of them with a flush owed left to the next engine start; channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
             p(Point::FlushRead),
             p(Point::FbFlush),
             s.fb_flushes,
@@ -2022,6 +2040,8 @@ impl Bar2Area {
             s.table_syncs,
             s.table_sync_pages,
             s.table_sync_ns / 1000,
+            s.table_key_lists_reused,
+            s.table_key_lists_listed,
             s.table_syncs_owed,
             s.observe_sets,
             s.observe_pages_max,

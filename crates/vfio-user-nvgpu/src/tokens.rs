@@ -45,6 +45,53 @@ pub const DEFAULT_TOKENS: usize = 64;
 /// `kchannelNotifyWorkSubmitToken` (kernel_channel.c:4015-4030).
 pub const NOTIFIER_TOKEN_OFFSET: u64 = 16 + 8;
 
+/// A client may keep its token at another notifier index
+/// (`NVC36F_CTRL_CMD_GPFIFO_SET_WORK_SUBMIT_TOKEN_NOTIF_INDEX`, which the guest RM of a GSP
+/// system handles alone, kernel_channel.c:3455-3496 of 615): the entries scanned for it.
+pub const TOKEN_SCAN_ENTRIES: usize = 64;
+
+/// The status `kchannelNotifyWorkSubmitToken` writes with a token (kernel_channel.c
+/// :4359-4372 of 615): IN_PROGRESS (15:15) TRUE and VALUE (14:0) 0x7FFF; info16 is 0.
+pub const TOKEN_ENTRY_STATUS: u16 = 0xFFFF;
+
+/// The notifier entries (index, from 2) of a 16-byte `NvNotification` array `buf` that
+/// hold one of `tokens` as the RM writes a work-submit token: info32 the token, info16 0,
+/// status [`TOKEN_ENTRY_STATUS`]. Entries 0 (errors) and 1 (the default index) are not
+/// scanned.
+pub fn token_entries(buf: &[u8], tokens: &[u32]) -> Vec<usize> {
+    (2..buf.len() / 16)
+        .filter(|&i| {
+            let e = &buf[16 * i..16 * i + 16];
+            let info32 = u32::from_le_bytes(e[8..12].try_into().unwrap());
+            let info16 = u16::from_le_bytes(e[12..14].try_into().unwrap());
+            let status = u16::from_le_bytes(e[14..16].try_into().unwrap());
+            info16 == 0 && status == TOKEN_ENTRY_STATUS && tokens.contains(&info32)
+        })
+        .collect()
+}
+
+/// A notifier page: in FB (true) or guest RAM, and the page number.
+pub type NotifierPage = (bool, u64);
+
+/// Whether a value that is `chid`'s token (the one it rang with, or its mirror's host
+/// token) is only `chid`'s where it stands on `chid`'s notifier page `page`: no other
+/// channel a ring of it rings (`targets`, ctrl.rs `doorbell_targets`) keeps its notifier on
+/// that page, so no other channel's token entry there can hold the same value (a guest
+/// token that is also a mirrored channel's host token, both channels on one notifier
+/// page). `page_of(c)` is channel `c`'s notifier page, `None` for a channel without one
+/// the guest announced.
+pub fn own_on_page(
+    chid: u32,
+    targets: &[u32],
+    page: NotifierPage,
+    page_of: impl Fn(u32) -> Option<NotifierPage>,
+) -> bool {
+    targets
+        .iter()
+        .filter(|&&c| c != chid)
+        .all(|&c| page_of(c) != Some(page))
+}
+
 /// The pool size `CARAXES_DOORBELL_TOKENS` asks for: `None` when unset, empty or 0.
 pub fn requested() -> Result<Option<usize>, String> {
     let Ok(v) = std::env::var(TOKENS_ENV) else {
@@ -101,6 +148,8 @@ pub struct PoolStats {
     pub no_notifier: u64,
     pub mismatch: u64,
     pub exhausted: u64,
+    /// Pool tokens written into a token entry at another index than the default one.
+    pub elsewhere: u64,
     /// The first few stale tokens and mismatches, for the log.
     pub first: Vec<String>,
 }
@@ -198,7 +247,7 @@ impl TokenPool {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "doorbell tokens: {} offered ({TOKEN_BASE:#x}..), {} handed out, {} written again, {} assigned at exit (peak {}); {} eventfd wakeup(s) for {} guest write(s); {} pool token(s) trapped; {} trapped ring(s) with a channel's own token after its hand-out; {} stale; left on their own token: {} without notifier, {} notifier mismatch, {} pool exhausted{}",
+            "doorbell tokens: {} offered ({TOKEN_BASE:#x}..), {} handed out, {} written again, {} assigned at exit (peak {}); {} eventfd wakeup(s) for {} guest write(s); {} pool token(s) trapped; {} trapped ring(s) with a channel's own token after its hand-out; {} written into the token entry at another notifier index; {} stale; left on their own token: {} without notifier, {} notifier mismatch, {} pool exhausted{}",
             self.slots.len(),
             s.handed_out,
             s.rewritten,
@@ -208,6 +257,7 @@ impl TokenPool {
             s.eventfd_writes,
             s.trapped_pool_rings,
             s.own_token_after_handout,
+            s.elsewhere,
             s.stale,
             s.no_notifier,
             s.mismatch,
@@ -411,6 +461,24 @@ mod tests {
         assert!(!is_pool_token(0x8003a, MAX_TOKENS));
         assert!(is_pool_token(TOKEN_BASE, 1));
         assert!(!is_pool_token(TOKEN_BASE + 1, 1));
+    }
+
+    /// A value of a channel is its own on its notifier page only if every other channel a
+    /// ring of it rings keeps its notifier elsewhere.
+    #[test]
+    fn a_shared_value_is_own_only_off_the_other_channels_page() {
+        let page = (false, 0x40080);
+        let pages = |c: u32| match c {
+            9 => Some(page),
+            10 => Some((false, 0x40081)),
+            11 => Some(page),
+            _ => None,
+        };
+        assert!(own_on_page(9, &[9], page, pages));
+        assert!(own_on_page(9, &[54], page, pages), "chid 54 has no notifier");
+        assert!(own_on_page(9, &[9, 10], page, pages), "chid 10's entries are on its own page");
+        assert!(!own_on_page(9, &[9, 11], page, pages), "chid 11 shares the page");
+        assert!(!own_on_page(9, &[11], page, pages));
     }
 
     #[test]

@@ -20,6 +20,9 @@ use crate::guestmem::GuestMemory;
 
 const PAGE: u64 = 4096;
 const MIB: u64 = 1 << 20;
+/// The BAR2 walk's entry among the walks' live table pages (`FakeFb::live_tables`); the
+/// walks are keyed by their root's FB address, never this.
+const BAR2_WALK_KEY: u64 = u64::MAX;
 
 /// The device-owned top of a reservation: the BAR2 and BAR1 root page directories
 /// (`bar2PdeBase`, `bar1PdeBase` of the static info), kept 2 MiB so the usable range
@@ -591,6 +594,15 @@ pub struct VramStats {
     pub evictions: u64,
     /// Accesses served by a pinned window (the BAR1 pool's dma-buf mapping), no LRU.
     pub pinned: u64,
+    /// The BAR2 memfd's own windows: maps, evictions among them, maps the host refused
+    /// (the BAR1 floor), accesses sent to the data windows in the back-off after one, and
+    /// accesses served (any caller's).
+    pub bar2_maps: u64,
+    pub bar2_evictions: u64,
+    pub bar2_refused: u64,
+    pub bar2_backoff: u64,
+    pub bar2_served: u64,
+    pub bar2_held: u64,
     pub reads: u64,
     pub writes: u64,
     pub bytes_read: u64,
@@ -630,7 +642,25 @@ pub struct VramStore {
     stats: RefCell<VramStats>,
     /// A store went through a window since the last flush (launch.rs `flush_needed`).
     dirty: Cell<bool>,
+    /// The BAR2 memfd's own windows ([`BAR2_WINDOWS`] of [`BAR2_WINDOW`], LRU among
+    /// themselves): its write-backs, page loads and drift samples map here, so the few
+    /// pages behind BAR2 neither evict the data windows nor wait for a 32 MiB map. Every
+    /// access looks here first.
+    bar2: RefCell<Vec<Slot>>,
+    bar2_max: usize,
+    /// No BAR2 window is mapped before this instant (the host BAR1 floor refused one): the
+    /// BAR2 accesses take the data windows meanwhile, as before these windows.
+    bar2_off_until: Cell<Option<std::time::Instant>>,
+    bar2_last_line: Cell<Option<std::time::Instant>>,
 }
+
+/// The BAR2 memfd's own windows ([`VramStore`]): 2 of 2 MiB, 4 MiB of host BAR1 beside the
+/// data windows, admitted by the host BAR1 floor like every window.
+pub const BAR2_WINDOWS: usize = 2;
+pub const BAR2_WINDOW: usize = 2 << 20;
+/// After the floor refused a BAR2 window, the BAR2 accesses use the data windows for this
+/// long before a BAR2 window is asked for again.
+pub const BAR2_WINDOW_BACKOFF: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// The default window: 32 MiB. BAR1 is a shared host resource (256 MiB on this card,
 /// no resizable BAR): the desktop's own mappings and every device's windows come out of
@@ -800,12 +830,111 @@ impl VramStore {
             outside: RefCell::new(HostRamStore::default()),
             dirty: Cell::new(true),
             stats: RefCell::new(VramStats::default()),
+            bar2: RefCell::new(Vec::new()),
+            bar2_max: BAR2_WINDOWS,
+            bar2_off_until: Cell::new(None),
+            bar2_last_line: Cell::new(None),
+        }
+    }
+
+    /// Whether this thread's access is the BAR2 memfd's ([`ReadWhy`]): a write-back, a
+    /// page load or a drift sample.
+    fn bar2_access() -> bool {
+        let why = READ_WHY.with(|w| w.get());
+        why == ReadWhy::Bar2WriteBack as usize
+            || why == ReadWhy::Bar2Load as usize
+            || why == ReadWhy::Bar2Drift as usize
+    }
+
+    /// The BAR2 window holding reservation offset `off`, if one does.
+    fn bar2_holding(&self, off: u64) -> Option<usize> {
+        let mut ws = self.bar2.borrow_mut();
+        let i = ws
+            .iter()
+            .position(|s| off >= s.win.offset() && off < s.win.offset() + s.win.len() as u64)?;
+        let tick = self.tick.get() + 1;
+        self.tick.set(tick);
+        ws[i].last_use = tick;
+        Some(i)
+    }
+
+    /// A BAR2 window for `off`, mapped now (the least recently used BAR2 window goes first
+    /// at the budget). `None` when the host refused it: the access takes the data windows,
+    /// and no BAR2 window is asked for within [`BAR2_WINDOW_BACKOFF`].
+    fn bar2_map(&self, off: u64) -> Option<usize> {
+        if self.bar2_max == 0 {
+            return None;
+        }
+        let now = std::time::Instant::now();
+        if self.bar2_off_until.get().is_some_and(|t| now < t) {
+            self.stats.borrow_mut().bar2_backoff += 1;
+            return None;
+        }
+        if self.bar2.borrow().len() >= self.bar2_max {
+            let mut ws = self.bar2.borrow_mut();
+            let (i, _) = ws.iter().enumerate().min_by_key(|(_, s)| s.last_use)?;
+            ws[i].win.flush();
+            let len = ws[i].win.len();
+            ws.remove(i);
+            drop(ws);
+            self.stats.borrow_mut().bar2_evictions += 1;
+            self.src.borrow_mut().released(len);
+        }
+        let len = BAR2_WINDOW.min((self.end - self.base) as usize);
+        let start = off & !(len as u64 - 1);
+        let len = (len as u64).min(self.end - self.base - start) as usize;
+        let why = READ_WHY.with(|w| w.get());
+        match self.src.borrow_mut().map(start, len) {
+            Ok(w) => {
+                self.stats.borrow_mut().bar2_maps += 1;
+                MAP_COUNT[why].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                // Another window may map the same VRAM with stores still in the CPU's
+                // write-combining buffers: drain them before this one is used.
+                self.fence();
+                let tick = self.tick.get() + 1;
+                self.tick.set(tick);
+                let mut ws = self.bar2.borrow_mut();
+                ws.push(Slot { win: w, last_use: tick });
+                Some(ws.len() - 1)
+            }
+            Err(st) => {
+                self.bar2_off_until.set(Some(now + BAR2_WINDOW_BACKOFF));
+                let n = {
+                    let mut s = self.stats.borrow_mut();
+                    s.bar2_refused += 1;
+                    s.bar2_refused
+                };
+                if self
+                    .bar2_last_line
+                    .get()
+                    .is_none_or(|t| now.saturating_duration_since(t) >= std::time::Duration::from_secs(10))
+                {
+                    self.bar2_last_line.set(Some(now));
+                    eprintln!(
+                        "vfio-user-nvgpu: fb: the host refused a BAR2 window of {} KiB (status {st:#x}, {n} refusal(s) so far; the host BAR1 floor, hostfloor.rs): the BAR2 memfd's accesses use the data windows for {} ms",
+                        len >> 10,
+                        BAR2_WINDOW_BACKOFF.as_millis()
+                    );
+                }
+                None
+            }
+        }
+    }
+
+    /// Drain the CPU's write-combining buffers (a store fence): stores through one window
+    /// reach VRAM before an access through another mapping of the same memory.
+    fn fence(&self) {
+        #[cfg(target_arch = "x86_64")]
+        // SAFETY: sfence has no operands.
+        unsafe {
+            std::arch::x86_64::_mm_sfence();
         }
     }
 
     pub fn stats(&self) -> VramStats {
         let mut s = self.stats.borrow().clone();
         s.held = self.windows.borrow().len() as u64;
+        s.bar2_held = self.bar2.borrow().len() as u64;
         s.bar1_refused = self.src.borrow().bar1_refused();
         s
     }
@@ -968,6 +1097,36 @@ impl VramStore {
                 done += n;
                 continue;
             }
+            // The BAR2 memfd's windows first, for every caller: a page is served by the
+            // window that holds it; a BAR2 access that no window holds maps a BAR2 window.
+            let bar2 = self.bar2_holding(off).or_else(|| {
+                let data_holds = self.windows.borrow().iter().any(|s| {
+                    off >= s.win.offset() && off < s.win.offset() + s.win.len() as u64
+                });
+                (!data_holds && Self::bar2_access())
+                    .then(|| self.bar2_map(off))
+                    .flatten()
+            });
+            if let Some(i) = bar2 {
+                let end = {
+                    let ws = self.bar2.borrow();
+                    ws[i].win.offset() + ws[i].win.len() as u64
+                };
+                let mut n = (end - off).min((len - done) as u64).min(self.end - a);
+                if let Some(next) = self
+                    .pinned
+                    .iter()
+                    .filter(|w| w.offset() > off)
+                    .map(|w| w.offset() - off)
+                    .min()
+                {
+                    n = n.min(next);
+                }
+                self.stats.borrow_mut().bar2_served += 1;
+                f(Piece::Bar2(i), a, n as usize, done);
+                done += n as usize;
+                continue;
+            }
             // `window_for` may halve `window_len` before it returns a mapping. Size the
             // piece from that mapping, rather than from the size with which the lookup
             // began. Cached mappings can likewise be larger than the current adaptive
@@ -1019,6 +1178,8 @@ enum Piece {
     Window(usize),
     /// Inside the reservation, in the pinned window at this index.
     Pinned(usize),
+    /// Inside the reservation, in the BAR2 memfd's window at this index.
+    Bar2(usize),
     /// Inside the reservation, but the host granted no window.
     Unmapped,
     /// Outside the reservation: host RAM.
@@ -1044,6 +1205,9 @@ impl FbStore for VramStore {
                 .win
                 .read(a - self.base, &mut buf[done..done + n]),
             Piece::Pinned(i) => self.pinned[i].read(a - self.base, &mut buf[done..done + n]),
+            Piece::Bar2(i) => self.bar2.borrow()[i]
+                .win
+                .read(a - self.base, &mut buf[done..done + n]),
             Piece::Outside => self.outside.borrow().read(a, &mut buf[done..done + n]),
             Piece::Unmapped => buf[done..done + n].fill(0xFF),
         });
@@ -1062,6 +1226,9 @@ impl FbStore for VramStore {
                 .win
                 .write(a - self.base, &data[done..done + n]),
             Piece::Pinned(i) => self.pinned[i].write(a - self.base, &data[done..done + n]),
+            Piece::Bar2(i) => self.bar2.borrow()[i]
+                .win
+                .write(a - self.base, &data[done..done + n]),
             Piece::Outside => self.outside.borrow_mut().write(a, &data[done..done + n]),
             Piece::Unmapped => {}
         });
@@ -1082,6 +1249,9 @@ impl FbStore for VramStore {
         for slot in self.windows.borrow().iter() {
             slot.win.flush();
         }
+        for slot in self.bar2.borrow().iter() {
+            slot.win.flush();
+        }
         for w in &self.pinned {
             w.flush();
         }
@@ -1093,7 +1263,7 @@ impl FbStore for VramStore {
         // client and reservation still exist; dropping them with the rest of the device
         // after HostMemory::shutdown only produces stale-client unmap failures.
         let windows = self.windows.get_mut();
-        for slot in windows.drain(..) {
+        for slot in windows.drain(..).chain(self.bar2.get_mut().drain(..)) {
             slot.win.flush();
             let len = slot.win.len();
             drop(slot);
@@ -1204,6 +1374,10 @@ pub struct FakeFb {
     /// root's FB address (a sysmem root with bit 63): a guest write to one of its table
     /// pages marks that page dirty, and the next update re-reads only the dirty pages.
     walks: RefCell<std::collections::BTreeMap<u64, crate::ptcache::WalkCache>>,
+    /// The live BAR2 pages among each walk's table pages, as of the walk's tables
+    /// generation and the BAR2 live generation ([`Self::bar2_sync_tables`]): key, the two
+    /// generations, the pages. The BAR2 walk's own under [`BAR2_WALK_KEY`].
+    live_tables: RefCell<HashMap<u64, (u64, u64, Vec<u64>)>>,
     /// The state trapped status reads are answered from without the device lock
     /// (fastread.rs): a write to the BAR2 flush page's FB page drops its copy.
     fast: Option<std::sync::Arc<crate::fastread::FastReads>>,
@@ -1268,6 +1442,7 @@ impl FakeFb {
             outside: Outside::default(),
             pte_kinds: RefCell::new(std::collections::BTreeMap::new()),
             walks: RefCell::new(std::collections::BTreeMap::new()),
+            live_tables: RefCell::new(HashMap::new()),
             fast: None,
             table_epoch: Cell::new(0),
             bar_tlb: RefCell::new(HashMap::new()),
@@ -1336,12 +1511,24 @@ impl FakeFb {
             }
         }
         let pool = self.pool.borrow();
-        if let Some(t) = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty()) {
+        if let Some(p) = pool.as_ref().filter(|p| !p.table.is_empty()) {
             let mut moved = false;
-            t.for_each_piece(pa, len as usize, |hpa, off, _| {
-                moved |= hpa != pa + off as u64
+            let mut retired = false;
+            p.table.for_each_piece(pa, len as usize, |hpa, off, n| {
+                if hpa != pa + off as u64 {
+                    moved = true;
+                    // A pooled page's area page: pieces are single pages or runs of them.
+                    let (pool0, _) = p.table.pool();
+                    retired |= (0..n.div_ceil(PAGE as usize))
+                        .any(|i| p.is_retired((hpa & !(PAGE - 1)) - pool0 + i as u64 * PAGE));
+                }
             });
             if moved {
+                // Counted for the pool's summary (docs/caraxes/bar1-pool.md §13).
+                p.stats.devce_blocked.set(p.stats.devce_blocked.get() + 1);
+                if retired {
+                    p.stats.devce_blocked_retired.set(p.stats.devce_blocked_retired.get() + 1);
+                }
                 return false;
             }
         }
@@ -1782,6 +1969,22 @@ impl FakeFb {
         true
     }
 
+    /// Whether FB page `page` is a page table the device follows by physical address: a table
+    /// of a cached guest walk, of the BAR2 walk, of the BAR1 walk or the BAR1 pool's area
+    /// walk, or a page the BAR TLB read ([`Self::device_table_page`] without the pool's
+    /// replica homes, which are there for their merge, not because a walk reads them).
+    pub fn followed_table_page(&self, page: u64) -> bool {
+        self.walks.borrow().values().any(|c| c.watches(page))
+            || self.bar2.as_deref().is_some_and(|a| a.watches_table(page))
+            || self
+                .bar1_pt
+                .borrow()
+                .as_ref()
+                .is_some_and(|pt| pt.table_pages.contains(&page))
+            || self.pool.borrow().as_ref().is_some_and(|p| p.follows_table(page))
+            || self.bar_tlb_pages.borrow().contains(&page)
+    }
+
     /// Whether FB page `page` (4 KiB page number) is a table page a device cache follows
     /// by physical address: a table of a cached guest walk (the shadows'), of the BAR2
     /// walk, of the BAR1 walk or the BAR1 pool's area walk, a page the BAR TLB read, or a
@@ -1811,12 +2014,39 @@ impl FakeFb {
             return false;
         };
         let t0 = std::time::Instant::now();
-        // The table pages of every cache (a few hundred), kept where they are live: cheaper
-        // than asking every cache about every live page.
-        let mut keys: Vec<u64> = a.table_pages();
-        for c in self.walks.borrow().values() {
-            keys.extend(c.watched_pages());
+        // The table pages of every cache, kept where they are live. A walk's live list is
+        // listed again only when its table pages or the BAR2 live set changed since (SotTR
+        // run F: 62 us of the 424 us per invalidate listed about 112 live of every watched
+        // page); the other sets are small and listed every time.
+        let live_gen = a.live_generation();
+        let mut memo = self.live_tables.borrow_mut();
+        let (mut reused, mut listed) = (0u64, 0u64);
+        let mut keys: Vec<u64> = Vec::new();
+        let mut live_of = |key: u64, gen: u64, pages: &mut dyn Iterator<Item = u64>| {
+            match memo.get(&key) {
+                Some((g, l, live)) if *g == gen && *l == live_gen => {
+                    reused += 1;
+                    keys.extend_from_slice(live);
+                }
+                _ => {
+                    listed += 1;
+                    let live: Vec<u64> = pages.filter(|&k| a.is_live(k)).collect();
+                    keys.extend_from_slice(&live);
+                    memo.insert(key, (gen, live_gen, live));
+                }
+            }
+        };
+        if let Some(gen) = a.tables_generation() {
+            live_of(BAR2_WALK_KEY, gen, &mut a.table_pages().into_iter());
         }
+        let walks = self.walks.borrow();
+        for (&root, c) in walks.iter() {
+            live_of(root, c.tables_generation(), &mut c.watched_pages());
+        }
+        memo.retain(|k, _| *k == BAR2_WALK_KEY || walks.contains_key(k));
+        drop(walks);
+        drop(memo);
+        let from_walks = keys.len();
         if let Some(pt) = self.bar1_pt.borrow().as_ref() {
             keys.extend(pt.table_pages.iter().copied());
         }
@@ -1824,9 +2054,13 @@ impl FakeFb {
             keys.extend(p.tracked_pages());
         }
         keys.extend(self.bar_tlb_pages.borrow().iter().copied());
-        keys.retain(|&k| a.is_live(k));
+        // The walks' pages are live already; the rest is checked here.
+        let mut rest = keys.split_off(from_walks);
+        rest.retain(|&k| a.is_live(k));
+        keys.extend(rest);
         keys.sort_unstable();
         keys.dedup();
+        crate::dlock::work("BAR2 table sync", "table page keys".into(), t0.elapsed());
         let size = self.size;
         let a = self.bar2.as_deref_mut().expect("checked");
         let pool = self.pool.borrow();
@@ -1842,6 +2076,8 @@ impl FakeFb {
         let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys), &view);
         drop(walks);
         a.stats.table_syncs += 1;
+        a.stats.table_key_lists_reused += reused;
+        a.stats.table_key_lists_listed += listed;
         a.stats.table_syncs_owed += u64::from(a.flush_pending());
         a.stats.table_sync_pages += keys.len() as u64;
         a.stats.table_sync_ns += t0.elapsed().as_nanos() as u64;
@@ -4287,6 +4523,83 @@ mod tests {
         assert_eq!(b, [0xFF, 0xFF, 7, 8]);
         let st = s.stats();
         assert_eq!((st.failed, st.map_failures, st.pinned), (1, 1, 1));
+    }
+
+    /// The BAR2 memfd's own windows: a BAR2 write-back maps a 2 MiB BAR2 window, the data
+    /// accesses keep their window, and alternating between the two maps nothing more (with
+    /// one data window, every switch used to remap). A data access inside a BAR2 window is
+    /// served by it; a BAR2 access inside a data window by that one.
+    #[test]
+    fn bar2_accesses_map_their_own_windows_beside_the_data_window() {
+        let (base, end) = (0xE900_0000u64, 0x1_6900_0000u64);
+        let maps = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let src = RamWindows {
+            max_len: usize::MAX,
+            pages: std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default())),
+            maps: maps.clone(),
+        };
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 32 << 20, 1);
+        let at = |mib: u64| base + (mib << 20);
+        for _ in 0..3 {
+            {
+                let _why = ReadWhy::Bar2WriteBack.scope();
+                s.write(at(100) + 0x10, &[0xAB]);
+            }
+            s.write(at(1), &[0xCD]);
+        }
+        let st = s.stats();
+        assert_eq!((st.maps, st.bar2_maps, st.evictions), (1, 1, 0), "{st:?}");
+        assert_eq!(maps.load(std::sync::atomic::Ordering::Relaxed), 2);
+        // A data read inside the BAR2 window: served by it, no map.
+        let mut b = [0u8; 1];
+        s.read(at(100) + 0x10, &mut b);
+        assert_eq!(b, [0xAB]);
+        // A BAR2 load inside the data window: served by that one, no BAR2 window.
+        {
+            let _why = ReadWhy::Bar2Load.scope();
+            s.read(at(1), &mut b);
+        }
+        assert_eq!(b, [0xCD]);
+        let st = s.stats();
+        assert_eq!((st.maps, st.bar2_maps, st.bar2_held), (1, 1, 1));
+        // Three BAR2 regions with a budget of two: LRU among the BAR2 windows only.
+        for mib in [104, 108, 100] {
+            let _why = ReadWhy::Bar2WriteBack.scope();
+            s.write(at(mib), &[1]);
+        }
+        let st = s.stats();
+        assert_eq!((st.maps, st.bar2_maps, st.bar2_evictions, st.bar2_held, st.held), (1, 4, 2, 2, 1));
+    }
+
+    /// The host BAR1 floor refuses a BAR2 window: the BAR2 access takes the data window as
+    /// before, and no BAR2 window is asked for in the back-off.
+    #[test]
+    fn a_refused_bar2_window_falls_back_to_the_data_window() {
+        struct No2MiB(RamWindows);
+        impl WindowSource for No2MiB {
+            fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32> {
+                if len == BAR2_WINDOW {
+                    return Err(0x51);
+                }
+                self.0.map(offset, len)
+            }
+        }
+        let (base, end) = (0xE900_0000u64, 0x1_6900_0000u64);
+        let src = No2MiB(RamWindows {
+            max_len: usize::MAX,
+            pages: std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default())),
+            maps: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        });
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 32 << 20, 1);
+        for _ in 0..2 {
+            let _why = ReadWhy::Bar2WriteBack.scope();
+            s.write(base + (100 << 20), &[7]);
+        }
+        let mut b = [0u8; 1];
+        s.read(base + (100 << 20), &mut b);
+        assert_eq!(b, [7]);
+        let st = s.stats();
+        assert_eq!((st.bar2_maps, st.bar2_refused, st.maps, st.bar2_held), (0, 1, 1, 0), "{st:?}");
     }
 
     /// A window map counts for the tag of the access that needed it: a BAR2 write-back, a

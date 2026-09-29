@@ -241,8 +241,17 @@ guest's tables. So no other page needs to trap.
    So the invalidate is the sync point of the page tables: with no flush owed it compares and
    writes back exactly the live table pages the device follows (the walks of the guest roots,
    the BAR2 and BAR1 tables, the pool's area walk; `FakeFb::bar2_sync_tables`), and a BAR2 page
-   that the walk re-points is written back before it leaves the mapping. A flush owed stays owed
-   (rule 3). Only while a host VA space walks the guest's own tables (a mirror VAS,
+   that the walk re-points is written back before it leaves the mapping. Each walk's list of
+   its live table pages is kept while the walk's table pages (its tables generation) and the
+   BAR2 live set (the remap generation) stay as they were. SotTR run F, per invalidate: 424 us
+   in the table sync, of it 62 us listing the table pages (about 112 live of every watched
+   page), 295 us scan and write-back (dirty table pages written back through the VRAM store's
+   BAR1 windows), 44 us following the BAR2 tables, 17 us drift samples.
+   The write-backs go to VRAM through the VRAM store's BAR2 windows (2 of 2 MiB, host-
+   resources.md), not the 32 MiB data windows: in run F a dirty page's write-back could cost a
+   window remap (about 270 us of host calls) and evict the executor's window. Page loads and
+   drift samples use them too; a page a data window holds is served by it.
+   A flush owed stays owed (rule 3). Only while a host VA space walks the guest's own tables (a mirror VAS,
    `Mirror::walks_guest_tables`) is the invalidate a full sync. A doorbell syncs only what its
    channel could observe (rule 4),
    page tables excluded; `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`, a full sync at every doorbell,
@@ -267,6 +276,10 @@ guest's tables. So no other page needs to trap.
      (477 us each) on the guest's invalidate path. A table-only sync cost 164 us.
    - Counted: `MMU invalidates: N table sync(s) ..., M of them with a flush owed left to the next
      engine start`.
+   - The BAR1 pool's replicas follow the same rule (`bar1pool::sync_untracked_tables`): at an
+     invalidate only the replicas whose home is a page table the device follows are merged;
+     the data replicas wait for the next engine start (SotTR run E: the full merge at every
+     invalidate cost 675 us, 144 s over the run).
    - Tests: `an_invalidate_with_a_flush_owed_syncs_the_tables_and_leaves_the_data_to_the_engine_start`
      (a PTE rewritten through a table mapped into BAR2 reaches VRAM and is followed at the
      invalidate; the data waits for the doorbell and reads from the memfd meanwhile),
@@ -291,7 +304,11 @@ guest's tables. So no other page needs to trap.
    - A channel whose memory the device cannot name (no VAS root, no cached walk of it) could observe
      anything: every live page is synced.
    The sets are cached per channel (channel, root, walk and table generations, set-B stamp) and
-   intersected with the live pages when those change. The cost is one `memcmp` of the BAR2 page
+   the live generation. A set is made again from the live pages, not from the VAS's leaves: the
+   walk keeps each 2 MiB unit's FB and guest-RAM span, and only a unit whose span holds a live
+   page is read (`WalkCache::observed_keys`; SotTR run F listed every leaf of the VAS for each of
+   82115 sets, the "BAR2 before the ring" of a trapped doorbell was 1.35 ms). The BAR1 pool's
+   replica homes (bar1-pool.md §16) are found the same way. The cost is one `memcmp` of the BAR2 page
    with its snapshot per observable live page per doorbell (0.14 us warm, 0.28 us for a set that
    no longer fits the cache, measured on this host); KVM dirty logging (§2) would make it one per
    dirty page. Write-protect tracking on the device's side cannot replace it: userfaultfd-wp,

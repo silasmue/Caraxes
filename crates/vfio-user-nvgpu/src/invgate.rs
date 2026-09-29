@@ -331,9 +331,9 @@ impl InvalidateGate {
         self.pending.is_some()
     }
 
-    /// Hand the armed invalidate off the device lock (fastread.rs): its targets and the
-    /// worker's progress go to whoever completes TRIGGER; the gate is empty again. `None` when
-    /// nothing is held.
+    /// Hand the armed invalidate off the device lock (the invalidate page, inv_page.rs, and the
+    /// trapped trigger read, fastread.rs): its targets and the worker's progress go to whoever
+    /// completes TRIGGER; the gate is empty again. `None` when nothing is held.
     pub fn hand_off(&mut self, progress: &Arc<Progress>) -> Option<Hold> {
         let (targets, since) = self.pending.take()?;
         Some(Hold {

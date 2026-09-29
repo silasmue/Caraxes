@@ -17,7 +17,10 @@
 //! shadow resync: boot.rs `mmu_invalidate_from_page`) under the device lock, and only then
 //! clears `TRIGGER` in the page, so the guest's poll sees completion exactly when the
 //! trapped write would have returned. `TRIGGER` is the hardware's own busy bit, so a memory
-//! word can report it: the guest never stores a trigger while one is shown.
+//! word can report it: the guest never stores a trigger while one is shown. A held
+//! invalidate (invgate.rs: TRIGGER busy until the shadow worker applied the plans of the
+//! roots it names) leaves the lock: the page's completion thread waits for the worker and
+//! then clears `TRIGGER` (execution.md §9.8); until then the reactor takes no new trigger.
 //!
 //! The rest of the page is latched memory, as the trapped path latches it, except the
 //! words the VF model answers (uvm.rs `VfRegs`): the fault-buffer and access-counter PUT
@@ -26,8 +29,8 @@
 //! 20-bit field as the trapped path masks them. Any other register model in the page
 //! refuses the start ([`InvPage::check`]).
 
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use crate::intr_page::{IntrPage, Mapping, PAGE};
 
@@ -163,25 +166,81 @@ pub struct Stats {
     /// Triggers the device took [`GUEST_TIMEOUT_US`] or longer for (an inconsistency).
     pub over_timeout: AtomicU64,
     pub apply_us_sum: AtomicU64,
+    /// Held invalidates completed by the completion thread, and the time from the trigger's
+    /// arming to its completion (the worker's part).
+    pub holds: AtomicU64,
+    pub hold_us_sum: AtomicU64,
+    pub hold_us_max: AtomicU64,
 }
 
 pub struct InvPage {
     layout: Layout,
     map: Mapping,
     pub stats: Stats,
+    /// A held trigger waits for its completion thread: no new trigger is taken meanwhile
+    /// (the guest stores none while `TRIGGER` shows).
+    in_flight: AtomicBool,
+    /// The completion thread's queue: the trigger, its hold, the apply time under the lock.
+    done_tx: Mutex<Option<std::sync::mpsc::Sender<(Trigger, crate::invgate::Hold, u64)>>>,
 }
 
 impl InvPage {
     /// Map the page from the interrupt page's memfd and show the models' values.
     pub fn create(intr: &IntrPage, layout: Layout) -> Result<Arc<Self>, String> {
         let map = intr.map_page(layout.base)?;
-        let p = InvPage {
+        let (tx, rx) = std::sync::mpsc::channel::<(Trigger, crate::invgate::Hold, u64)>();
+        let p = Arc::new(InvPage {
             layout,
             map,
             stats: Stats::default(),
-        };
+            in_flight: AtomicBool::new(false),
+            done_tx: Mutex::new(Some(tx)),
+        });
         p.reset();
-        Ok(Arc::new(p))
+        // The completion thread: in the guest's order (one trigger at a time), without the
+        // device lock. It ends when the page goes (the sender with it).
+        let weak: Weak<InvPage> = Arc::downgrade(&p);
+        std::thread::Builder::new()
+            .name("inv-complete".into())
+            .spawn(move || {
+                while let Ok((t, hold, apply_us)) = rx.recv() {
+                    let held = hold.wait();
+                    let Some(page) = weak.upgrade() else { break };
+                    page.finish_hold(t, apply_us, held);
+                }
+            })
+            .map_err(|e| format!("the invalidate page's completion thread: {e}"))?;
+        Ok(p)
+    }
+
+    /// A held trigger: `TRIGGER` stays set until the completion thread saw the worker apply
+    /// the hold's roots. Without the thread, waited for here.
+    pub fn complete_later(&self, t: Trigger, hold: crate::invgate::Hold, apply_us: u64) {
+        self.in_flight.store(true, Ordering::Release);
+        let sent = match self.done_tx.lock().unwrap_or_else(PoisonError::into_inner).as_ref() {
+            Some(tx) => tx.send((t, hold, apply_us)).map_err(|e| e.0 .1),
+            None => Err(hold),
+        };
+        if let Err(hold) = sent {
+            let held = hold.wait();
+            self.finish_hold(t, apply_us, held);
+        }
+    }
+
+    fn finish_hold(&self, t: Trigger, apply_us: u64, held: std::time::Duration) {
+        let us = held.as_micros() as u64;
+        self.stats.holds.fetch_add(1, Ordering::Relaxed);
+        self.stats.hold_us_sum.fetch_add(us, Ordering::Relaxed);
+        self.stats.hold_us_max.fetch_max(us, Ordering::Relaxed);
+        crate::profile::record(
+            crate::profile::Key::Window("held invalidate: armed to TRIGGER read done"),
+            held,
+            1,
+            None,
+            "",
+        );
+        self.complete(t, apply_us.max(us));
+        self.in_flight.store(false, Ordering::Release);
     }
 
     /// The start-up check: `owns(off)` says whether a model answers the BAR0 dword `off`
@@ -224,6 +283,7 @@ impl InvPage {
 
     /// Device reset: zero, the constants in place.
     pub fn reset(&self) {
+        self.in_flight.store(false, Ordering::Release);
         for off in (0..PAGE).step_by(4) {
             self.map.word(off).store(0, Ordering::Relaxed);
         }
@@ -260,6 +320,9 @@ impl InvPage {
     /// The reactor's scan: restore the read-only words, mask the GET words, and return a
     /// trigger if the guest stored one. `blocked` says the scan follows a blocking wait.
     pub fn scan(&self, blocked: bool) -> Option<Trigger> {
+        if self.in_flight.load(Ordering::Acquire) {
+            return None;
+        }
         for &(off, w) in &self.layout.words {
             let word = self.word(off);
             match w {
@@ -346,7 +409,7 @@ impl InvPage {
             ));
         }
         format!(
-            "invalidate page: BAR0 [{:#x}, {:#x}); {} trigger(s) applied by the reactor ({} right after a blocking wait, {} ALL_PDB), device invalidate mean {} us, max {} us, {} at {} ms or more; {} GET store(s) masked; inconsistencies: {}\n",
+            "invalidate page: BAR0 [{:#x}, {:#x}); {} trigger(s) applied by the reactor ({} right after a blocking wait, {} ALL_PDB), device invalidate mean {} us, max {} us, {} at {} ms or more; {} held until the worker applied their roots, off the device lock (armed to done mean {} us, max {} us); {} GET store(s) masked; inconsistencies: {}\n",
             self.layout.base,
             self.layout.base + PAGE,
             n,
@@ -356,6 +419,9 @@ impl InvPage {
             l(&s.apply_us_max),
             l(&s.slow),
             SLOW_US / 1000,
+            l(&s.holds),
+            l(&s.hold_us_sum).checked_div(l(&s.holds)).unwrap_or(0),
+            l(&s.hold_us_max),
             l(&s.get_masked),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
         )
@@ -363,17 +429,30 @@ impl InvPage {
 }
 
 /// What the reactor runs for a trigger (main.rs: lock the device,
-/// `Device::invalidate_from_page`).
-pub type Driver = dyn Fn(Trigger) + Send + Sync;
+/// `Device::invalidate_from_page`): the held invalidate, if any, to complete later.
+pub type Driver = dyn Fn(Trigger) -> Option<crate::invgate::Hold> + Send + Sync;
 
-/// The reactor's side: scan, run the driver for a trigger, complete it.
-pub fn poll(page: &InvPage, driver: &dyn Fn(Trigger), blocked: bool) -> bool {
+/// The reactor's side: scan, run the driver for a trigger, complete it (at once, or when
+/// its hold is applied).
+pub fn poll(
+    page: &InvPage,
+    driver: &dyn Fn(Trigger) -> Option<crate::invgate::Hold>,
+    blocked: bool,
+) -> bool {
     let Some(t) = page.scan(blocked) else {
         return false;
     };
     let t0 = std::time::Instant::now();
-    driver(t);
-    page.complete(t, t0.elapsed().as_micros() as u64);
+    let hold = driver(t);
+    let us = t0.elapsed().as_micros() as u64;
+    match hold {
+        Some(h) if !h.is_done() => page.complete_later(t, h, us),
+        Some(h) => {
+            let held = h.wait();
+            page.finish_hold(t, us, held);
+        }
+        None => page.complete(t, us),
+    }
     true
 }
 
@@ -455,6 +534,7 @@ mod tests {
             // While the device runs the invalidate the guest still sees TRIGGER.
             assert_ne!(p.read32(0xB8_30B0) & TRIGGER, 0);
             seen.lock().unwrap().push(t);
+            None
         };
         assert!(poll(&p, &driver, true));
         assert_eq!(
@@ -473,10 +553,46 @@ mod tests {
         assert_eq!(p.stats.after_block.load(Ordering::Relaxed), 1);
         // ALL_PDB is counted.
         p.write(0xB8_30B0, &(TRIGGER | ALL_PDB).to_le_bytes());
-        assert!(poll(&p, &|_| {}, false));
+        assert!(poll(&p, &|_| None, false));
         assert_eq!(p.stats.all_pdb.load(Ordering::Relaxed), 1);
         assert!(p.summary().contains("2 trigger(s) applied"));
         assert!(p.summary().contains("inconsistencies: none"));
+    }
+
+    /// A held invalidate leaves the device lock (execution.md §9.8): the driver returns its
+    /// hold, `TRIGGER` stays set and no new trigger is taken while the worker has not applied
+    /// the root's jobs; once it has, the completion thread clears `TRIGGER`, counted as a hold.
+    #[test]
+    fn a_held_trigger_completes_when_the_worker_applied_its_root() {
+        let p = InvPage::create(&intr(), layout()).unwrap();
+        let progress = Arc::new(crate::invgate::Progress::default());
+        progress.begin(7, 0xA000);
+        p.write(0xB8_30B0, &(TRIGGER | 1).to_le_bytes());
+        let pr = progress.clone();
+        let driver = move |_t: Trigger| {
+            Some(crate::invgate::Hold::new(pr.clone(), vec![(0xA000, 7)], std::time::Instant::now()))
+        };
+        assert!(poll(&p, &driver, false));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        assert_ne!(p.read32(0xB8_30B0) & TRIGGER, 0, "busy until the root's job is applied");
+        assert!(!poll(&p, &driver, false), "no new trigger while one is in flight");
+        assert_eq!(p.stats.triggers.load(Ordering::Relaxed), 1);
+        assert_eq!(progress.urgent_roots(), vec![0xA000], "the root goes first in the worker");
+        progress.finish(7);
+        let t0 = std::time::Instant::now();
+        while p.read32(0xB8_30B0) & TRIGGER != 0 {
+            assert!(t0.elapsed() < std::time::Duration::from_secs(5), "never completed");
+            std::thread::yield_now();
+        }
+        assert_eq!(p.read32(0xB8_30B0), 1);
+        while p.stats.holds.load(Ordering::Relaxed) == 0 {
+            std::thread::yield_now();
+        }
+        assert!(progress.urgent_roots().is_empty());
+        assert!(p.summary().contains("1 held"), "{}", p.summary());
+        // The next trigger is taken again.
+        p.write(0xB8_30B0, &(TRIGGER | 1).to_le_bytes());
+        assert!(poll(&p, &|_| None, false));
     }
 
     /// The watchdog's counters: a slow trigger is counted, one past the guest RM's
@@ -517,7 +633,8 @@ mod tests {
             f.identity(4 << 30),
         );
         let mem = crate::guestmem::GuestMemory::new();
-        let notes = model.mmu_invalidate_from_page(&mem, 0x1e75520, 0, 0x8000_00c1);
+        let (notes, hold) = model.mmu_invalidate_from_page(&mem, 0x1e75520, 0, 0x8000_00c1);
+        assert!(hold.is_none(), "no shadow, nothing held");
         assert!(
             notes.iter().any(|n| n.starts_with("mmu invalidate: pdb 0x1e7552000 flags 0xc1")),
             "{notes:?}"

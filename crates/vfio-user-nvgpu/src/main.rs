@@ -1565,9 +1565,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 h.with_invalidate(
                     i.clone(),
                     Arc::new(move |t| {
-                        d.lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .invalidate_from_page(t)
+                        vfio_user_nvgpu::dlock::lock(&d, "invalidate page").invalidate_from_page(t)
                     }),
                 )
             }

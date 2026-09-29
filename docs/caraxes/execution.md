@@ -462,8 +462,8 @@ clock's per-tick work takes the display engine's lock and never D.
 - Counters: the mirror line's `held rings: ...` part; the device-lock holds by holder
   (`dlock.rs`) at exit: count, total, p50/p99 bounds, max per holder, and the longest holds.
 - Still waiting under D: the preparation path (`submit` false), the trapped GPPut store's barrier
-  (`gp_put_barrier`), the software MEM_OP hold, the pool's barriers (pool rework). The first
-  doorbell's build moved off D in §9.2.
+  (`gp_put_barrier`), the software MEM_OP hold. The first doorbell's build moved off D in §9.2;
+  the pool's barrier holds rings instead (§9.5, bar1-pool.md §15).
 - Tests: `ringgate::tests` (a ring waits for its root's jobs and holds only; the completer wakes
   on a poke while rings are held), `dlock::tests`.
 
@@ -520,6 +520,29 @@ clock's per-tick work takes the display engine's lock and never D.
   it empty; the preemption check is claimed once; the GPPut write-back only over the clear; the
   counters), `dlock::tests` (tags of a long hold, the work table).
 
+### 9.5 The BAR1 pool (2026-09-29, bar1-pool.md §13-§15)
+
+- Under D:
+  - the poll's decision;
+  - the GPU check, with no worker drain;
+  - the moves in slices of about 500 us behind the invalidate trigger;
+  - the barrier's start (idle check, ring holds, preempt jobs queued) and its end (re-sync
+    plans, ring releases queued).
+- Waits for the worker: at most 50 us per poll (in-flight jobs, the barrier's preempts, its
+  re-sync), except with the invalidate page (as its held invalidate). The worker releases the
+  held rings itself.
+- Still under D: each slice's copies.
+- Next, within the order above (D, then the pool's lock, the display lock, `hm`, worker
+  internals): the copies on a pool mover thread that never takes D.
+  - The pool state goes behind its own lock.
+  - A page in transit stays at home for every device path; a device write to it marks it for a
+    second copy.
+  - The mover commits the remap switch under the pool lock.
+  - A commit that changes a record page the display core pinned tells the display core (pool
+    lock, then display lock, never the reverse).
+- `RingGate::clear_holds` at `Mirror::reset`: a reset drops the holds of a batch that went with
+  the model.
+
 ### 9.6 The software executor's translations (step 5a, 2026-09-29)
 
 - Windows C65: the software doorbells of chid 15 (the KMD's paging channel) and chid 4 held D
@@ -569,6 +592,28 @@ clock's per-tick work takes the display engine's lock and never D.
 - Not done: the executor on its own thread without D. It reads and writes the FB through FakeFb
   (VRAM windows, walk-cache hooks, BAR2 memfd merges, victim patches, the pool's remap), all
   owned under D; only if the hold histogram still shows long software holds.
+
+### 9.8 The invalidate page, held off the lock (2026-09-29)
+
+- Target: about 100 us per guest MMU invalidate end to end. Run D spent, per invalidate, three
+  trapped writes (19, 12 and 1180 us of device time), about 2.9 trapped TRIGGER polls (53 us
+  each) and 445 us from arming to applied, plus the vCPU exits of five traps.
+- The invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs, intr-page.md §11.3) makes the
+  PDB, UPPER and TRIGGER stores and the TRIGGER polls memory. Its reactor used to wait out a
+  held invalidate under D before it cleared TRIGGER.
+- Now the reactor runs the invalidate under D and takes the gate's hold (`InvalidateGate::
+  hand_off`: the roots and their last jobs, still urgent for the worker). The page's
+  completion thread (`inv-complete`) waits for the worker's progress without D and only then
+  clears TRIGGER; until then the reactor takes no new trigger (the guest stores none while
+  TRIGGER shows). The card's rule holds: TRIGGER reads busy until every root the invalidate
+  names (with the untrapped scope rules, untrapped.rs) has its jobs applied.
+- One completion thread in the guest's order: the guest RM waits for TRIGGER before its next
+  invalidate. Counted: the page line's "held until the worker applied their roots" with the
+  armed-to-done mean and max, and the profile's "held invalidate: armed to TRIGGER read done".
+- Still under D in the page path: the BAR1 pool's poll after the trigger (at `Pace::ALL`, it may
+  wait for the worker; the pool's own rework).
+- Tests: `a_held_trigger_completes_when_the_worker_applied_its_root` (busy until the root's job
+  is applied, no second trigger meanwhile, urgent while held), the page's existing tests.
 
 ### 9.9 The posted doorbell (2026-09-29)
 

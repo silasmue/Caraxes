@@ -4111,12 +4111,23 @@ mod tests {
         };
         let mut ce = physical_copy(0, 1 << 30, 1 << 30);
         let bound = CE_SLICE + std::time::Duration::from_millis(10);
+        // The copy's own time is this thread's CPU time: the slice ends by the clock, so a
+        // slice never works longer than the bound, but a thread descheduled under parallel
+        // load (the test harness) may take longer by the wall clock. The wall clock is only
+        // checked against a loose sanity bound.
+        let cpu = || {
+            let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+            // SAFETY: a valid clock id and a local timespec.
+            unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) };
+            std::time::Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32)
+        };
         let mut done = 0u64;
         for _ in 0..4 {
-            let t = std::time::Instant::now();
+            let (t, c) = (std::time::Instant::now(), cpu());
             let r = Registry::launch_dma(&mut ce, &mut gm, root, PHYS_COPY, 1, None, CE_SLICE);
-            let took = t.elapsed();
-            assert!(took <= bound, "one slice took {took:?}");
+            let (took, worked) = (t.elapsed(), cpu() - c);
+            assert!(worked <= bound, "one slice worked {worked:?}");
+            assert!(took <= std::time::Duration::from_secs(1), "one slice took {took:?}");
             assert!(matches!(r, Ok(CeOutcome::Sliced(_))), "{r:?}");
             let p = ce.progress.expect("a sliced copy keeps its progress");
             let now = p.line * p.key.bytes_per_line + p.offset;
@@ -5335,6 +5346,80 @@ mod tests {
         let mut b = vec![0u8; n];
         assert!(fb.read(0x40_0000, &mut b));
         assert!(b.chunks(2).all(|c| c[0] == 0x5A && (c.len() == 1 || c[1] == 0x5B)));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A client that keeps its token at another notifier index (SET_WORK_SUBMIT_TOKEN_NOTIF_
+    /// INDEX, handled by the guest RM alone): the entry is found by the RM's signature and
+    /// gets the pool token, both when the default entry holds nothing and when the pool
+    /// token was written to the default entry before.
+    #[test]
+    fn a_token_at_another_notifier_index_gets_the_pool_token() {
+        use crate::tokens::{TokenPool, NOTIFIER_TOKEN_OFFSET, TOKEN_BASE, TOKEN_ENTRY_STATUS};
+        let (mut fb, sys, path, _root) = world("tokens-index");
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        d.channels.tokens = Some(TokenPool::new(4));
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        let with_notifier = |chid: u32, userd: u64, notifier: u64| {
+            let mut p = channel_params(chid, 0x1000_0000, userd, 0);
+            let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem;
+            p[o + v::MEM_DESC_BASE..o + v::MEM_DESC_BASE + 8]
+                .copy_from_slice(&notifier.to_le_bytes());
+            p[o + v::MEM_DESC_ADDRESS_SPACE..o + v::MEM_DESC_ADDRESS_SPACE + 4]
+                .copy_from_slice(&ADDR_SYSMEM.to_le_bytes());
+            p
+        };
+        let (n9, n10) = (0x4008_0000u64, 0x4008_1000u64);
+        reg.record_alloc(1, 0x30, 0x40, TURING_CHANNEL_GPFIFO_A, &with_notifier(9, 0x20_0000, n9))
+            .unwrap();
+        reg.record_alloc(1, 0x30, 0x41, TURING_CHANNEL_GPFIFO_A, &with_notifier(10, 0x20_1000, n10))
+            .unwrap();
+        let entry = |notifier: u64, index: u64, token: u32| {
+            let mut e = [0u8; 16];
+            e[8..12].copy_from_slice(&token.to_le_bytes());
+            e[14..16].copy_from_slice(&TOKEN_ENTRY_STATUS.to_le_bytes());
+            assert!(sys.write(notifier + 16 * index, &e));
+        };
+        // Channel 9: entry 1 holds 0, the token is at index 5. Index 6 holds its value
+        // without the RM's signature (info16 set), index 8 another channel's token and
+        // index 64 its token past the scanned entries: none of them is touched.
+        let (t9, t10) = ((1u32 << 16) | 9, (1u32 << 16) | 10);
+        entry(n9, 5, t9);
+        entry(n9, 6, t9);
+        assert!(sys.write(n9 + 16 * 6 + 12, &1u16.to_le_bytes()));
+        entry(n9, 8, t10);
+        entry(n9, 64, t9);
+        fb.write(0x100000, &[0u8; 16]);
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let notes = d.doorbell(&mut mem, t9);
+        assert!(notes.iter().any(|n| n.contains("chid 9 gets pool token 0xca700000")), "{notes:#?}");
+        assert_eq!(sys.read_u32(n9 + 16 * 5 + 8), Some(TOKEN_BASE));
+        assert_eq!(sys.read_u32(n9 + NOTIFIER_TOKEN_OFFSET), Some(0), "entry 1 left alone");
+        assert_eq!(sys.read_u32(n9 + 16 * 6 + 8), Some(t9), "no signature, not the RM's entry");
+        assert_eq!(sys.read_u32(n9 + 16 * 8 + 8), Some(t10), "another channel's token");
+        assert_eq!(sys.read_u32(n9 + 16 * 64 + 8), Some(t9), "past the scanned entries");
+        // Channel 10: the token at entries 1 and 7 (a client that moved its index after the
+        // first GET): both get the pool token.
+        entry(n10, 1, t10);
+        entry(n10, 7, t10);
+        let notes = d.doorbell(&mut mem, t10);
+        assert!(notes.iter().any(|n| n.contains("chid 10 gets pool token 0xca700001")), "{notes:#?}");
+        assert_eq!(sys.read_u32(n10 + NOTIFIER_TOKEN_OFFSET), Some(TOKEN_BASE + 1));
+        assert_eq!(sys.read_u32(n10 + 16 * 7 + 8), Some(TOKEN_BASE + 1));
+        let s = &d.channels.tokens.as_ref().unwrap().stats;
+        assert_eq!((s.handed_out, s.elsewhere, s.mismatch), (2, 2, 0));
         let _ = std::fs::remove_file(&path);
     }
 

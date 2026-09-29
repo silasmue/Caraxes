@@ -805,6 +805,10 @@ pub struct Plan {
     pub walk_us: u128,
     /// Set by the worker: how long the plan waited in its queue.
     pub queued_us: u128,
+    /// FB ranges the walk update of this plan took out of the walk (ptcache.rs
+    /// `Update::removed`): the host shadow maps them until the plan is applied. The worker's
+    /// submit keeps them for the BAR1 pool (mirror.rs `Mirror::shadow_in_flight`).
+    pub ghosts: Vec<(u64, u64)>,
 }
 
 impl Plan {
@@ -929,6 +933,7 @@ impl ShadowFront {
             reads: upd.reads,
             sys_nodes: upd.sys_nodes,
             truncated: fb.with_walk(root, |c| c.truncated) == Some(true),
+            ghosts: upd.removed.clone(),
             ..Default::default()
         };
         plan.notes.extend(malformed_note);
@@ -2459,6 +2464,12 @@ mod tests {
         let items: Vec<ToMap> = p.units.iter().flat_map(|(_, w)| w.iter().copied()).collect();
         assert_eq!(coalesce(&items[1..]).len(), 3);
         assert!(!front.needs_sync(&fb, &[]));
+        assert!(p.ghosts.is_empty(), "a re-diff takes nothing out of the walk");
+        // The guest drops VA 0x1000: the plan names X by its guest address as taken out of
+        // the walk; the host maps it until the plan is applied (bar1-pool.md §14).
+        fb.write_u64(pt + 8, 0);
+        let p = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!(p.ghosts, vec![(x, x + 0x1000)]);
     }
 
     /// The Xid 31 of 2026-09-24 (docs/caraxes/memory-model.md §2, "The alias in the

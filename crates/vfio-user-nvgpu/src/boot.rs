@@ -11,7 +11,7 @@
 //! layouts are the guest ABI's, chosen by the guest at its GSP boot ([`crate::ver`],
 //! [`BootModel::guest_chooses`]).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use crate::chip::{BootEvent, Chip, ChipData, FirmwareBoot, Registers};
@@ -61,13 +61,11 @@ pub(crate) fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 
     }
 }
 
-/// The cached answer of `BootModel::bar2_observed` for one channel: the memory it could
-/// observe (as of `stamp`: its generation, VAS root, the walk's leaf and table generations,
-/// the set-B stamp) and the live BAR2 memfd pages among it (as of `live_gen`).
+/// The cached answer of `BootModel::bar2_observed` for one channel: the live BAR2 memfd
+/// pages its memory holds, as of `stamp` (its generation, VAS root, the walk's leaf and
+/// table generations, the set-B stamp) and `live_gen` (the BAR2 live set).
 struct ObserveEntry {
     stamp: [u64; 5],
-    pieces: Vec<(Target, u64)>,
-    tables: Vec<u64>,
     live_gen: u64,
     pages: Vec<u64>,
 }
@@ -132,6 +130,9 @@ pub struct BootModel {
     l2_ops: BTreeMap<u64, u32>,
     /// The BAR2 memfd's doorbell rule: what each channel could observe (`bar2_observed`).
     bar2_observe: std::collections::HashMap<u32, ObserveEntry>,
+    /// The BAR1 pool's replicas each channel could observe, with the stamp of the channel's
+    /// memory and the replica set's generation (`pool_observed`).
+    pool_observe: std::collections::HashMap<u32, ([u64; 5], u64, Vec<u64>)>,
     /// L2 cache operations started / forwarded to the host / host failures (trace).
     pub l2_op_counts: (u64, u64, u64),
     bar2_block: u32,
@@ -278,6 +279,7 @@ impl BootModel {
             mmu_invalidate: (0, 0, 0),
             l2_ops: BTreeMap::new(),
             bar2_observe: Default::default(),
+            pool_observe: Default::default(),
             l2_op_counts: (0, 0, 0),
             bar2_block: 0,
             bar_faults: 0,
@@ -975,8 +977,9 @@ impl BootModel {
         let mut s = Vec::new();
         if let Some(st) = self.fb.vram_stats() {
             s.push(format!(
-                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes",
-                st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written
+                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes; BAR2 windows: {} map(s), {} eviction(s), {} refused by the host (BAR1 floor), {} access(es) in the back-off after a refusal, {} access(es) served, {} held",
+                st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written,
+                st.bar2_maps, st.bar2_evictions, st.bar2_refused, st.bar2_backoff, st.bar2_served, st.bar2_held
             ));
             s.push(format!(
                 "vram store reads by caller: {}",
@@ -1072,7 +1075,10 @@ impl BootModel {
                 a.count_point(point, ns);
             }
         }
+        crate::dlock::work("flush point", "BAR2 full sync".into(), t0.elapsed());
+        let t1 = std::time::Instant::now();
         crate::bar1pool::sync_untracked(&mut self.fb);
+        crate::dlock::work("flush point", "BAR1 replica merges".into(), t1.elapsed());
         self.fb.bar2_flush_settled(point.settle());
     }
 
@@ -1393,6 +1399,15 @@ impl BootModel {
         self.regs.mmu_invalidate
     }
 
+    /// Whether `off` is one of the MMU invalidate registers (the two PDB words and the
+    /// trigger): a write there is part of an invalidate whose trigger the guest polls.
+    pub fn is_mmu_invalidate_register(&self, off: u64) -> bool {
+        matches!(
+            self.reg(off),
+            Some(Reg::MmuInvalidatePdb | Reg::MmuInvalidateUpperPdb | Reg::MmuInvalidate)
+        )
+    }
+
     fn reg(&self, off: u64) -> Option<Reg> {
         let r = &self.regs;
         Some(match off {
@@ -1413,45 +1428,25 @@ impl BootModel {
         })
     }
 
-    /// Whether the BAR1 pool's poll after a trapped BAR0 write at `off` merges the
-    /// replicas (bar1pool.rs `poll_at`). Not after a write that only latches a value or
-    /// whose own handler merged just before the poll (docs/caraxes/bar1-pool.md §11):
-    /// - the MMU invalidate's PDB and upper PDB (latched; the trigger follows);
-    /// - the MMU invalidate trigger (its handler runs `sync_untracked` before the re-sync);
-    /// - the usermode doorbell (not a sync point, bar1-pool.md §10; its handler forwards
-    ///   the doorbell before the poll, so a merge there orders nothing for it);
-    /// - the PTIMER time registers (the write is dropped);
-    /// - the GSP command queue's head, `NV_PGSP_QUEUE_HEAD(0)` (the command-queue doorbell:
-    ///   its handler runs `sync_untracked` itself before the RPC, bar1-pool.md §12);
-    /// - the GSP status queue's tail, `NV_PGSP_MSGQ_TAIL(0)` (the guest's read pointer:
-    ///   it hands the device nothing to read).
-    ///
-    /// Every other BAR0 write (the L2 flushes and invalidates, the display, the other GSP
-    /// registers, anything unknown) merges, as before.
     /// The GSP queue pointer registers of this chip's firmware model, when it has them.
     pub fn gsp_queue_registers(&self) -> Option<crate::chip::QueueRegisters> {
         self.fw.queue_registers()
     }
 
+    /// Whether the BAR1 pool's poll after a trapped BAR0 write at `off` merges the
+    /// replicas (bar1pool.rs `poll_at`; docs/caraxes/bar1-pool.md §16). A replica is merged
+    /// before an engine starts to consume, as BAR2 data is (bar2-memfd.md §3 rule 3): at the
+    /// hand-overs that settle an owed flush (a channel doorbell, the GSP command queue, a BAR2
+    /// bind, the flush clock; boot.rs `flush_point`) and at an MMU invalidate for the table
+    /// replicas (`sync_untracked_tables`). Among the trapped BAR0 writes only a display
+    /// channel's `PUT` starts an engine the device models itself (the display engine reads its
+    /// pushbuffer's surfaces, notifiers and semaphores from the FB): the channels' USERD
+    /// pages [`crate::display::CORE_USERD`, `USERD_END`). Every other write (the display's
+    /// interrupt acks, the interrupt tree, L2 and FB flushes (the FB flush marks the owed
+    /// flush), the GSP falcon, PRAMIN, PTIMER, doorbells with their own path) merges nothing:
+    /// SotTR run E merged 8 replicas (600 us) after each of 54700 display interrupt acks.
     pub fn pool_merge_after(&self, off: u64) -> bool {
-        if self
-            .fw
-            .queue_registers()
-            .is_some_and(|q| off == q.cmd_head || off == q.msg_tail)
-        {
-            return false;
-        }
-        !matches!(
-            self.reg(off),
-            Some(
-                Reg::MmuInvalidatePdb
-                    | Reg::MmuInvalidateUpperPdb
-                    | Reg::MmuInvalidate
-                    | Reg::UsermodeDoorbell
-                    | Reg::PtimerTime0
-                    | Reg::PtimerTime1
-            )
-        )
+        (crate::display::CORE_USERD..crate::display::USERD_END).contains(&off)
     }
 
     /// Start the L2 cache operation `op` (the guest wrote `PENDING_BUSY`). With host
@@ -1557,13 +1552,16 @@ impl BootModel {
             // TRIGGER (bit 31) reads back as done (fb-model.md §4d), except while a held
             // invalidate's shadow plan is still being applied (invgate.rs, execution.md §8):
             // the guest polls it before its map call returns.
+            // The BAR1 pool's moves left from the invalidate count as well (bar1pool.rs
+            // `poll_sliced`, bar1-pool.md §14; device.rs ran the next slice before this).
             // The hold the trigger write handed off (fastread.rs) counts as well; reads without
-            // the device lock answer the same state.
+            // the device lock answer the same state when no pool batch runs.
             Some(Reg::MmuInvalidate) => {
                 let held = self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy());
                 let handed = self.fast.trigger_busy(true);
+                let pool = self.fb.pool_mut().as_ref().is_some_and(|p| p.batch_pending());
                 self.fast.note_locked_trigger();
-                (self.mmu_invalidate.2 & !(1 << 31)) | if held || handed { 1 << 31 } else { 0 }
+                (self.mmu_invalidate.2 & !(1 << 31)) | if held || handed || pool { 1 << 31 } else { 0 }
             }
             // Write-only doorbell (`clc361.h:33`); reads return 0.
             Some(Reg::UsermodeDoorbell) => 0,
@@ -1668,7 +1666,9 @@ impl BootModel {
                 }
             }
             Some(Reg::UsermodeDoorbell) => {
+                let t0 = std::time::Instant::now();
                 self.bar2_before_ring(mem, Some(v));
+                crate::dlock::work("trapped doorbell", "BAR2 before the ring".into(), t0.elapsed());
                 // A channel's work submit token (kernel_fifo_tu102.c:75-130): a mirrored
                 // channel rings the host doorbell (E5b part 2), the others run their
                 // pending GPFIFO entries against the FB store and guest RAM (E5a).
@@ -1799,8 +1799,9 @@ impl BootModel {
             if self.fb.bar2_area().is_some() && !host_walks {
                 let root = self.bar_root(3);
                 self.fb.bar2_sync_tables(root, Some(mem));
-                crate::bar1pool::sync_untracked(&mut self.fb);
                 part("BAR2 table sync");
+                crate::bar1pool::sync_untracked_tables(&mut self.fb);
+                part("BAR1 table replicas");
             } else {
                 self.flush_point(mem, crate::bar2area::Point::MmuInvalidate);
                 part("BAR2 full sync");
@@ -1863,17 +1864,17 @@ impl BootModel {
         pdb: u32,
         upper: u32,
         v: u32,
-    ) -> Vec<String> {
+    ) -> (Vec<String>, Option<crate::invgate::Hold>) {
         self.mmu_invalidate.0 = pdb;
         self.mmu_invalidate.1 = upper;
         let notes = self.mmu_invalidate_write(v, mem);
         // A held invalidate completes through the trigger's busy bit (invgate.rs,
-        // execution.md §8): the trapped trigger read reports TRIGGER until the shadow
-        // worker applied the plan. The page clears TRIGGER as soon as this returns
-        // (inv_page.rs `complete`), so the gate is waited out here, under the device lock
-        // (each `invalidate_busy` waits at most 50 us; past 1 s it waits to the end).
-        while self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy()) {}
-        notes
+        // execution.md §8): TRIGGER stays busy until the shadow worker applied the plans of
+        // the roots it names. With the page the hold leaves the device lock: the page's
+        // completion thread waits for the worker and only then clears TRIGGER
+        // (inv_page.rs, execution.md §9.8). Before, it was waited out here, under the lock.
+        let hold = self.ctrl.mirror.as_mut().and_then(|m| m.hand_off_invalidate());
+        (notes, hold)
     }
 
     /// The BAR2 memfd before a doorbell of the channels `chids` (docs/caraxes/bar2-memfd.md
@@ -1922,7 +1923,8 @@ impl BootModel {
     /// `Dispatcher::doorbell_targets`), or for the token-less doorbell (`None`: the channels
     /// with newly published GPFIFO entries). Nothing without the BAR2 memfd.
     fn bar2_before_ring(&mut self, mem: &GuestMemory, token: Option<u32>) {
-        if self.fb.bar2_area().is_none() {
+        let replicas = self.fb.pool_mut().as_ref().is_some_and(|p| p.has_replicas());
+        if self.fb.bar2_area().is_none() && !replicas {
             return;
         }
         let chids = match token {
@@ -1935,7 +1937,80 @@ impl BootModel {
                 self.ctrl.pending_channels(&gm)
             }
         };
-        self.bar2_doorbell_sync(mem, &chids);
+        // A flush owed is settled by the BAR2 sync below with every replica merged.
+        let owed = self.fb.bar2_flush_pending();
+        if self.fb.bar2_area().is_some() {
+            self.bar2_doorbell_sync(mem, &chids);
+        }
+        if replicas && !owed {
+            self.pool_before_ring(&chids);
+        }
+    }
+
+    /// The BAR1 pool's replicas before a doorbell of the channels `chids`
+    /// (docs/caraxes/bar1-pool.md §16): on the card both BAR1 mappings of a page reach the
+    /// same VRAM, so a guest write through a replica's area must reach the home before the
+    /// rung channels' engines can see it. The replicas whose home the channels could observe
+    /// (the doorbell rule's set, [`Self::pool_observed`]) are merged home; none, no read.
+    fn pool_before_ring(&mut self, chids: &[u32]) {
+        let t0 = std::time::Instant::now();
+        let mut gs: BTreeSet<u64> = BTreeSet::new();
+        for &chid in chids {
+            match self.pool_observed(chid) {
+                Some(v) => gs.extend(v),
+                None => {
+                    // A channel whose memory the device cannot name could observe anything.
+                    if let Some(p) = self.fb.pool_mut().as_ref() {
+                        gs.extend(p.replica_set().1.into_iter().map(|(g, _)| g));
+                    }
+                    break;
+                }
+            }
+        }
+        if gs.is_empty() {
+            return;
+        }
+        let gs: Vec<u64> = gs.into_iter().collect();
+        crate::bar1pool::merge_to_home(&mut self.fb, &gs);
+        crate::dlock::work("doorbell", "BAR1 replicas the channel sees".into(), t0.elapsed());
+    }
+
+    /// The area pages of the BAR1 pool's replicas whose home channel `chid` could observe:
+    /// the doorbell rule's pieces (its VAS's leaves less set B, its instance structures, its
+    /// USERD; [`Self::bar2_observed`]) against the replicas' homes. Cached per channel with
+    /// the stamp of its memory and the replica set's generation. `None` when the device
+    /// cannot name the channel's memory.
+    fn pool_observed(&mut self, chid: u32) -> Option<Vec<u64>> {
+        let (gen, replicas) = self.fb.pool_mut().as_ref().map(|p| p.replica_set())?;
+        let reg = &self.ctrl.channels;
+        let ch = reg.channel(chid)?;
+        let Some(Target::Fb(root)) = reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) else {
+            return None;
+        };
+        let (walk_gen, tables_gen) = self
+            .fb
+            .with_walk(Target::Fb(root), |c| (c.generation(), c.tables_generation()))?;
+        let excl = self.ctrl.mirror.as_ref().and_then(|m| m.shadow_exclusions(root));
+        let stamp = [ch.generation, root, walk_gen, tables_gen, excl.map_or(0, |(g, _)| g)];
+        if let Some((st, g, v)) = self.pool_observe.get(&chid) {
+            if *st == stamp && *g == gen {
+                return Some(v.clone());
+            }
+        }
+        // The replicas' home pages (page-aligned FB addresses) as page keys, against the
+        // doorbell rule's pieces ([`Self::channel_keys`]).
+        let mut homes: Vec<u64> = replicas.iter().map(|&(_, x)| x >> 12).collect();
+        homes.sort_unstable();
+        homes.dedup();
+        let exclude = excl.map_or(Vec::new(), |(_, r)| r.to_vec());
+        let hit = self.channel_keys(chid, root, &exclude, &homes)?;
+        let seen: Vec<u64> = replicas
+            .into_iter()
+            .filter(|(_, x)| hit.binary_search(&(x >> 12)).is_ok())
+            .map(|(g, _)| g)
+            .collect();
+        self.pool_observe.insert(chid, (stamp, gen, seen.clone()));
+        Some(seen)
     }
 
     /// The live BAR2 memfd pages channel `chid` could observe (the doorbell rule,
@@ -1979,40 +2054,54 @@ impl BootModel {
             excl.map_or(0, |(g, _)| g),
         ];
         let live_gen = self.fb.bar2_area()?.live_generation();
-        if let Some(e) = self.bar2_observe.get(&chid).filter(|e| e.stamp == stamp) {
-            if e.live_gen == live_gen {
-                return Some(e.pages.clone());
-            }
-        } else {
-            let exclude = excl.map_or(&[][..], |(_, r)| r);
-            let (mut pieces, tables) = self
-                .fb
-                .with_walk(Target::Fb(root), |c| c.observable(exclude))
-                .flatten()?;
-            pieces.extend(ch.structures.iter().copied());
-            if let Some(u) = ch.userd {
-                pieces.push((u, USERD_SIZE as u64));
-            }
-            self.bar2_observe.insert(
-                chid,
-                ObserveEntry {
-                    stamp,
-                    pieces,
-                    tables,
-                    live_gen: u64::MAX,
-                    pages: Vec::new(),
-                },
-            );
+        if let Some(e) = self
+            .bar2_observe
+            .get(&chid)
+            .filter(|e| e.stamp == stamp && e.live_gen == live_gen)
+        {
+            return Some(e.pages.clone());
         }
-        let area = self.fb.bar2_area_mut()?;
-        let e = self.bar2_observe.get_mut(&chid).expect("just checked or inserted");
+        let live = self.fb.bar2_area()?.live_keys();
+        let exclude = excl.map_or(Vec::new(), |(_, r)| r.to_vec());
         // Page tables are not in the doorbell's set: the card re-reads them only after an
-        // MMU invalidate (rule 2), which syncs every live table page itself.
-        e.pages = area.observed(&e.pieces, &[]);
-        e.live_gen = live_gen;
-        let tables = area.observed(&[], &e.tables).len();
-        area.note_observe_set(e.pages.len(), tables);
-        Some(e.pages.clone())
+        // MMU invalidate (rule 2), which syncs every live table page itself. They are
+        // counted: the live pages the walk reads its tables from.
+        let pages = self.channel_keys(chid, root, &exclude, &live)?;
+        let tables = self
+            .fb
+            .with_walk(Target::Fb(root), |c| live.iter().filter(|&&k| c.watches(k)).count())
+            .unwrap_or(0);
+        self.fb.bar2_area_mut()?.note_observe_set(pages.len(), tables);
+        self.bar2_observe.insert(
+            chid,
+            ObserveEntry {
+                stamp,
+                live_gen,
+                pages: pages.clone(),
+            },
+        );
+        Some(pages)
+    }
+
+    /// The keys among `keys` (ascending page keys, FB page numbers and guest-RAM pages with
+    /// `ptcache::SYS_KEY`) that channel `chid`'s memory touches, ascending: the doorbell
+    /// rule's pieces ([`Self::bar2_observed`]), i.e. its VAS leaves under `root` less the
+    /// set-B ranges `exclude` (`WalkCache::observed_keys`), its instance structures and its
+    /// USERD. `None` when the channel or the walk of its root is unknown.
+    fn channel_keys(&self, chid: u32, root: u64, exclude: &[(u64, u64)], keys: &[u64]) -> Option<Vec<u64>> {
+        let ch = self.ctrl.channels.channel(chid)?;
+        let mut out = self
+            .fb
+            .with_walk(Target::Fb(root), |c| c.observed_keys(exclude, keys))
+            .flatten()?;
+        let mut pieces: Vec<(Target, u64)> = ch.structures.to_vec();
+        if let Some(u) = ch.userd {
+            pieces.push((u, USERD_SIZE as u64));
+        }
+        out.extend(crate::ptcache::keys_in(&pieces, keys));
+        out.sort_unstable();
+        out.dedup();
+        Some(out)
     }
 
     /// A doorbell the usermode page's reactor took (um_page.rs): the channel its value names
@@ -5206,6 +5295,91 @@ mod tests {
         }
     }
 
+    /// The BAR1 pool's replicas at a doorbell (bar1-pool.md §16): the guest maps FB page x at
+    /// two area pages (x lives in the pool at the first, the second is its replica) and
+    /// writes through the replica; a doorbell of a channel whose VAS maps x carries the write
+    /// home before the ring, a channel that cannot see x merges nothing. No BAR2 memfd here.
+    #[test]
+    fn a_doorbell_merges_the_replicas_its_channel_sees_home() {
+        use nvrm_sys::RmAbi;
+        type Abi = nvrm_sys::V610;
+        const MIB: u64 = 1 << 20;
+        let (base, end) = (0x400_0000u64, 0x800_0000u64);
+        let layout = crate::fb::FbLayout::reserved(32 * MIB, 256 * MIB, base, end)
+            .unwrap()
+            .with_pool(4 * MIB)
+            .unwrap();
+        let f = crate::fixture::rtx2070();
+        let mut b = BootModel::new(f.chip, layout, f.identity(256 * MIB));
+        let mem = GuestMemory::new();
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        // The BAR1 tables over the area: x at area pages 0x1000 and 0x2000.
+        let (_, bar1) = layout.bar_roots().unwrap();
+        let (pd2, pd1, pd0, pt) = (base + 0x1000, base + 0x2000, base + 0x3000, base + 0x4000);
+        b.fb.write_u64(bar1, vid(pd2));
+        b.fb.write_u64(pd2, vid(pd1));
+        b.fb.write_u64(pd1, vid(pd0));
+        b.fb.write_u64(pd0 + 8, vid(pt));
+        let (pool0, _) = layout.pool_range().unwrap();
+        b.fb.set_bar1_pool(bar1, pool0, 4 * MIB, layout.usable().unwrap());
+        let x = base + 0x30_0000;
+        b.fb.write_u64(x, 0x11);
+        b.fb.write_u64(pt + 8, pte(x));
+        b.fb.write_u64(pt + 16, pte(x));
+        assert!(crate::bar1pool::poll(&mut b.fb, &mut crate::bar1pool::NoGpu));
+        assert_eq!(b.fb.remap(x), pool0 + 0x1000, "x lives at area page 0x1000");
+        // Channel 5's VAS maps x (and the tree of a second root, channel 6's, does not).
+        let (root, gpd2, gpd1, gpd0, gpt) =
+            (base + 0x50_0000, base + 0x50_1000, base + 0x50_2000, base + 0x50_3000, base + 0x50_4000);
+        b.fb.write_u64(root, vid(gpd2));
+        b.fb.write_u64(gpd2, vid(gpd1));
+        b.fb.write_u64(gpd1, vid(gpd0));
+        b.fb.write_u64(gpd0 + 16 * 0x80 + 8, vid(gpt));
+        b.fb.write_u64(gpt + 8, pte(x));
+        b.fb.walk_update(Some(&mem), Target::Fb(root), false, 1 << 16);
+        let reg = &mut b.ctrl.channels;
+        reg.record_alloc(1, 0x10, 0x20, v::FERMI_VASPACE_A, &[]);
+        let mut pd = [0u8; 24];
+        pd[0..8].copy_from_slice(&root.to_le_bytes());
+        pd[8..12].copy_from_slice(&1u32.to_le_bytes());
+        pd[16..20].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_set_page_directory(1, &pd);
+        let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let put = |p: &mut [u8], o: usize, v: &[u8]| p[o..o + v.len()].copy_from_slice(v);
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags, &((1u32 << 21) | (5u32 << 8)).to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_hVASpace, &0x20u32.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoOffset, &0x1000_0000u64.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoEntries, &32u32.to_le_bytes());
+        for (off, pa) in [
+            (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_userdMem, base + 0x60_0000),
+            (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_instanceMem, base + 0x61_0000),
+        ] {
+            put(&mut p, off + v::MEM_DESC_BASE, &pa.to_le_bytes());
+            put(&mut p, off + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_FBMEM.to_le_bytes());
+        }
+        reg.record_alloc(1, 0x10, 0x40, 0xC46F, &p).unwrap();
+        // The guest writes through the replica's area page (its own mapping at 0x2000).
+        b.fb.write_raw(pool0 + 0x2000, &0x22u64.to_le_bytes());
+        assert_eq!(b.fb.read_u64(x), Some(0x11), "not merged yet");
+        let at = b.regs.usermode_doorbell;
+        b.write32(at, 5, &mem).unwrap();
+        assert_eq!(b.fb.read_u64(x), Some(0x22), "the write reached the home before the ring");
+        let s = b.fb.pool_mut().as_ref().unwrap().stats.clone();
+        assert_eq!((s.ring_merges, s.ring_replicas, s.ring_to_home), (1, 1, 1));
+        // The next doorbell reads the area again, finds nothing new.
+        b.write32(at, 5, &mem).unwrap();
+        let s = b.fb.pool_mut().as_ref().unwrap().stats.clone();
+        assert_eq!((s.ring_merges, s.ring_replicas, s.ring_to_home), (2, 2, 1));
+        // The channel's VAS no longer maps x: its doorbells merge nothing.
+        b.fb.write_u64(gpt + 8, 0);
+        b.fb.walk_update(Some(&mem), Target::Fb(root), false, 1 << 16);
+        b.fb.write_raw(pool0 + 0x2000, &0x33u64.to_le_bytes());
+        b.write32(at, 5, &mem).unwrap();
+        assert_eq!(b.fb.read_u64(x), Some(0x22));
+        assert_eq!(b.fb.pool_mut().as_ref().unwrap().stats.ring_replicas, 2);
+    }
+
     /// A doorbell with no flush owed syncs only what its channel could observe: the page its
     /// VAS maps behind BAR2 reaches VRAM, another BAR2 page does not.
     #[test]
@@ -5302,6 +5476,41 @@ mod tests {
         assert!(s.table_sync_pages >= 1);
         // The walk re-reads the written table page (marked dirty by the sync).
         assert!(w.b.fb.tables_dirty(Target::Fb(DB_BASE + 0x30_0000)));
+    }
+
+    /// The walks' live table pages (fb.rs `bar2_sync_tables`): an invalidate with the walks'
+    /// table pages and the BAR2 live set unchanged reuses the lists and syncs the same pages
+    /// (a guest write to a table page through BAR2 still reaches VRAM); once a page left
+    /// BAR2 the lists are made again, without it.
+    #[test]
+    fn an_invalidate_reuses_the_walks_live_table_pages_while_nothing_changed() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, true, y_userd, inst, true);
+        let pt = w.pt;
+        let r = w.b.regs;
+        let s0 = w.stats();
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s1 = w.stats();
+        let pages = s1.table_sync_pages - s0.table_sync_pages;
+        assert!(pages >= 1);
+        assert!(s1.table_key_lists_listed > s0.table_key_lists_listed);
+        let pte = ((DB_BASE + 0x70_0000) >> 12 << 8) | 1;
+        w.guest.store_word(4, 2, pte);
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s2 = w.stats();
+        assert_eq!(s2.table_sync_pages - s1.table_sync_pages, pages, "the same pages");
+        assert_eq!(s2.table_key_lists_listed, s1.table_key_lists_listed, "nothing listed again");
+        assert!(s2.table_key_lists_reused > s1.table_key_lists_reused);
+        assert_eq!(w.vram(pt + 16), pte);
+        // The guest unmaps the table page's BAR2 page (4): the sync that follows the BAR2
+        // tables takes it out of the live set, and the next one lists again without it.
+        w.b.fb.write_u64(DB_BASE + 0x9000 + 8 * 4, 0);
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s3 = w.stats();
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s4 = w.stats();
+        assert!(s4.table_key_lists_listed > s3.table_key_lists_listed);
+        assert_eq!(s4.table_sync_pages - s3.table_sync_pages, pages - 1, "pt is no longer live");
     }
 
     /// A BAR2 page re-pointed at the invalidate's table sync: what the guest wrote through
