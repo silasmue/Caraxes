@@ -2759,8 +2759,9 @@ mod tests {
         );
         assert_eq!(a.params.len(), 2112);
         // Six milestone-1 entries plus the GR0/CE2-CE4 non-stall entries of E5b part 2,
-        // plus the display vector (display-ab.md) and NVDEC0/NVENC0 (video-engines.md).
-        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 13);
+        // plus the display vector (display-ab.md), NVDEC0/NVENC0 (video-engines.md) and
+        // NVDEC1/NVDEC2 (one vector per device-info runlist, open-render-2026-09-29.md).
+        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 15);
         assert_eq!(
             u64::from_le_bytes(a.params[2056 + 8..2056 + 16].try_into().unwrap()),
             0x8

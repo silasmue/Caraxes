@@ -65,6 +65,22 @@ pub const INIT_DONE_SIZE: usize = 4;
 pub const RM_CONTROL_FLAGS: usize = 20;
 pub const RM_CONTROL_PARAMS: usize = 24;
 
+/// `NV2080_CTRL_CMD_INTERNAL_KGR_INIT_BUG4208224_WAR` of 570.144, on the subdevice
+/// (`src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080internal.h:830`), `bTeardown` (1 byte).
+/// 610 moved the WAR to the device (`NV0080_CTRL_CMD_INTERNAL_KGR_INIT_BUG4208224_WAR`
+/// 0x00802046) and gave 0x20800A46 to `INTERNAL_GPU_CHECK_CTS_ID_VALID`, so the id means
+/// the WAR only for a 570 guest. nouveau sends it around its scrubber channel on TU10x
+/// (Linux 7.2.7 `nvkm/subdev/gsp/rm/r570/gr.c:54-68, 92-164`).
+pub const CMD_INTERNAL_KGR_INIT_BUG4208224_WAR: u32 = 0x2080_0A46;
+
+/// `rpc_os_error_log_v17_00` of 570.144 (`g_rpc-structures.h`; caraxes/abi/gsp-570.144):
+/// `runlistId` at 4, `chid` at 8, `errString[256]` at 12 and
+/// `preemptiveRemovalPreviousXid` at 268; 610 put that field at 4 and moved the others up
+/// by 4 (272 bytes in both).
+pub const OEL_RUNLIST_ID: usize = 4;
+pub const OEL_CHID: usize = 8;
+pub const OEL_ERR_STRING: usize = 12;
+
 /// An empty CPU sequence: no command, `cmdIndex` 0. nova-core's sequencer stops at once
 /// (`gsp/sequencer.rs:289-293` of Linux 7.2.7: `cmds_processed >= total_cmds`). Real r570
 /// firmware on Turing sends a sequence with register writes and `CORE_RESUME`; nova does

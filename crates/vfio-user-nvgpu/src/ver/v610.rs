@@ -774,6 +774,19 @@ pub const CMD_GPU_GET_PES_INFO: u32 = 0x2080_0168;
 pub const GR_ROUTED_SIZE: usize = 24;
 pub const GR_ROUTED_ARG: usize = 16;
 pub const GR_ROUTED_OUT: usize = 20;
+/// The Fermi-era GPC, TPC and ZCULL mask queries on the subdevice (sdk/ctrl/ctrl2080/
+/// ctrl2080gpu.h), which the RM answers as `GR_GET_GPC_MASK`, `GR_GET_TPC_MASK` and
+/// `GR_GET_ZCULL_MASK` (subdevice_ctrl_gpu_kernel.c:1829-1976 of 615): {gpcMask} (4 bytes),
+/// {gpcId, tpcMask} and {gpcId, zcullMask} (8 bytes each). A GSP client that owns no
+/// static GR info asks GSP for them (nouveau's r570 path at GSP init, Linux 7.2.7
+/// nvkm/subdev/gsp/rm/r570/gr.c:15-52).
+pub const CMD_GPU_GET_FERMI_GPC_INFO: u32 = 0x2080_0137;
+pub const CMD_GPU_GET_FERMI_TPC_INFO: u32 = 0x2080_0138;
+pub const CMD_GPU_GET_FERMI_ZCULL_INFO: u32 = 0x2080_0139;
+pub const FERMI_GPC_INFO_SIZE: usize = size_of::<ffi::NV2080_CTRL_GPU_GET_FERMI_GPC_INFO_PARAMS>();
+pub const FERMI_TPC_INFO_SIZE: usize = size_of::<ffi::NV2080_CTRL_GPU_GET_FERMI_TPC_INFO_PARAMS>();
+pub const FERMI_ZCULL_INFO_SIZE: usize =
+    size_of::<ffi::NV2080_CTRL_GPU_GET_FERMI_ZCULL_INFO_PARAMS>();
 // `GPU_GET_PES_INFO` and the public `GR_GET_GLOBAL_SM_ORDER` are host calls: their
 // layouts are the HOST driver's and live in hostabi.rs (`HostLayouts`), chosen at run
 // time. What follows is the guest's side.

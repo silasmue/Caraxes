@@ -165,6 +165,10 @@ mod tests {
                 // docs/caraxes/video-engines.md.
                 (65, 200, 8),
                 (38, 201, 9),
+                // NVDEC1 and NVDEC2 (MC 66, 67): device-info entries without a class, one
+                // vector per runlist's first engine (docs/research/open-render-2026-09-29.md).
+                (66, 202, 10),
+                (67, 203, 11),
                 // The display vector in leaf 4 (docs/caraxes/display-ab.md).
                 (2, 156, 0)
             ]
