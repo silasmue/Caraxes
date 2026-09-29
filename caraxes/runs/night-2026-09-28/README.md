@@ -177,3 +177,25 @@ Consequences for the one universal configuration:
 - Smoke all PASS: NVENC 165.4 fps, NVDEC 127.6 fps (boost on), glmark2 build 4324 FPS.
 - Scrub stress: 30 × 300 MiB alloc/fill/free, each free scrubbed by the guest RM through the software CE as a 300 MiB memset. Total 28 s, worst loop 1.07 s; vkcube ran alongside without break (rc 0).
 - 0 guest Xid, 0 host Xid.
+
+## SotTR with evidence (Linux B, 4 GiB slot 0, dev ca2559f5 with boost and FAST=2, trace off; `sottr-bench.sh`, `sottr-ca2559f5/`)
+
+The user asked (2026-09-28): "You can also test sottr but ensure to KNOW if the benchmark runs and the client displays pictures".
+
+The tooling:
+- Feral's `ExtraCommandLine=-benchmark` plus `GameOptionsDialogShouldShow=0` in the guest's preferences, so the game starts straight into the built-in benchmark. The guest's original preferences were restored afterwards; the benchmark variant is kept as `preferences.benchmark-2026-09-29`.
+- Moonlight windowed on the host, and `grim` of its window every 30 s with the mean brightness and the RMSE against the previous shot.
+- xwd of the game window in the guest.
+- A guest monitor (VRAM, NVKMS refusals, Xids).
+- The benchmark writes `SaveData/*benchmarkresults*.txt`, which gives a verifiable end.
+
+What happened, in order (`timeline.txt`, `host-shots/`, `guest-shots/`, `guest-monitor.txt`):
+- The Moonlight client showed the live guest desktop (Steam), then the game's loading screen; the guest's own screenshot of the game window matched.
+- VRAM rose to 3884 of 4096 MiB (01:01-01:02 guest time).
+- At 335 s: `Failed to allocate NVKMS memory for GEM object`. The host picture froze from then on (RMSE ~2 between shots) and GPU load fell to 0-5 %.
+- The game exited about a minute later (VRAM back to 450 MiB). No crash dialog, no Xid, no results file.
+
+- **The same failure as on 2026-09-28 at 3 and 4 GiB. It blocks SotTR on v2.**
+- The native reference exists: 2026-08-20, 1080p exclusive fullscreen, VSync off, higher settings (textures/shadows/LOD 3), 91.7 FPS average, budget 5888 MB.
+- v1 ran two 3 GiB guests of the game with zero NVKMS failures thanks to its display balloon.
+- A v2 balloon design for the user's decision is being written (docs/research/display-balloon-2026-09-29.md).
