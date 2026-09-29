@@ -1155,12 +1155,24 @@ impl FakeFb {
             }
         }
         let pool = self.pool.borrow();
-        if let Some(t) = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty()) {
+        if let Some(p) = pool.as_ref().filter(|p| !p.table.is_empty()) {
             let mut moved = false;
-            t.for_each_piece(pa, len as usize, |hpa, off, _| {
-                moved |= hpa != pa + off as u64
+            let mut retired = false;
+            p.table.for_each_piece(pa, len as usize, |hpa, off, n| {
+                if hpa != pa + off as u64 {
+                    moved = true;
+                    // A pooled page's area page: pieces are single pages or runs of them.
+                    let (pool0, _) = p.table.pool();
+                    retired |= (0..n.div_ceil(PAGE as usize))
+                        .any(|i| p.is_retired((hpa & !(PAGE - 1)) - pool0 + i as u64 * PAGE));
+                }
             });
             if moved {
+                // Counted for the pool's summary (docs/caraxes/bar1-pool.md §13).
+                p.stats.devce_blocked.set(p.stats.devce_blocked.get() + 1);
+                if retired {
+                    p.stats.devce_blocked_retired.set(p.stats.devce_blocked_retired.get() + 1);
+                }
                 return false;
             }
         }

@@ -63,6 +63,16 @@ pub const RETRY_EVERY: Duration = Duration::from_millis(1);
 /// mirrored channel's USERD (`PoolGpu::quiesce`): at 1 ms it ran up to 1000 times a second
 /// against a channel that stays busy (docs/caraxes/sottr-stage.md §11).
 pub const RETRY_MAX: Duration = Duration::from_millis(64);
+
+/// How long a page the guest unmapped from the area stays in the pool, retired (lazy move
+/// back, docs/caraxes/bar1-pool.md §13): mapped again at the same area page within this time
+/// it costs nothing, as a BAR1 remap costs no copy on the real card; older, or when another
+/// page wants its area page, it moves home (one copy, as every unmap did before).
+pub const RETIRE_AGE: Duration = Duration::from_secs(2);
+/// Retired pages are checked for [`RETIRE_AGE`] at most this often.
+pub const RETIRE_SCAN: Duration = Duration::from_millis(100);
+/// The churn line (the trace, once per second with activity; `Bar1Pool::take_churn`).
+pub const CHURN_EVERY: Duration = Duration::from_secs(1);
 /// Findings logged at most (the counters are complete).
 const LOG_FIRST: usize = 32;
 
@@ -465,6 +475,21 @@ pub struct PoolStats {
     /// Polls that ran without the replica merge (the BAR0 write was no flush point; the
     /// handler of the invalidate and of the GSP queue doorbell merges itself).
     pub polls_unmerged: u64,
+    /// The lazy move back (§13): pages the guest unmapped that stayed in the pool (no copy),
+    /// retired pages mapped again at the same area page (no copy), retired pages the guest
+    /// mapped at another area page (home first, then in), retired pages that went home
+    /// because another page wanted their area page, and because they aged out.
+    pub retires: u64,
+    pub relives: u64,
+    pub relocations: u64,
+    pub slot_evictions: u64,
+    pub aged_out: u64,
+    /// FB store window maps the moves needed (a page's home outside the store's windows).
+    pub move_window_maps: u64,
+    /// Device-CE transfers kept on the CPU because a pooled page lies in them (fb.rs
+    /// `plain_vram`), and of those the ones with a retired page.
+    pub devce_blocked: std::cell::Cell<u64>,
+    pub devce_blocked_retired: std::cell::Cell<u64>,
     pub first: Vec<String>,
 }
 
@@ -503,13 +528,18 @@ pub struct PollBreakdown {
     pub resync_us: u128,
     pub retry: bool,
     pub hazard: bool,
+    /// The lazy move back (§13): area pages retired and re-lived in this poll, and the FB
+    /// store window maps its moves needed.
+    pub retired: usize,
+    pub relived: usize,
+    pub window_maps: u64,
 }
 
 impl std::fmt::Display for PollBreakdown {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "sync {} us ({} replica(s) merged, {} home(s) read{}, {} pooled table page(s) marked); walk {} us ({} unit(s) walked, {} path-only, {} table page(s) read); decide {} us ({} candidate(s), {} op(s){}{}); userd {} us; refs {} us ({} page(s)); barrier {} us; moves {} us ({} page(s)); resync {} us; total {} us",
+            "sync {} us ({} replica(s) merged, {} home(s) read{}, {} pooled table page(s) marked); walk {} us ({} unit(s) walked, {} path-only, {} table page(s) read); decide {} us ({} candidate(s), {} op(s){}{}); userd {} us; refs {} us ({} page(s)); barrier {} us; moves {} us ({} page(s), {} window map(s)); resync {} us; {} retired, {} re-lived; total {} us",
             self.sync_us,
             self.replicas_merged,
             self.homes_read,
@@ -530,7 +560,10 @@ impl std::fmt::Display for PollBreakdown {
             self.barrier_us,
             self.move_us,
             self.moved,
+            self.window_maps,
             self.resync_us,
+            self.retired,
+            self.relived,
             self.total_us
         )
     }
@@ -625,7 +658,86 @@ pub struct Bar1Pool {
     last_retry: Option<Instant>,
     /// The current retry interval ([`RETRY_EVERY`] up to [`RETRY_MAX`]).
     retry_every: Duration,
+    /// Area pages whose page the guest unmapped, kept in the pool (§13): `g -> since`. The
+    /// remap stays, so every device path and the GPU still find the page at its pool page;
+    /// it goes home when another page wants `g`, when the guest maps it elsewhere, when it
+    /// becomes a table page, or after [`RETIRE_AGE`].
+    retired: BTreeMap<u64, Instant>,
+    /// When retired pages were last checked for their age.
+    last_age_scan: Option<Instant>,
+    /// The churn since the last churn line (`take_churn`).
+    churn: Churn,
     pub stats: PoolStats,
+}
+
+/// What the pool did since the last churn line: the pattern of the guest's BAR1 mapping
+/// changes (docs/caraxes/bar1-pool.md §13).
+#[derive(Default, Debug, Clone)]
+pub struct Churn {
+    since: Option<Instant>,
+    polls: u64,
+    installs: u64,
+    releases: u64,
+    retires: u64,
+    relives: u64,
+    relocations: u64,
+    slot_evictions: u64,
+    aged_out: u64,
+    window_maps: u64,
+    move_us: u128,
+    max_poll_us: u128,
+    /// Runs of consecutive area pages installed in one poll, by length: 1, 2-15, 16, 17-511,
+    /// 512 and more pages (4 KiB, small, 64 KiB, medium, 2 MiB guest BAR1 mappings).
+    runs: [u64; 5],
+}
+
+impl Churn {
+    fn is_empty(&self) -> bool {
+        self.installs + self.releases + self.retires + self.relives + self.aged_out == 0
+    }
+
+    fn note_runs(&mut self, gs: &mut [u64]) {
+        gs.sort_unstable();
+        let mut i = 0;
+        while i < gs.len() {
+            let mut j = i + 1;
+            while j < gs.len() && gs[j] == gs[j - 1] + PAGE {
+                j += 1;
+            }
+            let n = j - i;
+            let b = match n {
+                1 => 0,
+                2..=15 => 1,
+                16 => 2,
+                17..=511 => 3,
+                _ => 4,
+            };
+            self.runs[b] += 1;
+            i = j;
+        }
+    }
+
+    fn line(&self, secs: f64) -> String {
+        format!(
+            "bar1 pool churn in {secs:.1} s: {} poll(s) with changes (slowest {} us); moved in {} and home {} page(s) ({} us of moves, {} window map(s)); retired {} (no copy), re-lived {} (no copy), relocated {}, home for another page {}, aged out {}; install runs of 1 / 2-15 / 16 / 17-511 / 512+ pages: {} / {} / {} / {} / {} (docs/caraxes/bar1-pool.md §13)",
+            self.polls,
+            self.max_poll_us,
+            self.installs,
+            self.releases,
+            self.move_us,
+            self.window_maps,
+            self.retires,
+            self.relives,
+            self.relocations,
+            self.slot_evictions,
+            self.aged_out,
+            self.runs[0],
+            self.runs[1],
+            self.runs[2],
+            self.runs[3],
+            self.runs[4]
+        )
+    }
 }
 
 impl Bar1Pool {
@@ -655,8 +767,53 @@ impl Bar1Pool {
             replicas: BTreeMap::new(),
             last_retry: None,
             retry_every: RETRY_EVERY,
+            retired: BTreeMap::new(),
+            last_age_scan: None,
+            churn: Churn::default(),
             stats: PoolStats::default(),
         }
+    }
+
+    /// Pages in the pool that the guest maps through the area now (the others are retired).
+    pub fn live(&self) -> usize {
+        self.table.len().saturating_sub(self.retired.len())
+    }
+
+    /// Area pages retired now (§13).
+    pub fn retired_now(&self) -> usize {
+        self.retired.len()
+    }
+
+    /// Whether area page `g` holds a retired page (§13).
+    pub fn is_retired(&self, g: u64) -> bool {
+        self.retired.contains_key(&g)
+    }
+
+    /// The churn line, at most once per [`CHURN_EVERY`] and only after activity (the
+    /// device traces it after the poll, device.rs `after_bar0_write`).
+    pub fn take_churn(&mut self) -> Option<String> {
+        let since = self.churn.since?;
+        let d = since.elapsed();
+        if d < CHURN_EVERY || self.churn.is_empty() {
+            return None;
+        }
+        let line = self.churn.line(d.as_secs_f64());
+        self.churn = Churn::default();
+        Some(line)
+    }
+
+    /// The retired area pages older than [`RETIRE_AGE`] at `now`, checked at most every
+    /// [`RETIRE_SCAN`].
+    fn aged(&mut self, now: Instant) -> Vec<u64> {
+        if self.retired.is_empty() || self.last_age_scan.is_some_and(|t| now.duration_since(t) < RETIRE_SCAN) {
+            return Vec::new();
+        }
+        self.last_age_scan = Some(now);
+        self.retired
+            .iter()
+            .filter(|(_, t)| now.duration_since(**t) >= RETIRE_AGE)
+            .map(|(g, _)| *g)
+            .collect()
     }
 
     /// The state for the fresh model of a function-level reset: same pool and counters,
@@ -847,7 +1004,7 @@ impl Bar1Pool {
         let s = &self.stats;
         let (pool0, len) = self.table.pool();
         format!(
-            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10)",
+            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10); lazy move back: {} retired now, {} retired in all (no copy), {} re-lived (no copy), home {} for another page, {} relocated, {} aged out after {} ms; {} FB store window map(s) for moves; {} device-CE transfer(s) kept on the CPU by a pooled page ({} by a retired one) (§13)",
             pool0 + len,
             s.polls,
             s.units_walked,
@@ -880,7 +1037,17 @@ impl Bar1Pool {
             s.retry_backoffs,
             self.retry_every.as_millis(),
             RETRY_MAX.as_millis(),
-            s.max_poll_us
+            s.max_poll_us,
+            self.retired.len(),
+            s.retires,
+            s.relives,
+            s.slot_evictions,
+            s.relocations,
+            s.aged_out,
+            RETIRE_AGE.as_millis(),
+            s.move_window_maps,
+            s.devce_blocked.get(),
+            s.devce_blocked_retired.get()
         )
     }
 }
@@ -1074,7 +1241,8 @@ pub fn poll_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, merge: bool
     if b.fb.bar1_pool().is_none() {
         return false;
     }
-    let held = |fb: &FakeFb| fb.pool_mut().as_ref().map_or(0, |p| p.table.len());
+    // The pages the guest maps through the area now: retired pages (§13) do not count.
+    let held = |fb: &FakeFb| fb.pool_mut().as_ref().map_or(0, |p| p.live());
     let before = held(&b.fb);
     let reg = &b.ctrl.channels;
     let ran = match b.ctrl.mirror.as_mut() {
@@ -1108,6 +1276,19 @@ struct Op {
     /// A release the guest did not ask for: `x` became a table page the device tracks
     /// while it lived in the pool, so it goes back to the trapped path.
     evict: bool,
+    /// A release of a retired page (§13), and why it goes home now.
+    home: Option<Home>,
+}
+
+/// Why a retired page goes home (§13).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Home {
+    /// Another page (or guest RAM) is wanted at its area page.
+    Slot,
+    /// The guest maps it at another area page (it moves there after its move home).
+    Relocate,
+    /// It stayed retired for [`RETIRE_AGE`].
+    Aged,
 }
 
 /// Whether FB page `page` (a 4 KiB page number) is a guest page-table page whose writes
@@ -1337,6 +1518,7 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
     };
     let synced = sync_inner(fb, merge, &mut bd);
     bd.sync_us = t0.elapsed().as_micros();
+    let aged: Vec<u64>;
     let (root, full, path_only, retry, hazard) = {
         let mut guard = fb.pool_mut();
         let Some(p) = guard.as_mut() else {
@@ -1346,11 +1528,13 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         let every = p.retry_every;
         let retry = (!p.pending.is_empty() || !p.waiting.is_empty())
             && p.last_retry.is_none_or(|t| t.elapsed() >= every);
+        aged = p.aged(t0);
         if p.dirty.is_empty()
             && p.dir_dirty.is_empty()
             && !retry
             && !p.hazard_dirty
             && !p.recheck_replicas
+            && aged.is_empty()
         {
             bd.total_us = t0.elapsed().as_micros();
             p.last = bd;
@@ -1427,18 +1611,67 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         cand.extend(p.replicas.keys().copied());
         p.recheck_replicas = false;
         bd.candidates = cand.len();
-        let mut releases: Vec<Op> = cand
-            .iter()
-            .filter_map(|g| {
-                let x = p.table.holder(*g)?;
-                (p.want.get(g) != Some(&Target::Fb(x))).then_some(Op {
+        // The lazy move back (§13). An area page the guest unmapped keeps its page in the
+        // pool, retired: the remap stays, so the device and the GPU still find the page at
+        // its pool page, and nothing is copied (a BAR1 unmap on the real card is a PTE
+        // write, not a copy). Mapped again at the same area page, it is simply live again.
+        // It goes home (one copy, as every unmap did before) when another page or guest
+        // RAM is wanted at its area page, when the guest maps it at another area page, or
+        // after RETIRE_AGE.
+        let now = Instant::now();
+        let mut releases: Vec<Op> = Vec::new();
+        for g in &cand {
+            let Some(x) = p.table.holder(*g) else { continue };
+            match p.want.get(g) {
+                Some(Target::Fb(w)) if *w == x => {
+                    if p.retired.remove(g).is_some() {
+                        bd.relived += 1;
+                    }
+                }
+                None => match p.retired.get(g) {
+                    None => {
+                        p.retired.insert(*g, now);
+                        bd.retired += 1;
+                    }
+                    // A retired page whose move home was refused (a USERD, a busy barrier):
+                    // the paced retry asks again once it is due.
+                    Some(t) if p.waiting.contains(g) && now.duration_since(*t) >= RETIRE_AGE => {
+                        releases.push(Op {
+                            install: false,
+                            g: *g,
+                            x,
+                            evict: false,
+                            home: Some(Home::Aged),
+                        })
+                    }
+                    Some(_) => {}
+                },
+                Some(_) => releases.push(Op {
                     install: false,
                     g: *g,
                     x,
                     evict: false,
-                })
-            })
-            .collect();
+                    home: p.retired.contains_key(g).then_some(Home::Slot),
+                }),
+            }
+        }
+        for g in &aged {
+            if let Some(x) = p.table.holder(*g).filter(|_| p.retired.contains_key(g)) {
+                if !releases.iter().any(|r| r.g == *g) {
+                    releases.push(Op {
+                        install: false,
+                        g: *g,
+                        x,
+                        evict: false,
+                        home: Some(Home::Aged),
+                    });
+                }
+            }
+        }
+        p.stats.retires += bd.retired as u64;
+        p.stats.relives += bd.relived as u64;
+        p.churn.retires += bd.retired as u64;
+        p.churn.relives += bd.relived as u64;
         // A table page the device tracks that lives in the pool goes back out (the rule
         // of `admit`, for the other order: the shadow started watching it after it moved).
         if hazard || retry {
@@ -1457,6 +1690,7 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
                         g,
                         x,
                         evict: true,
+                        home: None,
                     });
                 }
             }
@@ -1465,12 +1699,29 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         let mut sys_lines = Vec::new();
         for g in &cand {
             match p.want.get(g).copied() {
-                Some(Target::Fb(x)) if p.table.holder(*g) != Some(x) => installs.push(Op {
-                    install: true,
-                    g: *g,
-                    x,
-                    evict: false,
-                }),
+                Some(Target::Fb(x)) if p.table.holder(*g) != Some(x) => {
+                    // Retired at another area page: home first (in this poll), then here.
+                    if let Some(g2) = p.table.slot_of(x).filter(|g2| *g2 != *g && p.retired.contains_key(g2)) {
+                        if let Some(r) = releases.iter_mut().find(|r| r.g == g2) {
+                            r.home = Some(Home::Relocate);
+                        } else {
+                            releases.push(Op {
+                                install: false,
+                                g: g2,
+                                x,
+                                evict: false,
+                                home: Some(Home::Relocate),
+                            });
+                        }
+                    }
+                    installs.push(Op {
+                        install: true,
+                        g: *g,
+                        x,
+                        evict: false,
+                        home: None,
+                    })
+                }
                 Some(t @ Target::Sys(_)) => {
                     if p.reported.insert((*g, key(t))) {
                         p.stats.sysmem += 1;
@@ -1612,9 +1863,13 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
     if warm_ok {
         order.extend(warm.iter().map(|o| (*o, true)));
     }
-    order.sort_by_key(|(o, _)| o.install);
+    // By home page within each half: pages of one FB store window move together (a move
+    // of a page outside the store's windows maps one, §13).
+    order.sort_by_key(|(o, _)| (o.install, o.x));
     let mut moved_warm = 0usize;
     let mut moved = 0usize;
+    let maps0 = fb.vram_stats().map_or(0, |s| s.maps);
+    let mut installed_gs: Vec<u64> = Vec::new();
     let tm = Instant::now();
     for (op, is_warm) in order {
         let (pool0, _) = fb.bar1_pool().expect("on");
@@ -1662,6 +1917,7 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
                 "",
             );
             pool.pending.remove(&op.g);
+            installed_gs.push(op.g);
             moved += 1;
         } else {
             moved += 1;
@@ -1672,6 +1928,20 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
                 pool.table.release(op.g);
                 pool.pooled_tables.remove(&op.g);
                 pool.waiting.remove(&op.g);
+                pool.retired.remove(&op.g);
+                match op.home {
+                    Some(Home::Slot) => pool.stats.slot_evictions += 1,
+                    Some(Home::Relocate) => pool.stats.relocations += 1,
+                    Some(Home::Aged) => pool.stats.aged_out += 1,
+                    None => {}
+                }
+                match op.home {
+                    Some(Home::Slot) => pool.churn.slot_evictions += 1,
+                    Some(Home::Relocate) => pool.churn.relocations += 1,
+                    Some(Home::Aged) => pool.churn.aged_out += 1,
+                    None => {}
+                }
+                pool.churn.releases += 1;
                 pool.stats.bytes_out += PAGE;
                 if is_warm {
                     pool.stats.releases_warm += 1;
@@ -1734,6 +2004,16 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
     }
     bd.move_us = tm.elapsed().as_micros();
     bd.moved = moved;
+    bd.window_maps = fb.vram_stats().map_or(0, |s| s.maps).saturating_sub(maps0);
+    {
+        let mut guard = fb.pool_mut();
+        let pool = guard.as_mut().expect("on");
+        pool.stats.move_window_maps += bd.window_maps;
+        pool.churn.window_maps += bd.window_maps;
+        pool.churn.move_us += bd.move_us;
+        pool.churn.installs += installed_gs.len() as u64;
+        pool.churn.note_runs(&mut installed_gs);
+    }
     // The replicas decided in this poll, now that the releases freed their area pages.
     for (g, x, why) in replicate {
         let (free, first) = {
@@ -1905,6 +2185,11 @@ fn finish(fb: &FakeFb, t0: Instant, mut bd: PollBreakdown) {
     if let Some(p) = fb.pool_mut().as_mut() {
         bd.total_us = t0.elapsed().as_micros();
         p.stats.max_poll_us = p.stats.max_poll_us.max(bd.total_us);
+        if bd.ops > 0 || bd.retired > 0 || bd.relived > 0 {
+            p.churn.since.get_or_insert(t0);
+            p.churn.polls += 1;
+            p.churn.max_poll_us = p.churn.max_poll_us.max(bd.total_us);
+        }
         p.last = bd;
     }
 }
@@ -2050,6 +2335,21 @@ mod tests {
 
     fn pending(fb: &FakeFb) -> usize {
         fb.pool_mut().as_ref().unwrap().pending.len()
+    }
+
+    /// Make every retired page due for its move home at the next poll (§13).
+    fn age_retired(fb: &FakeFb) {
+        let mut g = fb.pool_mut();
+        let p = g.as_mut().unwrap();
+        let old = Instant::now() - RETIRE_AGE - Duration::from_millis(1);
+        for t in p.retired.values_mut() {
+            *t = old;
+        }
+        p.last_age_scan = None;
+    }
+
+    fn retired(fb: &FakeFb) -> usize {
+        fb.pool_mut().as_ref().unwrap().retired_now()
     }
 
     fn expire_retry(fb: &FakeFb) {
@@ -2237,6 +2537,162 @@ mod tests {
         assert_eq!(u64::from_le_bytes(w), pte(BASE + 0x44_0000));
     }
 
+    /// The lazy move back (§13, Windows' BAR1 churn): a page the guest unmaps stays in the
+    /// pool, retired, and mapped again at the same area page it is live again: no copy
+    /// either way, as a BAR1 remap costs no copy on the real card. Every path keeps finding
+    /// it at its pool page meanwhile.
+    #[test]
+    fn a_page_mapped_again_at_its_area_page_costs_no_copy() {
+        let (mut fb, pt, pool0) = setup();
+        let x = BASE + 0x10_0000;
+        fb.write(x, &[1; 8]);
+        assert!(poll(&mut fb, &mut NoGpu));
+        let p = pool0 + 0x5000;
+        for round in 0..5 {
+            fb.write_u64(pt + 8 * 5, pte(x));
+            assert!(poll(&mut fb, &mut NoGpu));
+            assert_eq!((fb.remap(x), retired(&fb)), (p, 0), "round {round}");
+            fb.write_u64(pt + 8 * 5, 0);
+            assert!(poll(&mut fb, &mut NoGpu));
+            assert_eq!((fb.remap(x), retired(&fb)), (p, 1), "round {round}");
+            // The device and the GPU still find the page at its pool page.
+            fb.write(x, &[round as u8 + 2; 8]);
+            let mut b = [0u8; 8];
+            fb.read_raw(p, &mut b);
+            assert_eq!(b, [round as u8 + 2; 8]);
+        }
+        let st = stats(&fb);
+        assert_eq!((st.installs_cold, st.bytes_in, st.releases_cold, st.bytes_out), (1, PAGE, 0, 0));
+        assert_eq!((st.retires, st.relives), (5, 4));
+        assert!(fb.bar1_pool_summary().unwrap().contains("1 retired now, 5 retired in all"));
+        // The pool counts the page as not mapped by the guest ("pool empty" is about the
+        // guest's mappings).
+        assert_eq!(fb.pool_mut().as_ref().unwrap().live(), 0);
+        // The churn line (the trace, once per second with activity).
+        {
+            let mut g = fb.pool_mut();
+            let pl = g.as_mut().unwrap();
+            assert!(pl.take_churn().is_none(), "not a second yet");
+            pl.churn.since = Some(Instant::now() - CHURN_EVERY);
+            let line = pl.take_churn().unwrap();
+            assert!(line.contains("retired 5 (no copy), re-lived 4 (no copy)"), "{line}");
+            assert!(line.contains("moved in 1 and home 0 page(s)"), "{line}");
+            assert!(pl.take_churn().is_none(), "reset after the line");
+        }
+    }
+
+    /// Another page wanted at a retired page's area page: the retired page goes home first
+    /// with every byte written meanwhile (one copy, as every unmap did before), then the new
+    /// page moves in. A retired page the guest maps at another area page goes home and in
+    /// there; one that ages out goes home.
+    #[test]
+    fn a_retired_page_goes_home_when_its_area_page_is_needed_or_it_moves_or_ages() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let (x, y, z) = (BASE + 0x10_0000, BASE + 0x11_0000, BASE + 0x12_0000);
+        fb.write_u64(pt + 8 * 5, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(x + 8, 0x7777);
+        // y at the same area page: x home with its bytes, y in.
+        fb.write_u64(pt + 8 * 5, pte(y));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(x), fb.remap(y), retired(&fb)), (x, pool0 + 0x5000, 0));
+        let mut w = [0u8; 8];
+        fb.read_raw(x + 8, &mut w);
+        assert_eq!(u64::from_le_bytes(w), 0x7777, "the retired page's bytes went home");
+        assert_eq!(stats(&fb).slot_evictions, 1);
+        // y unmapped (retired), then mapped at another area page: home first, then in there,
+        // in the same poll.
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(y, 0x8888);
+        fb.write_u64(pt + 8 * 7, pte(y));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(y), retired(&fb)), (pool0 + 0x7000, 0));
+        assert_eq!(fb.read_u64(y), Some(0x8888));
+        fb.read_raw(pool0 + 0x7000, &mut w);
+        assert_eq!(u64::from_le_bytes(w), 0x8888);
+        assert_eq!(stats(&fb).relocations, 1);
+        // z mapped and unmapped: it goes home only once it is RETIRE_AGE old.
+        fb.write_u64(pt + 8 * 9, pte(z));
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(pt + 8 * 9, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!poll(&mut fb, &mut NoGpu), "not due yet: the poll stays idle");
+        assert_eq!(fb.remap(z), pool0 + 0x9000);
+        age_retired(&fb);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(z), stats(&fb).aged_out), (z, 1));
+    }
+
+    /// A retired page the GPU maps goes home behind the barrier only when it must (another
+    /// page wanted at its area page); its retirement itself asks the GPU nothing.
+    #[test]
+    fn a_retired_page_the_gpu_maps_goes_home_behind_the_barrier() {
+        let (mut fb, pt, pool0) = setup();
+        let x = BASE + 0x30_0000;
+        assert!(poll(&mut fb, &mut NoGpu));
+        let mut gpu = FakeGpu::new(0x1234_0000);
+        fb.write_u64(pt + 8, pte(x));
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(fb.remap(x), pool0 + 0x1000);
+        gpu.used.insert(x);
+        let r0 = gpu.refs_calls.get();
+        fb.write_u64(pt + 8, 0);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((gpu.refs_calls.get(), stats(&fb).barriers), (r0, 0), "retiring asks nothing");
+        let y = BASE + 0x31_0000;
+        fb.write_u64(pt + 8, pte(y));
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((fb.remap(x), fb.remap(y)), (x, pool0 + 0x1000));
+        let st = stats(&fb);
+        assert_eq!((st.barriers, st.releases_warm, st.slot_evictions), (1, 1, 1));
+        assert_eq!(gpu.resynced, vec![0x1234_0000]);
+    }
+
+    /// A retired page that becomes a guest page table goes home like a pooled one (the
+    /// table-page rule, §10): the walk must see every write the guest makes.
+    #[test]
+    fn a_retired_page_that_becomes_a_table_page_goes_home() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let cpt = BASE + 0x10_4000;
+        fb.write_u64(cpt + 8 * 3, pte(BASE + 0x40_0000));
+        fb.write_u64(pt + 8 * 5, pte(cpt));
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(cpt), retired(&fb)), (pool0 + 0x5000, 1));
+        let (root, _) = context_tree(&mut fb);
+        assert_eq!(leaf_at(&fb, root, 0x3000), Some(Target::Fb(BASE + 0x40_0000)));
+        assert!(sync_untracked(&mut fb));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(cpt), retired(&fb)), (cpt, 0));
+        assert_eq!(stats(&fb).table_evictions, 1);
+        assert_eq!(fb.read_u64(cpt + 8 * 3), Some(pte(BASE + 0x40_0000)));
+    }
+
+    /// The device CE is kept off pooled pages (fb.rs `plain_vram`), retired ones included:
+    /// counted for the summary (§13).
+    #[test]
+    fn a_device_ce_transfer_over_a_pooled_page_stays_on_the_cpu_and_is_counted() {
+        let (mut fb, pt, _pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let x = BASE + 0x10_0000;
+        assert!(fb.plain_vram(x, 0x10000));
+        fb.write_u64(pt + 8 * 5, pte(x + 0x2000));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!fb.plain_vram(x, 0x10000));
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!fb.plain_vram(x, 0x10000));
+        assert!(fb.plain_vram(x + 0x3000, 0x1000));
+        let st = stats(&fb);
+        assert_eq!((st.devce_blocked.get(), st.devce_blocked_retired.get()), (2, 1));
+    }
+
     #[test]
     fn the_remap_table_installs_translates_and_releases() {
         let usable = (BASE, END - 6 * MIB);
@@ -2365,11 +2821,19 @@ mod tests {
         ]);
         assert_eq!(leaves[0].1, Target::Fb(p));
         assert_eq!(leaves[1].1, Target::Fb(x + PAGE));
-        // The guest unmaps the page: the pool page is copied back to X, the remap goes.
+        // The guest unmaps the page: it stays in the pool, retired, no copy (§13); every
+        // path still finds it at its pool page.
         fb.write_u64(pt + 8 * 5, 0);
         assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((stats(&fb).releases_cold, stats(&fb).bytes_out, stats(&fb).retires), (0, 0, 1));
+        assert_eq!(fb.remap(x), p);
+        assert_eq!(retired(&fb), 1);
+        // After RETIRE_AGE it goes home: the pool page is copied back to X, the remap goes.
+        age_retired(&fb);
+        assert!(poll(&mut fb, &mut NoGpu));
         let st = stats(&fb);
-        assert_eq!((st.releases_cold, st.bytes_out), (1, PAGE));
+        assert_eq!((st.releases_cold, st.bytes_out, st.aged_out), (1, PAGE, 1));
+        assert_eq!(retired(&fb), 0);
         assert_eq!(fb.remap(x), x);
         fb.read(x, &mut b);
         assert_eq!(b, [9, 9, 9, 9]);
@@ -2386,7 +2850,8 @@ mod tests {
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(fb.remap(x), pool0 + 0xA000);
         let st = stats(&fb);
-        assert_eq!((st.installs_cold, st.releases_cold), (3, 2));
+        // 0x9000 was retired, then relocated: home first, then in at 0xA000.
+        assert_eq!((st.installs_cold, st.releases_cold, st.relocations), (3, 2, 1));
         assert!(fb.bar1_pool_summary().unwrap().contains("1 page(s) in the pool now"));
         // A function-level reset: the pool and its counters carry over, the remaps go.
         let fresh = FakeFb::for_layout(&layout());
@@ -2452,8 +2917,12 @@ mod tests {
         assert_eq!(replicas(&fb), 0);
         assert_eq!(fb.read_u64(x + 0x3008), Some(0x5a5a));
         assert_eq!(fb.read_u64(x + 0x3010), Some(0x6b6b));
-        // The big page goes: all 16 pages move back.
+        // The big page goes: its 16 pages retire, then move back when they age out.
         fb.write_u64(big + 8, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(retired(&fb), 16);
+        assert_eq!(fb.remap(x), pool0 + 0x1_0000);
+        age_retired(&fb);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(fb.remap(x), x);
         assert_eq!(stats(&fb).releases_cold, 17);
@@ -2540,18 +3009,22 @@ mod tests {
         let mut gpu = FakeGpu::new(root);
         gpu.used.insert(x);
         gpu.ok = false;
-        // The guest unmaps the area page, then maps another page there.
+        // The guest unmaps the area page: retired, nothing moves and no barrier is asked
+        // for (§13).
         fb.write_u64(pt + 8, 0);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((fb.remap(x), retired(&fb), stats(&fb).barriers_refused), (pool0 + 0x1000, 1, 0));
+        // Then it maps another page there: the retired page must go home, behind the
+        // barrier, which is refused again and again.
+        let y = BASE + 0x31_0000;
+        fb.write_u64(pt + 8, pte(y));
+        assert!(poll(&mut fb, &mut gpu));
         for i in 0..14 {
             expire_retry(&fb);
             assert!(poll(&mut fb, &mut gpu));
             assert_eq!(fb.remap(x), pool0 + 0x1000, "moved at refusal {i}");
             assert!(!fb.pool_rediff_pending(root));
         }
-        let y = BASE + 0x31_0000;
-        fb.write_u64(pt + 8, pte(y));
-        expire_retry(&fb);
-        assert!(poll(&mut fb, &mut gpu));
         assert_eq!((fb.remap(x), fb.remap(y)), (pool0 + 0x1000, y));
         let st = stats(&fb);
         assert_eq!((st.barriers_refused, st.releases_cold, st.releases_warm), (15, 0, 0));
@@ -2566,7 +3039,7 @@ mod tests {
         assert!(poll(&mut fb, &mut gpu));
         assert_eq!((fb.remap(x), fb.remap(y)), (x, pool0 + 0x1000));
         let st = stats(&fb);
-        assert_eq!((st.releases_cold, st.installs_cold, st.barriers), (1, 2, 0));
+        assert_eq!((st.releases_cold, st.installs_cold, st.barriers, st.slot_evictions), (1, 2, 0, 1));
         fb.read(x, &mut b);
         assert_eq!(b, [9; 8]);
         assert!(gpu.resynced.is_empty());
@@ -2652,15 +3125,20 @@ mod tests {
         assert_eq!(fb.remap(x), pool0 + 0x5000);
         let (r0, u0) = (gpu.refs_calls.get(), gpu.userd_calls.get());
         assert_eq!((r0, u0), (1, 1));
-        // The page becomes a channel's USERD; the guest unmaps it: refused, waiting.
+        // The page becomes a channel's USERD; the guest unmaps it: retired, no GPU check
+        // (§13). Once it is due to go home, its move is refused: waiting.
         gpu.userd.insert(x);
         fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((fb.remap(x), retired(&fb)), (pool0 + 0x5000, 1));
+        assert_eq!((gpu.refs_calls.get(), gpu.userd_calls.get()), (r0, u0));
+        age_retired(&fb);
         assert!(poll(&mut fb, &mut gpu));
         assert_eq!(fb.remap(x), pool0 + 0x5000);
         assert_eq!((gpu.refs_calls.get(), gpu.userd_calls.get()), (r0, u0 + 1));
         assert!(stats(&fb).first.iter().any(|l| l.contains("USERD of mirrored channel")));
         let lb = last(&fb);
-        assert_eq!((lb.candidates, lb.ops, lb.refs_pages), (1, 1, 0));
+        assert_eq!((lb.candidates, lb.ops, lb.refs_pages), (0, 1, 0));
         assert!(lb.to_string().contains("(0 page(s)); barrier"), "{lb}");
         // Shadow walks that add table pages outside the pool: the poll stays idle.
         hold_retry(&fb);
@@ -2715,8 +3193,12 @@ mod tests {
         fb.write_u64(pt1 + 8 * 2, 0);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!((stats(&fb).units_walked, stats(&fb).units_path_only), (w0 + 2, 3));
-        assert_eq!(fb.remap(x), x);
         assert_eq!(last(&fb).candidates, 1);
+        // Retired (§13): it stays at its pool page until it ages out.
+        assert_eq!(fb.remap(x), pool0 + 2 * MIB + 0x2000);
+        age_retired(&fb);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(fb.remap(x), x);
     }
 
     /// A poll after a BAR0 write that is no flush point (`poll_at` without `merge`) leaves
@@ -2896,9 +3378,12 @@ mod tests {
         assert_eq!(stats(&fb).installs_cold, 1);
         assert_eq!(fb.remap(x), pool0 + 0x5000);
         assert_eq!(shadow_sees(&fb), 512);
-        // Unmapped the same way: the page moves back.
+        // Unmapped the same way: retired (§13), then back home when it ages out.
         guest.store_word(1, 5, 0);
         fb.bar2_sync(Some(bar2), None);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(x), retired(&fb)), (pool0 + 0x5000, 1));
+        age_retired(&fb);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(stats(&fb).releases_cold, 1);
         assert_eq!(fb.remap(x), x);
@@ -2932,8 +3417,10 @@ mod tests {
         fb.write_u64(x + 16, 0x3333);
         assert_eq!(guest.load_word(2, 2), 0x3333);
         assert_eq!(fb.read_u64(p + 16), Some(0x3333));
-        // Back out of the pool: x in the store has everything.
+        // Back out of the pool (unmapped, retired, aged out): x in the store has everything.
         fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        age_retired(&fb);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(fb.remap(x), x);
         guest.store_word(2, 3, 0x4444);

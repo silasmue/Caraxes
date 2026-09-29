@@ -1744,6 +1744,12 @@ impl Device {
                     let t0 = std::time::Instant::now();
                     crate::bar1pool::poll_model(b, &self.mem, merge);
                     let held = t0.elapsed();
+                    // The guest's BAR1 mapping churn, once per second with activity
+                    // (docs/caraxes/bar1-pool.md §13).
+                    let churn = b.fb.pool_mut().as_mut().and_then(|p| p.take_churn());
+                    if let Some(line) = churn {
+                        self.trace.event(&line);
+                    }
                     if held > SLOW_POOL_POLL {
                         self.slow_pool_polls += 1;
                         let bd = b

@@ -789,3 +789,90 @@ to 545. Copies: `session-615-20260925-183951/` in the main tree.
 - Host BAR1 is unchanged against 0c54a465 (`nvidia-smi -q -d MEMORY`).
 - Slow polls: the GSP registers are gone; each remaining one shows `N table page(s) read` and
   `H home(s) read` near 0.
+
+## 13. Windows' BAR1 churn and the lazy move back (2026-09-29)
+
+Records: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/` C57-pool, C58-pool, C59-poolstall,
+C59b-poolstall (ch15, pool 32 MiB, trace without access lines); the Windows analysis
+(windows-findings.md, step 9, 72036ffc on win-ch-2026-09-29).
+
+**What the data shows.**
+- Every Windows session makes the same moves: 33668 in and 32858 back up to the FLR at 78 s,
+  66590 and 64970 in all, every one cold (no GPU leaf on the page, no barrier) [exit and
+  `pool empty` lines of all four runs].
+- The copies took 586 ms up to the FLR and 4.1-4.5 s in all: 64 us per page on average, but
+  whole polls of 16 pages took 2-15 ms (125-900 us per page).
+- The FB store mapped 30045 BAR1 windows (2 x 16 MiB budget beside the pool) for about as many
+  moves: a move's home page is outside the store's windows about every other time, because the
+  KMD's paging channel runs on the software executor over the whole FB between polls
+  [C59b `vram store` line].
+- Of the 123 polls that held the device over 2 ms, 115 moved exactly 16 pages (one 64 KiB BAR1
+  mapping); the others 48 to 810. They come in bursts 7-19 ms apart from 99 s on
+  [slow-poll trace lines].
+- So Windows maps and unmaps 64 KiB CPU-visible allocations (Lock/Unlock of small surfaces
+  around each present, the desktop start's staging buffers) at hundreds per second. The real
+  card writes a few BAR1 PTEs for each; the pool copied 4 KiB per page each way, under the
+  device lock, and each copy often mapped a store window first.
+- Not shown by the records (no per-page trace): whether the same allocation comes back to the
+  same BAR1 address or another one takes it. The churn line below answers that.
+
+**The rule now: a BAR1 unmap copies nothing** (`bar1pool.rs` `poll_at`, `Bar1Pool::retired`).
+- The guest unmaps area page `g`: its page `X` stays in the pool, *retired*. The remap stays, so
+  the FB store, BAR2, PRAMIN, the software executor, the shadow's leaves and a host channel's
+  USERD keep finding `X` at its pool page, exactly as before the unmap. Nothing is copied and
+  the GPU is not asked (no leaf check, no barrier).
+- `X` mapped again at `g`: live again, no copy.
+- `X` goes home (one copy, as every unmap did before, cold or behind the barrier of §4) only when:
+  - another page, or guest RAM, is wanted at `g` (`home for another page`);
+  - the guest maps `X` at another area page: home first, then in there, in the same poll
+    (`relocated`; before, the table refused such a map as an alias);
+  - `X` becomes a page table the device tracks (§10, as a pooled page);
+  - `X` stayed retired for `RETIRE_AGE` (2 s; checked at most every 100 ms): a page the guest
+    does not map again does not stay in the pool for good (`aged out`).
+- A move home that is refused (a USERD, a failed barrier) keeps the page consistent in the pool
+  and is retried, as before.
+- Moves run sorted by home page within releases and installs: the pages of one store window
+  move together.
+- A software `MEM_OP` TLB invalidate merges the replicas first (`ctrl.rs` software branch), as
+  the register invalidate does: Windows maps its page tables into BAR1 (C59b: 28 table pages at
+  FB 0x300000 and 0x3e0000 through area 0x370000-0x37b000, served as replicas) and invalidates
+  from its paging channel too.
+
+**Why this is safe.**
+- Isolation: a retired page is a page of the VM's usable FB at a pool page of the same
+  reservation, as it was while mapped; nothing new is mapped anywhere.
+- Consistency: every device path and the GPU go through the one translation (§3), which the
+  retirement leaves alone. The only path that bypasses it is the guest CPU through area page `g`,
+  which the guest unmapped; an access there reaches `X` (its own data), where the real card would
+  fault or read garbage.
+- The device CE keeps off pooled pages (`FakeFb::plain_vram`), retired ones too: a large
+  software-CE transfer over one runs on the CPU. Counted (`device-CE transfer(s) kept on the CPU
+  by a pooled page (N by a retired one)`); `RETIRE_AGE` bounds how long a page can cause it.
+- Copies outside the device lock: not done. An install's copy must be complete before the
+  guest's vCPU leaves the trapped BAR0 write (it may use the mapping next), and a move home
+  before the next page's install at the same area page; a retirement has no copy left to move.
+
+**Counters.**
+- Exit summary: `lazy move back: N retired now, R retired in all (no copy), L re-lived (no copy),
+  home S for another page, M relocated, A aged out after 2000 ms; W FB store window map(s) for
+  moves; D device-CE transfer(s) kept on the CPU by a pooled page (E by a retired one)`.
+- The slow-poll line: `moves T us (N page(s), W window map(s)); ... R retired, L re-lived`.
+- The churn line, in the trace once per second with activity: polls, pages moved in and home,
+  the move time and window maps, retired / re-lived / relocated / home for another page / aged
+  out, and the runs of installed area pages by length (1, 2-15, 16, 17-511, 512+ pages: 4 KiB,
+  64 KiB and 2 MiB guest mappings).
+- `pool empty` now means no page the guest maps through the area (retired pages do not count).
+
+**Tests.**
+- `bar1pool::tests::a_page_mapped_again_at_its_area_page_costs_no_copy` (five map/unmap rounds,
+  one copy in, none back; the churn line);
+- `a_retired_page_goes_home_when_its_area_page_is_needed_or_it_moves_or_ages`;
+- `a_retired_page_the_gpu_maps_goes_home_behind_the_barrier`;
+- `a_retired_page_that_becomes_a_table_page_goes_home`;
+- `a_device_ce_transfer_over_a_pooled_page_stays_on_the_cpu_and_is_counted`;
+- the earlier tests now age the retired pages out (`age_retired`) where they checked the move back.
+
+**What decides the next step** (the churn line of a Windows run): many `re-lived` against few
+`home for another page`: the churn is gone. Many `home for another page` and window maps: the
+KMD reuses BAR1 addresses for other allocations, and the remaining lever is the copy itself
+(the device CE for pool moves, with the pool mapped in its VA space).
