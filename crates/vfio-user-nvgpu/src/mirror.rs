@@ -3883,6 +3883,10 @@ impl Mirror {
         self.build_stats.committed += 1;
         self.build_stats.commit(t0.elapsed(), pb.since.elapsed());
         self.stats.max_create_us = self.stats.max_create_us.max(pb.since.elapsed().as_micros());
+        if committed {
+            let gr = pb.channel_engine == v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+            self.build_stats.first_ring(gr, pb.since.elapsed());
+        }
         if !committed {
             return notes;
         }

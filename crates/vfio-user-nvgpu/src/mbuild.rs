@@ -101,6 +101,9 @@ pub struct BuildStats {
     pub commit_max_ns: u64,
     /// From the first doorbell to the commit.
     pub first_ring_max_ns: u64,
+    /// First doorbell to commit per committed build, in us: GR channels, other engines.
+    pub gr_us: Vec<u64>,
+    pub other_us: Vec<u64>,
 }
 
 fn ms(ns: u64) -> u64 {
@@ -121,6 +124,34 @@ impl BuildStats {
         self.first_ring_max_ns = self.first_ring_max_ns.max(since_first.as_nanos() as u64);
     }
 
+    /// One committed build's time from its first doorbell to the commit.
+    pub fn first_ring(&mut self, gr: bool, since_first: Duration) {
+        let us = since_first.as_micros() as u64;
+        let v = if gr { &mut self.gr_us } else { &mut self.other_us };
+        v.push(us);
+    }
+
+    /// "GR channel build: N from spare, M built at doorbell, time p50/max". Every build runs at
+    /// the channel's first doorbell (no spare channels are kept: the host RM calls of a GR
+    /// build take about 10 ms, C82), so N is 0.
+    pub fn gr_line(&self) -> String {
+        let pq = |v: &[u64]| -> (f64, f64) {
+            if v.is_empty() {
+                return (0.0, 0.0);
+            }
+            let mut s = v.to_vec();
+            s.sort_unstable();
+            (s[s.len() / 2] as f64 / 1000.0, s[s.len() - 1] as f64 / 1000.0)
+        };
+        let (g50, gmax) = pq(&self.gr_us);
+        let (o50, omax) = pq(&self.other_us);
+        format!(
+            "GR channel build: 0 from spare, {} built at doorbell, time p50 {g50:.1} ms / max {gmax:.1} ms (first doorbell to commit); other engines {}, p50 {o50:.1} ms / max {omax:.1} ms",
+            self.gr_us.len(),
+            self.other_us.len(),
+        )
+    }
+
     pub fn line(&self, pending: usize) -> String {
         format!(
             "mirror builds (execution.md §9.2): {} started, {} committed ({} refused by the host), {} dropped before the commit, {} in flight; {} doorbell(s) joined a build in flight; host side {} ms on the worker (longest {} ms); commit under the lock {} ms (longest {} us); first doorbell to commit longest {} ms; {} committed at once, {} waited for under the lock ({} ms)",
@@ -138,7 +169,7 @@ impl BuildStats {
             self.inline,
             self.waited,
             ms(self.waited_ns),
-        )
+        ) + "; " + &self.gr_line()
     }
 }
 
@@ -202,5 +233,19 @@ mod tests {
         assert!(l.contains("host side 700 ms"), "{l}");
         assert!(l.contains("longest 900 us"), "{l}");
         assert!(l.contains("1 in flight"), "{l}");
+        assert!(l.contains("GR channel build: 0 from spare, 0 built at doorbell"), "{l}");
+    }
+
+    /// GR builds and the others are counted apart, with the median and the longest.
+    #[test]
+    fn the_gr_line_has_the_median_and_the_longest_gr_build() {
+        let mut s = BuildStats::default();
+        for ms in [300, 4, 6] {
+            s.first_ring(true, Duration::from_millis(ms));
+        }
+        s.first_ring(false, Duration::from_micros(1500));
+        let l = s.gr_line();
+        assert!(l.contains("0 from spare, 3 built at doorbell, time p50 6.0 ms / max 300.0 ms"), "{l}");
+        assert!(l.contains("other engines 1, p50 1.5 ms / max 1.5 ms"), "{l}");
     }
 }
