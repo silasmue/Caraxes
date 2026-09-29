@@ -547,6 +547,47 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 
 - Teardown exit 3 at stop: P17 diagnostic only (owned GFXP), as noted.
 
+## P34 (2026-09-29 02:35-02:57, P34-devce2: the device CE; slot 0, 4 GiB, 8 GiB RAM; fence on)
+
+- First attempt (P34-devce): QEMU dropped the device at boot ("vfio_wait_reqs - timed out").
+  - The 6 GiB DMA_MAP took 25 s to register under host memory pressure (1 GiB chunks 0.7 s
+    rising to 7.5 s), beyond QEMU's 5 s `x-msg-timeout`.
+  - Stopgap: run34.py sets a 60 s timeout. Fix: registration off the loop (below).
+- Device CE at exit: 981 pushes, 981 ops, 29251 MiB, 1600 ms busy, all NV_OK; no fallback.
+  P32 moved the same kind of memsets (19.7 GiB) on the CPU: 1804 slices, 75 s.
+- Smoke all PASS, 0 TDR, no host Xid; D3D11 CreateDevice 7.4 s.
+- Idle card (Linux B's vkmark overlapped a first round; those rates halved and are dropped):
+
+  | | P34 | P32/P33 |
+  |---|---|---|
+  | transformer first step | 12.4 s | 17.7 s (P31) |
+  | transformer tokens/s | 81689 | 83769 |
+  | ResNet-18 first step | 61.8 s | 98-121 s |
+  | ResNet-18 images/s | 350.6 | 341.7 |
+  | CUDA short kernel median | 54.0 us | 58.7 us |
+  | NVENC vram H.264 / HEVC fps | 106.1 / 117.0 | 123.8 / 133.6 (P33) |
+  | NVENC session open / init | 6.0 / 5.1 s | 6.4 / 4.9 s (P33) |
+
+- Host FB used: 5550 MiB at exit, 1007 MiB after the stop (Windows about 4.5 GiB: the 4 GiB
+  reservation and about 450 MiB of host contexts).
+- Open: NVENC 13 % below P33 (one sample each), with the session open and init times.
+
+### Guest RAM registration off the loop (2026-09-29, registrar.rs)
+
+- `DMA_MAP` is answered after the mmap and two quick checks: the mappings may still change,
+  and the host RAM floor holds counting what is still queued.
+- A worker registers the region in 1 GiB pieces; it faults each piece in before taking
+  hostmem's lock (`MADV_POPULATE_WRITE`), so the loop's RM calls wait at most for one pin.
+- Before a piece is registered:
+  - the device's own accesses to it go through in GPA mode (`GuestMemory::translate`);
+  - the shadow's descriptor snapshot waits for the worker (mirror.rs `descs`), and
+    `host_iova` finds finished pieces the device has not applied yet: no guest access fails.
+- The device applies finished pieces at its next access or on the 1 ms clock (main.rs).
+- `DMA_UNMAP` drops the queued pieces of its region and waits for the one in flight.
+- A failed piece leaves one ERROR line; DMA to it stays refused.
+- Linux (CH, linear IOVAs): the same worker; the launcher already waits for the full table.
+- Memory model: independent of the VRAM layout; depends on the DMA table (GPA mode).
+
 ## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
 
 - **Before (all builds up to 70614b41's parent):** the top of the reservation holds device-owned

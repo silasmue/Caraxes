@@ -1557,7 +1557,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     };
     // A long software CE transfer runs in slices (channel.rs `CE_SLICE`) so that the
     // vfio-user loop answers between them; the next slice runs on this clock, with or
-    // without a display tick or another doorbell.
+    // without a display tick or another doorbell. Registered guest RAM is applied here too.
     let ce_slices = {
         let d = device.clone();
         let stop = soak_stop.clone();
@@ -1570,6 +1570,13 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                         d.lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .continue_ce_slices();
+                    }
+                    // Guest RAM registered off the loop joins the table without waiting
+                    // for the next access (registrar.rs).
+                    if vfio_user_nvgpu::registrar::registrations_done() {
+                        d.lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .apply_registrations();
                     }
                 }
             })

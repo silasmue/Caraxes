@@ -16,8 +16,10 @@
 use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::os::fd::AsRawFd;
+use std::sync::Arc;
 
 use crate::dmamap::{DmaRange, DmaTable};
+use crate::registrar::Registrar;
 
 struct Region {
     address: u64,
@@ -38,6 +40,8 @@ pub struct GuestMemory {
     /// was set: each one is an access the device refused.
     misses: Cell<u64>,
     first_misses: RefCell<Vec<u64>>,
+    /// Guest RAM answered at `DMA_MAP` whose registration runs off the loop (registrar.rs).
+    registrar: Option<Arc<Registrar>>,
 }
 
 // SAFETY: the mappings are plain shared memory owned by this struct; access is
@@ -102,12 +106,26 @@ impl GuestMemory {
             None => Some(addr),
             Some(t) => {
                 let len = len.max(1);
-                let gpa = t.iova_to_gpa(addr, len).or_else(|| {
-                    self.aliases
-                        .iter()
-                        .find(|r| addr >= r.iova && addr - r.iova < r.size && len <= r.size - (addr - r.iova))
-                        .map(|r| r.gpa + (addr - r.iova))
-                });
+                let gpa = t
+                    .iova_to_gpa(addr, len)
+                    .or_else(|| {
+                        self.aliases
+                            .iter()
+                            .find(|r| {
+                                addr >= r.iova
+                                    && addr - r.iova < r.size
+                                    && len <= r.size - (addr - r.iova)
+                            })
+                            .map(|r| r.gpa + (addr - r.iova))
+                    })
+                    .or_else(|| {
+                        // GPA mode: guest RAM still being registered is this VM's own, mapped
+                        // here; the device's access goes through (registrar.rs).
+                        self.registrar
+                            .as_ref()
+                            .filter(|r| r.gpa_mode() && r.unsettled(addr, len))
+                            .map(|_| addr)
+                    });
                 if gpa.is_none() {
                     self.misses.set(self.misses.get() + 1);
                     let mut f = self.first_misses.borrow_mut();
@@ -148,6 +166,11 @@ impl GuestMemory {
         &self.aliases
     }
 
+    /// Consult `registrar` for guest RAM answered but not registered yet.
+    pub fn set_registrar(&mut self, registrar: Option<Arc<Registrar>>) {
+        self.registrar = registrar;
+    }
+
     /// The host IOVA of `len` bytes at the guest's DMA address `addr`: the address itself
     /// when the device's table covers it (the usual case, guest and host agree), the
     /// registered IOVA of the same guest pages for an alias, `None` when neither covers
@@ -161,10 +184,19 @@ impl GuestMemory {
         if t.iova_to_gpa(addr, len).is_some() {
             return Some(addr);
         }
-        let r = self
+        let Some(r) = self
             .aliases
             .iter()
-            .find(|r| addr >= r.iova && addr - r.iova < r.size && len <= r.size - (addr - r.iova))?;
+            .find(|r| addr >= r.iova && addr - r.iova < r.size && len <= r.size - (addr - r.iova))
+        else {
+            // GPA mode: a piece registered off the loop, not in the table yet (registrar.rs).
+            let r = self
+                .registrar
+                .as_ref()
+                .filter(|r| r.gpa_mode())?
+                .range_of(addr, len)?;
+            return Some(r.iova + (addr - r.gpa));
+        };
         let gpa = r.gpa + (addr - r.iova);
         let host = t.gpa_to_iova(gpa)?;
         (t.iova_to_gpa(host, len) == Some(gpa)).then_some(host)

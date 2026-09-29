@@ -2006,6 +2006,12 @@ impl Mirror {
     /// guest runs).
     fn descs(&mut self) -> Vec<(u32, u64, u64)> {
         if self.descs.is_none() {
+            // Guest RAM answered at DMA_MAP and still being registered finishes first
+            // (registrar.rs); its worker takes hostmem's lock, so wait without it.
+            let registrar = self.hm.lock().unwrap().registrar();
+            if let Some(r) = registrar {
+                r.wait_idle();
+            }
             let mut h = self.hm.lock().unwrap();
             let d: Vec<(u32, u64, u64)> = h
                 .descriptors()

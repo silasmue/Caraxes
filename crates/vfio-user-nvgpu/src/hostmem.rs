@@ -896,6 +896,9 @@ pub struct HostMemory {
     /// GPA registration currently supports firmware RAM-map churn only. Once a
     /// GPU object can cache descriptor handles, mappings stay fixed for this VM.
     gpa_mappings_frozen: bool,
+    /// Guest RAM registration off the loop (registrar.rs): the shadow's descriptor snapshot
+    /// waits for it (mirror.rs `descs`).
+    registrar: Option<std::sync::Arc<crate::registrar::Registrar>>,
     /// `nr_foll_pin_acquired`/`_released` when the client opened (host-wide counters).
     pins_at_open: (u64, u64),
     shut: bool,
@@ -1084,6 +1087,22 @@ const NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE: u32 = 1;
 /// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:495), params `{hVASpace, flags}`.
 const CMD_DMA_INVALIDATE_TLB: u32 = 0x0080_180C;
 
+/// Refuse pinning `bytes` more guest RAM when the host would keep less than [`RAM_FLOOR`]
+/// available (checked when a `DMA_MAP` is answered; the registrar pins later).
+pub fn check_ram_floor(bytes: u64) -> Result<()> {
+    let avail = meminfo_kib("MemAvailable:") * KIB;
+    if avail < bytes.saturating_add(RAM_FLOOR) {
+        bail!(
+            "refused: pinning {} MiB of guest RAM would leave the host {} MiB available, below the {} MiB floor (MemAvailable {} MiB)",
+            bytes / MIB,
+            avail.saturating_sub(bytes) / MIB,
+            RAM_FLOOR / MIB,
+            avail / MIB
+        );
+    }
+    Ok(())
+}
+
 fn meminfo_kib(key: &str) -> u64 {
     std::fs::read_to_string("/proc/meminfo")
         .ok()
@@ -1174,6 +1193,7 @@ impl HostMemory {
             pending: Vec::new(),
             live: Vec::new(),
             gpa_mappings_frozen: false,
+            registrar: None,
             pins_at_open: foll_pins(),
             shut: false,
             closed: false,
@@ -2840,6 +2860,33 @@ impl HostMemory {
     ) -> Result<(Vec<DmaRange>, Vec<String>)> {
         self.check_gpa_mapping_update()?;
         self.register_chunks(gpa, size, host_va, 4096)
+    }
+
+    /// A piece of a `DMA_MAP` the device answered before registering it (registrar.rs),
+    /// checked by `check_gpa_mapping_update` when it was answered. Host objects made since
+    /// cannot reach it: it has no IOVA in the table yet, and the shadow's descriptor snapshot
+    /// waits for the registrar (mirror.rs `descs`).
+    pub fn register_gpa_queued(
+        &mut self,
+        gpa: u64,
+        size: u64,
+        host_va: *mut u8,
+    ) -> Result<(Vec<DmaRange>, Vec<String>)> {
+        if !self.free_failures.is_empty() {
+            bail!("guest RAM registration refused after failed frees");
+        }
+        self.register_chunks(gpa, size, host_va, 4096)
+    }
+
+    pub fn set_registrar(
+        &mut self,
+        registrar: Option<std::sync::Arc<crate::registrar::Registrar>>,
+    ) {
+        self.registrar = registrar;
+    }
+
+    pub fn registrar(&self) -> Option<std::sync::Arc<crate::registrar::Registrar>> {
+        self.registrar.clone()
     }
 
     /// A mapping change while channels or gather descriptors exist needs quiescing

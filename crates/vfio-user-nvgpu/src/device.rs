@@ -40,6 +40,7 @@ use crate::dmamap::{DmaRange, DmaTable};
 use crate::guestmem::GuestMemory;
 use crate::hostmem::HostMemory;
 use crate::intr::IntrShared;
+use crate::registrar::{Piece, Registrar};
 use crate::trace::{Dir, Trace};
 
 /// What happens to guest RAM the client offers with DMA_MAP.
@@ -76,6 +77,10 @@ pub struct Device {
     dma_ranges: Option<PathBuf>,
     /// The table entries, per DMA_MAP region.
     ranges: Vec<DmaRange>,
+    /// Guest RAM registration off the loop and its worker (registrar.rs), with
+    /// `GuestRam::Register`.
+    registrar: Option<Arc<Registrar>>,
+    registrar_thread: Option<std::thread::JoinHandle<()>>,
     /// The vectors and MSI state the host event thread raises through (E5b part 2).
     intr: Option<Arc<IntrShared>>,
     /// Doorbell ioeventfd: wakeups of the reader thread and guest writes they counted.
@@ -555,6 +560,8 @@ impl Device {
             guest_dma_gpa: std::env::var("CARAXES_GUEST_DMA_GPA").is_ok_and(|v| v == "1"),
             dma_ranges: None,
             ranges: Vec::new(),
+            registrar: None,
+            registrar_thread: None,
             intr: None,
             doorbell_wakeups: 0,
             doorbell_writes: 0,
@@ -715,14 +722,144 @@ impl Device {
         }
     }
 
-    /// Choose how guest RAM is handled and where the table is published.
+    /// Choose how guest RAM is handled and where the table is published. Registered guest
+    /// RAM gets its registration off the loop (registrar.rs); without the worker thread it
+    /// stays on the loop.
     pub fn with_guest_ram(mut self, guest_ram: GuestRam, dma_ranges: Option<PathBuf>) -> Self {
         self.guest_ram = guest_ram;
         if self.guest_dma_gpa && !matches!(self.guest_ram, GuestRam::Plain) {
             self.mem.set_table(Some(DmaTable::default()));
         }
         self.dma_ranges = dma_ranges;
+        if let GuestRam::Register(hm) = &self.guest_ram {
+            let hm = hm.clone();
+            let r = Registrar::new(self.guest_dma_gpa);
+            let (h, gpa) = (hm.clone(), self.guest_dma_gpa);
+            let register = move |p: &Piece| {
+                crate::registrar::prefault(p);
+                let mut h = h.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                let va = p.va as *mut u8;
+                let out = if gpa {
+                    h.register_gpa_queued(p.gpa, p.size, va)
+                } else {
+                    h.register(p.gpa, p.size, va)
+                };
+                out.map_err(|e| format!("{e:#}"))
+            };
+            match Registrar::spawn(&r, Box::new(register)) {
+                Ok(t) => {
+                    hm.lock().unwrap().set_registrar(Some(r.clone()));
+                    self.mem.set_registrar(Some(r.clone()));
+                    self.registrar = Some(r);
+                    self.registrar_thread = Some(t);
+                }
+                Err(e) => self.note(&format!(
+                    "ERROR guest RAM registrar thread: {e}; registering on the loop"
+                )),
+            }
+        }
         self
+    }
+
+    /// A `DMA_MAP` answered now: its checks here (the mapping may change, the host RAM
+    /// floor counting what is still queued), its registration queued (registrar.rs), in
+    /// 1 GiB pieces in GPA mode, whole for the linear registration.
+    fn queue_guest_ram(&mut self, address: u64, size: u64) -> std::io::Result<()> {
+        let (Some(r), GuestRam::Register(hm)) = (self.registrar.clone(), &self.guest_ram) else {
+            return Err(std::io::Error::other("no registrar"));
+        };
+        let checked = if self.guest_dma_gpa {
+            hm.lock().unwrap().check_gpa_mapping_update()
+        } else {
+            Ok(())
+        }
+        .and_then(|()| crate::hostmem::check_ram_floor(size.saturating_add(r.outstanding())));
+        if let Err(e) = checked {
+            self.note(&format!("hostmem: guest RAM {address:#x}+{size:#x}: {e:#}"));
+            return Err(std::io::Error::other(format!("{e:#}")));
+        }
+        let va = self
+            .mem
+            .host_ptr(address, size)
+            .ok_or_else(|| std::io::Error::other("region not mapped"))? as usize;
+        let chunk = if self.guest_dma_gpa {
+            crate::hostmem::CHUNK
+        } else {
+            u64::MAX
+        };
+        let pieces = crate::registrar::pieces(address, size, va, chunk);
+        self.note(&format!(
+            "hostmem: guest RAM {address:#x}+{size:#x} answered, {} piece(s) queued for registration off the loop ({} MiB queued before)",
+            pieces.len(),
+            r.outstanding() >> 20
+        ));
+        r.queue(pieces);
+        Ok(())
+    }
+
+    /// A `DMA_UNMAP`: the queued pieces of the region are dropped, the one in flight
+    /// finishes, and what finished is applied before the region is released.
+    fn cancel_guest_ram(&mut self, address: u64, size: u64) -> std::io::Result<()> {
+        let Some(r) = self.registrar.clone() else {
+            return Ok(());
+        };
+        if self.guest_dma_gpa {
+            // The release refuses the same way; refuse before dropping anything.
+            if let GuestRam::Register(hm) = &self.guest_ram {
+                hm.lock()
+                    .unwrap()
+                    .check_gpa_mapping_update()
+                    .map_err(std::io::Error::other)?;
+            }
+        }
+        let gone = r.cancel(address, size);
+        if !gone.is_empty() {
+            self.note(&format!(
+                "hostmem: guest RAM {address:#x}+{size:#x} unmapped with {} piece(s) not registered yet: dropped",
+                gone.len()
+            ));
+        }
+        self.apply_registrations();
+        Ok(())
+    }
+
+    /// Apply the pieces the registrar finished: their ranges join the table, published
+    /// again. A failed piece keeps no IOVA (DMA to it is refused and counted) and leaves one
+    /// ERROR line; after a failed free every DMA is refused, as on the loop.
+    pub fn apply_registrations(&mut self) {
+        // On every access: one atomic load while nothing finished.
+        let Some(r) = self.registrar.as_ref().filter(|r| r.has_done()).cloned() else {
+            return;
+        };
+        let (mut publish, mut failed) = (false, false);
+        for (p, out) in r.take_done() {
+            match out {
+                Ok((ranges, log)) => {
+                    for l in log {
+                        self.note(&format!("hostmem: {l}"));
+                    }
+                    self.ranges.extend(ranges);
+                    publish = true;
+                }
+                Err(e) => {
+                    self.note(&format!(
+                        "ERROR hostmem: guest RAM {:#x}+{:#x} (DMA_MAP answered): registration failed: {e}; DMA to it stays refused",
+                        p.gpa, p.size
+                    ));
+                    failed = true;
+                }
+            }
+        }
+        // Only after a failure: hostmem's lock may be the worker's for its next piece.
+        let fail_closed = failed && matches!(&self.guest_ram,
+            GuestRam::Register(hm) if !hm.lock().unwrap().free_failures().is_empty());
+        if fail_closed {
+            self.mem.set_table(Some(DmaTable::default()));
+        } else if publish {
+            if let Err(e) = self.publish_table() {
+                self.note(&format!("ERROR dma table: {e}"));
+            }
+        }
     }
 
     /// Let the host event thread raise vectors and the MSI (its eventfd and the MSI
@@ -967,6 +1104,19 @@ impl Device {
     /// Free the host memory at the end of the session (the client disconnected). The
     /// guest is gone, so nothing uses the IOVAs any more.
     pub fn shutdown(&mut self) {
+        // No registration after this; the piece in flight finishes (hostmem frees it with
+        // the rest).
+        if let Some(r) = self.registrar.take() {
+            r.stop();
+            if let Some(t) = self.registrar_thread.take() {
+                let _ = t.join();
+            }
+            let (n, t) = r.waits();
+            self.note(&format!(
+                "hostmem: guest RAM registrar: the shadow waited for it {n} time(s), {} ms in total",
+                t.as_millis()
+            ));
+        }
         // Mirror channels first (they may still be scheduled on the physical GPU), then
         // the descriptors and the reservation (docs/caraxes/memory-model.md §4).
         let mirror_log: Vec<String> = self
@@ -1273,6 +1423,7 @@ impl ServerBackend for Device {
         offset: u64,
         data: &mut [u8],
     ) -> Result<(), std::io::Error> {
+        self.apply_registrations();
         let mut note = None;
         match region {
             VFIO_PCI_CONFIG_REGION_INDEX => self.cfg.region_read(offset as usize, data),
@@ -1317,6 +1468,7 @@ impl ServerBackend for Device {
         offset: u64,
         data: &[u8],
     ) -> Result<(), std::io::Error> {
+        self.apply_registrations();
         // A BAR0 write that lands in the config-space mirror orders no FB, BAR1 or GPU
         // state (`after_bar0_write`).
         let mut sync_point = true;
@@ -1398,11 +1550,18 @@ impl ServerBackend for Device {
                 }
             }
         }
+        self.apply_registrations();
         if let Some(f) = &fd {
             if let Err(e) = self.mem.map(address, size, offset, f) {
                 self.trace
                     .event(&format!("dma_map address={address:#x}: mmap failed: {e}"));
                 return Err(e);
+            } else if self.registrar.is_some() {
+                // Answered now, registered off the loop (registrar.rs).
+                if let Err(e) = self.queue_guest_ram(address, size) {
+                    self.mem.unmap(address, size);
+                    return Err(e);
+                }
             } else if let Err(e) = self.add_guest_ram(address, size) {
                 // Refuse the map: the VM must not run with guest RAM the GPU cannot
                 // reach or with a host short of RAM.
@@ -1441,6 +1600,7 @@ impl ServerBackend for Device {
         // QEMU also reports ROM/MMIO extents without a RAM fd. Their lifecycle
         // does not change any registered pages or translation table.
         if self.dma.iter().any(|m| m.address == address && m.size == size && m.fd.is_some()) {
+            self.cancel_guest_ram(address, size)?;
             self.remove_guest_ram(address, size)?;
         }
         self.dma.retain(|m| !(m.address == address && m.size == size));

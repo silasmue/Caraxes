@@ -68,6 +68,7 @@ pub mod ptcache;
 pub mod public;
 pub mod rc;
 pub mod recorded;
+pub mod registrar;
 pub mod rpc;
 pub mod rusd;
 pub mod selftest;
