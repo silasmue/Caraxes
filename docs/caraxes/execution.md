@@ -368,3 +368,101 @@ Code: `D/invgate.rs`, `D/mirror.rs` `shadow_invalidated`, `invalidate_busy`, `Sh
 - **GPU run must confirm.** Kick rate while streaming (cursor test 25-60 kicks/s instead of
   8-25), Sunshine frame latency, reactor lock-wait p99 back near the 13.6 ms of no stream, the
   busy-read and fallback counters, and no Xid 31 over five Moonlight connect cycles.
+
+### 8.1 The invalidate's scope and an urgent-first worker (2026-09-29)
+
+Evidence: `/mnt/vmstore/caraxes/runs-2026-09-29/sottr-stall/` (SotTR stuck on its loading screen
+for 20+ minutes, P43, 4 GiB).
+
+- **What the guest did.** 90 % of the game's samples in `osDevReadReg032` polling TRIGGER under
+  `gvaspaceAlloc_IMPL` and `dmaUpdateVASpace_GF100`; VRAM allocations and DMA maps took 250-570 ms
+  each, 3-4 per second (guest perf and bpftrace, `guest-perf-1228.txt`, `guest-ioctl-hist-1227.txt`).
+- **What the device counted** (`gpu-exit.log`): 54213 held invalidates, 1850 s held in total
+  (34 ms mean, 794 ms longest), 3.47 M busy trigger reads (64 per hold); 42066 invalidates of other
+  roots deferred (lazy) and planned in 15762 batches. The per-shadow lines left at exit show only
+  seconds of apply time, and those roots were created and freed many times (131 channels; the
+  lines of those freed earlier went to the trace, which was off). The holds were most likely
+  waiting, behind other roots' jobs in the FIFO worker (the lazy batches a hold
+  flushed first, doorbell batches, new VASes' full syncs) and behind the device lock (pool polls
+  over 2 ms: 5924; the BAR2 memfd's full scans: 134277 syncs, 55 s).
+- **The card's rule.** An invalidate completes when the TLB holds no stale translation for its
+  target. So TRIGGER reads busy until the worker applied the jobs of the invalidate's scope only:
+  - the named root, or for `ALL_PDB` the roots whose GPPut store does not trap
+    (`untrapped::held_roots`); every other root's channel runs after a doorbell whose barrier
+    plans and waits for its root, so those follow the lazy rule (planned without a wait, or
+    deferred);
+  - the hold no longer flushes the other roots' deferred invalidates first.
+- **Urgent first.** The worker keeps one queue per root (`JobQueues`); a root someone waits for
+  (an armed gate, a doorbell or GPPut barrier, `Progress::wait`) has its jobs applied before older
+  jobs of other roots. A root's jobs never pass each other (Create, Apply, Free, Coverage). Progress
+  is per job (`Progress::begin`/`finish`), so `wait_all` (`Target::All`) still means every job up to
+  a number, and `wait_root` (`Target::Roots`) exactly the root's jobs.
+- **Kept.** Maps are applied before TRIGGER clears: a host channel whose GPPut store does not trap
+  may fetch the next work at once, and a missing leaf there is an MMU fault (Xid 31), so the
+  plan's unmaps and maps both belong to the hold. The MEM_OP hold (`memop_holds`) and the pool's
+  `shadow_barrier` are unchanged. Not done: coalescing queued plans of one root (a later plan
+  covers only its changed units) and parallel workers (the host RM serialises the calls anyway).
+- **Counters.** The mirror line ends with `shadow worker: N plan(s) applied in X ms, queued Y ms in
+  total (Z us max), P job(s) of a waited-for root applied before older ones`. With
+  `CARAXES_PROFILE=1` the rows `held invalidate: armed to TRIGGER read done` and
+  `shadow worker: plan queued before apply` give the distributions; the host RM rows give the
+  worker's call times.
+- **Tests.** `invgate::tests` (out-of-order finish, urgency while waiting and while a gate is
+  armed, a gate with nothing in flight), `untrapped::tests::a_held_invalidate_waits_for_its_scope_only`,
+  `mirror::tests::the_worker_takes_a_waited_for_root_first_and_keeps_each_roots_order`.
+
+## 9. Lock ordering and what may run under the device lock (2026-09-29)
+
+The device lock (D, `Arc<Mutex<Device>>`, device.rs) serialises every trapped access, every
+reactor wake-up and every clock. A long hold stops unrelated engines: Windows C61 timed out its
+VSync behind a 495 ms mirror build and 500-650 ms control replies; SotTR on Linux waited up to
+441 ms behind a pool poll. The card's rules bound what needs D:
+
+- a doorbell only promises that the GPU fetches the new entries eventually;
+- a control reply may take as long as it needs, but must not stop unrelated engines;
+- the held invalidate's trigger read waits at most 50 us per read (§8), and the guest polls it.
+
+**Order.** D first, then any of: the BAR1 pool's lock, the display engine's lock, the host RM
+mutex (`hm`, `HostMemory`), the shadow worker's and the builder's internals (`invgate::Progress`,
+job queues), the BAR2 flush state. A thread that holds any of these never takes D. The shadow
+worker, a builder, the pool's mover and the display clock hand their results to D-holders through
+queues or atomics (a completion drained at the next D hold, or a host doorbell write the worker
+does itself).
+
+**What runs under D.** Short state changes only: reading a guest structure, updating the
+registry and the mirror's maps, writing a reply or a register, submitting a job. Not under D:
+
+- waiting for the shadow worker, a builder or the pool (a doorbell holds its ring instead, §9.1);
+- host RM calls that build objects (a channel's mirror build, §9.2) or serve a slow control
+  (the RPC worker, §9.4);
+- a shadow full walk (bounded resumable steps, §9.3).
+
+The one wait that stays is the trigger read's `POLL_WAIT` (50 us). A wait under D that is not
+bounded is a bug; the D hold histogram in the exit summary names the holder of every long hold.
+
+§9.1-9.4 are the steps (branch lockfree-2026-09-29): the held ring, the build off D, bounded walks,
+the RPC worker. The pool's barrier becomes a held ring as well (the pool rework); the display
+clock's per-tick work takes the display engine's lock and never D.
+
+### 9.1 The held ring (2026-09-29)
+
+- A doorbell of a built shadow channel plans its root as before, then checks its target (the
+  root's last job, `invgate::Target`) and the ring gate (`ringgate.rs`). Applied and not held: it
+  rings at once. Otherwise it records a held ring for the channel (one per channel; later doorbells
+  join it with the newer target) and returns.
+- The shadow worker pokes the gate after every job. The completer thread (main.rs,
+  `ring-completer`) waits on the gate without D while rings are held and takes D briefly to
+  forward the ready ones (`Mirror::complete_held_rings`: FB flush, shadow USERD publish, the
+  forwarded GPPut, the host doorbell, the harvest).
+- Holds for other users (the BAR1 pool): `Mirror::hold_rings(roots) -> token`,
+  `Mirror::release_rings(token)`, `Mirror::submit_call(root, call, Some(token))` runs a host RM
+  call on the worker in order with the root's plans and releases the token after it. The gate is
+  process-wide (`ringgate::global`), so a model rebuilt at a reset keeps it.
+- A freed channel's held ring is dropped; a reset drops them all.
+- Counters: the mirror line's `held rings: ...` part; the device-lock holds by holder
+  (`dlock.rs`) at exit: count, total, p50/p99 bounds, max per holder, and the longest holds.
+- Still waiting under D: the preparation path (`submit` false), the trapped GPPut store's barrier
+  (`gp_put_barrier`), the software MEM_OP hold, the pool's barriers (pool rework), the first
+  doorbell's build (§9.2).
+- Tests: `ringgate::tests` (a ring waits for its root's jobs and holds only; the completer wakes
+  on a poke while rings are held), `dlock::tests`.

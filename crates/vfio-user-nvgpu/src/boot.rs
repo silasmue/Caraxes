@@ -955,6 +955,14 @@ impl BootModel {
                 "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes",
                 st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written
             ));
+            s.push(format!(
+                "vram store reads by caller: {}",
+                crate::fb::vram_reads_by_why()
+                    .iter()
+                    .map(|(n, c, b)| format!("{n} {c} read(s) of {b} bytes"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
         }
         if self.fb.private_refused() > 0 {
             s.push(format!(
@@ -1154,6 +1162,20 @@ impl BootModel {
     pub fn with_doorbell_tokens(mut self, n: usize) -> Self {
         self.ctrl.channels.tokens = Some(crate::tokens::TokenPool::new(n));
         self
+    }
+
+    /// Forward the held rings that are ready (ringgate.rs; the completer thread).
+    pub fn complete_held_rings(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.complete_held_rings(&mut gm)
+    }
+
+    /// The mirror's ring gate, when there is a mirror.
+    pub fn ring_gate(&self) -> Option<std::sync::Arc<crate::ringgate::RingGate>> {
+        self.ctrl.ring_gate()
     }
 
     /// A ring of pool token `token` through its ioeventfd (device.rs `doorbell_tokens`).

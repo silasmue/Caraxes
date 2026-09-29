@@ -293,6 +293,20 @@ guest's tables. So no other page needs to trap.
    drift counter samples it); and a guest BAR2 write that is not yet synced lands after a later
    BAR1 write to the same bytes. No trace shows either for the page-table and instance memory the
    guests read back through BAR2.
+6. **The victim cache** (2026-09-29, `Victims`). The 615 RM maps a page table into BAR2 for a
+   PTE update and unmaps it after (SotTR: 77051 pages entered BAR2 over the run, 32104 of them
+   loaded from VRAM, 157815 VRAM window maps). When a page the device follows as a table (a
+   cached walk reads it) leaves the mapping, its snapshot is kept: it equals VRAM (the sync
+   wrote the guest's bytes back first), and a page table has no other writer (the pool never
+   holds one, no host engine writes the guest's tables, the device's own writes patch the
+   entry, a write it only learns of, `note_range_changed`, drops it). It stays valid while the
+   table epoch stands (`FakeFb::table_epoch`, moved whenever a cached walk stops reading a table
+   page, so a page table reused as data is never served stale). A page that enters BAR2 again
+   is loaded from it, and device reads of it are served from it, without an uncached BAR1 read
+   through a window that must be mapped first. At most 4096 pages (16 MiB). The exit line counts
+   kept, load hits and misses, reads served, stale, dropped and evicted entries; the VRAM store
+   line is followed by its reads by caller (device data, page tables, BAR2 loads, drift samples,
+   other).
 
 **Hazards, counted or stated:**
 

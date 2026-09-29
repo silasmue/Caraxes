@@ -1592,7 +1592,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                         if hint.is_some() {
                             vfio_user_nvgpu::launch::begin(std::time::Instant::now(), false);
                         }
-                        let mut dev = d.lock().unwrap_or_else(PoisonError::into_inner);
+                        let mut dev = vfio_user_nvgpu::dlock::lock(&d, "usermode page reactor");
                         vfio_user_nvgpu::launch::mark(vfio_user_nvgpu::launch::Step::Lock);
                         let rung = dev.doorbell_from_page(hint);
                         drop(dev);
@@ -1613,11 +1613,29 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         // in memory reads none either).
         let d = device.clone();
         vfio_user_nvgpu::display::engine::ticker().set_driver(Arc::new(move || {
-            d.lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .display_tick()
+            vfio_user_nvgpu::dlock::lock(&d, "display clock tick").display_tick()
         }));
     }
+    // The held-ring completer (ringgate.rs, docs/caraxes/execution.md §9.1): while doorbells
+    // are held for their root's shadow jobs, it waits for the worker's progress without the
+    // device lock and takes the lock briefly to forward the rings that are ready.
+    let completer = {
+        let d = device.clone();
+        let gate = vfio_user_nvgpu::ringgate::global();
+        std::thread::Builder::new()
+            .name("ring-completer".into())
+            .spawn(move || {
+                let mut seen = u64::MAX;
+                while let Some(g) = gate.wait_ready(seen, std::time::Duration::from_millis(50)) {
+                    seen = g;
+                    if gate.waiting() == 0 {
+                        continue;
+                    }
+                    vfio_user_nvgpu::dlock::lock(&d, "held ring completer").complete_held_rings();
+                }
+            })
+            .context("spawn the ring completer")?
+    };
     // The BAR2 memfd's flush clock: a flush read's owed sync that no hand-over settled
     // within the bound (bar2area.rs `DeferredFlush`, docs/caraxes/display-pacing.md).
     let flush_clock = device
@@ -1627,9 +1645,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     if let Some(c) = flush_clock {
         let d = device.clone();
         c.spawn_clock(Box::new(move || {
-            d.lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .settle_bar2_flush()
+            vfio_user_nvgpu::dlock::lock(&d, "bar2 flush clock").settle_bar2_flush()
         }))
         .context("bar2 flush clock")?;
     }
@@ -1691,7 +1707,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             while !stop.load(std::sync::atomic::Ordering::Acquire) {
                 std::thread::sleep(std::time::Duration::from_millis(1));
                 if stop.load(std::sync::atomic::Ordering::Acquire) { break }
-                d.lock().unwrap_or_else(PoisonError::into_inner).poll_shadow_userds();
+                vfio_user_nvgpu::dlock::lock(&d, "shadow USERD poll").poll_shadow_userds();
             }
         }).context("spawn shadow USERD poller")?)
     } else {
@@ -1734,6 +1750,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if let Some(t) = soak {
         let _ = t.join();
+    }
+    vfio_user_nvgpu::ringgate::global().stop();
+    let _ = completer.join();
+    for l in vfio_user_nvgpu::dlock::summary() {
+        eprintln!("vfio-user-nvgpu: {l}");
     }
     let mut device = device.lock().unwrap_or_else(PoisonError::into_inner);
     // The soak line at exit, before the teardown (what the guest's session left held), and
