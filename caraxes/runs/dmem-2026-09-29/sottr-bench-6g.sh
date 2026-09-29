@@ -92,15 +92,22 @@ MP=$!; echo $MP > "$OUT/moonlight.pid"; sleep 10
 log "moonlight pid $MP alive=$(kill -0 $MP 2>/dev/null && echo yes || echo no)"
 
 # The game (the launcher window, then Return).
-T=420 gssh 'bash -s' > "$OUT/game-start.txt" <<'G'
+T=900 gssh 'bash -s' > "$OUT/game-start.txt" <<'G'
 export XDG_RUNTIME_DIR=/run/user/1000 DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 export XAUTHORITY=$(ls -t /run/user/1000/.mutter-Xwaylandauth.* | head -1)
 for p in $(pgrep -x steam); do echo "steam $p before launch: $(cat /proc/$p/cgroup)"; done
 setsid nohup systemd-run --user --scope --slice=app.slice --collect -- /usr/games/steam -silent > /tmp/steam-run.log 2>&1 < /dev/null &
-sleep 45
+# The game needs Steam logged on: started too early it exits at once with "SteamAPI_Init()
+# failed; connect to global user failed". Retry until it stays up (at most 8 tries).
 GD="/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider"
-(cd "$GD" && setsid nohup systemd-run --user --scope --slice=app.slice --collect -- "$HOME/.steam/debian-installation/ubuntu12_32/steam-runtime/run.sh" env SteamAppId=750920 SteamGameId=750920 "$GD/ShadowOfTheTombRaider.sh" > /tmp/game-run.log 2>&1 < /dev/null &)
-echo "steam -silent, game started directly" 
+G=Shadow; G="${G}OfTheTombRaider"
+for t in 1 2 3 4 5 6 7 8; do
+  sleep 30
+  (cd "$GD" && setsid nohup systemd-run --user --scope --slice=app.slice --collect -- "$HOME/.steam/debian-installation/ubuntu12_32/steam-runtime/run.sh" env SteamAppId=750920 SteamGameId=750920 "$GD/ShadowOfTheTombRaider.sh" > /tmp/game-run.log 2>&1 < /dev/null &)
+  sleep 25
+  if pgrep -f "bin/$G" > /dev/null; then echo "steam -silent, game started directly (try $t)"; break; fi
+  echo "try $t: the game exited: $(grep -m1 -E 'FAIL|rror' /tmp/game-run.log)"
+done
 G=Shadow; G="${G}OfTheTombRaider"
 for i in $(seq 1 100); do
   w=$(xdotool search --name "Shadow of the Tomb Raider Options" 2>/dev/null | head -1)
