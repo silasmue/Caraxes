@@ -5320,6 +5320,71 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// A client that keeps its token at another notifier index (SET_WORK_SUBMIT_TOKEN_NOTIF_
+    /// INDEX, handled by the guest RM alone): the entry is found by the RM's signature and
+    /// gets the pool token, both when the default entry holds nothing and when the pool
+    /// token was written to the default entry before.
+    #[test]
+    fn a_token_at_another_notifier_index_gets_the_pool_token() {
+        use crate::tokens::{TokenPool, NOTIFIER_TOKEN_OFFSET, TOKEN_BASE, TOKEN_ENTRY_STATUS};
+        let (mut fb, sys, path, _root) = world("tokens-index");
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        d.channels.tokens = Some(TokenPool::new(4));
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        let with_notifier = |chid: u32, userd: u64, notifier: u64| {
+            let mut p = channel_params(chid, 0x1000_0000, userd, 0);
+            let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem;
+            p[o + v::MEM_DESC_BASE..o + v::MEM_DESC_BASE + 8]
+                .copy_from_slice(&notifier.to_le_bytes());
+            p[o + v::MEM_DESC_ADDRESS_SPACE..o + v::MEM_DESC_ADDRESS_SPACE + 4]
+                .copy_from_slice(&ADDR_SYSMEM.to_le_bytes());
+            p
+        };
+        let (n9, n10) = (0x4008_0000u64, 0x4008_1000u64);
+        reg.record_alloc(1, 0x30, 0x40, TURING_CHANNEL_GPFIFO_A, &with_notifier(9, 0x20_0000, n9))
+            .unwrap();
+        reg.record_alloc(1, 0x30, 0x41, TURING_CHANNEL_GPFIFO_A, &with_notifier(10, 0x20_1000, n10))
+            .unwrap();
+        let entry = |notifier: u64, index: u64, token: u32| {
+            let mut e = [0u8; 16];
+            e[8..12].copy_from_slice(&token.to_le_bytes());
+            e[14..16].copy_from_slice(&TOKEN_ENTRY_STATUS.to_le_bytes());
+            assert!(sys.write(notifier + 16 * index, &e));
+        };
+        // Channel 9: entry 1 holds 0, the token is at index 5.
+        let (t9, t10) = ((1u32 << 16) | 9, (1u32 << 16) | 10);
+        entry(n9, 5, t9);
+        fb.write(0x100000, &[0u8; 16]);
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let notes = d.doorbell(&mut mem, t9);
+        assert!(notes.iter().any(|n| n.contains("chid 9 gets pool token 0xca700000")), "{notes:#?}");
+        assert_eq!(sys.read_u32(n9 + 16 * 5 + 8), Some(TOKEN_BASE));
+        assert_eq!(sys.read_u32(n9 + NOTIFIER_TOKEN_OFFSET), Some(0), "entry 1 left alone");
+        // Channel 10: the token at entries 1 and 7 (a client that moved its index after the
+        // first GET): both get the pool token.
+        entry(n10, 1, t10);
+        entry(n10, 7, t10);
+        let notes = d.doorbell(&mut mem, t10);
+        assert!(notes.iter().any(|n| n.contains("chid 10 gets pool token 0xca700001")), "{notes:#?}");
+        assert_eq!(sys.read_u32(n10 + NOTIFIER_TOKEN_OFFSET), Some(TOKEN_BASE + 1));
+        assert_eq!(sys.read_u32(n10 + 16 * 7 + 8), Some(TOKEN_BASE + 1));
+        let s = &d.channels.tokens.as_ref().unwrap().stats;
+        assert_eq!((s.handed_out, s.elsewhere, s.mismatch), (2, 2, 0));
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// The doorbell token pool through the dispatcher (docs/caraxes/doorbell-token-pool.md):
     /// the first ring traps with the guest token and hands out a pool token through the
     /// work-submit-token notifier entry; later rings by pool token (eventfd or trapped)

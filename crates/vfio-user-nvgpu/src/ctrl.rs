@@ -520,17 +520,39 @@ impl Dispatcher {
         };
         use crate::fb::Target;
         use crate::tokens::NOTIFIER_TOKEN_OFFSET as AT;
-        let at = match notifier {
-            Target::Fb(pa) => Target::Fb(pa + AT),
-            Target::Sys(pa) => Target::Sys(pa + AT),
+        let at_off = |off: u64| match notifier {
+            Target::Fb(pa) => Target::Fb(pa + off),
+            Target::Sys(pa) => Target::Sys(pa + off),
             other => other,
         };
+        let at = at_off(AT);
         let current = gm.read_u32(at);
-        if held.is_some() && current == held {
+        // The token's entry at another index (a client's own
+        // SET_WORK_SUBMIT_TOKEN_NOTIF_INDEX, which the guest RM handles without a GSP
+        // call): found by the RM's signature. SotTR run E: 43273 rings kept their own token
+        // because entry 1 held 0, and 57274 rang their own token after a hand-out to entry 1.
+        // The scan stays inside the notifier's first page.
+        let base = match notifier {
+            Target::Fb(pa) | Target::Sys(pa) => pa,
+            _ => 0,
+        };
+        let span = (16 * crate::tokens::TOKEN_SCAN_ENTRIES).min(0x1000 - (base & 0xFFF) as usize);
+        let mut buf = vec![0u8; span];
+        let tokens: Vec<u32> = std::iter::once(rung).chain(host).collect();
+        let elsewhere: Vec<Target> = if gm.read(notifier, &mut buf) {
+            crate::tokens::token_entries(&buf, &tokens)
+                .into_iter()
+                .map(|i| at_off(16 * i as u64 + 8))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let default_holds = current.is_some() && (current == Some(rung) || current == host);
+        if held.is_some() && current == held && elsewhere.is_empty() {
             pool.stats.own_token_after_handout += 1;
             return Vec::new();
         }
-        if current.is_none() || (current != Some(rung) && current != host) {
+        if !default_holds && elsewhere.is_empty() {
             pool.stats.mismatch += 1;
             let why = format!(
                 "chid {chid}: work-submit-token entry at {at:?} holds {current:x?}, not the rung token {rung:#x}{}",
@@ -541,22 +563,34 @@ impl Dispatcher {
                 "doorbell tokens: {why}; it keeps its own token (trapped)"
             )];
         }
-        let Some(token) = pool.assign(chid) else {
+        let Some(token) = held.or_else(|| pool.assign(chid)) else {
             pool.stats.exhausted += 1;
             return vec![format!(
                 "doorbell tokens: pool of {} exhausted; chid {chid} keeps token {rung:#x} (trapped)",
                 pool.len()
             )];
         };
-        if !gm.write(at, &token.to_le_bytes()) {
-            pool.release(chid);
-            pool.stats.mismatch += 1;
-            return vec![format!(
-                "doorbell tokens: chid {chid}: write of {token:#x} to {at:?} failed; it keeps its own token (trapped)"
-            )];
+        let targets: Vec<Target> = default_holds
+            .then_some(at)
+            .into_iter()
+            .chain(elsewhere.iter().copied())
+            .collect();
+        for t in &targets {
+            if !gm.write(*t, &token.to_le_bytes()) {
+                if held.is_none() {
+                    pool.release(chid);
+                }
+                pool.stats.mismatch += 1;
+                return vec![format!(
+                    "doorbell tokens: chid {chid}: write of {token:#x} to {t:?} failed; it keeps its own token (trapped)"
+                )];
+            }
         }
         if matches!(at, crate::fb::Target::Fb(_)) {
             gm.fb.flush();
+        }
+        if !elsewhere.is_empty() {
+            pool.stats.elsewhere += 1;
         }
         if held.is_some() {
             pool.stats.rewritten += 1;
@@ -564,12 +598,13 @@ impl Dispatcher {
             pool.stats.handed_out += 1;
         }
         vec![format!(
-            "doorbell tokens: chid {chid} {} pool token {token:#x} (was {rung:#x}{}), written to its work-submit-token notifier entry at {at:?} [synthesized]",
+            "doorbell tokens: chid {chid} {} pool token {token:#x} (was {rung:#x}{}), written to its work-submit-token notifier entr{} at {targets:?} [synthesized]",
             if held.is_some() { "gets back its" } else { "gets" },
             match host {
                 Some(h) if current == Some(h) => format!("; the entry held the host token {h:#x}"),
                 _ => String::new(),
-            }
+            },
+            if targets.len() == 1 { "y" } else { "ies" }
         )]
     }
 

@@ -45,6 +45,31 @@ pub const DEFAULT_TOKENS: usize = 64;
 /// `kchannelNotifyWorkSubmitToken` (kernel_channel.c:4015-4030).
 pub const NOTIFIER_TOKEN_OFFSET: u64 = 16 + 8;
 
+/// A client may keep its token at another notifier index
+/// (`NVC36F_CTRL_CMD_GPFIFO_SET_WORK_SUBMIT_TOKEN_NOTIF_INDEX`, which the guest RM of a GSP
+/// system handles alone, kernel_channel.c:3455-3496 of 615): the entries scanned for it.
+pub const TOKEN_SCAN_ENTRIES: usize = 64;
+
+/// The status `kchannelNotifyWorkSubmitToken` writes with a token (kernel_channel.c
+/// :4359-4372 of 615): IN_PROGRESS (15:15) TRUE and VALUE (14:0) 0x7FFF; info16 is 0.
+pub const TOKEN_ENTRY_STATUS: u16 = 0xFFFF;
+
+/// The notifier entries (index, from 2) of a 16-byte `NvNotification` array `buf` that
+/// hold one of `tokens` as the RM writes a work-submit token: info32 the token, info16 0,
+/// status [`TOKEN_ENTRY_STATUS`]. Entries 0 (errors) and 1 (the default index) are not
+/// scanned.
+pub fn token_entries(buf: &[u8], tokens: &[u32]) -> Vec<usize> {
+    (2..buf.len() / 16)
+        .filter(|&i| {
+            let e = &buf[16 * i..16 * i + 16];
+            let info32 = u32::from_le_bytes(e[8..12].try_into().unwrap());
+            let info16 = u16::from_le_bytes(e[12..14].try_into().unwrap());
+            let status = u16::from_le_bytes(e[14..16].try_into().unwrap());
+            info16 == 0 && status == TOKEN_ENTRY_STATUS && tokens.contains(&info32)
+        })
+        .collect()
+}
+
 /// The pool size `CARAXES_DOORBELL_TOKENS` asks for: `None` when unset, empty or 0.
 pub fn requested() -> Result<Option<usize>, String> {
     let Ok(v) = std::env::var(TOKENS_ENV) else {
@@ -101,6 +126,8 @@ pub struct PoolStats {
     pub no_notifier: u64,
     pub mismatch: u64,
     pub exhausted: u64,
+    /// Pool tokens written into a token entry at another index than the default one.
+    pub elsewhere: u64,
     /// The first few stale tokens and mismatches, for the log.
     pub first: Vec<String>,
 }
@@ -198,7 +225,7 @@ impl TokenPool {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "doorbell tokens: {} offered ({TOKEN_BASE:#x}..), {} handed out, {} written again, {} assigned at exit (peak {}); {} eventfd wakeup(s) for {} guest write(s); {} pool token(s) trapped; {} trapped ring(s) with a channel's own token after its hand-out; {} stale; left on their own token: {} without notifier, {} notifier mismatch, {} pool exhausted{}",
+            "doorbell tokens: {} offered ({TOKEN_BASE:#x}..), {} handed out, {} written again, {} assigned at exit (peak {}); {} eventfd wakeup(s) for {} guest write(s); {} pool token(s) trapped; {} trapped ring(s) with a channel's own token after its hand-out; {} written into the token entry at another notifier index; {} stale; left on their own token: {} without notifier, {} notifier mismatch, {} pool exhausted{}",
             self.slots.len(),
             s.handed_out,
             s.rewritten,
@@ -208,6 +235,7 @@ impl TokenPool {
             s.eventfd_writes,
             s.trapped_pool_rings,
             s.own_token_after_handout,
+            s.elsewhere,
             s.stale,
             s.no_notifier,
             s.mismatch,
