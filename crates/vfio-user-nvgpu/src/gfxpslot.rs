@@ -11,6 +11,13 @@
 //! VAs below 2^47), and never mirrored (shadow.rs `Layout::slot_window`). No host VRAM outside
 //! the slice, and a guest mapping can never land on a slot VA.
 
+/// Whether the device carves slots and binds GFXP at all. Off while no GFXP buffer VA design
+/// holds: the buffers need VAs below 2^47 (the context switch keeps 47 bits, run P42: host Xid
+/// 31 at the VAs with bit 47 dropped) that no guest leaf can take, and a base-0 shadow VA space
+/// has the host's own server-RM range on the one range every guest leaves free (docs/research/
+/// gr-preemption-2026-09-29.md). Off: no carve-out, every host GR context in graphics WFI.
+pub const ENABLED: bool = false;
+
 /// The GR context buffer ids of the GFXP set (`NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ID_*`).
 pub const ENGINES: [u32; 5] = [0xb, 0xc, 0xd, 0xe, 0xf];
 /// Placement granule of a buffer inside its slot.

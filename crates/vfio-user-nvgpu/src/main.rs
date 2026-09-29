@@ -869,8 +869,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         // Owned GFXP in the VM's slice (gfxpslot.rs): slots for the host GR contexts' preemption
         // buffers, carved from the usable FB before the static info is built. Without them
-        // every host GR context stays in graphics WFI (one WARN).
-        if a.host_exec {
+        // every host GR context stays in graphics WFI (one WARN). Off (`gfxpslot::ENABLED`)
+        // until the buffers have a VA design: no carve-out, the usable FB as before.
+        if a.host_exec && vfio_user_nvgpu::gfxpslot::ENABLED {
             use vfio_user_nvgpu::gfxpslot;
             let slots = gfxpslot::host_geometry(&h).and_then(|g| {
                 let n = gfxpslot::count_for(layout.profile);
