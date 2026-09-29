@@ -895,6 +895,8 @@ struct ShadowUserd {
     guest: u64,
     entries: u32,
     published_put: Option<u32>,
+    /// Get and GPGet of the host USERD at the last harvest (`GpuState::read_if_moved`).
+    harvested: Option<(u32, u32)>,
 }
 
 impl ShadowUserd {
@@ -908,8 +910,11 @@ impl ShadowUserd {
         Ok(cpu.gp_put())
     }
 
-    fn harvest(&self, gm: &mut GpuMem) {
-        if let Some(state) = crate::userd::GpuState::read(|off| Some(self.storage.read_u32(off))) {
+    fn harvest(&mut self, gm: &mut GpuMem) {
+        let storage = &self.storage;
+        if let Some(state) = crate::userd::GpuState::read_if_moved(&mut self.harvested, |off| {
+            Some(storage.read_u32(off))
+        }) {
             state.publish(|off, value| {
                 if let Some(at) = self.guest.checked_add(off) {
                     gm.write(Target::Sys(at), &value.to_le_bytes());
@@ -1658,9 +1663,9 @@ impl Mirror {
         let mut pending = Vec::new();
         for chid in ids {
             self.userd_cursor = chid;
-            let hc = self.channels.get(&chid).unwrap();
+            let hc = self.channels.get_mut(&chid).unwrap();
             if !hc.context_ready || reg.channel(chid).is_none_or(|ch| ch.generation != hc.generation) { continue }
-            let u = hc.userd.as_ref().unwrap();
+            let u = hc.userd.as_mut().unwrap();
             u.harvest(gm);
             if gm.read_u32(Target::Sys(u.guest + 0x8c))
                 .is_some_and(|put| put < u.entries && Some(put) != u.published_put)
@@ -2174,8 +2179,11 @@ impl Mirror {
                 notes.push(format!("shadow: chid {chid} context already prepared; no submission"));
                 return notes;
             }
-            if let Some(u) = self.channels.get_mut(&chid).and_then(|hc| hc.userd.as_mut()) {
-                u.harvest(gm);
+            if let Some(u) = self
+                .channels
+                .get_mut(&chid)
+                .and_then(|hc| hc.userd.as_mut())
+            {
                 if let Err(e) = u.publish(gm) {
                     notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
                     return notes;
@@ -2195,6 +2203,15 @@ impl Mirror {
             match self.doorbell(chid) {
                 Ok(n) => notes.push(n),
                 Err(e) => notes.push(format!("shadow: doorbell chid {chid}: {e}")),
+            }
+            // The GPU-owned words back to the guest's USERD after the ring, off the
+            // submission path (uncached reads of the host USERD; P37: 9.6 us before it).
+            if let Some(u) = self
+                .channels
+                .get_mut(&chid)
+                .and_then(|hc| hc.userd.as_mut())
+            {
+                u.harvest(gm);
             }
             return notes;
         }
@@ -2445,6 +2462,7 @@ impl Mirror {
                     notes.push(format!("shadow USERD chid {chid}: guest sysmem {iova:#x} -> private host vidmem {:#x}, object {handle:#x} [host]", page.gpu_addr()));
                     shadow_userd = Some(ShadowUserd {
                         storage: page, guest: iova, entries: ch.gpfifo_entries, published_put: None,
+                        harvested: None,
                     });
                     (handle, 0)
                 }
@@ -2770,7 +2788,7 @@ impl Mirror {
             .ok_or("management idle has no host target")?;
         if status != sys::NV_OK { return Err(idle_note); }
         if self.management_cursor(reg, chid)? != expected_get { return Err("management prefix changed while idling".into()); }
-        self.channels.get(&chid).and_then(|hc| hc.userd.as_ref()).ok_or("private USERD disappeared")?.harvest(gm);
+        self.channels.get_mut(&chid).and_then(|hc| hc.userd.as_mut()).ok_or("private USERD disappeared")?.harvest(gm);
         self.worker.wait_all();
         let mut notes = vec![idle_note];
         if !self.free_tsg(key, &mut notes) { return Err(notes.join("; ")); }
@@ -3242,10 +3260,11 @@ impl Mirror {
             || reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
             return Err("deferred target VAS or TSG changed while idling".into());
         }
-        let hc = self.channels.get(&chid)
+        let hc = self.channels.get_mut(&chid)
             .filter(|hc| hc.generation == generation && hc.tsg == key)
             .ok_or("deferred target host context changed while idling")?;
-        let userd = hc.userd.as_ref().ok_or("deferred target has no private USERD")?;
+        let doorbells = hc.doorbells;
+        let userd = hc.userd.as_mut().ok_or("deferred target has no private USERD")?;
         let get = userd.storage.read_u32(USERD_GP_GET);
         if get >= userd.entries {
             return Err(format!("deferred target final GPGet {get} is outside its {}-entry ring", userd.entries));
@@ -3253,7 +3272,7 @@ impl Mirror {
         let put = userd.storage.read_u32(USERD_GP_PUT);
         let all_published_work_fetched = userd.published_put == Some(get);
         let untouched_empty_ring = userd.published_put.is_none()
-            && hc.doorbells == 0
+            && doorbells == 0
             && put == get;
         if !all_published_work_fetched && !untouched_empty_ring {
             return Err("deferred target still has published work after idling".into());

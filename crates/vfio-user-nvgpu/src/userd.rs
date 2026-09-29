@@ -63,6 +63,28 @@ impl GpuState {
         self.values[GPU_FIELDS.len() - 1]
     }
 
+    /// The snapshot only when the GPU moved since `last` (Get and GPGet as last read): any
+    /// GPU-owned word moves only with one of them (every consumed method, SET_REFERENCE
+    /// among them, advances Get; every fetched entry GPGet). Two reads for an idle channel
+    /// instead of six, each an uncached read of a host USERD in vidmem (P37: 9.6 us for the
+    /// six). Updates `last`.
+    pub fn read_if_moved(
+        last: &mut Option<(u32, u32)>,
+        mut read: impl FnMut(u64) -> Option<u32>,
+    ) -> Option<Self> {
+        let (get, gp_get) = (read(GPU_FIELDS[0])?, read(GPU_FIELDS[5])?);
+        if *last == Some((get, gp_get)) {
+            return None;
+        }
+        let state = Self::read(|off| match off {
+            o if o == GPU_FIELDS[0] => Some(get),
+            o if o == GPU_FIELDS[5] => Some(gp_get),
+            o => read(o),
+        })?;
+        *last = Some((get, gp_get));
+        Some(state)
+    }
+
     /// Publish GPU-owned words only; guest GPPut is never touched.
     pub fn publish(&self, mut write: impl FnMut(u64, u32)) {
         for (off, value) in GPU_FIELDS.into_iter().zip(self.values) {
@@ -122,6 +144,32 @@ mod tests {
         assert_eq!(guest[&0x8c], 19);
         assert_eq!(state.gp_get(), host[&0x88]);
         assert!(GPU_FIELDS.iter().all(|off| guest[off] == host[off]));
+    }
+
+    /// An idle channel costs two reads and publishes nothing; a moved one is read whole.
+    #[test]
+    fn an_idle_gpu_snapshot_is_two_reads() {
+        let mut host: BTreeMap<u64, u32> = GPU_FIELDS.into_iter().map(|o| (o, 1)).collect();
+        let mut last = None;
+        let reads = std::cell::Cell::new(0);
+        let read = |h: &BTreeMap<u64, u32>, off| {
+            reads.set(reads.get() + 1);
+            h.get(&off).copied()
+        };
+        assert!(GpuState::read_if_moved(&mut last, |o| read(&host, o)).is_some());
+        assert_eq!(reads.get(), 6);
+        assert!(GpuState::read_if_moved(&mut last, |o| read(&host, o)).is_none());
+        assert_eq!(reads.get(), 8);
+        // GPGet moved: the whole snapshot, with the new values.
+        host.insert(0x88, 2);
+        host.insert(0x48, 9);
+        let s = GpuState::read_if_moved(&mut last, |o| read(&host, o)).unwrap();
+        assert_eq!((s.gp_get(), reads.get()), (2, 14));
+        let mut guest = BTreeMap::new();
+        s.publish(|off, v| {
+            guest.insert(off, v);
+        });
+        assert_eq!(guest[&0x48], 9);
     }
 
     #[test]
