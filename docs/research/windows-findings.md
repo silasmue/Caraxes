@@ -1106,3 +1106,31 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   since f294c275.
 - Memory model: record windows need VRAM behind the FB address for good, so they are refused
   with the BAR1 pool, the BAR2 memfd or BAR1 passthrough (see display-own-clock.md §7).
+
+## Cloud Hypervisor, step 14: the VSync timeout is the notifier's timing (2026-09-29, C68-C70)
+
+- **With the display clock off the device lock and step 5b** (lf9, C70), the flip's trapped
+  writes take 0.2-0.3 ms. The TDR stays: TdrPayloadVSyncTimeout for present 0x2B.
+- **The DDIs wait for our BEGUN.** Every ETW flip DDI (DdiSetVidPnMultiPlaneOverlay3) spans
+  24-30 ms and ends 0.5-0.8 ms before a VSyncInterrupt. The KMD polls the flip's sysmem
+  notifier until it leaves NOT_BEGUN, and the device wrote BEGUN only at the latch.
+  - In C69 (D contention) the DDIs took 40-45 ms.
+- **The flips that never complete:**
+  - 0x2B (C70) was latch 47 at tick 737, one tick after 0x2A (latch 46 at 736).
+  - 0x11 (C68) was latch 21 at tick 1872, after latch 20 at 1871.
+  - 0x12 (C69) came 3 ticks after the previous flip, but with 40 ms DDIs.
+  - The recent-events ring shows their BEGUN and FINISHED written (device or clock path,
+    0 failed writes); the KMD reported the previous ID for 2 s.
+  - Flips 2+ ticks apart with short DDIs were all reported.
+  - In the software flip queue mode (DXGKETW_FLIPMODE_IMMEDIATE_SW_FLIP_QUEUE) dxgkrnl
+    completes flips itself. The failures come when it leaves that mode (hFlipDevice 0,
+    FLIPMODE_NO_DEVICE) and the KMD must confirm the flip from the hardware: with BEGUN at
+    the latch and FINISHED one frame later, the KMD's view of a flip that went BEGUN and
+    then FINISHED between two of its looks never showed the flip done.
+- **Model since 2026-09-29 (display-connector.md):**
+  - BEGUN when the UPDATE is armed (the kick), with that PTIMER time.
+  - FINISHED at the latch, with the latch's time.
+  - nouveau's wait for exactly BEGUN after an UPDATE is met at once. The Windows DDI returns
+    at once, and the vblank that latches the flip shows it FINISHED.
+  - Test: back_to_back_flips_finish_at_their_own_latch.
+- Memory model: none.

@@ -277,14 +277,23 @@ One periodic timer per active head.
      last latch; and any `SET_UPDATE_TIMESTAMP` time has arrived. An eligible flip latches:
      - the device releases the **previous** flip's release semaphore (hardware releases on
        flip-away; the displayless HAL copies this rule, `nvkms-displayless.c:262-276`);
-     - it writes the window notifier: the device's PTIMER value in words 2-3
-       (`NV_DISP_NOTIFIER__2/3_TIMESTAMP`, `clc67d.h:45-54`), status BEGUN in word 0,
-       and FINISHED at the next tick, when the first frame from the new surface has been
-       scanned out. The class lists the states without timing; both drivers fix it: NVKMS
-       tests the newest flip for BEGUN at the following vblank (`nvkms-headsurface.c:
-       1896-1922`), the Windows KMD waits for FINISHED after a modeset's single flip
-       before it unblanks (windows-findings.md, C49-C54). A flip on an inactive head is
-       FINISHED at once. nvidia-drm reads neither (it waits for AWAKEN);
+     - it writes the window notifier: the device's PTIMER value of the latch in words
+       2-3 (`NV_DISP_NOTIFIER__2/3_TIMESTAMP`, `clc67d.h:45-54`), then status FINISHED in
+       word 0. The notifier went BEGUN (with the PTIMER value of that moment) when the
+       `UPDATE` was armed, at the kick. The class lists the states without timing; the
+       drivers fix it:
+       - nouveau waits for exactly BEGUN right after its `UPDATE`
+         (`nv50_wndw_wait_armed`, `base507c_ntfy_wait_begun`, 2 s timeout);
+       - the Windows KMD's flip DDI waits for the notifier to leave NOT_BEGUN, and the KMD
+         reports the presentation at the vblank that makes it FINISHED. With BEGUN at the
+         latch and FINISHED one frame later (until 2026-09-29), every DDI waited up to a
+         frame, and a flip whose BEGUN and FINISHED fell between two of the KMD's looks
+         (two flips on consecutive frames, or a late DPC) was never reported: a VSync
+         timeout TDR (windows-findings.md steps 13-14);
+       - NVKMS headsurface asserts BEGUN for the previous flip at its next frame
+         (`nvkms-headsurface.c:1896-2010`); headsurface is not used on the tested guests.
+       A flip on an inactive head is FINISHED at once. nvidia-drm reads neither (it waits
+       for AWAKEN);
      - it sets the window's `AWAKEN_WIN` bit if the notifier mode is `WRITE_AWAKEN`.
   2. **Advance the raster.** Increment the `RG_DPCA` frame count and the LOADV counter.
   3. **Raise vblank.** Set `LAST_DATA` if the RM enabled it.
