@@ -857,10 +857,40 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - **Fix (82fb8741):** window notifier BEGUN; one device clock per process, kept across FLR
   (the RM sets PTIMER forward before every GSP boot, kernel_gsp.c:5677-5682); PTIMER-granular
   timestamps (low five bits 0); the flip-away release writes the record's timestamp;
-  `TIMESTAMP_MODE` holds a flip until PTIMER >= `SET_UPDATE_TIMESTAMP`. To be confirmed in C53
-  (ch8), then Linux B.
+  `TIMESTAMP_MODE` holds a flip until PTIMER >= `SET_UPDATE_TIMESTAMP`. BEGUN alone was
+  wrong for Windows, see step 6.
 - **BAR1 pool under CH (C50):** trapped BAR1 accesses 5.64 M (C49) to 148; heavy page moves;
   not the TDR's cause (same TDR without the pool).
 - **Automatic dumps** (eaf8c394): `dump auto` in display-ctl, one PNG per 3 s at most, last 10;
   the device removes a stale display-ctl at start, so run44.py arms it after the device start.
 - Memory model: none (display engine and device clock); the BAR1 pool result is the pool model.
+
+## Cloud Hypervisor, step 6: the KMD waits for FINISHED (2026-09-29, C53-begun, C54-armed)
+
+- **C53 (ch8, BEGUN only) and C54 (ch10, plus ARMED readback):** same stall. DWM's modeset
+  blanks the head, flips once (C53 151.6 s, C54 141.07 s), the KMD never unblanks; window
+  disable 2-4 s later, FLR, TDR. No host Xid.
+- **The unblank decides it.** Every run has this modeset: blank, one flip, unblank.
+  - Notifier FINISHED at the latch (ch4-ch7): unblank 1.5 ms after the flip's kick (C52),
+    36 ms (C51), likewise C49.
+  - BEGUN only (ch8, ch10): no unblank (C53, C54).
+- **The KMD's own records (C54, ch10 trace of the records before the device writes):** it
+  pre-sets a notifier record to 0x80000000 (FINISHED) and resets it to 0 (NOT_BEGUN, timestamp
+  0) before a flip; the previous release record holds the device's release (value, 0,
+  timestamp).
+- **Timing derived from both drivers** (the class gives the states only): BEGUN plus the
+  timestamp at the latch (NVKMS tests the newest flip for BEGUN at the next vblank,
+  nvkms-headsurface.c:1896-1922), FINISHED at the next tick, when the first frame from the new
+  surface has been scanned out (the Windows KMD's wait). No scanout (inactive head): FINISHED
+  at once. 26355f04, ch11; C55 tests it.
+- **ARMED readback (ca4b32d8):** the KMD reads window 0's ARMED `SET_PARAMS` (+0xA2C) and
+  `SET_COMPOSITION_CONTROL` (+0xAEC) around each flip; the model answered 0. Now every
+  channel's page reads back its assembly state and, in the upper half, its ARMED state
+  (open-gpu-doc gv100 dev_display_withoffset.ref.txt:5956-5973); C54 read 0xCF there. Not the
+  stall's cause, but the manual's behaviour.
+- **Dump cost:** one 1080p surface read through BAR1 took 591 ms under the device lock (C53);
+  read in 64 KiB steps it is 482 ms in 135 steps (C54), the PNG written by a thread.
+- **Open:** C52's later stall after three flips with FINISHED at the latch (release timing or
+  something else; the record trace will show it); window-core interlock
+  (`SET_INTERLOCK_FLAGS`) is not modelled.
+- Memory model: none.
