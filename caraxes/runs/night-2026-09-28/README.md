@@ -275,3 +275,19 @@ Result: 720p is not sufficient.
 - Replicas were present in all arms (9-11 "maps twice" lines). The new arms made ~84,800 display-page writes without a pool poll. Raise to vblank ack is now measured at p50 ≤ 511 µs, with 764-1636 of ~28,700 at ≥1 ms.
 - The micro-benchmark scores do not move: their limit is the steady interrupt loop, not the vblank handler. The fix matters for frame pacing in games.
 - 0 Xid, vkcube passes. It goes into the next combined gate rather than being judged on vkmark.
+
+## The production candidate P40 (branch gfxp-2026-09-29, 9a3134ba) on Linux and nova
+
+The production candidate, with no diagnostic patch:
+- owned GFXP in the VM's slice (slots carved below the BAR1 pool, reported reserved, device-private);
+- the GR preemption steps 0 and 1 (preempt-2026-09-29);
+- the Windows pool-query answer.
+
+- **nova:** 5 probes, 0 refused (`nova-p40/`).
+- **Linux B** (1 GiB, slot 4; `smoke-p40/`):
+  - smoke ALL PASS: glmark2 build 5243 FPS, NVENC 193.5 fps, NVDEC 161.1 fps, vkcube beside the NVENC holder, Sunshine active;
+  - scrub 30 × 300 MiB in 12.1 s; 0 Xid; 0 private-page or slot-VA refusals.
+  - Slots: 2 × 0x6a0000 = 14 MiB (1.4 % of the profile).
+- **Compute parity works.** Desktop GR TSGs get "guest SET compute CTA (1) … bound" at build, and CTA again at teardown. The CUDA TSG (grpID 27) had no SET at build (host default gfxp 0, cilp 0 = WFI); its SET came later, the device idled the TSG and bound CILP, and teardown shows cilp 2.
+- **GFXP did not bind on Linux:** "WARNING gfxp: tsg grpID N stays in graphics WFI: GFXP VA 0x1000000000000: 0x1a" for every graphics TSG. The host refuses the fixed VA 2^48 in the shadow VAS. The fix is with the Windows agent (slot VAs inside the host VAS range, outside anything the guest can map).
+- **Windows P40:** the pool query is answered, and the next blocker is the display caps (Code 43 after 116 loops on 5070 control 0x50700117). P41 carries the captured TU106 TMO/ILUT/OLUT caps for every guest.
