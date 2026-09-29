@@ -74,6 +74,8 @@ done
 M
 chmod +x /tmp/sottr-mon.sh; setsid -f /tmp/sottr-mon.sh > /tmp/sottr-mon.log 2>&1
 echo "saves before: $(ls ~/.local/share/feral-interactive/'Shadow of the Tomb Raider'/SaveData | grep -c benchmarkresults)"
+# The results that exist before this run; only a file not in this list is this run's result.
+ls ~/.local/share/feral-interactive/'Shadow of the Tomb Raider'/SaveData | grep benchmarkresults | grep -v frametimes | grep -v feral_ > /tmp/results-before.txt
 G
 # The benchmark variant of the preferences: -benchmark, no options dialog, the resolution.
 T=60 gssh 'bash -s' >> "$OUT/timeline.txt" <<PREFS
@@ -161,7 +163,7 @@ while (( $(date +%s) - t0 < MAX )); do
     [[ -f $OUT/host-shots/$ts.png ]] && prev=$OUT/host-shots/$ts.png
     gm="-"; (( n % 2 == 1 )) && gm=$(shot_guest "$OUT/guest-shots/$ts.png")
     mon=$(T=30 gssh 'tail -1 /tmp/sottr-mon.log')
-    res=$(T=30 gssh 'ls ~/.local/share/feral-interactive/"Shadow of the Tomb Raider"/SaveData | grep benchmarkresults | grep -v frametimes | grep -v feral_ | tail -1')
+    res=$(T=30 gssh 'ls ~/.local/share/feral-interactive/"Shadow of the Tomb Raider"/SaveData | grep benchmarkresults | grep -v frametimes | grep -v feral_ | grep -vxFf /tmp/results-before.txt | tail -1')
     hf=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | tr -d ' ')
     log "host-free=$hf host-mean=${hm:-?} host-rmse=$diff guest-mean=${gm:-?} | $mon | result=${res:-none}"
     (( ${hf:-0} < 200 )) && { log "host free VRAM ${hf:-?} MiB below 200 MiB: stopping"; break; }
@@ -175,7 +177,7 @@ while (( $(date +%s) - t0 < MAX )); do
     [[ -n $res && $res != *"No such"* ]] && break
     sleep 30
 done
-T=60 gssh 'D=~/.local/share/feral-interactive/"Shadow of the Tomb Raider"/SaveData; f=$(ls -t "$D" | grep benchmarkresults | grep -v frametimes | grep -v feral_ | head -1); [ -n "$f" ] && head -60 "$D/$f"' > "$OUT/benchmark-result.txt"
+T=60 gssh 'D=~/.local/share/feral-interactive/"Shadow of the Tomb Raider"/SaveData; f=$(ls -t "$D" | grep benchmarkresults | grep -v frametimes | grep -v feral_ | grep -vxFf /tmp/results-before.txt | head -1); if [ -n "$f" ]; then echo "result file: $f"; head -60 "$D/$f"; else echo "no new result file"; fi' > "$OUT/benchmark-result.txt"
 T=60 gssh 'cat /tmp/sottr-mon.log; echo ===; sudo dmesg | grep -E "NVKMS|NVRM: Xid|nvidia-modeset|drm|display reserve" | tail -30' > "$OUT/guest-monitor.txt"
 T=60 gssh 'export XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; uname -r; journalctl -b -u user@1000.service --no-pager -o cat | grep caraxes-dmem-cap; journalctl --user -u caraxes-dmem-cap.service -b --no-pager -o cat; /usr/local/libexec/caraxes/caraxes-dmem-cap status' > "$OUT/guest-dmem.txt"
 log "dmem ($CAP): $(grep -c 'read back ok' "$OUT/guest-dmem.txt") cap line(s); nvkms_fail=$(grep -v '^===' "$OUT/guest-monitor.txt" | grep -o 'nvkms_fail=[0-9]*' | tail -1)"
