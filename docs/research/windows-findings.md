@@ -784,3 +784,26 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     ~12-15 s), the stream never starts; its NVENC self-test fails on frame 1 (100 ms async
     event wait, nvenc_base.cpp) and it falls back to libx264. Both follow once flips work.
 - Memory model: none (display and tooling are independent of the VRAM layout).
+
+## Cloud Hypervisor, step 3: why the KMD never flips (2026-09-29, C47-ch2)
+
+- **Display access trace** (`CARAXES_TRACE_ACCESSES=bar0:0x610000-0x700000`, a0907d98):
+  - Interrupts: the KMD enables only `LAST_DATA` (`RM_INTR_EN_HEAD_TIMING(0)` = 0x2) and services
+    it through `RM_INTR_DISPATCH`/`RM_INTR_STAT_*`: no RG_LINE or RG_SEM wait.
+  - It reads each window channel's assembly state once (window user pages, offsets 0x234-0xb08;
+    the model answers 0), the core's ARMED OLUT state, `FE_CORE_HEAD_STATE(0)` (0x200).
+  - **The blocker candidate:** the core channel's PIO register `SET_GET_BLANKING_CTRL(0)` (core
+    user page +0x240, clc57d.h:291-297; BLANK 0:0, UNBLANK 1:1, values NO_CHANGE/ENABLE: a
+    request encoding). The KMD writes 0x1 (BLANK) inside its modeset (between core kicks 8 and
+    9) and twice at DWM's start (132.47 s, 132.88 s), each time reading it back at once. The
+    model latched the write, so the read-back was 0x1 forever: a blank request that never
+    completes. The KMD never wrote UNBLANK and never programmed a window. NVKMS never uses the
+    register, so Linux never met this.
+  - Fix (8e5452e3): the request is carried out at once (BLANK before UNBLANK, the state logged
+    per head), the read-back shows none pending; `GET_RG_SCAN_LINE(b)` (+0x220) gives the
+    device clock's line and VBLANK from the head's raster blank. To be confirmed in C48.
+- **CUDA HtoD under CH:** C47 12.80 / 12.86 GB/s; C45's 1.98 GB/s was a transient (the slot-5
+  VM's work), not CH.
+- **Doorbells:** the guest-token ioeventfds (doorbell-token-pool.md (g), 8e82567c): automatic
+  from the device-info table, 240 values on TU106. Not run yet.
+- Memory model: none.
