@@ -15,12 +15,15 @@ Abbreviations:
 - **RM already serializes every allocation by default.**
   - The API lock is taken read-only only for APIs in `apiLockMask`. The default mask is `NVBIT(RS_API_CTRL)` [T src/kernel/core/system.c:385-421, 832].
   - An allocation therefore takes the API lock for writing [T src/kernel/rmapi/alloc_free.c:1687-1718]. VideoMemory's `RS_FLAGS_ACQUIRE_RO_API_LOCK_ON_ALLOC` [T src/kernel/rmapi/resource_list.h:558-568] only counts when the key `RmRoApiLock` enables read-only allocations [T interface/nvrm_registry.h:748-757].
-  - So freeing chunks and retrying inside `vidmemConstruct` of the refused NVKMS allocation is atomic against every other RM allocation, process or kernel. No extra gate is needed.
-  - UVM allocates from PMA without the API lock, which matches v1's exemption.
-  - With `RmRoApiLock` allocations on, a concurrent allocation can win the freed room. The loop then frees the next chunk, as v1 did ("another NVKMS allocation took the room first") [v1 virtio_nvrm.c:6300-6318].
+  - So freeing reserved pages and retrying inside `vidmemConstruct` of the refused NVKMS allocation cannot lose the room to another API-locked allocation, process or kernel. No extra gate is needed.
+  - Two paths are not API-locked and can take the freed room:
+    - UVM allocates from PMA directly [T src/kernel/rmapi/nv_gpu_ops.c:5491-5520], which matches v1's exemption;
+    - with `RmRoApiLock` allocations on, allocations run concurrently.
+  - In both cases the loop releases the next run, as v1 did ("another NVKMS allocation took the room first") [v1 virtio_nvrm.c:6300-6318].
 - **The refusal is visible in RM.**
-  - `_vidmemPmaAllocate` returns NV_ERR_NO_MEMORY before the GPU lock is taken [T src/kernel/mem_mgr/video_mem.c:314-345, 707-735].
+  - `pmaAllocatePages` refuses inside `_vidmemPmaAllocate`, before the GPU lock is taken [T src/kernel/mem_mgr/video_mem.c:314-345, 707-735].
   - A contiguous request is never retried as non-contiguous [:325-338].
+  - The release hooks exactly there, so a CPU-side NV_ERR_NO_MEMORY does not trigger it.
 - **Kernel ISO/scanout requests are identifiable.** They are the requests with:
   - kernel privilege: NVKMS calls RM through `rm_kernel_rmapi_op`, whose entry points build a kernel secInfo [T src/kernel/rmapi/entry_points.c:124, 261-268]; `vidmemConstruct` already checks the same level for the reserved heap [video_mem.c:632];
   - ATTR2_ISO_YES and PHYSICALITY_CONTIGUOUS, without NO_SCANOUT, which is NVKMS's SCANOUT request [M kapi/src/nvkms-kapi.c:823-845];
@@ -28,7 +31,94 @@ Abbreviations:
   - v1 used the same test [v1 nvrm_vram.c:152-180].
 - **Why not nvidia-drm.** Same two-call problem as NVKMS, and kapi returns only NULL, not the RM status [M kapi/src/nvkms-kapi.c:1627-1671].
 
-## Where RM can learn the display size
+## Review of the first design (2026-09-29, tree f1f5c5d)
+
+An independent review found five blocking defects. The coordinator decided to redesign instead of patching them.
+
+- **Blocking.**
+  1. No refill after a release. The timer was armed only after a short fill; v1 kicks 1 s after every give-back [v1 virtio_nvrm.c:6336].
+  2. Any process controls the size. S was the largest ISO allocation of any client; LOCAL_USER is non-privileged, and `stdmemValidateParams` sets ISO for every PRIMARY, VIDEO and CURSOR allocation [T src/kernel/mem_mgr/standard_mem.c:104-116]. The ×5 amplifies it.
+  3. It never shrank while full, so after unplugging a 4K display it stayed at 161 MiB.
+  4. A re-cut freed the old reserve before allocating the new one.
+  5. A deadlock on RTD3/GCx: `gpuStateUnload` runs with the GPU locks and without the API lock. The fill work item held the internal client's lock while waiting for the GPU lock in `vidmemConstruct`, and Stop's Free waited for that client lock. There was also no full-power check.
+- **Must fix.**
+  - `heldSize` mixed requested and page-rounded bytes.
+  - The atomicity claim ignored UVM and `RmRoApiLock`.
+  - Nothing checked that PMA is initialised or MIG is off.
+  - Frees went through the scrubber after it was destroyed at full unload.
+  - memacct charged the chunks to the cgroup of the process that ran `RmInitAdapter`.
+- **Nits:**
+  - `TMR_FLAG_USE_OS_TIMER`;
+  - ignored return values;
+  - one warning per chunk;
+  - no validation of the size key;
+  - a CPU-side NO_MEMORY also released;
+  - a false comment and a redundant NULL check;
+  - per-GPU state in a file-static array.
+- **What the smoke taught** (kept below as history): mutter allocates its framebuffers from userspace GL. So sizing from allocations cannot be both automatic and safe. The display driver knows every head's committed mode and must be the one to declare the reserve.
+
+## Design (redesign)
+
+### NVKMS declares the need
+
+- **Why NVKMS.** Every mode reaches the hardware through `nvSetDispModeEvo`: clients (kapi/nvidia-drm, the X driver), console restore and head shut-down all go through it [M src/nvkms-modeset.c:4208; nvkms.c:2246, 3672; nvkms-console-restore.c:393, 680, 960].
+  - After a successful commit, the api-head state holds the committed timings, including ViewPortIn, the scanned source size [M include/nvkms-types.h:1339-1365, 1497, 1975-1984]. `nvApiHeadIsActive` says which heads are lit [:2566-2571].
+  - A process cannot influence the need: it follows the committed configuration.
+- **What it declares, per display (subdevice).**
+  - Each active head contributes 5 × S plus four cursors. S = align(4W, 64) × align(H, 128) rounded to 64 KiB, W × H = ViewPortIn (v1's formula and measured 4.67 × S peak [v1 nvrm_vram.c:40-95]). A cursor is the device's maximum, `cursorHal->caps.maxSize`² × 4 bytes [M src/nvkms.c:1477].
+  - The largest S of all heads is the chunk size.
+  - With no active head the need is 0.
+- **When.**
+  - After every successful commit, before GC6 is allowed for an all-off configuration [M src/nvkms-modeset.c:4339-4368]. This covers modeset, hotplug (the client's modeset), mode changes and heads off.
+  - The need is 0 in `nvRmDestroyDisplays`, before the display-common object is freed [M src/nvkms-rm.c:2194].
+  - It is sent only when it changed, like `nvRmSetGc6Allowed`'s cached state [M src/nvkms-rm.c:5095-5123].
+- **Knob.** The `nvidia-modeset` parameter `display_reserve_mib`, declared like the module's other parameters [K nvidia-modeset/nvidia-modeset-linux.c:83-140]:
+  - 0 = off, the default: nothing is declared and RM holds nothing;
+  - −1 = automatic, as above;
+  - N = N MiB while any head is active, cut into chunks of the largest S.
+
+### The interface
+
+- **`NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE`** (0x730162), on NVKMS's display-common object. Params: `subDeviceInstance`, `reserveSize` (bytes; 0 releases), `surfaceSize` (bytes of the largest scanout surface).
+- **Precedent:** `NV0073_CTRL_CMD_SYSTEM_ALLOCATE_DISPLAY_BANDWIDTH` is the display driver declaring a display resource to RM, handled in kernel RM [T ../common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h:1725-1765; src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c:108-160].
+- **Privilege and locks.**
+  - Flags `RMCTRL_FLAGS_KERNEL_PRIVILEGED` (0x0): only kernel clients may call it [T inc/kernel/rmapi/control.h:168-175]. Kernel RM handles it; it is not routed to GSP.
+  - It runs with the GPU lock and the read-only API lock. It only records the need and queues the fill.
+- **NVOC wiring.** The exported-method table is sorted by methodId and searched binarily [T src/libraries/nvoc/src/runtime.c:307-335]. The entry goes after 0x730161, and `numEntries` grows by one [T generated/g_disp_objs_nvoc.c:3449, 6118-6122]. The NVOC sources are not public; the generated files are edited as the tree ships them.
+
+### RM holds the reserve at PMA level
+
+- **Runs of PMA pages.**
+  - The reserve is a list of runs from `pmaAllocatePages` with `PMA_ALLOCATE_PINNED | PMA_ALLOCATE_CONTIGUOUS | PMA_ALLOCATE_FORCE_ALIGNMENT` [T inc/kernel/gpu/mem_mgr/phys_mem_allocator/phys_mem_allocator.h:86-104, 351].
+  - A full run has the page size `memmgrDeterminePageSize` gives a pitch surface of S, which is also what `_vidmemPmaAllocate` gets for NVKMS's request [T src/kernel/mem_mgr/standard_mem.c:236-247; src/kernel/gpu/mem_mgr/mem_mgr.c:1808-1870; video_mem.c:190-199]. It covers S, so a freed run is exactly the shape the refused surface needs.
+  - The rest run takes the remainder at its own page size. Everything is counted in PMA bytes.
+- **No RM objects.** There is no internal client, no nested `vidmemConstruct` and no memacct charge (memacct charges in `vidmemConstruct` only [T video_mem.c:626-630]).
+  - The pages leave PMA's free count, so HEAP_FREE, NVML free and the Vulkan budget drop by the reserve, which the 5 GiB run shows games follow [dmem-cap-2026-09-29.md "Status"].
+- **Free without scrubbing.**
+  - Runs are freed with `PMA_FREE_SKIP_SCRUB` [:107, 410]. A run is never mapped or written, and with scrub-on-free PMA hands out zeroed pages (`PMA_ALLOCATE_RESULT_IS_ZERO` [T src/kernel/gpu/mem_mgr/phys_mem_allocator/phys_mem_allocator.c:686-693]).
+  - This also keeps the scrubber out of unload: KernelFifo's pre-scheduling-disable callback destroys it before `memmgrStatePreUnload` [T src/kernel/gpu/mem_mgr/mem_mgr.c:529-541, 556, 696; arch/pascal/mem_mgr_scrub_gp100.c:95-121].
+- **Release.**
+  - Where: in `_vidmemPmaAllocate`, when `pmaAllocatePages` refuses a request with NV_ERR_NO_MEMORY that is kernel-privileged (TLS call context, as `stdmemValidateParams` reads it [T standard_mem.c:40-47]), ISO, CONTIGUOUS and not NO_SCANOUT.
+  - What: runs covering the request's PMA bytes go back to PMA, v1's pick (rest first if it alone covers, else a full run), and `pmaAllocatePages` is retried. This repeats while runs are held.
+  - Atomicity is as stated in the layer section.
+- **Refill.** A release schedules a refill 1 s later [v1 virtio_nvrm.c:6336]; a short fill retries on a backoff of 1 s doubling to 30 s.
+  - The timer is an OS timer event created with `TMR_FLAG_USE_OS_TIMER` [T generated/g_objtmr_nvoc.h:84-90]. Its callback runs as a work item under the GPU group lock [T arch/nvalloc/unix/src/osapi.c:3536-3568] and only queues the fill.
+  - The fill runs as a work item with the API lock for writing and without the GPU lock [T inc/kernel/os/workitem.h; mem_mapper.c:336-342], because PMA must not be entered under the GPU lock [video_mem.c:717-733].
+- **Re-cut and shrink.**
+  - When the declared need or surface size changes, the fill allocates the new shape first, then frees the old runs, then allocates what the new shape still lacks. A smaller need frees the surplus.
+- **Locks.**
+  - A mutex guards the run list, and no PMA call is made while it is held.
+  - The fill re-checks after each allocation that the reserve is still started, and frees what it got otherwise.
+  - No RM API object is involved, so the client-lock cycle of finding 5 cannot occur.
+- **Lifecycle.**
+  - The state lives in MemoryManager (`pDisplayReserve`, a member added to the generated class; NVOC zero-fills objects [T generated/g_mem_mgr_nvoc.c:1663-1670]).
+  - It is created in `memmgrStateInitLocked`, next to memacct [mem_mgr.c:826], and removed in `memmgrStateDestroy`.
+  - Start in `memmgrStatePostLoad` (load, resume, GC6/RTD3 exit). Stop in `memmgrStatePreUnload` (unload, suspend, GC6/RTD3 entry): it frees every run under the GPU lock without taking the API lock.
+  - The fill does nothing unless the GPU is at full power (`gpuIsGpuFullPower`), PMA is initialised and MIG is off.
+  - NVKMS keeps GC6 blocked while any head is active and declares 0 before it allows it [M src/nvkms-modeset.c:4364-4368].
+- **Logging.** State messages are LEVEL_INFO, shown with `NVreg_RmMsg=display_reserve.c`. One LEVEL_WARNING per served refusal; LEVEL_ERROR on failures.
+
+## History: where RM can learn the display size (first design)
 
 The reserve has to follow the modes of all heads through mode changes and hotplug. The sources were checked in this order:
 
@@ -48,7 +138,7 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
   - **Size in PMA.** The tracked size is the one `vidmemConstruct` returns, rounded to the page: 0x870000 becomes 10 MiB (five 2 MiB pages). A chunk of it frees exactly the pages a refused 1080p buffer needs. R at 1080p is 5 × 10 MiB + 1 MiB = 51 MiB (v1: 44 MiB of requested bytes).
   - **Any client can raise the size.** A process can make the automatic reserve larger with a large ISO allocation. The memory then sits in the reserve instead of in that process; `RmDisplayReserveSizeMB` pins the size. Open for upstream review.
 
-## Design
+## History: first design
 
 - **Chunks.** They are NV01_MEMORY_LOCAL_USER allocations on the MemoryManager's internal client [T src/kernel/gpu/mem_mgr/mem_mgr.c:1226-1250, 807, 991].
   - The params are NVKMS's SCANOUT request, pitch layout as in v1 [v1 nvrm_vram.c:182-214]: type PRIMARY, CONTIGUOUS, ISO, GPU_CACHEABLE_NO, forced 4 KiB alignment, FORCE_MEM_GROWS_UP.
