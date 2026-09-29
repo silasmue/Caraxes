@@ -519,3 +519,21 @@ clock's per-tick work takes the display engine's lock and never D.
 - Tests: `mbuild::tests` (the TSG cell: the first build makes it, the next join, a refusal leaves
   it empty; the preemption check is claimed once; the GPPut write-back only over the clear; the
   counters), `dlock::tests` (tags of a long hold, the work table).
+
+### 9.6 The software executor's translations (step 5a, 2026-09-29)
+
+- Windows C65: the software doorbells of chid 15 (the KMD's paging channel) and chid 4 held D
+  for 200-540 ms each (357 doorbells, 21.8 s in total). Their copy-engine bytes were small, and the
+  device CE's large transfers never wait under D.
+- `GpuMem::pieces` translated every 4 KiB page separately: 4-5 uncached table words through the
+  BAR1 windows per page, each of which could evict the window the previous one mapped. An 8.8 MB
+  memset is about 2160 pages.
+- `FakeFb::translate_pages` gives every page of a range exactly what `walk_in` gives it. It reads
+  a 2 MiB unit's directory entries once and its page-table entries in one block per table.
+  Test: `a_range_translates_as_its_pages_do` (small and big pages and their precedence, a sparse
+  PTE, a 2 MiB page, a sysmem page table, a missing directory, partial pages, unit crossings).
+- A software doorbell's time is split (`dlock::Spend`): translations and the software CE's CPU
+  copies apart, in the long hold's tag and the work table (`software translate`,
+  `software CPU copy`; the rest is the doorbell's total minus both).
+- Next, if the split shows the copies or the rest dominate: the executor off D (step 5b), or the
+  paging channel on a host CE.
