@@ -54,4 +54,11 @@ DMEM_CAP=off $B/sottr-bench-dmem.sh $B/cap-off-1 $BIN; $B/desktop-b-dmem.sh down
 
 ## Results
 
-Pending.
+- **A, B (operator, 2026-09-29).**
+  - `prepare/prepare.txt`: 7.0.0-34 installed, DKMS 615.71.09 built, boot files copied (sha256 equal), units installed.
+  - `check-1.txt` (1 GiB profile): both halves ran; NVML inside app.slice reports app.slice's `dmem.max` as total.
+- **C, cap-on-1** (4 GiB): NVKMS refused at 648 s.
+  - Free VRAM was 2 MiB, app.slice 3461 of 3555 MiB; usage outside app.slice had grown by about 175 MiB against R = 84 MiB.
+  - Steam hung at its shader-cache prompt, so the game was started directly (`systemd-run --user --scope --slice=app.slice`, `SteamAppId=750920`).
+  - Only the text evidence is committed (`.log` files are git-ignored); the shots stay in the run directory on the NAS.
+- **Parked:** the next step is a 6 GiB run without a cap (leak or reserve). Analysis: [dmem-cap-2026-09-29.md](../../../docs/research/dmem-cap-2026-09-29.md) "Status".
