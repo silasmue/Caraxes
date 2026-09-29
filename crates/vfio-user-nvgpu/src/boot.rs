@@ -1610,23 +1610,33 @@ impl BootModel {
             // and 3): the MMU re-reads tables from here on, and the invalidate starts no
             // engine, so data (and an owed flush) waits for the next engine start. A host
             // VA space on the guest's own tables (a mirror VAS) makes it a full sync.
+            // The parts of an invalidate in the device lock's work table (dlock.rs).
+            let mut t = std::time::Instant::now();
+            let mut part = |name: &str| {
+                crate::dlock::work("invalidate", name.to_string(), t.elapsed());
+                t = std::time::Instant::now();
+            };
             let host_walks = self.ctrl.mirror.as_ref().is_some_and(|m| m.walks_guest_tables());
             if self.fb.bar2_area().is_some() && !host_walks {
                 let root = self.bar_root(3);
                 self.fb.bar2_sync_tables(root, Some(mem));
                 crate::bar1pool::sync_untracked(&mut self.fb);
+                part("BAR2 table sync");
             } else {
                 self.flush_point(mem, crate::bar2area::Point::MmuInvalidate);
+                part("BAR2 full sync");
             }
             // The guest changed page tables in VRAM through BAR1; drain the WC
             // buffers before the host TLB invalidate so RM re-walks fresh tables.
             self.fb.flush();
+            part("FB flush");
             // The root watch (pdbwatch.rs, fix 2 of run P17): the guest names the root it uses.
             let named = (v & 2 == 0).then(|| {
                 crate::pdbwatch::register_pdb(self.mmu_invalidate.0, self.mmu_invalidate.1)
             });
             self.ctrl.channels.note_guest_invalidate(named);
             let forwarded = self.ctrl.mirror_invalidate(&mut self.fb, Some(pdb));
+            part("host invalidates");
             // Shadow VA spaces (every channel's with the pool) are not host VA spaces
             // the invalidate is forwarded to: the re-sync below brings them in line.
             let shadowed = self.ctrl.mirror.as_ref().is_some_and(|m| {
@@ -1650,6 +1660,7 @@ impl BootModel {
                 let which = if v & 2 != 0 { None } else { Some(pdb) };
                 notes.extend(self.ctrl.mirror_shadow_resync(&mut gm, which));
             }
+            part("shadow walk and plan");
             notes.push(format!(
                 "mmu invalidate: pdb {pdb:#x} flags {:#x}{}",
                 v & 0x7FFF_FFFF,
