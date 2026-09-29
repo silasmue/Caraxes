@@ -587,6 +587,12 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - A failed piece leaves one ERROR line; DMA to it stays refused.
 - Linux (CH, linear IOVAs): the same worker; the launcher already waits for the full table.
 - Memory model: independent of the VRAM layout; depends on the DMA table (GPA mode).
+- P35 (03:13-03:18, P35-registrar, QEMU's own 5 s timeout): boot clean.
+  - 9 DMA_MAPs answered at once; OVMF's remaps unmapped 7 pieces still queued (dropped, never
+    pinned); the 1 GiB chunks pinned in 55-130 ms after the pre-fault (P34: 0.7-7.5 s).
+  - The shadow never waited for the registrar; 0 ERROR lines, no host Xid.
+  - Smoke all PASS; CUDA short kernel 59.4 us median; transformer 78755 tokens/s, first step
+    12.7 s; device CE 217 pushes, 2019 MiB, 104 ms.
 
 ## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
 
