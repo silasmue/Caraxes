@@ -4093,12 +4093,23 @@ mod tests {
         };
         let mut ce = physical_copy(0, 1 << 30, 1 << 30);
         let bound = CE_SLICE + std::time::Duration::from_millis(10);
+        // The copy's own time is this thread's CPU time: the slice ends by the clock, so a
+        // slice never works longer than the bound, but a thread descheduled under parallel
+        // load (the test harness) may take longer by the wall clock. The wall clock is only
+        // checked against a loose sanity bound.
+        let cpu = || {
+            let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+            // SAFETY: a valid clock id and a local timespec.
+            unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) };
+            std::time::Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32)
+        };
         let mut done = 0u64;
         for _ in 0..4 {
-            let t = std::time::Instant::now();
+            let (t, c) = (std::time::Instant::now(), cpu());
             let r = Registry::launch_dma(&mut ce, &mut gm, root, PHYS_COPY, 1, None, CE_SLICE);
-            let took = t.elapsed();
-            assert!(took <= bound, "one slice took {took:?}");
+            let (took, worked) = (t.elapsed(), cpu() - c);
+            assert!(worked <= bound, "one slice worked {worked:?}");
+            assert!(took <= std::time::Duration::from_secs(1), "one slice took {took:?}");
             assert!(matches!(r, Ok(CeOutcome::Sliced(_))), "{r:?}");
             let p = ce.progress.expect("a sliced copy keeps its progress");
             let now = p.line * p.key.bytes_per_line + p.offset;

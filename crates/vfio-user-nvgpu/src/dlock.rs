@@ -377,17 +377,22 @@ mod tests {
     #[test]
     fn a_doorbell_s_parts_are_summed_once_and_taken() {
         take_spent();
+        // Once, not twice: the nested part's time is at most the block's own wall time (a
+        // double count would be about twice it). Measured against the block, not against a
+        // fixed bound, so a thread descheduled under parallel load does not fail the test.
+        let t = std::time::Instant::now();
         {
             let _outer = Spend::new(Part::Copy);
             let _inner = Spend::new(Part::Copy);
             std::thread::sleep(Duration::from_millis(3));
         }
+        let block = t.elapsed();
         {
             let _t = Spend::new(Part::Translate);
             std::thread::sleep(Duration::from_millis(1));
         }
         let [translate, copy] = take_spent();
-        assert!(copy >= Duration::from_millis(3) && copy < Duration::from_millis(6), "{copy:?}");
+        assert!(copy >= Duration::from_millis(3) && copy <= block, "{copy:?} in a block of {block:?}");
         assert!(translate >= Duration::from_millis(1), "{translate:?}");
         assert_eq!(take_spent(), [Duration::ZERO; 2]);
     }
