@@ -534,6 +534,9 @@ pub struct Registry {
     pub software_runs: u64,
     sem_diag: bool,
     sem_diag_chid: Option<u32>,
+    /// The guest's `GR_SET_CTXSW_PREEMPTION_MODE` requests by guest TSG (or bare channel),
+    /// for the host TSG's build (preempt.rs, [`Self::record_preemption`]).
+    preempt: crate::preempt::Ledger,
 }
 
 fn rd32(b: &[u8], off: usize) -> u32 {
@@ -593,6 +596,7 @@ impl Registry {
             sem_diag_chid: std::env::var("CARAXES_SEMAPHORE_DIAG_CHID")
                 .ok()
                 .and_then(|s| s.parse().ok()),
+            preempt: crate::preempt::Ledger::default(),
         }
     }
 
@@ -1497,6 +1501,53 @@ impl Registry {
         })
     }
 
+    /// The guest object a host TSG would stand for when a control names `(h_client,
+    /// handle)`: a guest TSG itself, the TSG of a member channel, or a bare channel (its
+    /// own TSG), as mirror.rs `tsg_key_of` names it. `None`: no such TSG or channel.
+    pub fn tsg_guest_of(&self, h_client: u32, handle: u32) -> Option<(u32, u32)> {
+        if self.tsgs.contains_key(&(h_client, handle)) {
+            return Some((h_client, handle));
+        }
+        let ch = self
+            .channels
+            .values()
+            .find(|c| (c.h_client, c.h_object) == (h_client, handle))?;
+        Some(if self.tsgs.contains_key(&(ch.h_client, ch.h_parent)) {
+            (ch.h_client, ch.h_parent)
+        } else {
+            (ch.h_client, ch.h_object)
+        })
+    }
+
+    /// Record the guest's `GR_SET_CTXSW_PREEMPTION_MODE` of client `h_client` (preempt.rs)
+    /// under the guest object its hChannel stands for. Returns that object (`None`: the
+    /// handle names no TSG or channel of this device), the merged record and whether the
+    /// payload shape is new.
+    pub fn record_preemption(
+        &mut self,
+        h_client: u32,
+        r: &crate::preempt::SetRequest,
+    ) -> (Option<(u32, u32)>, Option<crate::preempt::Recorded>, bool) {
+        let guest = self.tsg_guest_of(h_client, r.h_channel);
+        let (rec, new_shape) = self.preempt.record(guest, r);
+        (guest, rec, new_shape)
+    }
+
+    /// A SET too short to decode, for the exit summary.
+    pub fn note_short_preemption(&mut self) {
+        self.preempt.note_short();
+    }
+
+    /// What the guest asked for guest TSG (or bare channel) `guest`.
+    pub fn preemption(&self, guest: (u32, u32)) -> Option<crate::preempt::Recorded> {
+        self.preempt.get(guest)
+    }
+
+    /// The exit summary's line of the guest's SETs; `None` when there was none.
+    pub fn preemption_summary(&self) -> Option<String> {
+        self.preempt.summary()
+    }
+
     /// Forget the last engine object of `class` recorded under channel `(h_client,
     /// h_parent)`: an allocation the device refused after recording it.
     pub fn forget_engine_object(&mut self, h_client: u32, h_parent: u32, class: u32) {
@@ -1551,6 +1602,14 @@ impl Registry {
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.tsg_ids
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
+        // A preemption request lives as long as its guest TSG or bare channel.
+        if !self.preempt.is_empty() {
+            let (tsgs, channels) = (&self.tsgs, &self.channels);
+            self.preempt.retain(|k| {
+                tsgs.contains_key(k)
+                    || channels.values().any(|c| (c.h_client, c.h_object) == *k)
+            });
+        }
         self.vaspaces
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         let live = &self.vaspaces;
@@ -3201,6 +3260,7 @@ impl Registry {
                     let mut e = engine.lock().unwrap_or_else(|e| e.into_inner());
                     if e.off().is_none() {
                         let w = e.window();
+                        #[allow(clippy::type_complexity)]
                         let plan =
                             (|| -> Result<(Vec<crate::devce::Op>, Vec<(u64, u64)>), String> {
                                 let (mut from, mut to) = (Vec::new(), Vec::new());
@@ -5049,6 +5109,60 @@ mod tests {
         assert!(blit.contains("src format 0xe6 BLOCKLINEAR block 0x10"), "{blit}");
         assert!(blit.contains("0x780x0x438 va 0x10003000") || blit.contains("1920x1080 va 0x10003000"), "{blit}");
         assert!(!blit.contains("assumed"), "{blit}");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The RC post-mortem of any GR channel (ctrl.rs `gr_rc_push_note`, the Xid 109 of
+    /// gr-preemption-2026-09-29.md): the entry at GPGet-1, its last methods, and whether it
+    /// dispatched compute work or called an MME macro (a draw).
+    #[test]
+    fn a_gr_rc_names_the_push_the_host_fetched_last() {
+        let (mut fb, sys, path, _root) = world("grrc");
+        let f = crate::fixture::rtx2070();
+        let compute = f.chip.data().channel.compute;
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        reg.record_alloc(1, 0x30, 0x40, TURING_CHANNEL_GPFIFO_A, &channel_params(9, 0x1000_0000, 0x20_0000, 0))
+            .unwrap();
+        // Entry 0: 3D on subch 0 and an MME call; entry 1: compute on subch 1, a dispatch.
+        let entry = |fb: &mut FakeFb, idx: u64, va: u32, pb: &[u32]| {
+            let bytes: Vec<u8> = pb.iter().flat_map(|d| d.to_le_bytes()).collect();
+            fb.write(0x100000 + u64::from(va - 0x1000_0000), &bytes);
+            let e1 = (pb.len() as u32) << 10;
+            fb.write(0x100000 + 8 * idx, &[va.to_le_bytes(), e1.to_le_bytes()].concat());
+        };
+        let mut pb0 = inc(0, 0, &[0xC597]);
+        pb0.extend(inc(0, 0x3800, &[0x12]));
+        entry(&mut fb, 0, 0x1000_1000, &pb0);
+        let mut pb1 = inc(1, 0, &[compute]);
+        pb1.extend(inc(1, 0x2B4, &[0x40_0000]));
+        pb1.extend(inc(1, 0x2BC, &[0x3F]));
+        entry(&mut fb, 1, 0x1000_2000, &pb1);
+        fb.write(0x20_0000 + USERD_GP_GET, &2u32.to_le_bytes());
+        fb.write(0x20_0000 + USERD_GP_PUT, &2u32.to_le_bytes());
+        let mem = GpuMem { fb: &mut fb, sys: &sys };
+        let n = d.gr_rc_push_note(&mem, 9, 109).unwrap();
+        assert!(n.starts_with("gr rc push: chid 9 (exceptType 109): USERD GPGet 2 GPPut 2 (0 not fetched); entry 1 (GPGet-1) pb 0x10002000, 6 dword(s), 3 method(s): compute dispatch;"), "{n}");
+        assert!(n.contains(&format!("1[{compute:#x}]:0x2b4=0x400000 1[{compute:#x}]:0x2bc=0x3f")), "{n}");
+        assert!(n.contains(&format!("subchannel classes seen 0=0xc597 1={compute:#x}")), "{n}");
+        // The draw entry.
+        fb.write(0x20_0000 + USERD_GP_GET, &1u32.to_le_bytes());
+        let mem = GpuMem { fb: &mut fb, sys: &sys };
+        let n = d.gr_rc_push_note(&mem, 9, 109).unwrap();
+        assert!(n.contains("entry 0 (GPGet-1) pb 0x10001000") && n.contains("MME macro call"), "{n}");
+        assert!(n.contains("(1 not fetched)"), "{n}");
+        // Garbage in USERD is named, not decoded.
+        fb.write(0x20_0000 + USERD_GP_GET, &0xFFFF_FFFFu32.to_le_bytes());
+        let mem = GpuMem { fb: &mut fb, sys: &sys };
+        assert!(d.gr_rc_push_note(&mem, 9, 109).unwrap().contains("outside the ring"));
         let _ = std::fs::remove_file(&path);
     }
 

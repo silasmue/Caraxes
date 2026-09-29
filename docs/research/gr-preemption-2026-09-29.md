@@ -110,15 +110,19 @@ Isolation:
 - Isolation: the slots join the device's private pages (fb.rs `FakeFb::private`): refused for
   guest BAR/PRAMIN accesses, BAR2 memfd pages, software CE pieces and shadow leaves; the device
   CE's window ends at the usable end.
-- Windows: the pool query and the three pool controls get the synthesized answer of recorded.rs
-  (the KMD's pool is its own heap memory, part of the slice); its BIND translates: GFXP_POOL to a
-  slot in host mode 1, compute to `bind_owned_compute`, WFI to an unbind and slot free (or a
-  confirmation); P17's first-use gate holds a deferred GR context until its BIND.
-- Linux: every host TSG with a C597 object gets a slot bound at its build, before its first
-  schedule.
+- Both guests: every new host TSG with a 3D object gets a slot bound at its build, before its
+  first schedule, next to step 1's compute apply (one mechanism; NVIDIA's vGPU binds GFXP for
+  every 3D object of a Unix guest).
+- Windows (it sends BINDs, no SET): the pool query and the three pool controls get the
+  synthesized answer of recorded.rs (the KMD's pool is its own heap memory, part of the slice);
+  a pointer-free compute BIND takes the SET's record-and-apply path (preempt.rs); a graphics
+  BIND is acknowledged (the host mode comes from the build). P17's first-use gate,
+  `bind_owned_gfxp`, `bind_owned_compute` and `confirm_gfx_wfi` are gone.
+- The slot VAs lie in a window from 2^48 that no guest allocator reaches and the shadow never
+  mirrors (shadow.rs `Layout::slot_window`): a guest leaf there is refused by name.
 - Teardown: BIND WFI, GET 0, unmap, free the virtual range, free the slot. No slot free: WFI
   and a WARN, never a failure towards the guest.
-- Risk: a later guest mapping at a private VA is refused (the guest channel faults); counted.
+- The mode log is step 0's (a GET per host GR TSG at its build and at its teardown).
 
 ## Test plan
 
@@ -132,11 +136,46 @@ Isolation:
 - SotTR 720p benchmark x3 on Linux B after step 1, then after step 2: result file written, no host or guest Xid; FPS and frame times against native; GFXP's cost from the step 2 A/B (one diagnostic build, no new env flag).
 - Soak 30 min desktop plus game: no slot left at exit, host VRAM unchanged by GFXP.
 
+## Implemented: steps 0 and 1 (branch `preempt-2026-09-29`)
+
+Code: `preempt.rs` (decode, record, the rule, `apply_compute`), `mirror.rs` (build, late SET, teardown), `cuda.rs` (the SET answer), `channel.rs` (the record), `ctrl.rs` and `boot.rs` (RC post-mortem, exit summary).
+
+Step 0, read only:
+- Every host GR TSG, after its first GR object and before that channel's `GPFIFO_SCHEDULE`: GET_CTXSW_MODES on the building channel. One gpu.log line: `preemption: tsg K (guest C/T, host TSG H, chid N) at build, before the first schedule: <guest request>; host gfxp G (..) cilp C (..) zcull Z; <outcome>`.
+- At teardown: one GET on the TSG's last host channel, before its free and before an owned GFXP set unbinds: `preemption: tsg K ... at teardown: host ...; earlier: <outcome>`.
+- The guest's SET: decoded in the cuda.rs note (flags, hChannel, graphics, compute), NV_OK echo as before. The first SET of each payload shape goes to gpu.log (`preemption: guest SET of a new shape`); all SETs are counted by shape in the exit summary (`preemption, guest SETs:`).
+- Any RC of a mirrored GR channel: `gr rc push: chid N (exceptType X)`: USERD GPGet/GPPut; the entry at GPGet-1 (VA, dwords, its last 6 methods as `subch[class]:method=data`); `compute dispatch` (SEND_PCAS_A 0x2b4, SEND_SIGNALING_PCAS_B 0x2bc) or `MME macro call` (0x3800 and up, the driver's draw path). Guest memory only.
+
+Step 1, compute parity:
+- Record: under the guest object the host TSG stands for (`tsg_key_of`): the TSG (CUDA, GL and Vulkan name it), a member channel's TSG, or a bare channel (Vulkan's 0xc46f SETs). Per flag, the last mode wins. Dropped with the guest object.
+- Apply at the build: GET, at most one pointer-free BIND {CILP_SET, mode} on the host TSG handle, GET. Bound only if the GET shows the mode and an unchanged graphics mode. Later members of a multi-channel TSG join the bound context.
+- A SET after the build: FIFO_IDLE_CHANNELS over the TSG's host channels first, only when a BIND follows; not idle, nothing bound.
+- The rule: modes only rise (WFI < CTA < CILP).
+  - A refused CILP is not retried as CTA; a CTA request leaves a CILP context in CILP; WFI or unknown requests are not bound.
+  - A refusal keeps the host default, leaves one `WARN preemption:` line and is counted; the guest still gets NV_OK.
+- Graphics: logged in the build line and the SET shape line, never bound (step 2).
+- Windows: the KMD sends no SET (P30, P32, P36: 0 SETs; 326, 252 and 64 BINDs).
+  - Without diagnostic.patch: the step 0 lines; compute stays at the host default.
+  - With the patch: its BIND routing is unchanged. Entry points kept; the patch applies and compiles; the build script's seven markers are unique.
+  - `bind_owned_compute` now shares `apply_compute`, so it no longer lowers CILP to CTA either.
+- Exit summary: `preemption, host GR TSGs: ...` (read, bound CTA/CILP, already, no request, REFUSED, not idle, graphics asked).
+
+The COMPUTE_PREEMPT buffer (0x900000) for CILP:
+- No open code path allocates or binds it:
+  - the kernel RM maps GR_CTX_BUFFER_PREEMPT to GRAPHICS_PREEMPT 0x0b; nothing maps to 0x0a [615 tree: src/nvidia/src/kernel/gpu/gr/kernel_graphics_context.c:256-297];
+  - its preemption buffers are only unmapped and freed there, never allocated [kernel_graphics_context.c:2341-2358, 2852-2869];
+  - the BIND has no slot for it [ctrl2080gr.h:861-870];
+  - NVIDIA's vGPU guest allocates only 0x0b-0x0f, for GFXP [src/nvidia/src/kernel/vgpu/rpc.c:3662-3666].
+- GSP-RM's own heap is fixed at boot and sized at 48 KiB per channel [src/nvidia/inc/kernel/gpu/gsp/gsp_fw_heap.h:41, 71]; 9 MiB per CILP context would exhaust it within a few contexts.
+- 0x900000 = 36 SMs x 256 KiB, the TU106 register file. Inference, not in the open code: CILP saves into the context's local memory, which the guest UMD allocates in the VM's slice (C28, 58 MiB, "probably local memory" [docs/caraxes/cuda-lookahead.md:252]).
+- Verdict: CILP most likely adds no host vidmem outside the reservation (0.7). Not measured. The host GR context itself (main, patch, PM) is host vidmem outside the slice today, CILP or not.
+- Measure in the CUDA series: soak `vram_used_mib` with a CUDA context alive, this build against dev.
+
 ## Open
 
 - The host default compute mode of a mirror GR context (step 0 reads it).
 - Whether native Linux 615 Vulkan runs GFXP (the 615 SET payload; a native GET).
-- Where GSP-RM keeps CILP state after a pointer-free CILP BIND. COMPUTE_PREEMPT is 0x900000 (9 MiB) per context [astra-review-2026-09-26.md:97]; if GSP-RM allocates it in the host heap, CILP contexts also grow host VRAM outside the slice.
+- Where GSP-RM keeps CILP state after a pointer-free CILP BIND: most likely nowhere on the host (see above); the CUDA series' soak lines confirm or refute it.
 - Which work held GR in this run: needs step 0's RC post-mortem or a traced repeat.
 - The owner of host TSG 4.
 - The carve-out takes guest VRAM, which SotTR already exhausts ([display-balloon-2026-09-29.md](display-balloon-2026-09-29.md)).

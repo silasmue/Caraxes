@@ -1130,6 +1130,145 @@ impl Dispatcher {
         notes
     }
 
+    /// After a host RC of mirrored GR channel `chid` (read only, once per RC): the push the
+    /// host fetched last, the GPFIFO entry at USERD GPGet-1, with its last methods by
+    /// subchannel and whether it launches work: a compute dispatch (SEND_PCAS_A 0x2b4 or
+    /// SEND_SIGNALING_PCAS_B 0x2bc on the compute class) or an MME macro call (0x3800 and up
+    /// on another class: how the NVIDIA driver issues its draws, direct or indirect).
+    /// Subchannel classes come from the SET_OBJECTs of the channel's last 16 entries. For
+    /// the Xid 109 of SotTR (docs/research/gr-preemption-2026-09-29.md, step 0).
+    pub fn gr_rc_push_note(
+        &self,
+        gm: &crate::channel::GpuMem,
+        chid: u32,
+        xid: u32,
+    ) -> Option<String> {
+        use crate::fb::Target;
+        const SCAN: u32 = 16;
+        const MAX_DWORDS: usize = 1 << 16;
+        let ch = self.channels.channel(chid)?;
+        let userd = ch.userd?;
+        let root = self
+            .channels
+            .vas_key_of(ch)
+            .and_then(|k| self.channels.vas_root(k))?;
+        let at = |off: u64| match userd {
+            Target::Fb(pa) => Target::Fb(pa + off),
+            Target::Sys(pa) => Target::Sys(pa + off),
+            t => t,
+        };
+        let (get, put) = (gm.read_u32(at(0x88))?, gm.read_u32(at(0x8C))?);
+        let entries = ch.gpfifo_entries.max(1);
+        if get >= entries || put >= entries {
+            return Some(format!(
+                "gr rc push: chid {chid} (exceptType {xid}): USERD GPGet {get} GPPut {put} outside the ring of {entries} [guest memory]"
+            ));
+        }
+        // One GPFIFO entry: pushbuffer VA, dwords, subroutine level, and its methods
+        // (subchannel, method, data).
+        type Entry = (u64, usize, bool, Vec<(usize, u32, u32)>);
+        let entry = |idx: u32| -> Option<Entry> {
+            let mut e = [0u8; 8];
+            gm.read_va(root, ch.gpfifo_va + 8 * idx as u64, &mut e)
+                .ok()?;
+            let (e0, e1) = (
+                u32::from_le_bytes(e[0..4].try_into().unwrap()),
+                u32::from_le_bytes(e[4..8].try_into().unwrap()),
+            );
+            let length = ((e1 >> 10) & 0x1F_FFFF) as usize;
+            let pb_va = ((e1 as u64 & 0xFF) << 32) | (e0 as u64 & !3);
+            let sub = e1 & (1 << 9) != 0;
+            if length == 0 || length > MAX_DWORDS {
+                return Some((pb_va, length, sub, Vec::new()));
+            }
+            let mut raw = vec![0u8; length * 4];
+            gm.read_va(root, pb_va, &mut raw).ok()?;
+            let w: Vec<u32> = raw
+                .chunks_exact(4)
+                .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                .collect();
+            let mut methods = Vec::new();
+            let mut i = 0usize;
+            while i < w.len() {
+                let hdr = w[i];
+                i += 1;
+                let (sec_op, count, subch, addr) = (
+                    hdr >> 29,
+                    ((hdr >> 16) & 0x1FFF) as usize,
+                    ((hdr >> 13) & 7) as usize,
+                    (hdr & 0xFFF) << 2,
+                );
+                match sec_op {
+                    1 | 3 | 5 => {
+                        let n = count.min(w.len() - i);
+                        for k in 0..n {
+                            let a = if sec_op == 3 || (sec_op == 5 && k > 0) {
+                                addr
+                            } else {
+                                addr + 4 * k as u32
+                            };
+                            methods.push((subch, a, w[i + k]));
+                        }
+                        i += n;
+                    }
+                    4 => methods.push((subch, addr, (hdr >> 16) & 0x1FFF)),
+                    _ => {}
+                }
+            }
+            Some((pb_va, length, sub, methods))
+        };
+        let last = (get + entries - 1) % entries;
+        let mut classes = [0u32; 8];
+        for k in (1..=SCAN.min(entries)).rev() {
+            if let Some((_, _, _, m)) = entry((get + entries - k) % entries) {
+                for (s, a, d) in m {
+                    if a == 0 {
+                        classes[s] = d & 0xFFFF;
+                    }
+                }
+            }
+        }
+        let Some((pb_va, length, sub, methods)) = entry(last) else {
+            return Some(format!(
+                "gr rc push: chid {chid} (exceptType {xid}): USERD GPGet {get} GPPut {put}; entry {last} (GPGet-1) unreadable"
+            ));
+        };
+        let compute = self.chip.channel.compute;
+        let dispatch = methods
+            .iter()
+            .any(|(s, a, _)| classes[*s] == compute && (*a == 0x2B4 || *a == 0x2BC));
+        let mme = methods
+            .iter()
+            .any(|(s, a, _)| classes[*s] != compute && *a >= 0x3800);
+        let kind = match (dispatch, mme) {
+            (true, true) => "compute dispatch and MME macro call (draw)",
+            (true, false) => "compute dispatch",
+            (false, true) => "MME macro call (the driver's draw path)",
+            (false, false) => "no dispatch or MME call",
+        };
+        let tail: Vec<String> = methods
+            .iter()
+            .rev()
+            .take(6)
+            .rev()
+            .map(|(s, a, d)| format!("{s}[{:#x}]:{a:#x}={d:#x}", classes[*s]))
+            .collect();
+        let bound: Vec<String> = classes
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| **c != 0)
+            .map(|(s, c)| format!("{s}={c:#x}"))
+            .collect();
+        Some(format!(
+            "gr rc push: chid {chid} (exceptType {xid}): USERD GPGet {get} GPPut {put} ({} not fetched); entry {last} (GPGet-1) pb {pb_va:#x}, {length} dword(s){}, {} method(s): {kind}; last (subch[class]:method=data) {}; subchannel classes seen {} [guest memory]",
+            (put + entries - get) % entries,
+            if sub { ", subroutine" } else { "" },
+            methods.len(),
+            tail.join(" "),
+            if bound.is_empty() { "none".into() } else { bound.join(" ") }
+        ))
+    }
+
     /// After the host doorbell of a mirrored channel (read-only, nothing is executed
     /// here): poll the channel's USERD GPGet through the FB store for up to 20 ms, then
     /// decode the GPFIFO entry the guest just rang and report every address the physical
@@ -1657,11 +1796,12 @@ impl Dispatcher {
         answer
     }
 
-    /// `GR_CTXSW_PREEMPTION_BIND` (0x20801211, the Windows KMD's; ctrl2080gr.h:917-929) on a
-    /// mirrored device. Compute CTA or CILP, pointer-free, is bound on the host TSG and
-    /// verified (mirror.rs `bind_owned_compute`). The graphics part never forwards the guest's
-    /// buffers: the host TSG has GFXP from a slot of the VM's slice when it has a 3D object
-    /// (bound at its build), else WFI; a graphics request is acknowledged.
+    /// `GR_CTXSW_PREEMPTION_BIND` (0x20801211, the Windows KMD's: it sends BINDs, no SET;
+    /// ctrl2080gr.h:917-929) on a mirrored device. Its compute part takes the SET's path
+    /// (cuda.rs `set_ctxsw_preemption_mode`, preempt.rs): recorded for the guest TSG, bound on
+    /// the host TSG at its build or at once when it is built. The graphics part never forwards
+    /// the guest's buffers: a host TSG with a 3D object has GFXP from a slot of the VM's slice,
+    /// bound at its build (gfxpslot.rs), any other stays WFI; it is acknowledged.
     fn preemption_bind(&mut self, params: &[u8]) -> Answer {
         let word = |o: usize| {
             params
@@ -1672,27 +1812,28 @@ impl Dispatcher {
         let pointer_free = params.len() == 112
             && params[12..88].iter().all(|b| *b == 0)
             && params[96..112].iter().all(|b| *b == 0);
-        if flags == 1 && gfxp == 0 && matches!(cilp, 1 | 2) && pointer_free {
-            let r =
-                self.mirror
-                    .as_mut()
-                    .unwrap()
-                    .bind_owned_compute(&self.channels, client, tsg, cilp);
-            let (status, note) = match r {
-                Ok(notes) => (NV_OK, notes.join("; ")),
-                Err(e) => (NV_ERR_NOT_SUPPORTED, e),
-            };
-            return Answer {
-                status,
-                params: params.to_vec(),
-                label: "host (compute preemption bound on the host TSG and verified)",
-                note: format!("preemption bind {client:#x}/{tsg:#x} compute {cilp}: {note}"),
-            };
+        if flags == 1 && pointer_free {
+            // As the SET {CILP_SET, hChannel = the TSG, cilp} of the same client.
+            use crate::preempt::{FLAG_CILP_SET, SET_CILP, SET_FLAGS, SET_H_CHANNEL};
+            let mut set = [0u8; 32];
+            set[SET_FLAGS..SET_FLAGS + 4].copy_from_slice(&FLAG_CILP_SET.to_le_bytes());
+            set[SET_H_CHANNEL..SET_H_CHANNEL + 4].copy_from_slice(&tsg.to_le_bytes());
+            set[SET_CILP..SET_CILP + 4].copy_from_slice(&cilp.to_le_bytes());
+            let (mut a, guest) =
+                crate::cuda::set_ctxsw_preemption_mode(client, &set, &mut self.channels);
+            if let (Some(g), Some(m)) = (guest, self.mirror.as_mut()) {
+                if let Some(n) = m.guest_preemption_set(&self.channels, g) {
+                    a.note.push_str(&format!("; {n}"));
+                }
+            }
+            a.params = params.to_vec();
+            a.note = format!("preemption bind (compute, as a SET): {}", a.note);
+            return a;
         }
         Answer {
             status: NV_OK,
             params: params.to_vec(),
-            label: "guest (acknowledged: the host TSG's graphics mode is GFXP from a slot of the VM's slice for a 3D TSG, else WFI; the guest's buffers are never used)",
+            label: "guest (acknowledged: a 3D host TSG has GFXP from a slot of the VM's slice, bound at its build; others WFI; the guest's buffers are never used)",
             note: format!("preemption bind {client:#x}/{tsg:#x} flags {flags:#x} gfxp {gfxp} cilp {cilp}: acknowledged"),
         }
     }
@@ -1960,6 +2101,19 @@ impl Dispatcher {
             // A chip with the MIG model reserves the GR global buffers per GPU instance
             // (families/mig.rs, `global_ctx_buffers`).
             crate::families::mig::global_ctx_buffers(&self.families, cmd, &mut a);
+            return a;
+        }
+        // The guest's GR preemption request (cuda.rs, preempt.rs): NV_OK as before, recorded
+        // per guest TSG; its compute mode is bound on the host TSG at the build, or now when
+        // that TSG is built already.
+        if cmd == v::CMD_GR_SET_CTXSW_PREEMPTION_MODE {
+            let (mut a, guest) =
+                crate::cuda::set_ctxsw_preemption_mode(h_client, params, &mut self.channels);
+            if let (Some(g), Some(m)) = (guest, self.mirror.as_mut()) {
+                if let Some(n) = m.guest_preemption_set(&self.channels, g) {
+                    a.note.push_str(&format!("; {n}"));
+                }
+            }
             return a;
         }
         // The CUDA path's synthesized and derived rows (E5c) live in cuda.rs.
