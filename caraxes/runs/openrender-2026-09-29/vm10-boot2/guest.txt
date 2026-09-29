@@ -1,0 +1,206 @@
+[    0.000000] Linux version 7.2.7-nova (silas@manacor) (clang version 22.1.8, GNU ld (GNU Binutils) 2.47) #2 SMP PREEMPT_DYNAMIC Tue Sep 29 07:06:04 CEST 2026
+[    0.069370] Console: colour dummy device 80x25
+[    0.200628] pid_max: default: 32768 minimum: 301
+[    0.300996] iommu: Default domain type: Translated
+[    0.311640] NetLabel:  unlabeled traffic allowed by default
+[    0.351760] PCI: CLS 0 bytes, default 64
+[    0.395402] virtio_blk virtio0: 1/0/0 default/read/poll queues
+[    0.405659] virtio_blk virtio1: 1/0/0 default/read/poll queues
+[    0.458602]   No soundcards found.
+[    0.472540] VFS: Mounted root (ext4 filesystem) on device 253:1.
+[    0.543624] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB
+[    0.672147] systemd[1]: Queued start job for default target graphical.target.
+[[0;32m  OK  [0m] Started [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
+CARAXES-CHECK begin 2026-09-29T05:46:08+00:00 7.2.7-nova
+CARAXES-CHECK firmware
+CARAXES-CHECK R1 probe
+/etc/modprobe.d/caraxes-openrender.conf:1:# Caraxes openrender guest: openrender-check.sh loads nouveau itself
+/etc/modprobe.d/caraxes-openrender.conf:2:blacklist nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:5:blacklist nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:6:blacklist lbm-nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:8:alias nouveau off
+/lib/modprobe.d/nvidia-graphics-drivers.conf:9:alias lbm-nouveau off
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:5:blacklist nouveau
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:6:blacklist lbm-nouveau
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:8:alias nouveau off
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:9:alias lbm-nouveau off
+[    4.073027] nouveau 0000:00:04.0: gsp: fwsec-sb(v2): -2
+[    4.073624] nouveau 0000:00:04.0: gsp: one-time init failed, -2
+[    4.074555] nouveau 0000:00:04.0: init failed with -2
+[    4.075154] nouveau: drm:00000000:00000080: init failed with -2
+[    4.075807] nouveau 0000:00:04.0: drm: Device allocation failed: -2
+[    4.078393] nouveau 0000:00:04.0: probe with driver nouveau failed with error -2
+modprobe nouveau rc=0
+[    2.842296] nouveau 0000:00:04.0: enabling device (0000 -> 0003)
+[    2.843120] nouveau 0000:00:04.0: NVIDIA TU106 (166000a1)
+[    2.953265] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/gsp-570.144.bin" loaded - 28542040 byte(s)
+[    2.953545] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/bootloader-570.144.bin" loaded - 4196 byte(s)
+[    2.953722] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/booter_load-570.144.bin" loaded - 59272 byte(s)
+[    2.953859] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/booter_unload-570.144.bin" loaded - 39304 byte(s)
+[    2.953861] nouveau 0000:00:04.0: gsp: RM version: 570.144
+[    4.051532] nouveau 0000:00:04.0: bios: version 90.06.3d.00.76
+[    4.057229] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.057232] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.057233] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.057234] nouveau 0000:00:04.0: gsp: 	binSize          : 59392
+[    4.057235] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.057236] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x88
+[    4.057236] nouveau 0000:00:04.0: gsp: 	dataSize         : 0xe700
+[    4.057237] nouveau 0000:00:04.0: gsp: hsHeader:
+[    4.057238] nouveau 0000:00:04.0: gsp: 	sigProdOffset    : 0x3c
+[    4.057239] nouveau 0000:00:04.0: gsp: 	sigProdSize      : 0x10
+[    4.057239] nouveau 0000:00:04.0: gsp: 	patchLoc         : 0x4c
+[    4.057240] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    4.057241] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    4.057241] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    4.057242] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    4.057243] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    4.057243] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    4.057263] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    4.057264] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    4.057265] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    4.057265] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x8500
+[    4.057266] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x6200
+[    4.057267] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    4.057267] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x8400
+[    4.057268] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.057270] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.057270] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.057271] nouveau 0000:00:04.0: gsp: 	binSize          : 39424
+[    4.057272] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.057272] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x88
+[    4.057273] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x9900
+[    4.057274] nouveau 0000:00:04.0: gsp: hsHeader:
+[    4.057274] nouveau 0000:00:04.0: gsp: 	sigProdOffset    : 0x3c
+[    4.057275] nouveau 0000:00:04.0: gsp: 	sigProdSize      : 0x10
+[    4.057275] nouveau 0000:00:04.0: gsp: 	patchLoc         : 0x4c
+[    4.057276] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    4.057277] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    4.057277] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    4.057278] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    4.057279] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    4.057279] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    4.057292] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    4.057292] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    4.057293] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    4.057294] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x4c00
+[    4.057294] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x4d00
+[    4.057295] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    4.057296] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x4b00
+[    4.073022] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" unavailable
+[    4.073027] nouveau 0000:00:04.0: gsp: fwsec-sb(v2): -2
+[    4.073624] nouveau 0000:00:04.0: gsp: one-time init failed, -2
+[    4.074555] nouveau 0000:00:04.0: init failed with -2
+[    4.075154] nouveau: drm:00000000:00000080: init failed with -2
+[    4.075807] nouveau 0000:00:04.0: drm: Device allocation failed: -2
+[    4.078393] nouveau 0000:00:04.0: probe with driver nouveau failed with error -2
+CARAXES-CHECK R2 accel
+[    4.075807] nouveau 0000:00:04.0: drm: Device allocation failed: -2
+ls: cannot access '/dev/dri': No such file or directory
+CARAXES-CHECK packages
+CARAXES-CHECK R3 nvk
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+CARAXES-CHECK R4-R5 vk-offscreen
+device 0: llvmpipe (LLVM 20.1.2, 256 bits), 10005:0000, driver llvmpipe (Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)), id 13
+vk-offscreen: no device for --driver nvk
+vk-offscreen rc=2
+CARAXES-CHECK R6 vkmark headless
+vkmark rc=1
+CARAXES-CHECK dmesg-after
+[    0.200628] pid_max: default: 32768 minimum: 301
+[    0.300996] iommu: Default domain type: Translated
+[    0.311640] NetLabel:  unlabeled traffic allowed by default
+[    0.351760] PCI: CLS 0 bytes, default 64
+[    0.395402] virtio_blk virtio0: 1/0/0 default/read/poll queues
+[    0.405659] virtio_blk virtio1: 1/0/0 default/read/poll queues
+[    0.543624] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB
+[    0.672147] systemd[1]: Queued start job for default target graphical.target.
+[    2.842296] nouveau 0000:00:04.0: enabling device (0000 -> 0003)
+[    2.843120] nouveau 0000:00:04.0: NVIDIA TU106 (166000a1)
+[    2.953265] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/gsp-570.144.bin" loaded - 28542040 byte(s)
+[    2.953545] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/bootloader-570.144.bin" loaded - 4196 byte(s)
+[    2.953722] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/booter_load-570.144.bin" loaded - 59272 byte(s)
+[    2.953859] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/booter_unload-570.144.bin" loaded - 39304 byte(s)
+[    2.953861] nouveau 0000:00:04.0: gsp: RM version: 570.144
+[    4.051532] nouveau 0000:00:04.0: bios: version 90.06.3d.00.76
+[    4.057229] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.057232] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.057233] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.057234] nouveau 0000:00:04.0: gsp: 	binSize          : 59392
+[    4.057235] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.057236] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x88
+[    4.057236] nouveau 0000:00:04.0: gsp: 	dataSize         : 0xe700
+[    4.057237] nouveau 0000:00:04.0: gsp: hsHeader:
+[    4.057238] nouveau 0000:00:04.0: gsp: 	sigProdOffset    : 0x3c
+[    4.057239] nouveau 0000:00:04.0: gsp: 	sigProdSize      : 0x10
+[    4.057239] nouveau 0000:00:04.0: gsp: 	patchLoc         : 0x4c
+[    4.057240] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    4.057241] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    4.057241] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    4.057242] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    4.057243] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    4.057243] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    4.057263] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    4.057264] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    4.057265] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    4.057265] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x8500
+[    4.057266] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x6200
+[    4.057267] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    4.057267] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x8400
+[    4.057268] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.057270] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.057270] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.057271] nouveau 0000:00:04.0: gsp: 	binSize          : 39424
+[    4.057272] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.057272] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x88
+[    4.057273] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x9900
+[    4.057274] nouveau 0000:00:04.0: gsp: hsHeader:
+[    4.057274] nouveau 0000:00:04.0: gsp: 	sigProdOffset    : 0x3c
+[    4.057275] nouveau 0000:00:04.0: gsp: 	sigProdSize      : 0x10
+[    4.057275] nouveau 0000:00:04.0: gsp: 	patchLoc         : 0x4c
+[    4.057276] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    4.057277] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    4.057277] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    4.057278] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    4.057279] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    4.057279] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    4.057292] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    4.057292] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    4.057293] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    4.057294] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x4c00
+[    4.057294] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x4d00
+[    4.057295] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    4.057296] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x4b00
+[    4.073022] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" unavailable
+[    4.073027] nouveau 0000:00:04.0: gsp: fwsec-sb(v2): -2
+[    4.073624] nouveau 0000:00:04.0: gsp: one-time init failed, -2
+[    4.074555] nouveau 0000:00:04.0: init failed with -2
+[    4.075154] nouveau: drm:00000000:00000080: init failed with -2
+[    4.075807] nouveau 0000:00:04.0: drm: Device allocation failed: -2
+[    4.078393] nouveau 0000:00:04.0: probe with driver nouveau failed with error -2
+CARAXES-CHECK unbind
+unbind rc=1
+[    4.057276] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    4.057277] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    4.057277] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    4.057278] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    4.057279] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    4.057279] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    4.057292] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    4.057292] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    4.057293] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    4.057294] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x4c00
+[    4.057294] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x4d00
+[    4.057295] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    4.057296] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x4b00
+[    4.073022] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" unavailable
+[    4.073027] nouveau 0000:00:04.0: gsp: fwsec-sb(v2): -2
+[    4.073624] nouveau 0000:00:04.0: gsp: one-time init failed, -2
+[    4.074555] nouveau 0000:00:04.0: init failed with -2
+[    4.075154] nouveau: drm:00000000:00000080: init failed with -2
+[    4.075807] nouveau 0000:00:04.0: drm: Device allocation failed: -2
+[    4.078393] nouveau 0000:00:04.0: probe with driver nouveau failed with error -2
+CARAXES-CHECK end
+[[0;32m  OK  [0m] Stopped [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.

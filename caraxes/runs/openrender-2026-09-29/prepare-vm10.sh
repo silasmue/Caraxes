@@ -8,6 +8,9 @@
 #     as modules), from $KMODS (default /mnt/vmstore/caraxes/nova-kernel/modules-openrender),
 #   - the r570.144 GSP firmware nouveau and nova request (nvidia/tu106/gsp -> ../tu102/gsp, the
 #     host's linux-firmware files, zstd as packaged; the kernel has FW_LOADER_COMPRESS_ZSTD),
+#     and nvidia/tu106/acr/bl.bin, the generic falcon bootloader nouveau loads a v2 FWSEC
+#     descriptor with (Linux 7.2.7 nvkm/subdev/gsp/fwsec.c `nvkm_gsp_fwsec_v2`; nova uses
+#     gen_bootloader instead; vm10-boot2: "fwsec-sb(v2): -2" without it),
 #   - nouveau and nova_core blacklisted from autoload (openrender-check.sh loads nouveau), the
 #     stock nvidia modules blacklisted (built for 6.8, they never load under 7.2.7 anyway),
 #   - vk-offscreen (vk-offscreen/build.sh) in /usr/local/bin,
@@ -40,7 +43,8 @@ tar -C / -chf "$tmp/firmware.tar" \
     lib/firmware/nvidia/tu102/gsp/booter_unload-570.144.bin.zst \
     lib/firmware/nvidia/tu102/gsp/bootloader-570.144.bin.zst \
     lib/firmware/nvidia/tu102/gsp/gen_bootloader-570.144.bin.zst \
-    lib/firmware/nvidia/tu102/gsp/gsp-570.144.bin.zst
+    lib/firmware/nvidia/tu102/gsp/gsp-570.144.bin.zst \
+    lib/firmware/nvidia/tu106/acr/bl.bin.zst
 printf '%s\n' "# Caraxes openrender guest: openrender-check.sh loads nouveau itself" \
     "blacklist nouveau" "blacklist nova_core" "blacklist nova_drm" "blacklist nvidia" \
     "blacklist nvidia_drm" "blacklist nvidia_modeset" "blacklist nvidia_uvm" > "$tmp/openrender.conf"
@@ -68,4 +72,4 @@ ln-sf /dev/null /etc/systemd/system/NetworkManager-wait-online.service
 ln-sf /dev/null /etc/systemd/system/systemd-networkd-wait-online.service
 GF
 guestfish --ro -a "$W/rootfs.qcow2" -i sh \
-    "ls -la /lib/firmware/nvidia/tu106/ /lib/firmware/nvidia/tu102/gsp/; find /lib/modules/$KV -name 'nouveau*' -o -name 'nova*'; cat /etc/modprobe.d/caraxes-openrender.conf; ls -la /usr/local/bin/vk-offscreen /usr/share/vulkan/icd.d/nouveau_icd.json"
+    "ls -la /lib/firmware/nvidia/tu106/ /lib/firmware/nvidia/tu106/acr/ /lib/firmware/nvidia/tu102/gsp/; find /lib/modules/$KV -name 'nouveau*' -o -name 'nova*'; cat /etc/modprobe.d/caraxes-openrender.conf; ls -la /usr/local/bin/vk-offscreen /usr/share/vulkan/icd.d/nouveau_icd.json"
