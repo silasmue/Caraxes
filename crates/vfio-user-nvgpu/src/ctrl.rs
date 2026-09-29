@@ -1957,9 +1957,11 @@ impl Dispatcher {
     /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
         let mut answer = self.control_inner(h_client, h_object, cmd, params);
-        // Compression per VM slice: the forwarded and replayed FB info is this VM's.
-        if let Some(view) = self.compression() {
-            crate::compression::finish(&view, cmd, &mut answer);
+        // Compression per VM slice: the forwarded and replayed FB info is this VM's; without
+        // it, the FB info says no compression, as every other answer does (D16).
+        match self.compression() {
+            Some(view) => crate::compression::finish(&view, cmd, &mut answer),
+            None => crate::compression::finish_off(cmd, &mut answer),
         }
         const DEFERRED: [u32; 4] = [0x5080_0101, 0x5080_0102, 0x5080_0103, 0x5080_0104];
         static CAPTURED: std::sync::atomic::AtomicUsize =
