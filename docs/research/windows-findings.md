@@ -1134,3 +1134,27 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     at once, and the vblank that latches the flip shows it FINISHED.
   - Test: back_to_back_flips_finish_at_their_own_latch.
 - Memory model: none.
+
+## Cloud Hypervisor, step 15: the flip armed at the blank's start (2026-09-29, C71-C73)
+
+- **With BEGUN at the arm and FINISHED at the latch (lf11), the VSync timeout stays** (C71:
+  0x9, C72: 0x7, C73: 0x10). The flip DDIs still span about 28 ms: the KMD programs the flip
+  at the DDI's end, just before a VSync. It does not poll our notifier; the notifier watch in
+  lf12 saw no guest store to it.
+- **The failing flip is the one armed right at the tick.**
+  - C73: flips armed 1.3-35 ms before their latch were reported. Flip 20 (present 0x10) was
+    armed at 117.8215 and latched at tick 685 (117.8215).
+  - The KMD read the scan line right before its UPDATE: 1117 (C73) and 1119 (C71), with the
+    blank starting at line 1120 (RASTER_BLANK_START 0x460083f) and the tick at line 0.
+  - After that flip the KMD polls window 0's GET/PUT and PTIMER for 2 s. After others it reads
+    the ARMED SET_PARAMS once.
+  - C72 (scan line 1088, latch 0.49 ms after the UPDATE) fails the same way; C70's 0x2B ran
+    with the old notifier timing.
+- **The card latches armed updates at the blank's start and raises LAST_DATA there.** Ours did
+  both at line 0, the start of vsync, 5 lines later. A flip armed in those lines latched a
+  frame earlier than the KMD, which knows the scan line, expects.
+- **Model since 2026-09-29:** the display clock's ticks are the blank's first line (the
+  raster's BLANK_START, else the viewport's height). The scan line reads that line at the
+  tick; an UPDATE armed after it waits for the next frame. Test:
+  the_latch_is_at_the_blank_start_line.
+- Memory model: none.

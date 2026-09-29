@@ -961,7 +961,14 @@ impl Engine {
         self.windows.get(w).is_some_and(|w| !w.pending.is_empty())
     }
 
-    /// The current scan line of head `h` (SYSTEM_GET_SCANLINE, RG_DPCA).
+    /// The current scan line of head `h` (SYSTEM_GET_SCANLINE, RG_DPCA), counted from line
+    /// 0 (the start of vsync) as the raster generator counts. The display clock's ticks are
+    /// the vertical blank's start (the raster's `BLANK_START` line, without one the
+    /// viewport's height): where the card latches the armed updates and raises `LAST_DATA`.
+    /// An `UPDATE` armed after that line waits for the next frame, as on the card; the
+    /// Windows KMD, which reads the scan line right before its flip's `UPDATE`, expects
+    /// exactly that (C71, C73: flips armed at lines 1117-1119 of a 1125-line raster whose
+    /// blank starts at 1120 latched at the old tick, line 0, and were never reported).
     pub fn scanline(&self, h: usize, now: u64) -> u32 {
         let Some(head) = self.heads.get(h) else {
             return 0;
@@ -970,7 +977,12 @@ impl Engine {
             return 0;
         }
         let into = (now.saturating_sub(head.t0_ns)) % head.period_ns;
-        (into * head.vtotal as u64 / head.period_ns) as u32
+        let latch_line = if head.vblank_start > head.vblank_end && head.vblank_start < head.vtotal {
+            head.vblank_start
+        } else {
+            head.height.min(head.vtotal - 1)
+        };
+        ((latch_line as u64 + into * head.vtotal as u64 / head.period_ns) % head.vtotal as u64) as u32
     }
 
     /// Whether `line` of head `h` lies in the vertical blank: before the raster's
@@ -1454,6 +1466,13 @@ impl Engine {
                 get(base + C_HEAD_OLUT_CONTROL),
                 get(base + C_HEAD_CONTEXT_DMA_OLUT),
             );
+            // The raster's blank lines follow every core UPDATE (they place the latch, see
+            // `scanline`); the clock restarts only when the head starts, stops or changes
+            // its period.
+            if active {
+                hd.vblank_end = (get(base + C_HEAD_RASTER_BLANK_END) >> 16) & 0x7FFF;
+                hd.vblank_start = (get(base + C_HEAD_RASTER_BLANK_START) >> 16) & 0x7FFF;
+            }
             if hd.active != active || hd.period_ns != period_ns {
                 hd.active = active;
                 hd.period_ns = period_ns;
@@ -1937,6 +1956,43 @@ mod tests {
         assert_eq!(notifier(&fb, 2), (NOTIFIER_FINISHED, ptimer_stamp(t0 + 2 * p)));
         assert_eq!(notifier(&fb, 1), (NOTIFIER_FINISHED, ptimer_stamp(t0 + p)), "untouched");
         assert_eq!(e.windows[0].flips, 2);
+    }
+
+    /// The tick is the vertical blank's start: the scan line reads `BLANK_START` there, and a
+    /// flip whose UPDATE comes after that line (the Windows KMD reads the line right before
+    /// it) latches a frame later; one armed a few lines before latches at the tick.
+    #[test]
+    fn the_latch_is_at_the_blank_start_line() {
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        let mut armed = BTreeMap::new();
+        armed.insert(C_SOR_SET_CONTROL, 0x1 | (8 << 8));
+        armed.insert(C_WINDOW_SET_CONTROL, 0);
+        armed.insert(C_HEAD + C_HEAD_RASTER_SIZE, 2200 | (1125 << 16));
+        armed.insert(C_HEAD + C_HEAD_RASTER_BLANK_START, 1120 << 16);
+        armed.insert(C_HEAD + C_HEAD_RASTER_BLANK_END, 40 << 16);
+        armed.insert(C_HEAD + C_HEAD_PIXEL_CLOCK, 148_000_000);
+        armed.insert(C_HEAD + C_HEAD_VIEWPORT_SIZE_IN, 1920 | (1080 << 16));
+        e.core_update(&armed, 5_000, &mut fb, &mem);
+        let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+        let line_ns = p / 1125;
+        assert_eq!(e.scanline(0, t0 + p), 1120, "the tick is the blank's first line");
+        assert_eq!(e.scanline(0, t0 + p - 3 * line_ns - 10), 1116);
+        assert_eq!(e.rg_scan_line(0, t0 + p) >> 16, 1, "in the blank");
+        for (m, v) in [(W_SET_CONTEXT_DMA_ISO, 0x40), (W_SET_SIZE, 1920 | (1080 << 16)), (W_SET_PRESENT_CONTROL, 1)] {
+            e.window_method(0, m, v);
+        }
+        // Armed three lines before the blank: this tick.
+        e.window_update(0, t0 + 2 * p - 3 * line_ns, &mut fb, &mem);
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
+        assert_eq!((e.windows[0].flips, e.windows[0].last_latch_tick), (1, Some(2)));
+        // Armed two lines into the blank: the next frame.
+        e.window_update(0, t0 + 3 * p + 2 * line_ns, &mut fb, &mem);
+        e.catch_up(t0 + 4 * p - 1, &mut fb, &mem);
+        assert!(e.window_busy(0));
+        e.catch_up(t0 + 4 * p, &mut fb, &mem);
+        assert_eq!((e.windows[0].flips, e.windows[0].last_latch_tick), (2, Some(4)));
     }
 
     /// FB records the store cannot share wait for the device path: the clock without the
