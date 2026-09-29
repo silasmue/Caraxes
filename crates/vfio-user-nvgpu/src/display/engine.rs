@@ -145,6 +145,8 @@ const HASH_LIMIT: u64 = 0x2000;
 const HASH_ENTRY: u64 = 8;
 /// Recent display events kept (`Engine::recent`).
 const RECENT: usize = 96;
+/// Recent routed register accesses kept (`Engine::recent_regs`).
+const RECENT_REGS: usize = 256;
 
 // -------------------------------------------------------------------------------------
 // The clock and the ticker thread.
@@ -775,6 +777,10 @@ pub struct Engine {
     /// before a TDR, whatever the trace's latch rule left out).
     pub recent: VecDeque<String>,
     pub record_write_failures: u64,
+    /// The last guest accesses of the engine's registers served without the device mutex
+    /// (display/core_path.rs): (display-clock ns, write, offset, value), traced with
+    /// `recent`.
+    pub recent_regs: VecDeque<(u64, bool, u64, u32)>,
 }
 
 impl Engine {
@@ -796,6 +802,7 @@ impl Engine {
             routed_writes: 0,
             recent: VecDeque::new(),
             record_write_failures: 0,
+            recent_regs: VecDeque::new(),
         };
         for h in 0..MAX_HEADS {
             ticker().set_head(h, 0, 0);
@@ -820,6 +827,14 @@ impl Engine {
             self.recent.pop_front();
         }
         self.recent.push_back(format!("{:.4} {s}", ns as f64 / 1e9));
+    }
+
+    /// A guest register access served without the device mutex, for `recent_regs`.
+    pub(crate) fn recent_reg(&mut self, ns: u64, write: bool, off: u64, v: u32) {
+        if self.recent_regs.len() >= RECENT_REGS {
+            self.recent_regs.pop_front();
+        }
+        self.recent_regs.push_back((ns, write, off, v));
     }
 
     /// Write a record on `io`; a failed write is counted and kept among the recent events.
@@ -1587,6 +1602,15 @@ impl Engine {
             self.record_write_failures
         )];
         v.extend(self.recent.iter().map(|s| format!("display recent: {s}")));
+        // The routed register accesses, eight to a line.
+        let regs: Vec<String> = self
+            .recent_regs
+            .iter()
+            .map(|&(ns, w, off, val)| format!("{:.4} {} {off:#x}={val:#x}", ns as f64 / 1e9, if w { 'W' } else { 'R' }))
+            .collect();
+        for chunk in regs.chunks(8) {
+            v.push(format!("display recent registers: {}", chunk.join("; ")));
+        }
         v
     }
 

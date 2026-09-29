@@ -199,7 +199,11 @@ pub fn read32(engine: &Mutex<Engine>, mem: &GuestMemory, off: u64) -> Option<u32
     let windows = pins.read();
     let now = engine::now_ns();
     e.catch_up_io(now, &mut CoreIo { mem, pins: &windows });
-    e.read32(off, now)
+    let v = e.read32(off, now);
+    if let Some(v) = v {
+        e.recent_reg(now, false, off, v);
+    }
+    v
 }
 
 /// A guest write of an engine register without the device mutex (`Display::write32`); the
@@ -215,7 +219,9 @@ pub fn write32(engine: &Mutex<Engine>, mem: &GuestMemory, off: u64, v: u32) -> b
     e.routed_writes += 1;
     let pins = e.pins.clone();
     let windows = pins.read();
-    e.catch_up_io(engine::now_ns(), &mut CoreIo { mem, pins: &windows });
+    let now = engine::now_ns();
+    e.catch_up_io(now, &mut CoreIo { mem, pins: &windows });
+    e.recent_reg(now, true, off, v);
     match e.write32(off, v) {
         Some(n) => {
             if !n.is_empty() {
