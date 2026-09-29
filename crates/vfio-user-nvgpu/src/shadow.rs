@@ -146,10 +146,6 @@ pub const HOST_AREA_SIZE: u64 = 64 << 20;
 pub const VAS_ALLOW_ZERO_ADDRESS: u32 = 1 << 8;
 /// The RM's start of a VAS created with base 0 and without [`VAS_ALLOW_ZERO_ADDRESS`].
 pub const RM_RESERVED_VA_BASE: u64 = 1 << 20;
-/// The size of a shadow VA space: the guest's VA range (below 2^47, gfxpslot.rs
-/// `GUEST_VA_END`) and above it the device's own, the owned-GFXP slot window (gfxpslot.rs
-/// `SLOT_VA_BASE`), which no guest leaf reaches.
-pub const SHADOW_VA_SIZE: u64 = 1 << 48;
 /// `CARAXES_SHADOW_FENCE=1`: default-layout shadow VA spaces fence the guest RM's kernel range
 /// ([`Layout::fenced`]); off by default (Linux's layout is unchanged).
 pub const FENCE_ENV: &str = "CARAXES_SHADOW_FENCE";
@@ -1113,7 +1109,7 @@ impl ShadowVas {
         let mut vp = sys::NV_VASPACE_ALLOCATION_PARAMETERS::default();
         vp.flags = layout.alloc_flags();
         vp.vaBase = layout.va_base;
-        vp.vaSize = SHADOW_VA_SIZE;
+        vp.vaSize = 1 << 47;
         vp.bigPageSize = 64 * 1024;
         // SAFETY: plain-data alloc params viewed as bytes.
         let bytes = unsafe {
@@ -1122,23 +1118,7 @@ impl ShadowVas {
                 std::mem::size_of::<sys::NV_VASPACE_ALLOCATION_PARAMETERS>(),
             )
         };
-        // A host that refuses the larger VA space gets the guest's range alone: the GFXP slot
-        // window is then outside it and its TSGs stay WFI (one WARN each, mirror.rs).
-        let vas = match hm.alloc_object(device, sys::FERMI_VASPACE_A, bytes, "shadow-vaspace") {
-            Ok(v) => v,
-            Err(_) => {
-                vp.vaBase = layout.va_base;
-                vp.vaSize = crate::gfxpslot::GUEST_VA_END;
-                // SAFETY: as above.
-                let bytes = unsafe {
-                    std::slice::from_raw_parts_mut(
-                        &mut vp as *mut _ as *mut u8,
-                        std::mem::size_of::<sys::NV_VASPACE_ALLOCATION_PARAMETERS>(),
-                    )
-                };
-                hm.alloc_object(device, sys::FERMI_VASPACE_A, bytes, "shadow-vaspace")?
-            }
-        };
+        let vas = hm.alloc_object(device, sys::FERMI_VASPACE_A, bytes, "shadow-vaspace")?;
         // The RM returns the base it took (vaspace_api.c:419): a video layout the host did
         // not honour is refused (its host area would not be the host's first fit).
         if layout.va_base != 0 && vp.vaBase != layout.va_base {

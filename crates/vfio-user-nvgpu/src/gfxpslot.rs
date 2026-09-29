@@ -7,21 +7,18 @@
 //! slots carved from the VM's own reservation (fb.rs `FbLayout::with_gfxp`, between the usable
 //! FB and the BAR1 pool, reported reserved, device-private) and maps a slot's buffers through
 //! the reservation's handle at fixed VAs of the slot VA window, [`SLOT_VA_BASE`] and up: above
-//! the guest's VA range, which the shadow mirrors up to 2^47 (the guest RM's VA space limit;
-//! unified-memory VAs follow CPU VAs below 2^47), inside the shadow VA space the device makes
-//! larger for it (shadow.rs `SHADOW_VA_SIZE`), and never mirrored (shadow.rs
-//! `Layout::slot_window`). No host VRAM outside the slice, and a guest mapping can never land
-//! on a slot VA.
+//! every VA a guest allocator gives out (they allocate bottom-up; unified-memory VAs follow CPU
+//! VAs below 2^47), and never mirrored (shadow.rs `Layout::slot_window`). No host VRAM outside
+//! the slice, and a guest mapping can never land on a slot VA.
 
 /// The GR context buffer ids of the GFXP set (`NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ID_*`).
 pub const ENGINES: [u32; 5] = [0xb, 0xc, 0xd, 0xe, 0xf];
 /// Placement granule of a buffer inside its slot.
 pub const GRANULE: u64 = 64 << 10;
-/// The end of the guest VA range the shadow mirrors: 128 TiB, the guest RM's VA space limit.
-pub const GUEST_VA_END: u64 = 1 << 47;
-/// The slot VA window's start: right above the guest's VA range (run P40 on Linux: 2^48 lay
-/// outside the shadow VA space, `0x1a` for every graphics TSG).
-pub const SLOT_VA_BASE: u64 = GUEST_VA_END;
+/// The slot VA window's start: 256 TiB, the upper half of Turing's 49-bit VA space.
+pub const SLOT_VA_BASE: u64 = 1 << 48;
+/// The guest VA range a guest allocation stays in: below the window.
+pub const GUEST_VA_END: u64 = SLOT_VA_BASE;
 /// Slots per 512 MiB of profile, and the bounds.
 pub const PROFILE_PER_SLOT: u64 = 512 << 20;
 pub const MIN_SLOTS: u32 = 2;
@@ -261,7 +258,7 @@ mod tests {
             let s = Slots::new((0, carve_bytes(&g, n)), g);
             let (lo, hi) = s.va_window();
             assert!(
-                lo >= GUEST_VA_END && hi <= crate::shadow::SHADOW_VA_SIZE,
+                lo >= GUEST_VA_END && hi <= 1 << 49,
                 "{gib} GiB: {lo:#x}..{hi:#x}"
             );
             for i in 0..s.count() {
