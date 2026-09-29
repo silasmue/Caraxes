@@ -38,6 +38,8 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 | 0x20800A46 | 570: `INTERNAL_KGR_INIT_BUG4208224_WAR`; 610 reused the id (CHECK_CTS_ID_VALID, refused) | 570 ctrl2080internal.h:830 | acknowledged for a 570 guest (86d0e71f) |
 | NVDEC1/NVDEC2 vectors | device-info runlists 5 and 6 had no kernel-table vector; nouveau fails FIFO oneinit ("nonstall -2") | N/nvkm/engine/fifo/ga100.c:533-565, base.c:287-294 | vectors 202/10 and 203/11 (86d0e71f) |
 | `rpc_os_error_log_v17_00` | runlistId 4, chid 8, errString 12 (610: 8, 12, 16) | the three snapshots | per guest ABI (86d0e71f) |
+| `INTR_GET_KERNEL_TABLE` subtree map | 570: `{u8 start, u8 end}[7]` at 2052 (2068 bytes); 610: u64 masks at 2056 (2112); nouveau reads only the entries | 570 ctrl2080internal.h:1462-1480 | ranges for a 570 guest (this branch) |
+| `GPFIFO_SCHEDULE` | 2 bytes in 570, 3 in 610 | caraxes/abi delta 610 -> 570 | no change: echoed at the guest's size |
 | FB regions | nouveau keeps only regions with `supportCompressed` and `supportISO` | N/nvkm/subdev/gsp/rm/r535/gsp.c:191-199 | no change: run with `CARAXES_COMPRESSION=slice` (production); D16 reports none, so no VRAM heap |
 | FWSEC in the VBIOS | application id 0x85 only | N/nvkm/subdev/gsp/fwsec.c:274-281 | no change: `synth-vbios-nova.bin` |
 | BAR flush | `r535_bar_flush` reads FB page 0 through BAR2 after instmem writes | N/nvkm/subdev/gsp/rm/r535/bar.c:33-45, 100-114 | no change: served from the device's private store, counted as outside the reservation |
@@ -83,5 +85,6 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 - R1-R5 on the device: the run commands are in caraxes/runs/openrender-2026-09-29/README.md.
 - Bare channels on the GR shadow mirror and GR objects allocated with no parameters.
 - The BAR2 flush read of FB page 0 makes the outside-reservation counter non-zero for every nouveau guest; the audit needs to name it or the device a scratch page for it.
+- Of the 57 changes `gsp-abi.py diff gsp-610.57.04 gsp-570.144` lists as affecting the device, nouveau reaches the control frame, the two alloc structs, the OS error log and the kernel table (all translated) and `GPFIFO_SCHEDULE` (echoed); the rest (display static info, KGR static sizes, `GPU_GET_INFO_V2`, `FB_GET_INFO_V2`, user shared data, PCE maps) only an OpenRM 570 kernel would send.
 - 570 control layouts beyond the ones nouveau sends (generated 570 tables `surface570`, `layouts570`, `dmodel570`; `d-controls.tsv` needs a `size_570` column).
 - The 595 pin reads channel allocations with 610 offsets (368 against 376 bytes).

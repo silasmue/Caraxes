@@ -72,6 +72,26 @@ pub const RM_CONTROL_PARAMS: usize = 24;
 /// (Linux 7.2.7 `nvkm/subdev/gsp/rm/r570/gr.c:54-68, 92-164`).
 pub const CMD_INTERNAL_KGR_INIT_BUG4208224_WAR: u32 = 0x2080_0A46;
 
+/// `NV2080_CTRL_INTERNAL_INTR_GET_KERNEL_TABLE_PARAMS` of 570.144 (2068 bytes;
+/// `src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080internal.h:1462-1480`): the same
+/// `tableLen` and 128 entries as 610, then `subtreeMap[7]` at 2052 as
+/// `NV2080_INTR_CATEGORY_SUBTREE_MAP {NvU8 subtreeStart, subtreeEnd}`, an inclusive range of
+/// subtrees, where 610 has one u64 subtree mask per category (8-byte aligned, at 2056).
+/// A category without subtrees is `NV2080_INTR_INVALID_SUBTREE` (0xFF) at both ends.
+pub const INTR_TABLE_SIZE: usize = 2068;
+pub const INTR_SUBTREE_MAP: usize = 2052;
+pub const INTR_SUBTREE_MAP_ENTRY: usize = 2;
+pub const INTR_INVALID_SUBTREE: u8 = 0xFF;
+
+/// A 610 subtree mask as 570's (start, end) range: the lowest and the highest set bit. The
+/// masks the device serves are contiguous (one subtree per category on TU106).
+pub fn subtree_range(mask: u64) -> (u8, u8) {
+    if mask == 0 {
+        return (INTR_INVALID_SUBTREE, INTR_INVALID_SUBTREE);
+    }
+    (mask.trailing_zeros() as u8, (63 - mask.leading_zeros()) as u8)
+}
+
 /// `rpc_os_error_log_v17_00` of 570.144 (`g_rpc-structures.h`; caraxes/abi/gsp-570.144):
 /// `runlistId` at 4, `chid` at 8, `errString[256]` at 12 and
 /// `preemptiveRemovalPreviousXid` at 268; 610 put that field at 4 and moved the others up
@@ -247,6 +267,17 @@ mod tests {
         for g in [GuestAbi::V595, GuestAbi::V610, GuestAbi::V615] {
             assert_eq!(g.rm_control(), RmControlFrame::V610, "{g:?}");
         }
+    }
+
+    /// The kernel interrupt table's subtree map as 570.144 lays it out, against the
+    /// measured struct.
+    #[test]
+    fn the_570_subtree_map_is_a_range_per_category() {
+        assert_eq!(subtree_range(0x8), (3, 3));
+        assert_eq!(subtree_range(0x1), (0, 0));
+        assert_eq!(subtree_range(0x6), (1, 2));
+        assert_eq!(subtree_range(0), (0xFF, 0xFF));
+        assert_eq!(INTR_SUBTREE_MAP + 7 * INTR_SUBTREE_MAP_ENTRY + 2, INTR_TABLE_SIZE);
     }
 
     /// A 570.144 channel allocation (nouveau's r570 path) lands where the device's 610

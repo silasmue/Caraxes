@@ -2291,8 +2291,24 @@ impl Dispatcher {
                     put32(&mut b, o + v::INTR_ENTRY_VECTOR_STALL, e.vector_stall);
                     put32(&mut b, o + v::INTR_ENTRY_VECTOR_NONSTALL, e.vector_nonstall);
                 }
-                for &(cat, mask) in &t.subtrees {
-                    put64(&mut b, v::INTR_SUBTREE_MAP + v::INTR_SUBTREE_MAP_ENTRY * cat, mask);
+                if crate::ver::guest() == crate::ver::GuestAbi::V570 {
+                    // 570.144: one (subtreeStart, subtreeEnd) byte pair per category at
+                    // 2052, 0xFF for none (ver::v570::INTR_SUBTREE_MAP).
+                    use crate::ver::v570 as g;
+                    b.resize(b.len().max(g::INTR_TABLE_SIZE), 0);
+                    for c in 0..7 {
+                        let o = g::INTR_SUBTREE_MAP + g::INTR_SUBTREE_MAP_ENTRY * c;
+                        b[o..o + 2].copy_from_slice(&[g::INTR_INVALID_SUBTREE; 2]);
+                    }
+                    for &(cat, mask) in &t.subtrees {
+                        let (start, end) = g::subtree_range(mask);
+                        let o = g::INTR_SUBTREE_MAP + g::INTR_SUBTREE_MAP_ENTRY * cat;
+                        b[o..o + 2].copy_from_slice(&[start, end]);
+                    }
+                } else {
+                    for &(cat, mask) in &t.subtrees {
+                        put64(&mut b, v::INTR_SUBTREE_MAP + v::INTR_SUBTREE_MAP_ENTRY * cat, mask);
+                    }
                 }
                 b.truncate(n);
                 Answer::ok(b, &t.label, format!("interrupt kernel table: {} entries", t.entries.len()))
@@ -2715,6 +2731,33 @@ mod tests {
         );
         assert_eq!(d.profile.pci_device_id, 0x2D04);
         assert_eq!(d.bar_sizes, [64 << 20, 256 << 20, 32 << 20, 0x80]);
+    }
+
+    /// A 570.144 guest reads the kernel interrupt table's subtree map as byte ranges at
+    /// 2052 (ver::v570); the entries are where 610 has them.
+    #[test]
+    fn the_570_kernel_table_has_subtree_ranges() {
+        use crate::ver::{v570, GuestAbi, TestGuest};
+        let _g = TestGuest::set(GuestAbi::V570);
+        let mut d = dispatcher(None);
+        let a = d.control(
+            INTERNAL_CLIENT,
+            0xCA7A_0003,
+            CMD_INTERNAL_INTR_GET_KERNEL_TABLE,
+            &[0u8; v570::INTR_TABLE_SIZE],
+        );
+        assert_eq!((a.status, a.params.len()), (NV_OK, 2068));
+        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 15);
+        let range = |cat: usize| {
+            let o = v570::INTR_SUBTREE_MAP + 2 * cat;
+            (a.params[o], a.params[o + 1])
+        };
+        // DEFAULT, RUNLIST and RUNLIST_NOTIFICATION have no subtree on TU106;
+        // ESCHED_DRIVEN_ENGINE 3, its notification 0, UVM_OWNED 1, UVM_SHARED 2.
+        assert_eq!(
+            (0..7).map(range).collect::<Vec<_>>(),
+            vec![(0xFF, 0xFF), (3, 3), (0, 0), (0xFF, 0xFF), (0xFF, 0xFF), (1, 1), (2, 2)]
+        );
     }
 
     #[test]
