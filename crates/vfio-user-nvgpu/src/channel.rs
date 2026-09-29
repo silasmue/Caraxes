@@ -1281,9 +1281,9 @@ impl Registry {
     /// Whether the guest has published GPFIFO entries the device has neither run nor
     /// forwarded: for a software channel GPGet is behind GPPut, for a mirrored one GPPut
     /// moved since its last doorbell ([`Self::note_rung`]). A channel the guest never
-    /// rang has GPPut 0 on both sides and is not pending, so the token-less ioeventfd
-    /// doorbell path (device.rs `doorbell_ioeventfd`) never creates a host mirror for
-    /// it. One FB-store or guest-RAM read per call.
+    /// rang has GPPut 0 on both sides and is not pending, so a token-less doorbell
+    /// (ctrl.rs `doorbell_pending`) never creates a host mirror for it. One FB-store or
+    /// guest-RAM read per call.
     pub fn pending(&self, mem: &GpuMem, chid: u32) -> bool {
         let Some((ch, gp_put)) = self.gp_put_of(mem, chid) else {
             return false;

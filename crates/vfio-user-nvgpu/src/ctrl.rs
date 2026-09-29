@@ -702,8 +702,8 @@ impl Dispatcher {
         notes
     }
 
-    /// The token-less doorbell (the ioeventfd path, device.rs `doorbell_ioeventfd`): KVM
-    /// signals that the guest wrote the doorbell register but not what, so every channel
+    /// A token-less doorbell (the usermode page's scan, um_page.rs): the device knows that
+    /// the guest wrote the doorbell but not what, so every channel
     /// with GPFIFO entries published since its last doorbell (`Registry::pending`, one
     /// USERD read each) is rung the way its own token would ring it. A channel the guest
     /// never rang is never pending, so no host mirror is created for it. The note reports

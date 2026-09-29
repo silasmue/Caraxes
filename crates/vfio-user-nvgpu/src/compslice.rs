@@ -24,8 +24,9 @@
 //!   its uncompressed twin or refused. The shadow samples the host PTEs it made with
 //!   `NV0080_CTRL_CMD_DMA_GET_PTE_INFO` ([`Policy::check_pte`]); a violation is an ERROR
 //!   and stops every compressible map ([`Policy::violation`]).
-//! - (b) Shadow-only execution: [`check_shadow_only`] at start, and the mirror refuses every
-//!   raw path (a host channel on the guest's own tables would use the guest's COMPTAGLINE).
+//! - (b) Shadow-only execution: every host channel runs on a shadow VA space (mirror.rs
+//!   `is_shadow`), and the mirror refuses every raw path (a host channel on the guest's
+//!   own tables would use the guest's COMPTAGLINE).
 //! - (c) Guest comptag values never pass: the walk reads kind and address only
 //!   (ptcache.rs), and `RM_MAP_MEMORY_DMA` has no comptag argument; the host RM computes it.
 //! - (d) Comptags are cleared at start and at free: the host grants compression only with
@@ -144,24 +145,6 @@ pub fn parse(v: Option<&str>) -> Result<Mode, String> {
 /// The switch from the environment.
 pub fn requested() -> Result<Mode, String> {
     parse(std::env::var(ENV).ok().as_deref())
-}
-
-/// Invariant (b): compression only with shadow-only host execution. The guest writes
-/// compressible kinds with its own COMPTAGLINE into its page tables; a host channel that
-/// walked those tables would use the guest's line, which indexes the host's global compbit
-/// store. Every host channel runs on a shadow VA space (mirror.rs `is_shadow`); what is
-/// left to refuse is the token-less doorbell ioeventfd (`ioeventfd`), as for a translated
-/// FB reservation (mirror.rs `Mirror::new`).
-pub fn check_shadow_only(mode: Mode, ioeventfd: bool) -> Result<(), String> {
-    if mode == Mode::Off {
-        return Ok(());
-    }
-    if ioeventfd {
-        return Err(format!(
-            "{ENV}=slice refuses the token-less doorbell ioeventfd, as a translated FB does: use trapped or token-pool doorbells so shadow routing is enforced"
-        ));
-    }
-    Ok(())
 }
 
 /// What the host granted for the reservation, read back after the allocation (hostmem.rs
@@ -608,15 +591,6 @@ mod tests {
         assert_eq!(parse(Some("slice")), Ok(Mode::Slice));
         assert!(parse(Some("1")).is_err());
         assert!(parse(Some("on")).is_err());
-    }
-
-    /// Invariant (b): refused with the token-less doorbell ioeventfd.
-    #[test]
-    fn compression_needs_shadow_only_execution() {
-        assert!(check_shadow_only(Mode::Slice, false).is_ok());
-        assert!(check_shadow_only(Mode::Slice, true).is_err());
-        // Off: nothing is required.
-        assert!(check_shadow_only(Mode::Off, true).is_ok());
     }
 
     #[test]

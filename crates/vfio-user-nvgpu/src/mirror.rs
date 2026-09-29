@@ -2162,18 +2162,10 @@ impl Mirror {
         }
         let translated = (base, end) != (host_base, host_end);
         // Every host channel runs on a shadow VA space (`is_shadow`): no host channel walks
-        // the guest's own tables, which a translated or compressed reservation needs.
-        if translated && crate::device::doorbell_ioeventfd_requested() {
-            return Err("a translated FB reservation refuses the token-less doorbell ioeventfd; use trapped or token-pool doorbells so shadow routing is enforced".into());
-        }
-        // D16b invariant (b), again where the host channels are made (main.rs checks it at
-        // start): a compressed reservation allows shadow-only execution.
+        // the guest's own tables, which a translated or compressed reservation needs (D16b
+        // invariant (b)).
         let comp = match grant {
             Some(g) => {
-                crate::compslice::check_shadow_only(
-                    crate::compslice::Mode::Slice,
-                    crate::device::doorbell_ioeventfd_requested(),
-                )?;
                 if base.abs_diff(host_base) % crate::compslice::COMPR_PAGE != 0 {
                     return Err(format!("a compressed reservation needs guest and host FB addresses 64 KiB aligned to each other (guest {base:#x}, host {host_base:#x})"));
                 }

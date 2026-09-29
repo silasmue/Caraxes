@@ -21,12 +21,12 @@ use vfio_user_nvgpu::compslice;
 use vfio_user_nvgpu::config::{self as pci_config, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
-    doorbell_ioeventfd_requested, doorbell_sub_region, doorbell_token_sub_regions,
+    doorbell_token_sub_regions,
     doorbell_value_sub_regions, irqs,
     msi_rearm_ioeventfd_requested, msi_rearm_sub_region, region_size, regions_with_pages,
     rpc_head_sub_region, rpc_ioeventfd_requested, RPC_IOEVENTFD_ENV,
-    spawn_doorbell_reader_hooked, spawn_token_reader_hooked, Bar0Areas, Bar1Area, Bar2Region,
-    Device, GuestRam, Routes, SharedDevice, DOORBELL_IOEVENTFD_ENV, MSI_REARM_IOEVENTFD_ENV,
+    spawn_token_reader_hooked, Bar0Areas, Bar1Area, Bar2Region,
+    Device, GuestRam, Routes, SharedDevice, MSI_REARM_IOEVENTFD_ENV,
     NV_XVE_CYA_2,
 };
 use vfio_user_nvgpu::display::fe_page::{self, FePage};
@@ -537,18 +537,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             prefix.display()
         );
     }
-    // The eventfd does not carry the token: the reader rings the channels whose GPPut
-    // moved since their last doorbell (`Dispatcher::doorbell_pending`), on every path.
-    let doorbell_ioeventfd = doorbell_ioeventfd_requested();
     // The datamatch token pool: one eventfd per pool token, so the eventfd names the
     // channel (docs/caraxes/doorbell-token-pool.md).
     let doorbell_tokens = tokens::requested().map_err(anyhow::Error::msg)?;
-    if doorbell_tokens.is_some() && doorbell_ioeventfd {
-        // Both would be ioeventfds of the one doorbell register: KVM refuses a wildcard
-        // next to datamatch entries at the same address and length (EEXIST;
-        // caraxes/runs/doorbell-tokens-2026-09-24/kvm-ioeventfd-probe.txt, cases b, c).
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 and {}=N exclude each other: choose the token-less ioeventfd or the token pool", tokens::TOKENS_ENV);
-    }
     // The MSI re-arm write as an ioeventfd, read by the token pool's reactor
     // (docs/caraxes/intr-page.md §4).
     let msi_rearm = msi_rearm_ioeventfd_requested();
@@ -559,8 +550,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // (g)): for guests that never read the notifier entry the pool hands tokens out through.
     // By default the set comes from the engines this device offers, sized to the eventfds
     // one reply can carry beside the pool's and the re-arm and head eventfds. They need the
-    // boot model (the channels live there); the token-less wildcard excludes them (KVM
-    // refuses a wildcard next to datamatch entries at one address: EEXIST).
+    // boot model (the channels live there).
     let guest_tokens = {
         use tokens::GuestTokensRequest as Q;
         let budget = tokens::MAX_TOKENS
@@ -568,7 +558,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .saturating_sub(msi_rearm as usize + rpc_ioeventfd as usize);
         match Q::requested().map_err(anyhow::Error::msg)? {
             Q::Off => None,
-            Q::Auto if doorbell_ioeventfd || !a.boot_model => None,
+            Q::Auto if !a.boot_model => None,
             Q::Auto => {
                 let d = a.chip.data();
                 let engines: Vec<(&str, u32, bool)> = d
@@ -580,9 +570,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 tokens::GuestTokens::auto(&engines, d.fifo.num_channels.value, budget)
             }
             Q::Explicit(g) => {
-                if doorbell_ioeventfd {
-                    bail!("{DOORBELL_IOEVENTFD_ENV}=1 and {} exclude each other: the token-less ioeventfd is a wildcard", tokens::GUEST_TOKENS_ENV);
-                }
                 if g.len() > budget {
                     bail!(
                         "{}: {} values, but one reply carries {} eventfds beside the pool's and the re-arm and head eventfds (SCM_MAX_FD {})",
@@ -647,9 +634,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             vfio_user_nvgpu::launch::TIMING_ENV
         );
     }
-    if poll.mode != vfio_user_nvgpu::poll::Mode::Off && !token_reactor_on && !doorbell_ioeventfd {
+    if poll.mode != vfio_user_nvgpu::poll::Mode::Off && !token_reactor_on {
         bail!(
-            "{}={} needs a doorbell eventfd to poll: {}=N or {DOORBELL_IOEVENTFD_ENV}=1",
+            "{}={} needs a doorbell eventfd to poll: {}=N or the guest tokens (--boot-model)",
             vfio_user_nvgpu::poll::POLL_ENV,
             poll.mode.name(),
             tokens::TOKENS_ENV
@@ -678,13 +665,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         bail!("deferred context execution needs private USERD and capture mode off");
     }
     let zero_fb = std::env::var("CARAXES_FB_ZERO_BASED").as_deref() == Ok("1");
-    if zero_fb {
-        if !a.reserve_vram || !a.host_exec || !a.boot_model {
-            bail!("CARAXES_FB_ZERO_BASED=1 needs --reserve-vram, --host-exec and --boot-model");
-        }
-        if doorbell_ioeventfd {
-            bail!("CARAXES_FB_ZERO_BASED=1 refuses token-less direct doorbells");
-        }
+    if zero_fb && !a.host_exec {
+        bail!("CARAXES_FB_ZERO_BASED=1 needs --host-exec");
     }
     // D16b (compslice.rs): real compression per VM slice. The reservation is allocated
     // compressed, and only shadow-only host execution may run on it (invariant (b)).
@@ -697,10 +679,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         );
     }
     if compression == compslice::Mode::Slice {
-        if !a.reserve_vram || !a.host_exec || !a.boot_model {
-            bail!("{}=slice needs --reserve-vram, --host-exec and --boot-model", compslice::ENV);
+        if !a.host_exec {
+            bail!("{}=slice needs --host-exec", compslice::ENV);
         }
-        compslice::check_shadow_only(compression, doorbell_ioeventfd).map_err(anyhow::Error::msg)?;
         eprintln!(
             "vfio-user-nvgpu: compression: {}=slice: the reservation is allocated compressed and the shadow maps compressible guest kinds on its pages (D16b)",
             compslice::ENV
@@ -718,7 +699,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .map_err(anyhow::Error::msg)
     };
     let token_reactor = reactor("tokens")?;
-    let ioeventfd_reactor = reactor("ioeventfd")?;
     if token_reactor_on && !a.boot_model {
         bail!(
             "{}=N and {} need --boot-model (the channels live in the boot model)",
@@ -730,13 +710,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // goes through a translation the device controls, since every host channel runs on a
     // shadow VA space. CARAXES_BAR1_POOL_MIB sizes it (0: none).
     let bar1_pool = vfio_user_nvgpu::bar1pool::config(a.host_exec).map_err(anyhow::Error::msg)?;
-    if doorbell_ioeventfd && bar1_pool.is_some() {
-        // The token-less ioeventfd path rings the channels whose GPPut moved, read from the
-        // FB store's watched copy that the trapped BAR1 writes keep current; through the
-        // area those writes bypass the device, no channel is ever rung and the guest waits
-        // forever (caraxes/runs/p21-bar1-2026-09-24/B-on-with-ioeventfd-hung).
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with the BAR1 pool (CARAXES_BAR1_POOL_MIB=0 turns it off): use the token pool ({}=N) instead", tokens::TOKENS_ENV);
-    }
     let cfg = config_space(a)?;
     if let Some(v) = vfio_user_nvgpu::falcon::stallack_from_env().map_err(anyhow::Error::msg)? {
         eprintln!(
@@ -1378,19 +1351,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         irqs(),
         regions_with_pages(&a.board_data, bar1_area, bar2_region.as_ref(), bar0_areas),
     );
-    let doorbell = if doorbell_ioeventfd {
-        let offset = chip.data().registers.usermode_doorbell;
-        let (sub_region, reader) = doorbell_sub_region(offset).context("doorbell eventfd")?;
-        server
-            .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, sub_region)
-            .map_err(|e| anyhow::anyhow!("doorbell sub-region: {e}"))?;
-        eprintln!(
-            "vfio-user-nvgpu: doorbell ioeventfd: BAR0 {offset:#x}, 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS ({DOORBELL_IOEVENTFD_ENV}=1)"
-        );
-        Some((offset, reader))
-    } else {
-        None
-    };
     // The datamatch doorbell eventfds: the pool's first (registered first, so KVM passes
     // them first: Linux's libcuda rings pool tokens), then the guest tokens'. Both only
     // when the reactor reads them; with the usermode page the doorbell is memory, so no
@@ -1627,19 +1587,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         .context("bar2 flush clock")?;
     }
     let mut readers = Vec::new();
-    if let Some((offset, reader)) = doorbell {
-        readers.push((
-            "ioeventfd",
-            spawn_doorbell_reader_hooked(
-                device.clone(),
-                offset,
-                reader,
-                ioeventfd_reactor,
-                page_hook.take(),
-            )
-            .context("doorbell reader")?,
-        ));
-    }
     if let Some((offset, token_eventfds, guest_eventfds)) = token_readers {
         readers.push((
             "tokens",

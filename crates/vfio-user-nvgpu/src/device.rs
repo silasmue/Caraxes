@@ -117,14 +117,6 @@ pub struct Device {
 /// docs/caraxes/sottr-stage.md §11).
 pub const SLOW_POOL_POLL: std::time::Duration = std::time::Duration::from_millis(2);
 
-/// The switch for the doorbell ioeventfd.
-pub const DOORBELL_IOEVENTFD_ENV: &str = "CARAXES_DOORBELL_IOEVENTFD";
-
-/// Whether `CARAXES_DOORBELL_IOEVENTFD=1` is set.
-pub fn doorbell_ioeventfd_requested() -> bool {
-    std::env::var(DOORBELL_IOEVENTFD_ENV).is_ok_and(|v| v.trim() == "1")
-}
-
 /// The switch for the MSI re-arm ioeventfd (docs/caraxes/intr-page.md §4).
 pub const MSI_REARM_IOEVENTFD_ENV: &str = "CARAXES_MSI_REARM_IOEVENTFD";
 
@@ -155,18 +147,17 @@ pub fn rpc_head_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, 
 }
 
 /// The MSI re-arm sub-region at BAR0 `offset` (the `NV_PCFG` base plus [`NV_XVE_CYA_2`]):
-/// 4 bytes, no datamatch (the value is ignored), and the eventfd's reading end. The shape
-/// is the token-less doorbell's ([`doorbell_sub_region`]).
+/// 4 bytes, no datamatch (the value is ignored), and the eventfd's reading end
+/// ([`doorbell_sub_region`]).
 pub fn msi_rearm_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, File)> {
     doorbell_sub_region(offset)
 }
 
-/// The doorbell sub-region to offer on BAR0 and the eventfd's reading end. `offset` is
-/// the chip's `registers.usermode_doorbell` (`NOTIFY_CHANNEL_PENDING`, a 32-bit
-/// register), so the size is 4. There is no datamatch here: this is the token-less
-/// path, one eventfd for every value written. The token pool
-/// ([`doorbell_token_sub_regions`]) gives each pool token its own datamatch entry and
-/// eventfd instead.
+/// A 4-byte sub-region at BAR0 `offset` without datamatch (one eventfd for every value
+/// written: the MSI re-arm and the command-queue head) and the eventfd's reading end. The
+/// doorbell register itself is offered only with datamatch, one eventfd per token
+/// ([`doorbell_token_sub_regions`]): a wildcard next to datamatch entries at one address
+/// is refused by KVM (EEXIST).
 pub fn doorbell_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, File)> {
     // SAFETY: a plain syscall; the result is checked before use.
     let raw = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC) };
@@ -328,40 +319,6 @@ pub fn spawn_token_reader_hooked(
 #[cfg(test)]
 fn lock(device: &Mutex<Device>) -> std::sync::MutexGuard<'_, Device> {
     device.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-/// Read the doorbell eventfd (the token-less one) and ring the device for as long as
-/// the process runs, through the same reactor as the token pool (one eventfd).
-pub fn spawn_doorbell_reader(
-    device: Arc<Mutex<Device>>,
-    doorbell: u64,
-    eventfd: File,
-    reactor: crate::poll::Reactor,
-) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    spawn_doorbell_reader_hooked(device, doorbell, eventfd, reactor, None)
-}
-
-/// As [`spawn_doorbell_reader`], with a reactor hook (the interrupt page).
-pub fn spawn_doorbell_reader_hooked(
-    device: Arc<Mutex<Device>>,
-    doorbell: u64,
-    eventfd: File,
-    reactor: crate::poll::Reactor,
-    hook: Option<Box<dyn crate::poll::Hook>>,
-) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    reactor.spawn_hooked(
-        vec![eventfd],
-        move |rings, seen, st| {
-            let mut d = crate::dlock::lock(&device, "doorbell eventfd");
-            st.lock_wait.record(seen.elapsed());
-            crate::launch::mark(crate::launch::Step::Lock);
-            for &(_, writes) in rings {
-                let host = d.doorbell_ioeventfd(doorbell, writes);
-                st.ring(seen, host);
-            }
-        },
-        hook,
-    )
 }
 
 /// The device as the vfio-user server loop sees it when the doorbell reader thread
@@ -1038,36 +995,6 @@ impl Device {
             "msi re-arm (eventfd): {writes} guest write(s) to BAR0 {offset:#x} (NV_XVE_CYA_2) signalled ({effect:?})"
         ));
         self.after_bar0_write(!matches!(effect, WriteEffect::Mirror), offset);
-    }
-
-    /// Guest writes to the doorbell register that arrived through the ioeventfd:
-    /// `writes` of them since the last wakeup. KVM does not pass the written token on
-    /// (no datamatch), so every channel with GPFIFO entries published since its last
-    /// doorbell is rung the way its token would ring it (`Dispatcher::doorbell_pending`:
-    /// software, shadow or host mirror); a channel the guest never rang is not pending
-    /// and gets no host mirror. Returns when the first host doorbell was written, if one
-    /// was.
-    pub fn doorbell_ioeventfd(&mut self, doorbell: u64, writes: u64) -> Option<std::time::Instant> {
-        self.ring_posted_first();
-        self.doorbell_wakeups += 1;
-        self.doorbell_writes += writes;
-        crate::profile::window("doorbell eventfd: wakeups (units: guest writes)", writes);
-        let mem = &self.mem;
-        let (notes, host) = match self.bar0.boot_mut() {
-            Some(boot) => {
-                boot.take_host_doorbell();
-                let n = boot.doorbell_pending(mem);
-                (n, boot.take_host_doorbell())
-            }
-            None => (vec!["no boot model, nothing rung".into()], None),
-        };
-        self.trace.event(&format!(
-            "doorbell ioeventfd: {writes} guest write(s) to BAR0 {doorbell:#x} signalled"
-        ));
-        for n in notes {
-            self.trace.event(&n);
-        }
-        host
     }
 
     /// Pool tokens whose ioeventfds fired: `(slot, guest writes counted)` each. The
