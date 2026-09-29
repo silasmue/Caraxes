@@ -81,7 +81,91 @@ An independent review found five blocking defects. The coordinator decided to re
 | nit | False comment, redundant NULL check | The file is rewritten; the comments describe v2 |
 | nit | Per-GPU state in a file-static array | `MemoryManager.pDisplayReserve` [P/src/nvidia/generated/g_mem_mgr_nvoc.h:745; D:459, 480] |
 
+## v3 (patch commit b00029a)
+
+`P` and `D` as above; D line numbers refer to v3. `B` = `caraxes/runs/dmem-2026-09-29/`.
+
+### What drsv2-on-1 showed (SotTR 1080p, 4 GiB, `-1`)
+
+Evidence: `B/drsv2-on-1/guest-monitor.txt:76-92`.
+
+- **The reserve held its size until the fullscreen switch:** 44224 KiB declared, 52224 KiB in 6 runs at 16 s.
+- **Six 10240 KiB scanout allocations were refused in 9 s** (282.5-291.8 s), from Xwayland and the game swapchain at the fullscreen switch.
+  - The reserve served five of them with its 10 MiB runs.
+  - For the sixth it released the 1 MiB rest run, which cannot cover 10 MiB. The allocation failed ("Failed to allocate NVKMS memory for GEM object"), and the game died.
+- **Every refill in between failed with 0x51**, on the 1, 2, 4, 8, 16 and 30 s backoff.
+  - The served buffers were freed, but the game took their pages from PMA before the timer came. The reserve was full again only at 338 s.
+  - v1 took the room back when a served buffer was freed; v2 did so only on the timer.
+- **Is 5·S enough?** The six allocations overlapped the frees, so the log does not show how many buffers were alive at once.
+  - With take-back, a freed surface refills its run at once, so the concurrent peak is what matters, not the count of allocations.
+  - The v3 run logs every take-back ("took back …, holds X of Y"), and X at its lowest gives the peak.
+
+### Take back on free
+
+- **Mark.** `_vidmemPmaAllocate` marks an allocation `bScanout` in its `PMA_ALLOC_INFO` when `displayReserveIsScanoutAllocation` matches it [P/src/nvidia/src/kernel/mem_mgr/video_mem.c:358-359; P/src/nvidia/inc/kernel/gpu/mem_mgr/heap_base.h:128-129; D:903-920]. The test is the one Serve uses.
+- **Take.** `vidmemPmaFree` offers a marked allocation to the reserve when its last reference goes, before any PMA call [video_mem.c:403-409]. `displayReserveTake` [D:1013-1072]:
+  - accepts it only if the reserve is started and lacks a run of the allocation's exact page size and page count;
+  - accepts it only from the default regions and scrubbable (`DISPLAY_RESERVE_TAKE_FLAGS` [D:101-110]: not protected, localized, persistent, `NO_ZERO` or blacklist-off);
+  - then records its base in that run, under the reserve mutex and with no PMA call.
+  - The pages stay allocated, so no other client can take them in between.
+- **Scrubbing is kept.**
+  - PMA scrubs when pages are freed and reports allocations as zeroed without scrubbing them again [T src/kernel/gpu/mem_mgr/phys_mem_allocator/phys_mem_allocator.c:680-693, 1385-1463].
+  - A run the reserve allocated was never written, so it is still freed with `PMA_FREE_SKIP_SCRUB`.
+  - A taken run holds the freed surface's contents. It is marked `bTaken` and freed without the flag [D:252-258], so PMA scrubs it as the original free would have.
+  - When Serve frees a taken run, the retry waits for the scrubber, which is PMA's own path for recently freed pages [phys_mem_allocator.c:1057-1093].
+- **Lifecycle and the scrubber.**
+  - The scrubber is destroyed in memmgr's pre-scheduling-disable handler [T src/kernel/gpu/mem_mgr/mem_mgr.c:529-541; arch/pascal/mem_mgr_scrub_gp100.c:83-121]. KernelFifo runs that handler at unload only, not for PRESERVING transitions [T src/kernel/gpu/fifo/arch/maxwell/kernel_fifo_gm107.c:237-259; mem_mgr.c:955-962 "fifo won't send a PreSchedulingDisable callback on StateUnload"].
+  - v3 therefore frees every run in that handler, before the scrubber goes [P/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c:536-537], and again in `memmgrStatePreUnload` at unload [:956-957].
+  - Over suspend and GC6/RTD3 the runs stay held and Stop only stops [D:771-802]. They are PMA pages like any client allocation, and no PMA call happens on the GC6/RTD3 path.
+- **Serve.**
+  - It frees the smallest held run, old or new, that can hold the request with its PMA alignment and address range [D:286-360], and retries.
+  - It never frees a run that cannot cover the request; v2 freed the 1 MiB rest for a 10 MiB request.
+  - It prefers runs not taken back, which need no scrub wait. One warning per refusal [D:922-1011].
+- **Limit: smaller surfaces.** A freed allocation is taken only into a run of its exact shape.
+  - A smaller surface, for example a 1080p pitch-linear dumb buffer (8192 KiB against 10240 KiB runs), goes back to PMA. Its run then waits for the timer.
+  - The observed failure is exactly run-shaped (10240 KiB).
+
+### Second review (no blockers) and the v3 changes
+
+| # | Finding | v3 |
+|---|---|---|
+| 1 | No refill when a served surface is freed (the drsv2-on-1 failure) | Take back on free, above [video_mem.c:403-409; D:1013-1072] |
+| 2 | A re-cut under pressure dropped the reserve (partial cut swapped in, all old runs freed) | Held runs of a new run's shape move over; the rest stay as old runs, which Serve still uses. The fill frees an old run only while held + old − run ≥ target, so the total never drops below the target [D:260-284, 414-520, 522-589] |
+| 3 | S undersized: XRGB8888 at ViewPortIn only (FP16, root pixmaps, larger surfaces); declared after the commit | S = max(formula, the largest `rmObjectSizeInBytes` bound to a layer of the head) [P/src/nvidia-modeset/src/nvkms-rm.c:5216-5247, 5288-5289]; declared after every modeset and, grow-only, after every flip [nvkms-modeset.c:4364; nvkms-flip.c:738; nvkms-rm.c:5299-5302]. Declaring before the commit is not possible: the client allocates the new mode's framebuffer before NVKMS sees the mode (limit below) |
+| 4 | 2-4 KiB of runs on the stack | Cut and old runs on the heap [D:439, 455]; Serve, trim and Stop move one run at a time outside the mutex [D:286-360, 522-589, 806-836] |
+| 5 | Refill vs Stop/Start race (RTD3/GC6 without the API lock) | `generation`, advanced by Stop under the mutex [D:797-799]; the refill snapshots it and commits a run or a cut only while it is unchanged, else frees what it got [D:441-447, 569-589] |
+| 6 | MIG: held runs kept; 0 refused | The refill cuts to nothing with MIG enabled [D:622-626]; SetNeed accepts 0 always [D:870-884] |
+| 7 | Served set overclaimed | Commit message and "Limits" below |
+| nit | `display_reserve_mib` < −1 checked per modeset | Once at load [P/kernel-open/nvidia-modeset/nvidia-modeset-linux.c:2168-2173] |
+| nit | Unbounded N; a size below one surface | RM rejects reserveSize > FB or < surfaceSize [D:870-879] |
+| nit | Cache not updated when RM refuses | NVKMS caches the request, declares 0 on a refusal and warns once per value [nvkms-rm.c:5153-5201] |
+| nit | Several warnings per refusal | One per refusal, from Serve [D:974-1008] |
+| nit | Runs from which region | The default regions (no `PROTECTED_REGION` or `LOCALIZED` flag [D:234-250]); take-back only from these [D:101-110] |
+| nit | `displayReserveDestroy` comment | States that Stop freed the runs, and asserts it [D:716-741] |
+| nit | Lock statement for the control | Flags 0x0: API lock for writing and all GPU locks [T inc/kernel/rmapi/control.h:167-244; src/kernel/rmapi/control.c:928-995]; corrected under "The interface" |
+
+### Limits (for the PR text)
+
+- **Served set.**
+  - Served: kernel-privileged, ISO, contiguous allocations without NO_SCANOUT, which are NVKMS's own and nvidia-drm's GEM allocations. These include dumb buffers and buffers from any render-node client (`DRM_RENDER_ALLOW`), such as Xwayland and GBM clients.
+  - Not served: a compositor's framebuffers allocated by its user-mode driver (mutter's GL framebuffers). These run as user clients.
+- **A request larger than every run is not served.** S follows the largest bound surface only after it is bound, so a new larger surface goes unserved before its first flip.
+- **A growing mode under full VRAM.** The client allocates the new mode's framebuffers before the commit declares the new S; they are served only if a run covers them.
+- **A surface bound on several heads** (an X root pixmap) counts once per head.
+- **The runs show as used video memory without a process**, like any RM-internal allocation.
+
+### For NVIDIA (cannot be settled locally)
+
+- Control IDs are assigned centrally; 0x730162 and message ID 0x62 are local choices.
+- The NVOC files (`g_disp_objs_nvoc.c/h`, `g_mem_mgr_nvoc.h`) are edited as shipped; NVIDIA regenerates them from sources that are not public.
+- `nvkms_display_reserve_mib()` is a new NVKMS OS hook; non-Linux NVKMS OS layers need it too.
+- The factor five comes from one measurement (GNOME 46, one head, 4.67 surfaces).
+- An NV2080 FB control could replace the display-object control.
+- The runs could be reported as reserved instead of used.
+
 ## Design (redesign)
+
+As built in v2. Where v3 differs (take-back, Serve, re-cut, S, lifecycle, scrubbing), the section "v3" above applies.
 
 ### NVKMS declares the need
 
@@ -107,7 +191,7 @@ An independent review found five blocking defects. The coordinator decided to re
 - **Precedent:** `NV0073_CTRL_CMD_SYSTEM_ALLOCATE_DISPLAY_BANDWIDTH` is the display driver declaring a display resource to RM, handled in kernel RM [T ../common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h:1725-1765; src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c:108-160].
 - **Privilege and locks.**
   - Flags `RMCTRL_FLAGS_KERNEL_PRIVILEGED` (0x0): only kernel clients may call it [T inc/kernel/rmapi/control.h:168-175]. Kernel RM handles it; it is not routed to GSP.
-  - It runs with the GPU lock and the read-only API lock. It only records the need and queues the fill.
+  - Flags 0x0: it runs with the API lock for writing and all GPU locks [T inc/kernel/rmapi/control.h:167-244; src/kernel/rmapi/control.c:928-995]. It only records the need and queues the fill.
 - **NVOC wiring.** The exported-method table is sorted by methodId and searched binarily [T src/libraries/nvoc/src/runtime.c:307-335]. The entry goes after 0x730161, and `numEntries` grows by one [T generated/g_disp_objs_nvoc.c:3449, 6118-6122]. The NVOC sources are not public; the generated files are edited as the tree ships them.
 
 ### RM holds the reserve at PMA level
@@ -195,18 +279,27 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
   - `RmDisplayReserveSizeMB`: 0 = automatic; N = N MiB, still cut into S chunks.
   - No mode key: the automatic source is sound.
 
-## Patch (redesign)
+## Patch (v3)
 
-- **File.** `patches/nvidia/0001-nvidia-nvidia-modeset-hold-a-video-memory-reserve-fo.patch`, against 615.71.09: one commit, author Silas Müller, MIT like the files it touches. It applies with `git apply` and `patch -p1`.
+- **File.** `patches/nvidia/0001-nvidia-nvidia-modeset-hold-a-video-memory-reserve-fo.patch` (sha256 2d9c13e5…), against 615.71.09. It is one commit (P branch `display-reserve-v3`, b00029a), author Silas Müller, MIT like the files it touches. It applies with `git apply` and `patch -p1`. v2 stays on branch `display-reserve-v2` (c14f81c).
 - **What it changes.**
-  - RM: `src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c` and its header (new, 679 + 47 lines); the release in `_vidmemPmaAllocate`; four lifecycle hooks in `mem_mgr.c`; the control handler in `disp_common_kern_ctrl_minimal.c`; `srcs.mk`.
+  - RM:
+    - `src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c` and its header (new, 1072 + 55 lines);
+    - Serve and the `bScanout` mark in `_vidmemPmaAllocate`, and take-back in `vidmemPmaFree`;
+    - `bScanout` in `PMA_ALLOC_INFO` (`heap_base.h`);
+    - five lifecycle hooks in `mem_mgr.c`;
+    - the control handler in `disp_common_kern_ctrl_minimal.c`;
+    - `srcs.mk`.
   - Interface: `NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE` in `ctrl0073system.h`.
   - Generated NVOC files:
     - `g_disp_objs_nvoc.c/h`: the export entry, its trampoline and prototype; the table's index comments renumber after the insertion;
     - `g_mem_mgr_nvoc.h`: `pDisplayReserve`.
-  - NVKMS: `nvRmUpdateDisplayReserve` in `nvkms-rm.c`, called from `nvSetDispModeEvo`; the release in `nvRmDestroyDisplays`; the cached declaration in `NVDispEvoRec`.
-  - `nvidia-modeset`: the `display_reserve_mib` parameter and its getter, in both copies of the os-interface header.
-- **Host compile check** (7.2.7, gcc 16, `make -j4 modules`):
+  - NVKMS:
+    - `nvRmUpdateDisplayReserve` in `nvkms-rm.c`, called from `nvSetDispModeEvo` and, grow-only, from `nvFlipEvo`;
+    - the release in `nvRmDestroyDisplays`;
+    - the cached request in `NVDispEvoRec`.
+  - `nvidia-modeset`: the `display_reserve_mib` parameter, validated at load, and its getter, in both copies of the os-interface header.
+- **Host compile check** (v3 as for v2: 7.2.7, gcc 16, `make -j4 modules`):
   - no new compiler warning (three in NVKMS exist in the pristine tree);
   - `modinfo nvidia-modeset.ko` lists `display_reserve_mib`;
   - `nvidia.ko` has the new symbols.
@@ -225,8 +318,9 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
   - It fails unless `/proc/driver/nvidia/version` shows the build's version line and `nvidia_modeset` has the value asked for.
   - The installed `nvidia-drm` and `nvidia-uvm` bind on top; the kernel's modversion check refuses them if an exported symbol differed.
 - **Run scripts.**
-  - `display-reserve-prepare.sh` builds in the guest and copies `drsv2-smoke/`.
-  - `drsv2-smoke/smoke.sh` loads the build, walks the connector through 1920x1080, 1280x720 and off as DRM master (`modeset.c`, raw ioctls), starts GNOME, then fills VRAM from CUDA and asks for 1080p dumb buffers.
+  - `display-reserve-prepare.sh` builds in the guest and copies `drsv3-smoke/`.
+  - `drsv3-smoke/smoke.sh` loads the build and walks the connector through 1920x1080, 1280x720 and off as DRM master (`modeset.c`, raw ioctls). It then starts GNOME, fills VRAM from CUDA and keeps grabbing whatever becomes free (`fill.py … grab`, as the game does). Finally it asks for dumb buffers: one of the run shape (1920x1152, 8640 KiB in 2 MiB pages), two of them at once, and a smaller one (1920x1080).
+  - `drsv2-smoke/` is v2's smoke.
 - **Expected** (declared = 5·S + 1 MiB of cursors; PMA = runs rounded to their page size):
   - 1920x1080: S = 0x870000, runs 5 × 10 MiB + 1 MiB = 51 MiB;
   - 1280x720: S = 0x3C0000, 5 × 4 MiB + 1 MiB = 21 MiB;
@@ -235,7 +329,8 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
 ## Logging
 
 - **Levels follow RM's convention for state.** State messages (enabled, cut, holds, next try) are `NV_PRINTF(LEVEL_INFO)`, as memacct's [T src/kernel/mem_mgr/memacct.c]. A release build does not print them: the runtime threshold is warnings [K nvidia/os-interface.c:843-862].
-- **A served refusal is `LEVEL_WARNING`** and is printed; failures are `LEVEL_ERROR`.
+- **A served refusal is `LEVEL_WARNING`** and is printed, one line per refusal, as is a refusal that no held run covers; failures are `LEVEL_ERROR`.
+- **A take-back is `LEVEL_INFO`:** "took back a freed scanout allocation of N KiB, holds X of Y KiB".
 - **Tests turn the state lines on with NVIDIA's RmMsg filter**, not with a code change: `NVreg_RmMsg=display_reserve.c` [K nvidia/nv-reg.h `RmMsg`; T src/kernel/diagnostics/nvlog_printf.c:953-974]. `load.sh` passes extra `nvidia` parameters.
 
 ## Smoke results (v2; 2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
@@ -272,7 +367,18 @@ Evidence: `B/drsv-smoke3/`; the build is `B/drsv-build2/prepare.txt`.
 - **`build.sh` dropped its modversion comparison.** `modprobe --dump-modversions` fails on these modules, so it compared two empty lists. The patch changes no exported symbol, and the kernel refuses a mismatch at load.
 - **Not yet exercised:** suspend/resume, the backoff timer (every fill so far succeeded at once), several GPUs.
 
-## Test plan (redesign)
+## Test plan (v3)
+
+1. **Smoke** (`display-reserve-prepare.sh drsv3-build`, then `drsv3-smoke/smoke.sh`; control with `MIB=0`).
+   - The modes are as in v2. At 720p the rest run is reused, and the 10 MiB runs are freed once the 4 MiB runs are held.
+   - With the filler grabbing freed VRAM:
+     - a 1920x1152 dumb buffer is served, and on its free "took back … 10240 KiB, holds 52224 of 52224 KiB";
+     - two such buffers at once: two releases, two take-backs;
+     - 1920x1080 (8192 KiB) is served and not taken back (limit), so its run waits for the filler to exit.
+   - `MIB=0` refuses every dumb buffer.
+2. **SotTR 1080p at 4 GiB**, `-1` and a control with 0. Pass: no NVKMS failure, no Xid, a results file. The lowest "holds X" of the take-back lines gives the concurrent peak (is 5·S enough).
+3. **Not yet exercised:** suspend/resume with a held reserve, GC6/RTD3, unload under load, several GPUs, MIG. These are for the bare-metal test pack.
+
 
 1. **Smoke** (`display-reserve-prepare.sh`, then `drsv2-smoke/smoke.sh` in the 1 GiB guest).
    - The reserve holds the declared size at 1080p, re-cuts to the 720p size, and is released when the head goes off.
