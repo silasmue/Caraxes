@@ -692,8 +692,9 @@ fn a_page_kick_is_the_trapped_kick() {
 
 /// The core channel's PIO registers (clc57d.h:285-297): SET_GET_BLANKING_CTRL takes a
 /// request (BLANK 0:0, UNBLANK 1:1, NO_CHANGE or ENABLE) that the model carries out at once,
-/// so the read-back shows none pending (the Windows KMD writes BLANK at its modeset and reads
-/// it back); GET_RG_SCAN_LINE gives the raster line and the VBLANK bit and ignores writes.
+/// and a read gives the state reached in the same fields (the Windows KMD writes BLANK and
+/// waits for the read to show it); GET_RG_SCAN_LINE gives the raster line and the VBLANK bit
+/// and ignores writes.
 #[test]
 fn core_pio_blanking_and_scan_line() {
     let mut disp = display();
@@ -703,10 +704,11 @@ fn core_pio_blanking_and_scan_line() {
     let n = disp.write32(blank, 0x1, &mem, &mut fb).unwrap();
     assert!(n[0].contains("head 0 SET_GET_BLANKING_CTRL 0x1: blanked"), "{n:?}");
     assert!(disp.engine.heads[0].blanked);
-    assert_eq!(disp.read32(blank), Some(0), "no request pending after the write");
+    assert_eq!(disp.read32(blank), Some(0x1), "the state reached: BLANK");
     let n = disp.write32(blank, 0x2, &mem, &mut fb).unwrap();
     assert!(n[0].contains("unblanked"), "{n:?}");
     assert!(!disp.engine.heads[0].blanked);
+    assert_eq!(disp.read32(blank), Some(0x2), "the state reached: UNBLANK");
     let n = disp.write32(blank + 4, 0x3, &mem, &mut fb).unwrap();
     assert!(n[0].contains("head 1") && n[0].contains("stays unblanked"), "BLANK then UNBLANK: {n:?}");
     // A head beyond the chip's four: not a PIO register, latched as before.

@@ -797,9 +797,9 @@ impl Engine {
     }
 
     /// A write to `SET_GET_BLANKING_CTRL(b)` (core channel PIO, clc57d.h:291-297): BLANK
-    /// 0:0 and UNBLANK 1:1, each NO_CHANGE (0) or ENABLE (1), a request encoding. The model
-    /// carries a request out at once (there are no pixels to blank), BLANK before UNBLANK,
-    /// so a read-back finds none pending ([`Self::blanking_ctrl`]). Returns the trace note.
+    /// 0:0 and UNBLANK 1:1, each NO_CHANGE (0) or ENABLE (1). The model carries a request
+    /// out at once (there are no pixels to blank), BLANK before UNBLANK; a read gives the
+    /// state reached ([`Self::blanking_ctrl`]). Returns the trace note.
     pub fn set_blanking_ctrl(&mut self, h: usize, v: u32) -> String {
         let Some(hd) = self.heads.get_mut(h) else {
             return format!("display: SET_GET_BLANKING_CTRL({h}) {v:#x}: no such head, dropped");
@@ -822,10 +822,15 @@ impl Engine {
         )
     }
 
-    /// A read of `SET_GET_BLANKING_CTRL(b)`: the requests still pending, NO_CHANGE in both
-    /// fields, since the model carries each out when it is written.
-    pub fn blanking_ctrl(&self, _h: usize) -> u32 {
-        0
+    /// A read of `SET_GET_BLANKING_CTRL(b)`: the head's blanking state in the register's
+    /// own fields, BLANK (0x1) while blanked, UNBLANK (0x2) otherwise. The Windows KMD writes
+    /// BLANK and waits until the read shows it: C47 (the write latched, read back 0x1) went
+    /// on after one read, C48 (a read of 0: "nothing pending") polled 3599 times.
+    pub fn blanking_ctrl(&self, h: usize) -> u32 {
+        match self.heads.get(h) {
+            Some(hd) if hd.blanked => 0x1,
+            _ => 0x2,
+        }
     }
 
     // ---- registers
