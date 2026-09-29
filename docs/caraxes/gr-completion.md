@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # GR completion: how a compute push's completion reaches libcuda, and what the device owes
 
 Written 2026-09-23 (read-only research, no run). Driver citations are relative to

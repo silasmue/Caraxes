@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The GPPut store that does not trap (docs/caraxes/bar1-pool.md §9, the Xid 31 of the
 //! morning matrix).
 //!

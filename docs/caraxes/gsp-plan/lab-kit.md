@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # The lab kit: capture and validation on a rented cloud GPU or the workplace card
 
 [e-families.md](e-families.md) plans the feature families from source. The kit is how the

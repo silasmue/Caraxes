@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """lab-ingest.py: file a lab-kit result tarball at home and say what it means for the chip
 tables (docs/caraxes/gsp-plan/lab-kit.md section 6).
 

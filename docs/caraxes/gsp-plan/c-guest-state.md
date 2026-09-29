@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 <!-- Research by a read-only subagent on 2026-09-24 for the GSP surface programme (P23). Sources as in b-host-forwardable.md: the 610.57.04 and 615.71.09 trees, the crate at 61e0b6a, the native traces and the run logs. Nothing was run against a GPU. -->
 # Category C, guest-state derived controls: the implementation plan
 

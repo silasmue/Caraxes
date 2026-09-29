@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """pporl: PPO on a vectorized CartPole, the operator's RL benchmark (2026-09-24).
 
 The environment runs on the CPU; the policy and the PPO update run on the GPU. Every

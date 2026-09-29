@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # BAR2: the page-table and USERD aperture
 
 BAR2 (PCI BAR3 on Turing, 32 MiB) is the RM's own virtual aperture into video memory: the

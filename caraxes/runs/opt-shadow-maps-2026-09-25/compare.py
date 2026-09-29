@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Before against after for the rows of backlog item 2 (docs/caraxes/optimization-backlog.md).
 
 Per row: the guest's median (census-cu's OP lines; cuInit is the median of its three

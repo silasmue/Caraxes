@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 // Round trip of one trapped MMIO access of the Caraxes device, measured in the guest
 // (docs/caraxes/mapping.md §6). Maps BAR0 through sysfs (root) and times N 4-byte
 // writes to a latched scratch register and N reads of BOOT_0. Nothing reaches the GPU:

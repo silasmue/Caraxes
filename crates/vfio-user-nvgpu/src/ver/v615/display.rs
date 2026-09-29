@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Driver 615.71.09: the display control vocabulary (docs/caraxes/display-615.md §3).
 //!
 //! The 610.57.04 vocabulary (`ver/v610/display.rs`) with the items that differ overridden

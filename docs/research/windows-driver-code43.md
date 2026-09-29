@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Windows driver and Code 43
 
 Scope: what the registers the Windows driver reads before Code 43 are, whether devinit is involved, the ranked causes with what is already ruled out, and the next device experiments. Runs: `caraxes/runs/win11-2026-09-25` (README "Day one", "Results", "Lead"; `night-2026-09-25/*-summary.txt`).

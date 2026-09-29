@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Write the first monitor's EDID to stdout, binary (`--cta` adds the CTA-861 extension).
 //! Usage: cargo run --example edid [-- --cta] | edid-decode --check
 

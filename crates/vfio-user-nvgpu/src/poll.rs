@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The doorbell reactor (`CARAXES_DOORBELL_POLL=off|spin|hybrid`, docs/caraxes/doorbell-poll.md).
 //!
 //! The doorbell eventfds (the token pool's, tokens.rs, or the token-less one) are read by

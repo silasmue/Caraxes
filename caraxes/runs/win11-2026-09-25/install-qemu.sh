@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The one-time Windows 11 install under QEMU (README.md): OVMF with Secure Boot, swtpm TPM 2.0,
 # a virtio-blk disk and virtio-net, the Windows ISO and the virtio-win ISO as CDs. The window
 # opens on the operator's desktop and the operator drives the setup ("Load driver" from the

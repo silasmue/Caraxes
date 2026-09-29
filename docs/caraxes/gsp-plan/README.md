@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # GSP plan: preparing a full implementation of the GSP surface on 615.71.09
 
 The research programme after D19 and P23 ([../README.md](../README.md)): everything a GSP-RM

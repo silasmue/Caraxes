@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """ctrl-layouts.py: compiler-measured layouts of the control parameter structs the chip
 data tables name (crates/vfio-user-nvgpu/chips/*/controls.toml, `params`, open rows
 excepted) and of the category D controls whose layout the device must know: the two whose
@@ -265,7 +264,6 @@ def main():
 
     w = ["// SPDX-License-Identifier: MIT",
          "// SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>",
-         "// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR",
          "//! Layouts of the control parameter structs the chip tables name (chips/*/controls.toml)",
          "//! and of the category D controls with a layout change or a model (d-controls.tsv) and",
          "//! the feature-family models (src/families, `FAMILY_STRUCTS` of the generator),",

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Backlog item 2 (docs/caraxes/optimization-backlog.md): the shadow's host RM map work at context
 # creation and destruction (docs/caraxes/memory-model.md §7). vm0 only, 1 GiB at reservation
 # slot 0, the environment of caraxes/runs/intr-page-2026-09-24/env.sh without the display: host

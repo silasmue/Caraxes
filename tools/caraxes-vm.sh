@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Run one Caraxes guest: the synthetic GPU (vfio-user-nvgpu) plus Cloud Hypervisor
 # attaching it with --user-device. Experiment ladder: docs/caraxes/experiments.md.
 # Usage: tools/caraxes-vm.sh up|down|status|wait|ssh [command...]|input [line...]|serial|probe [label]

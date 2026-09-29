@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The guest DMA table (decision D13, docs/caraxes/sysmem-iova.md §4,
 //! docs/caraxes/memory-model.md): which host IOVA range each piece of guest RAM
 //! has. The device builds it when it registers guest RAM with the host RM, the

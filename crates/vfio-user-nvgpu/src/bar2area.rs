@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Guest BAR2 as a memfd (`CARAXES_BAR2_MEMFD=1`, docs/caraxes/bar2-memfd.md).
 //!
 //! Region 3 (the BAR2 aperture) gets a memfd as its descriptor and sparse mmap areas over

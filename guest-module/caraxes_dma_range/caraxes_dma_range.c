@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * Install a DMA range map (dev->dma_range_map) on the NVIDIA GPU's PCI device
  * before the nvidia driver binds, so that every DMA address the guest kernel

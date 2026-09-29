@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The EDID of the emulated DisplayPort monitor (docs/caraxes/display-ab.md, gate D3).
 //!
 //! Base block (EDID 1.4, DisplayPort interface, 8 bpc, RGB 4:4:4):

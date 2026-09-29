@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Where the time of a guest RM operation goes (docs/caraxes/alloc-path.md).
 
 Reads a vfio-user-nvgpu device trace (plain or .xz, access tracing on) and attributes the

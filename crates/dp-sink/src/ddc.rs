@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The DDC bus behind I2C-over-AUX: an E-DDC EDID EEPROM at 0x50 and the segment pointer
 //! at 0x30 (7-bit addresses; 0xA0 and 0x60 in 8-bit notation).
 //!

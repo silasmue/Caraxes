@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! KernelGraphics static info (docs/caraxes/phase5-rpcs.md rows 39-52) and the
 //! split-VAS PDE copy (row 35): the `NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_*`
 //! controls that `kgraphicsLoadStaticInfo_KERNEL` sends on its temporary subdevice

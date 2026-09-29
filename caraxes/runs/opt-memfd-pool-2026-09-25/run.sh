@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Backlog items 1 and 4 of docs/caraxes/optimization-backlog.md on vm3: the BAR2 memfd beside
 # the BAR1 pool (the fix of bar2-memfd.md §8) and the MSI re-arm ioeventfd (intr-page.md §4).
 # The environment is caraxes/runs/trap-census-2026-09-25/run.sh's (gate610 of

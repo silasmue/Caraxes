@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * nvenc-probe: the NVENC API and the NVDEC (cuvid) API used directly, for the video
  * engines of the Caraxes device (docs/caraxes/video-engines.md). It opens a CUDA context,

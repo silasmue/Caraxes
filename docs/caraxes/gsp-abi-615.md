@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 <!-- Written 2026-09-25 against the open-gpu-kernel-modules tree at 615.71.09 (the Leandro checkout, version.mk sha256 40c9cf44...) and the vendored 610.57.04 tree; numbers are those of the snapshots in caraxes/abi/, generated at repository commit a90ea5b. Rerun the tools for current numbers. -->
 # The GSP ABI baseline: 615.71.09
 

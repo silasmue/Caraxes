@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """sweep-list.py: the control list of the lab kit's read-only sweep (caraxes/tools/lab-sweep.rs,
 docs/caraxes/gsp-plan/lab-kit.md), for one open-gpu-kernel-modules tree.
 

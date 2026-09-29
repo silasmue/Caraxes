@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # The TU106 kernel interrupt table, the answer to INTERNAL_INTR_GET_KERNEL_TABLE
 # (ctrl2080internal.h:1463-1480). Subtrees as intr_tu102.c:1386-1417:

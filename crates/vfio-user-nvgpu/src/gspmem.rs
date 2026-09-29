@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Memory the kernel RM registers with GSP-RM (`ALLOC_MEMORY`, RPC 4) and the GSP-side
 //! event buffers built on it (docs/caraxes/gsp-plan/rpc-functions.md §4.1,
 //! docs/caraxes/gsp-plan/classes.md §3, last item).

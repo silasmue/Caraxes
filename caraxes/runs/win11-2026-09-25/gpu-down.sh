@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Stop the Windows guest's synthetic GPU of gpu-up.sh (SIGTERM, the device frees and exits).
 set -uo pipefail
 W=${WIN_STATE_DIR:-/mnt/vmstore/caraxes/win11}

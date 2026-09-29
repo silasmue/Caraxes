@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Category B of docs/caraxes/gsp-surface.md §3 as the table-driven form proposed in
 # docs/caraxes/gsp-plan/b-host-forwardable.md §4. Reference data, not read by the crate.
 # size610/size615: sizeof of the params struct compiled against each tree's SDK headers

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The sink profile: every capability the DPCD reports, as data.
 //!
 //! The default profile is the minimal one of the briefing (section 6): DPCD revision 1.1,

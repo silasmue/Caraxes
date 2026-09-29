@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Briefing (operator, 2026-09-23): synthetic GPU naming and configuration model
 
 Low-priority refactor handed over by the operator on 2026-09-23 evening. Kept verbatim.

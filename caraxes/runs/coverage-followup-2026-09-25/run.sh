@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The coverage follow-up of 2026-09-25 (docs/caraxes/coverage-map.md, status lines): the
 # sweep getters answered (part 1) and the forward cache (part 2, src/fwdcache.rs), measured
 # with the device's profile on vm2 in the coverage map's environment

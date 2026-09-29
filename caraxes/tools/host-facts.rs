@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Host facts H2-H7 (docs/caraxes/cuda-path.md §7.2) and the VRAM reservation
 //! experiment of decision D11 (docs/caraxes/host-facts.md), as an unprivileged RM client.
 //!

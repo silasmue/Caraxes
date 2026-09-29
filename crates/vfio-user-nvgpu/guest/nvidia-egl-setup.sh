@@ -1,7 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Guest (root), display phase E of docs/caraxes/display-e.md: send EGL and GBM to the
 # NVIDIA driver instead of Mesa's kms_swrast (the override gdm-wayland-setup.sh put in
 # /etc/environment for the device without host execution).

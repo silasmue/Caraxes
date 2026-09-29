@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Link configuration, link state and the reasons a configuration is refused.
 //!
 //! The transitions themselves live in [`crate::dpcd::Dpcd`], because they are side effects

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The RPC functions a GSP client sends only on some paths
 //! (docs/caraxes/gsp-plan/rpc-functions.md §4.2, §4.3): `IDLE_CHANNELS`,
 //! `GPU_EXEC_REG_OPS`, `DUMP_PROTOBUF_COMPONENT`, `ECC_NOTIFIER_WRITE_ACK`,

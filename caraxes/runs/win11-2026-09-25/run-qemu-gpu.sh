@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The installed Windows 11 under QEMU with the synthetic GPU attached over vfio-user
 # (`-device vfio-user-pci`, QEMU 11.1), beside the std VGA that shows the desktop. Guest RAM
 # comes from a shared memfd so the device can map it. rombar=0 by default: the VBIOS GOP driver

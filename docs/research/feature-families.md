@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Feature families
 
 Scope: the 28 feature families of 615.71.09 that TU106 lacks, which chips have them, what the device answers, and where an honest answer would come from.

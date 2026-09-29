@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The display engine in the GSP role: phases A and B of docs/caraxes/display-connector.md
 //! with the DisplayPort decision D15 (docs/caraxes/display-ab.md, display-adapter.md).
 //!

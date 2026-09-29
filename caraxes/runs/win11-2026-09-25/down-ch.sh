@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Stop the Windows 11 guest of up-ch.sh: the ACPI power button through the API socket first
 # (Windows shuts down cleanly), a kill after 90 s, then the NAT rules go; the tap and the TPM
 # state stay. Usage: down-ch.sh

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Counts per workload window (MODE/{rl,ppo,short-auto}-trace.txt.xz of run.sh, the rl and ppo
 traces in CENSUS_TRACE_STORE): submissions
 (trapped doorbells and token-pool eventfd rings), MSIs, the trapped classes that stay with the

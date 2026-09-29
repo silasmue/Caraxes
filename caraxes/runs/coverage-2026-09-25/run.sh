@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The coverage map of 2026-09-25 (docs/caraxes/coverage-map.md): the device's profile
 # (CARAXES_PROFILE=1, src/profile.rs) over workloads the gates do not cover or cover thinly,
 # one profile per workload (a SIGUSR2 dump after each; a workload is the difference of two

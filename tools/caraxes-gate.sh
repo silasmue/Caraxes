@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Caraxes gates against a running guest (tools/caraxes-vm.sh up; wait). Conventions of
 # docs/TESTING.md: one JSON verdict on stdout, diagnostics on stderr, exit 0 pass,
 # 1 fail, 2 skip (a missing prerequisite never counts as a pass). Nothing is built

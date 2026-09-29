@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The RM user shared data page (RUSD, class 0x00DE `NV00DE_SHARED_DATA`, 615 cl00de.h) as
 //! GSP-RM keeps it: `NV2080_CTRL_CMD_INTERNAL_INIT_USER_SHARED_DATA` (bInit, physAddr) hands
 //! GSP the page, which GSP then fills and keeps fresh; readers copy a section and accept it

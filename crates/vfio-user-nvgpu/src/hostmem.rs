@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Host memory the device process holds for its VM (E5b part 1,
 //! docs/caraxes/memory-model.md): the fixed-address VRAM reservation (decision D11,
 //! docs/caraxes/host-facts.md §3) and guest RAM registered as OS descriptors in 1 GiB

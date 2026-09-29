@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The Turing firmware-boot model (experiment E2): everything the CPU expects to see
 //! from GFW, FWSEC, Booter and the GSP RISC-V core, without any firmware running
 //! (docs/caraxes/gsp-boot-turing.md, init-map.md phase 4, experiments.md E2). The

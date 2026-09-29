@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The Windows device with the host RM behind it (night-2026-09-25/WINDOWS-LOOP.md, "Host RM"): the
 # same start as gpu-up.sh (WIN_GPU_SERVER, WIN_GPU_ROM, WIN_GPU_VBIOS, the 1 GiB profile) plus the
 # host-RM flags of the Linux stage (caraxes/runs/sottr-2026-09-24/env.sh, tools/caraxes-vm.sh), no BAR1

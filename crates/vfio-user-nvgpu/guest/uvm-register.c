@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //
 // Experiment E5a guest helper: open /dev/nvidia-uvm, issue UVM_INITIALIZE and
 // UVM_REGISTER_GPU for the GPU whose UUID is given (or read from

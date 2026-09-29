@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! What one profile hook costs (src/profile.rs, docs/caraxes/coverage-map.md §1): the aggregate's
 //! own work per trapped access, control and window hit, measured on this host with no device.
 //! A trapped access costs the guest 23 to 35 us (optimization-backlog.md §4); the hook's share is

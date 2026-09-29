@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Memory model
 
 Scope: how guest FB and guest sysmem addresses reach the physical GPU (reservation, guest-RAM registration, swiotlb alias, shadow page tables, gathers, region pools) and the rules that keep it fail closed.

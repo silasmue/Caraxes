@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """gsp-abi.py: the GSP ABI of one open-gpu-kernel-modules tree as a diffable snapshot, and
 the delta between two snapshots (docs/caraxes/gsp-abi-615.md).
 

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The two table-driven rules of the GSP control surface (docs/caraxes/gsp-surface.md §3):
 //!
 //! * **Category E, one refusal per feature family.** The controls a stock client never

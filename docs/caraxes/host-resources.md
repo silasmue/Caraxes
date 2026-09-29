@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Host resources: the VRAM floor, no retry storms, the leak audit, the soak line, the BAR1 budget
 
 Written 2026-09-25 after the host froze with two VMs up (game VM 3 GiB, vm2 1 GiB, desktop

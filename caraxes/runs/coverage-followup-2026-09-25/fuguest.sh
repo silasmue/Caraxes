@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Guest half of run.sh (the coverage follow-up of 2026-09-25): nvidia-smi timed per process,
 # run from ~/cov beside covguest.sh of the coverage map, which serves every other workload.
 # Every workload prints its "COV" line last.

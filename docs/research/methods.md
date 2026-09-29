@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Methods
 
 Scope: how Caraxes is tested and measured: gates, benchmark harness, census, profile, coverage map and control sweep, lab kit, emu-boot check, ABI drift check, and the recipe for a new workload.

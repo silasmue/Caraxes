@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //
 // Guest probe for display phase E (docs/caraxes/display-e.md): does the NVIDIA EGL/GLES
 // driver render on the GPU? Opens the EGL default display (the device platform when no

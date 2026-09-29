@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # A recorded AUX transcript: every NV0073_CTRL_CMD_DP_AUXCH_CTRL the stock NVIDIA
 # 610.57.04 guest driver (nvidia-modeset's DP library, loaded with nvidia-drm modeset=1

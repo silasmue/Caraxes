@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # Caraxes lab kit: one self-contained pack a person runs unattended on a machine with an NVIDIA
 # GPU (a rented cloud GPU VM, or the workplace Blackwell card), and one tarball to carry home.

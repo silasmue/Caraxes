@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # cuCtxCreate: where the time goes, and what was cut (2026-09-25)
 
 > **Not ported to dev (history merge of 2026-09-28):** the prefetch, the hold refinement and the build-phase timing described here are not in dev's code; see bar1-pool.md §9.1.

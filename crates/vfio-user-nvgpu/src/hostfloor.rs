@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The host VRAM floor (docs/caraxes/host-resources.md): every host allocation the device
 //! makes outside the VM's reservation passes [`HostGuard::admit`] first, in
 //! `HostMemory::alloc_object`, `alloc_object_admin` and `map_dma_fixed` (hostmem.rs).

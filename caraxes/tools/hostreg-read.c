@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * hostreg-read: read BAR0 registers of a host GPU through the host RM as a client, READ-ONLY
  * (the Windows guest's first contact, caraxes/runs/win11-2026-09-25/README.md). The host's

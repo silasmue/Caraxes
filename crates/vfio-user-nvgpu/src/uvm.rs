@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The RM controls `nvidia-uvm` causes while it registers a GPU (experiment E5a,
 //! docs/caraxes/uvm.md; the call list is docs/caraxes/cuda-path.md §1.2). Each
 //! answer carries its provenance label (decision D9). The channel, TSG and VAS

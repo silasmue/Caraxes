@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Talk to the Windows guest's QEMU guest agent over $W/qga.sock (run-qemu-gpu.sh).
 
   qga.py ping                      guest-ping / guest-info (agent version)

@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # The GSP ABI baseline: 615.71.09 and later versions as deltas
 
 From 615.71.09 NVIDIA marks the transport and boot layer of the GSP interface as stable and

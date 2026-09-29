@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Host RM access from the device process (decision D10): an unprivileged client on
 //! `/dev/nvidiactl` with its own device and subdevice, through `nvrm-client`. Only
 //! public controls are forwarded; the object is chosen by the guest object's class.

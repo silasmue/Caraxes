@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Category D, round 2: runs of 2026-09-24
 
 The runs of round 2 (docs/caraxes/gsp-plan/d-device-model.md §10 "Round 2"). GPU: vm3 only,

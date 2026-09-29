@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Video engines: NVENC and NVDEC through the mirror
 
 Current status (2026-09-27): NVENC and NVDEC pass through the mirror on both guest

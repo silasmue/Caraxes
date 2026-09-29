@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # GSP transport
 
 Scope: the CPU-GSP transport of 615.71.09 on TU106 (message queue v2, element framing, GMCAPI and `GSP_INIT`, the doorbell, boot, teardown, suspend) and where NVIDIA draws the stable line.

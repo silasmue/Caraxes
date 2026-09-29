@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 /*
  * Wayland port of Leandro-Test scripts/guest/vkprobe.c for the Caraxes display gate
  * (docs/caraxes/display-e.md): the same steps, verdict lines and options, with a

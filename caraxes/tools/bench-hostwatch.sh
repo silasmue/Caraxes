@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Host watch for runs that stress the host RM (docs/caraxes/mapping.md, the P20 lesson:
 # half a million mappings made host nvidia-smi time out). Every INTERVAL seconds it times
 # one read-only `nvidia-smi --query-gpu` (an NVML client of the host RM) and counts the

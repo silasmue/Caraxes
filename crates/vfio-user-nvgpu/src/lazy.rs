@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Lazy shadow plans (`CARAXES_ALLOC_LAZY=1`, docs/caraxes/alloc-path.md §3).
 //!
 //! A guest `cuMemAlloc` or `cuMemFree` ends in the guest RM's MMU invalidate of the context's

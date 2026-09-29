@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! Locating the PCI image chain inside a PROM window image, as the RM does.
 //!
 //! A synthetic image (and `rom.bin`) starts with the 55 AA ROM signature. The real card's

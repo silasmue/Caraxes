@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Performance facts
 
 Scope: ratios of Caraxes to native on the RTX 2070 (host 615.71.09) per operation and per workload, where the remaining time goes, and what ReBAR would change.

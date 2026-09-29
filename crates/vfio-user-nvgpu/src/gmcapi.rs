@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! GMCAPI and NVKV, the init vocabulary of the 615 transport
 //! (docs/caraxes/gsp-transport-615.md §4-5).
 //!

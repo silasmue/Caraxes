@@ -1,6 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
-<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Blackwell and Hopper
 
 Scope: the GB206 identity from the lab capture, the FSP Chain-of-Trust boot, GMMU v3, the N gate in pure emulation, GH100 in emulation, and what a lab capture or a cloud card adds.

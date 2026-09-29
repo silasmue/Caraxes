@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Unattended Windows driver-bind runs (README.md "Night run"): for each configuration, start the
 # device, boot the installed Windows under QEMU, wait until the NVIDIA driver has run its
 # start sequence (the seven AUX writes at 0xd96c + n*0x50 end it today) or a timeout, record

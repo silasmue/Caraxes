@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The leak watch from outside the device (docs/caraxes/host-resources.md): once a second,
 # read-only, the host's VRAM and BAR1 (one `nvidia-smi -q -d MEMORY`), the resident set of
 # every vfio-user-nvgpu process, the host-wide pinned pages (foll_pin) and MemAvailable,

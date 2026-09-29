@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 """Extract the RTX 2070's own answers to chosen RM controls from the native control traces
 (matrix/traces/<ver>/control/*.jsonl, ctrlout in/out pairs) into the TSV the device serves in
 pure emulation (crates/vfio-user-nvgpu/src/recorded.rs, chips/<chip>/recorded-controls.tsv).

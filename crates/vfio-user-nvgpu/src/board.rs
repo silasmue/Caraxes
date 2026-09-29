@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 //! The board axis (decision D14): what a board adds to its chip. PCI ids, subsystem
 //! ids, class, revision and the capability chain come from the config-space capture,
 //! the ROM from the ROM capture; `boards/<board>.toml` names both captures and holds
