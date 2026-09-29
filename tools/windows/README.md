@@ -25,6 +25,8 @@ SYSTEM through the QEMU guest agent; stock Windows and driver components only (P
 | `media-probe.ps1` | NVENC H.264/HEVC 1080p60 encode, NVDEC with `-hwaccel cuda` and `*_cuvid`, frame counts, fps; `-Fetch` downloads ffmpeg (BtbN win64 GPL build) |
 | `workload.ps1` | the Linux/native compute comparison: `-Stage install` (llama.cpp b10173 CUDA 13.3, Python 3.12.10, torch 2.13.0+cu130, the models, sha256-checked from the host's loopback server at 10.0.2.2:8765), `info`, `llama -Model 1b\|7b [-Ngl n]`, `torch -Tool transformer\|convnet` |
 | `quiet.ps1` | Windows Update state (build, hotfixes, pending servicing); `-Apply` pauses quality and feature updates for `-Days` (7) and takes no drivers from Windows Update, so the stock 617.14 stays |
+| `present-probe.ps1` | D3D11 flip-model swap chain on a window: windowed, exclusive fullscreen, windowed; fps and frame statistics per phase (signed-in user's session: CH-build `run44.py upack`) |
+| `display-mode.ps1` | the modes EnumDisplaySettings lists, a change to `-Width`x`-Height` and back (signed-in user's session) |
 | `steam-3dmark.ps1` | `-Install` Steam silently, `-Prefer` NVIDIA GPU for 3DMark, `-Collect` result scores |
 
 ## Order (stop at the first failure)
