@@ -251,3 +251,27 @@ Timeline (guest time):
 Result: 720p is not sufficient.
 - The NVKMS refusal is independent of the resolution.
 - A new stability finding: the game's GR context could not be switched out within the host's timeout, probably because long benchmark draws run without graphics preemption (GFXP) on the host context. It is being analysed separately.
+
+## The vblank fix (branch vblank-2026-09-29, 95f1af1; docs/research/vblank-path-2026-09-29.md)
+
+- Cause:
+  - Every trapped display-page write (vblank and awaken acks) was treated as a sync point.
+  - Each one ran the BAR1 pool's replica merge, two uncached 4 KiB page reads, ~110 µs, whenever the guest mapped a page twice.
+  - That made three merges per latched vblank, and every GR completion waited for them.
+- Fix:
+  - display-page writes are no longer sync points; flush and invalidate still are;
+  - the BAR2 memfd compare runs in place;
+  - one trace flush per trapped write;
+  - the delivery histograms are filled for trapped acks.
+- A/B, fresh Linux B VMs, trace on, old 8e621e0a vs new 95f1af1, alternating (`vkmark-ab/vb-*`):
+
+| Arm | vkmark | glmark2 |
+|---|---|---|
+| old 1 | 5148 / 4968 | 5078 |
+| new 1 | 5132 / 5018 | 4841 |
+| old 2 | 5802 / 5763 | 4925 |
+| new 2 (Windows P40 started alongside) | 4950 / 5521 | 3902 |
+
+- Replicas were present in all arms (9-11 "maps twice" lines). The new arms made ~84,800 display-page writes without a pool poll. Raise to vblank ack is now measured at p50 ≤ 511 µs, with 764-1636 of ~28,700 at ≥1 ms.
+- The micro-benchmark scores do not move: their limit is the steady interrupt loop, not the vblank handler. The fix matters for frame pacing in games.
+- 0 Xid, vkcube passes. It goes into the next combined gate rather than being judged on vkmark.

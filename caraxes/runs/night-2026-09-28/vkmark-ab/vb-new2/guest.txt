@@ -1,0 +1,12 @@
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+modules-ok
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+gnome-shell=2 wayland=wayland-0
+                                   vkmark Score: 4950
+                                   vkmark Score: 5521
+                                  glmark2 Score: 3902 
+vkcube-wayland rc=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+guest xid: 0
