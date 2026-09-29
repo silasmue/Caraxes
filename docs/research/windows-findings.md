@@ -894,3 +894,29 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   something else; the record trace will show it); window-core interlock
   (`SET_INTERLOCK_FLAGS`) is not modelled.
 - Memory model: none.
+
+## Cloud Hypervisor, step 7: Windows flips on our scanout (2026-09-29, C55-finished, ch11)
+
+- **BEGUN then FINISHED works.** After DWM's modeset the KMD unblanked 1.46 s after the blank
+  (134.69 -> 136.15 s) and window 0 latched 126 flips over the run (three buffers, fb
+  0x600000/0x3400000/0x3E00000, a 500 ms cadence while DWM redraws the lock screen clock).
+  0 TDR, 0 nvlddmkm event, 0 host Xid; the one FLR is the shutdown's.
+- **The picture:** the auto dumps show the Windows lock screen (11:03, Dienstag, 29. September);
+  1080p surface read in 135 steps, 17 ms under the device lock in all.
+- **The dump decoder's in-GOB order was wrong** (every edge jagged): of the 120 orders of the
+  five address bits above bit 3, bits 4-8 = y0, y1, x4, y2, x5 decode the scanout sharpest,
+  with crisp text (42e52c59). Measured on this surface, not from a document.
+- **Smoke all PASS** with the display live: Device Manager OK, nvidia-smi 'Leandro VFIO RTX
+  2070-4G', vulkaninfo, D3D11 triangle, D3D12 fence + compute (D3D12CreateDevice 17.8 s).
+- **CUDA probe PASS, not clean** (neighbour VMs, 60 Hz vblank, Sunshine): short kernel median
+  286 us, p90 1338 us (C48 idle: 28.6 us); queued launch 224 us; HtoD/DtoH 12.0/9.9 GB/s.
+- **Sunshine:** encoder validation 3 s (was ~110 s before the flip fix: DDA needs completed
+  flips). A Moonlight session still fails: capture setup takes ~24 s after CLIENT CONNECTED
+  (a device probe 9.4 s, the D3D11 device on our GPU 13.6 s), Moonlight quits after ~10 s
+  without video. Device and context creation are trap-bound (BAR2 byte stores, P36 census);
+  C56 tests the BAR2 memfd (dev c67ef78e: sync points and doorbell rule) against it.
+- **NVENC in Sunshine (async mode):** "NvEnc: frame 1 encode wait timeout" 1.35 s after the
+  encoder was created; the NVENC0 non-stall events are forwarded (mirror.rs ENGINES), so the
+  suspect is the first frame's latency (lazy context setup; P37: NVENC init 4.8 -> 0.6 s with
+  the memfd). Software x264 until C56 shows it.
+- Memory model: none (display); the BAR2 memfd changes where BAR2-written pages live.
