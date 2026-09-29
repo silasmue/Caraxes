@@ -1061,3 +1061,48 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   counters before a TDR survive the FLR.
 - Memory model: the software executor reads guest page tables through BAR1 windows. Its cost
   depends on the FB store (windows, pool, memfd).
+
+## Guest boot policy (2026-09-29, M-recover)
+
+- After two killed runs in a row (C64 and C65 hung after their FLR), Windows started Automatic
+  Repair (WinRE) under CH. It waits for a key, has no network, and there is no screen (the ROM
+  has no GOP). C66 therefore never reached the driver.
+- The coordinator recovered the guest in a QEMU maintenance boot (it came up normally there)
+  and set through QGA:
+  - `bcdedit /set {default} bootstatuspolicy IgnoreAllFailures`
+  - `bcdedit /set {default} recoveryenabled No`
+- To revert: `bcdedit /deletevalue {default} bootstatuspolicy`, then
+  `bcdedit /set {default} recoveryenabled Yes`.
+- Auto-logon (Winlogon AutoAdminLogon=1 with DefaultUserName and DefaultPassword) is set too,
+  by the coordinator after the user's answer. To remove it: AutoAdminLogon=0 and delete
+  DefaultPassword under HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon (or
+  netplwiz / Sysinternals Autologon).
+
+## Cloud Hypervisor, step 13: the display off the device lock; the TDR stays a VSync timeout (2026-09-29, C67)
+
+- **Binary lf6:** display own clock, stages 1-3, lockfree step 5a, the reset fixes.
+- **Display without the device lock:**
+  - The display clock's driver: p99 <= 4 ms, max 6.5 ms. Before (C64/C65) it was p99 524 ms,
+    max 757-801 ms.
+  - 751 of 1408 ticks ran without the device mutex; 13445 FE status reads and 611 writes were
+    routed; one FB record window (Windows' semaphores at fb 0xf8f80000).
+- **After the FLR:** no storm. The driver re-initialised (2382 RPCs), the head came back
+  (245.7 s), SSH works. A reset traces the old model's counters:
+  - VRAM store: 38765 window maps and 38762 evictions (the 2 x 32 MiB windows thrash).
+  - 394k page-table reads; BAR TLB 3.9M hits, 9986 walks, 2286 flushes.
+  - Longest mirror build 479 ms.
+- **The TDR (ETW, TdrPayloadVSyncTimeout for present 0x1E):**
+  - Two flips 21 ms apart (0x1D, 0x1E); each flip DDI took about 20 ms, since the PUT write
+    still takes the device lock.
+  - The KMD reported 0x1D at once and then 0x1D at every VSync DPC for 2 s. dxgkrnl waited
+    for 0x1E.
+  - The engine latched both (35 updates, 35 latched, 0 acquire waits), but the trace names no
+    latch after 32. Diagnostic in lf7: the last 96 latches, FINISHED writes, acquire waits and
+    failed record writes with their path.
+- **Another TDR after the recovery** (ETW 143.09 s): TdrPayloadEngineTimeout, node 0, fence
+  0x73, without a device FLR.
+- **The Linux page path:** stage 3 did not cover the display page's trapped acks (a VMM mapping
+  0x611000 read-only). Linux SotTR spent 42.6 s in 41k of them under the device lock. Routed
+  since f294c275.
+- Memory model: record windows need VRAM behind the FB address for good, so they are refused
+  with the BAR1 pool, the BAR2 memfd or BAR1 passthrough (see display-own-clock.md §7).
