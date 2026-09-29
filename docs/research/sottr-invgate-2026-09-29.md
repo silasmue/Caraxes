@@ -63,4 +63,4 @@ the benchmark and the four-guest gate. Evidence: `/mnt/vmstore/caraxes/runs-2026
   hardware either).
 - The detector's "plans pending" was global (any root), so the scoped hold can only make it fire
   for other roots' plans. It now also reports plans of the channel's own root and logs ERROR only
-  for those (WARN otherwise); the summary counts them apart (f49bb314's successor, `ahead_own_root`).
+  for those (WARN otherwise); the summary counts them apart (3c4f7dbc, `ahead_own_root`).
