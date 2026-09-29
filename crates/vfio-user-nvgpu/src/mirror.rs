@@ -2995,7 +2995,15 @@ impl Mirror {
         // context-buffer size for the same silicon (display-e.md: the guest's attribute CB at
         // 0x120400000 was mirrored as set A and the host's own collided with it, Xid 31
         // PRIV_VIOLATION).
+        // The snapshot's phases, for the long-hold tag (dlock.rs).
+        let mut phases: Vec<(&str, u128)> = Vec::new();
+        let mut phase_t = Instant::now();
+        let mut phase = |name: &'static str, phases: &mut Vec<(&str, u128)>| {
+            phases.push((name, phase_t.elapsed().as_micros()));
+            phase_t = Instant::now();
+        };
         let new_b = self.root_exclusions(reg, root, Some(&*gm.fb));
+        phase("set-B exclusions", &mut phases);
         // A bare CE channel (`bare_ce`, the GL driver's) gets a host TSG of its own, keyed
         // by its internal TSG id (615) or its handle, on the channel's own engine.
         let (tsg_key, bare, tsg_guest) = tsg_key_of(reg, &ch);
@@ -3018,6 +3026,7 @@ impl Mirror {
             )
         });
         self.ensure_events(&mut Vec::new());
+        phase("host events", &mut phases);
         let mut notes = lazy_notes;
         notes.push(format!(
             "shadow: GR chid {chid} on the host-managed shadow VAS of guest root {root:#x}"
@@ -3085,6 +3094,7 @@ impl Mirror {
                 }
             }
         }
+        phase("VAS", &mut phases);
         let leaf_end = self.leaf_end();
         let sp = self.shadows.get_mut(&root).expect("built");
         sp.exclude = new_b;
@@ -3134,6 +3144,7 @@ impl Mirror {
                 .filter(|(lo, hi)| ch.gpfifo_va < *hi && end > *lo).collect();
             (bytes, Some(end), guest, host, hits)
         });
+        phase("walk and diagnostics", &mut phases);
         if let Err(e) = self.check_tsg_reuse(reg, tsg_key, tsg_guest, &mut notes) {
             notes.push(format!("shadow: chid {chid}: {e}"));
             self.abandon_shadow_build(root, chid, tsg_key, &mut notes);
@@ -3144,6 +3155,7 @@ impl Mirror {
             sp.tsgs.insert(tsg_key);
         }
         // The USERD the host channel uses, from the guest's state now.
+        phase("TSG reuse", &mut phases);
         let userd = match self.userd_plan(gm, chid, &ch) {
             Ok(u) => u,
             Err(why) => {
@@ -3283,7 +3295,22 @@ impl Mirror {
             "shadow: chid {chid} mirror build handed to the worker (job {seq}, {} us under the lock); its ring is held until the build is committed [host]",
             since.elapsed().as_micros()
         ));
-        crate::dlock::tag(|| format!("build chid {chid} snapshot {} us", since.elapsed().as_micros()));
+        phase("inputs and hand-off", &mut phases);
+        crate::dlock::tag(|| {
+            format!(
+                "build chid {chid} snapshot {} us ({})",
+                since.elapsed().as_micros(),
+                phases
+                    .iter()
+                    .filter(|(_, us)| *us >= 100)
+                    .map(|(n, us)| format!("{n} {us} us"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        });
+        for (n, us) in &phases {
+            crate::dlock::work("mirror build snapshot", n.to_string(), std::time::Duration::from_micros(*us as u64));
+        }
         crate::dlock::work("mirror", "build snapshot".into(), since.elapsed());
         notes
     }
@@ -3866,11 +3893,23 @@ impl Mirror {
         if status != sys::NV_OK { return Err(idle_note); }
         if self.management_cursor(reg, chid)? != expected_get { return Err("management prefix changed while idling".into()); }
         self.channels.get_mut(&chid).and_then(|hc| hc.userd.as_mut()).ok_or("private USERD disappeared")?.harvest(gm);
-        self.worker.wait_all();
+        // The root's plans applied before the host TSG goes; the shadow VAS's teardown then runs
+        // on the worker in bounded steps, not waited for under the device lock: no channel or
+        // TSG is left on it, so nothing can run through it (Windows C70: 300-345 ms holds).
+        let root = self.channels.get(&chid).and_then(|hc| hc.shadow_root);
+        self.wait_root_or_all(root);
         let mut notes = vec![idle_note];
         if !self.free_tsg(key, &mut notes) { return Err(notes.join("; ")); }
-        self.worker.wait_idle();
         Ok(notes)
+    }
+
+    /// Wait under the device lock for the plans of shadow root `root` only (all plans without
+    /// one), not for other roots' jobs or teardowns.
+    fn wait_root_or_all(&self, root: Option<u64>) {
+        match root {
+            Some(r) => self.worker.wait_root(r),
+            None => self.worker.wait_all(),
+        }
     }
 
     /// Prepare a host-owned GR context without publishing guest work to its USERD.
@@ -4118,11 +4157,13 @@ impl Mirror {
                 let mut notes = vec![format!(
                     "deferred eviction of chid {chid}: a TSG member that never ran on the host; its TSG's host context is released with the host TSG [host]"
                 )];
-                self.worker.wait_all();
+                self.wait_root_or_all(root.and_then(|t| match t {
+                    Target::Fb(pa) => Some(pa),
+                    _ => None,
+                }));
                 if !self.free_tsg(key, &mut notes) {
                     return Err(notes.join("; "));
                 }
-                self.worker.wait_idle();
                 return Ok((notes, reg.channel_gp_get(chid).unwrap_or(0)));
             }
         }
@@ -4175,10 +4216,13 @@ impl Mirror {
         }
         userd.harvest(gm);
 
-        self.worker.wait_all();
+        // As at the management retirement: the root's plans, not the teardown.
+        self.wait_root_or_all(root.and_then(|t| match t {
+            Target::Fb(pa) => Some(pa),
+            _ => None,
+        }));
         let mut notes = vec![idle_note];
         if !self.free_tsg(key, &mut notes) { return Err(notes.join("; ")); }
-        self.worker.wait_idle();
         Ok((notes, get))
     }
 
