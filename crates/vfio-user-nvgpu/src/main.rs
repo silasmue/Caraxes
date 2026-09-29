@@ -1376,7 +1376,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         (_, _, true) => GuestRam::Identity,
         _ => GuestRam::Plain,
     };
+    // With host execution the guest's DMA addresses are its GPAs: its shadow maps translate
+    // registered RAM, and the guest loads no helper (every production launcher set
+    // CARAXES_GUEST_DMA_GPA=1 with host execution until 2026-09-30).
     let mut device = Device::new(cfg, bar0, trace)
+        .with_guest_dma_gpa(a.host_exec)
         .with_guest_ram(guest_ram, a.dma_ranges.clone())
         .with_intr_shared(intr_shared.clone());
     if let Some(r) = host_mem

@@ -72,7 +72,9 @@ pub struct Device {
     mem: GuestMemory,
     irq_fds: Vec<Vec<File>>,
     guest_ram: GuestRam,
-    /// Fixed for this session: QEMU/Windows uses GPAs and page-sized RAM fragments.
+    /// Fixed for this session (with host execution, [`Device::with_guest_dma_gpa`]): the
+    /// guest's DMA addresses are its GPAs, registered guest RAM is translated by the host
+    /// shadow maps, and no guest helper (caraxes_dma_range) is loaded.
     guest_dma_gpa: bool,
     /// Where the table is published (`<state dir>/dma-ranges`), in the module's format.
     dma_ranges: Option<PathBuf>,
@@ -942,7 +944,7 @@ impl Device {
             mem: GuestMemory::new(),
             irq_fds,
             guest_ram: GuestRam::Plain,
-            guest_dma_gpa: std::env::var("CARAXES_GUEST_DMA_GPA").is_ok_and(|v| v == "1"),
+            guest_dma_gpa: false,
             dma_ranges: None,
             ranges: Vec::new(),
             registrar: None,
@@ -1158,6 +1160,13 @@ impl Device {
         }
     }
 
+    /// Guest DMA addresses are GPAs (host execution: its shadow maps translate registered
+    /// RAM). Call before [`Device::with_guest_ram`].
+    pub fn with_guest_dma_gpa(mut self, on: bool) -> Self {
+        self.guest_dma_gpa = on;
+        self
+    }
+
     /// Choose how guest RAM is handled and where the table is published. Registered guest
     /// RAM gets its registration off the loop (registrar.rs); without the worker thread it
     /// stays on the loop.
@@ -1370,7 +1379,7 @@ impl Device {
         if let Some(aliases) = aliases {
             let n = aliases.len();
             self.mem.set_aliases(aliases);
-            self.note(&format!("dma table: guest speaks GPA (CARAXES_GUEST_DMA_GPA): {n} identity alias range(s)"));
+            self.note(&format!("dma table: guest speaks GPA (host execution): {n} identity alias range(s)"));
         }
         Ok(())
     }
@@ -1383,7 +1392,7 @@ impl Device {
     /// device"). Read at every reset, checked against the device's own table
     /// (dmamap.rs `aliases_of`); a missing file means no alias, a table that fails the check
     /// is refused with an ERROR line and the aliases stay off.
-    /// `CARAXES_GUEST_DMA_GPA=1`: a guest without caraxes_dma_range (Windows) hands the device
+    /// GPA mode (host execution): a guest without caraxes_dma_range hands the device
     /// guest physical addresses, which under QEMU's vfio-user client without a vIOMMU are the
     /// DMA_MAP addresses. The guest's table is then the identity of the registered guest RAM:
     /// every GPA is an alias of its registered IOVA (checked by dmamap.rs `aliases_of`, so an
@@ -1406,7 +1415,7 @@ impl Device {
             Ok(aliases) => {
                 let n = aliases.len();
                 self.mem.set_aliases(aliases);
-                self.note(&format!("dma table: guest speaks GPA (CARAXES_GUEST_DMA_GPA): {n} identity alias range(s)"));
+                self.note(&format!("dma table: guest speaks GPA (host execution): {n} identity alias range(s)"));
             }
             Err(e) => {
                 self.mem.set_aliases(Vec::new());
