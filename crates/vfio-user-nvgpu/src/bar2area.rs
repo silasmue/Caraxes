@@ -1630,10 +1630,16 @@ impl Bar2Area {
         let scan = self.scan_back(store, sys, tr, only, &mut rep);
         self.stats.syncs += 1;
         self.stats.compared += scan.compared as u64;
+        let kind = if only.is_some() { "BAR2 table sync" } else { "BAR2 full sync" };
+        crate::dlock::work(kind, "scan and write-back".into(), t0.elapsed());
+        let t1 = std::time::Instant::now();
         if let Some(root) = root {
             self.follow_tables(store, fb_size, root, sys, tr, &mut rep, view);
         }
+        crate::dlock::work(kind, "BAR2 table walk".into(), t1.elapsed());
+        let t2 = std::time::Instant::now();
         self.check_drift(store, tr, t0);
+        crate::dlock::work(kind, "drift sample".into(), t2.elapsed());
         self.stats.max_live = self.stats.max_live.max(self.remap.live_pages() as u64);
         self.stats.max_aliases = self.stats.max_aliases.max(self.remap.max_aliases() as u64);
         let ns = t0.elapsed().as_nanos() as u64;

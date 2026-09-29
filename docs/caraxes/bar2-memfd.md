@@ -267,6 +267,10 @@ guest's tables. So no other page needs to trap.
      (477 us each) on the guest's invalidate path. A table-only sync cost 164 us.
    - Counted: `MMU invalidates: N table sync(s) ..., M of them with a flush owed left to the next
      engine start`.
+   - The BAR1 pool's replicas follow the same rule (`bar1pool::sync_untracked_tables`): at an
+     invalidate only the replicas whose home is a page table the device follows are merged;
+     the data replicas wait for the next engine start (SotTR run E: the full merge at every
+     invalidate cost 675 us, 144 s over the run).
    - Tests: `an_invalidate_with_a_flush_owed_syncs_the_tables_and_leaves_the_data_to_the_engine_start`
      (a PTE rewritten through a table mapped into BAR2 reaches VRAM and is followed at the
      invalidate; the data waits for the doorbell and reads from the memfd meanwhile),

@@ -967,7 +967,10 @@ impl BootModel {
                 a.count_point(point, ns);
             }
         }
+        crate::dlock::work("flush point", "BAR2 full sync".into(), t0.elapsed());
+        let t1 = std::time::Instant::now();
         crate::bar1pool::sync_untracked(&mut self.fb);
+        crate::dlock::work("flush point", "BAR1 replica merges".into(), t1.elapsed());
         self.fb.bar2_flush_settled(point.settle());
     }
 
@@ -1513,7 +1516,9 @@ impl BootModel {
                 }
             }
             Some(Reg::UsermodeDoorbell) => {
+                let t0 = std::time::Instant::now();
                 self.bar2_before_ring(mem, Some(v));
+                crate::dlock::work("trapped doorbell", "BAR2 before the ring".into(), t0.elapsed());
                 // A channel's work submit token (kernel_fifo_tu102.c:75-130): a mirrored
                 // channel rings the host doorbell (E5b part 2), the others run their
                 // pending GPFIFO entries against the FB store and guest RAM (E5a).
@@ -1638,8 +1643,9 @@ impl BootModel {
             if self.fb.bar2_area().is_some() && !host_walks {
                 let root = self.bar_root(3);
                 self.fb.bar2_sync_tables(root, Some(mem));
-                crate::bar1pool::sync_untracked(&mut self.fb);
                 part("BAR2 table sync");
+                crate::bar1pool::sync_untracked_tables(&mut self.fb);
+                part("BAR1 table replicas");
             } else {
                 self.flush_point(mem, crate::bar2area::Point::MmuInvalidate);
                 part("BAR2 full sync");

@@ -863,6 +863,11 @@ impl Bar1Pool {
     /// Whether the pool follows page `page` (4 KiB page number): a table page of its area
     /// walk, or the home of a replica. The BAR2 memfd's table sync must report a change
     /// of such a page (fb.rs `FakeFb::device_table_page`).
+    /// Whether FB page `page` is a table page of the pool's own BAR1 walk (not a replica home).
+    pub fn follows_table(&self, page: u64) -> bool {
+        self.page_units.contains_key(&page)
+    }
+
     pub fn tracks_page(&self, page: u64) -> bool {
         self.page_units.contains_key(&page) || self.replica_homes.contains(&page)
     }
@@ -1677,9 +1682,24 @@ pub fn sync_untracked(fb: &mut FakeFb) -> bool {
     sync_inner(fb, true, &mut PollBreakdown::default())
 }
 
+/// [`sync_untracked`] at an MMU invalidate (docs/caraxes/bar2-memfd.md §3 rules 2 and 3):
+/// the marks, and the merges of the replicas whose home is a page table the device follows
+/// (the guest's PTE writes through the area reach the walks before the invalidate plans);
+/// a data replica waits for the next engine start, whose flush point merges every replica.
+/// SotTR run E: the full merge at every invalidate cost 675 us each, 144 s over the run.
+pub fn sync_untracked_tables(fb: &mut FakeFb) -> bool {
+    sync_inner_where(fb, true, &mut PollBreakdown::default(), true)
+}
+
 /// [`sync_untracked`]; without `merge` only the marks (design G's and the pooled table
 /// pages'), which cost a few lookups, not the two page reads per replica.
 fn sync_inner(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown) -> bool {
+    sync_inner_where(fb, merge, bd, false)
+}
+
+/// [`sync_inner`]; with `tables_only` only the replicas whose home is a followed table page
+/// are merged.
+fn sync_inner_where(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown, tables_only: bool) -> bool {
     let g_marked = fb.bar1_pt_resync() > 0;
     let (gs, pooled) = {
         let guard = fb.pool_mut();
@@ -1689,10 +1709,22 @@ fn sync_inner(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown) -> bool {
         if p.replicas.is_empty() && p.pooled_tables.is_empty() {
             return g_marked;
         }
-        let gs = if merge { merge_order(&p.replicas) } else { Vec::new() };
+        let gs: Vec<(u64, u64)> = if merge {
+            merge_order(&p.replicas)
+                .into_iter()
+                .filter_map(|g| p.replicas.get(&g).map(|r| (g, r.x)))
+                .collect()
+        } else {
+            Vec::new()
+        };
         let pooled: Vec<(u64, u64)> = p.pooled_tables.iter().map(|(g, x)| (*g, *x)).collect();
         (gs, pooled)
     };
+    let gs: Vec<u64> = gs
+        .into_iter()
+        .filter(|(_, x)| !tables_only || fb.followed_table_page(x >> 12))
+        .map(|(g, _)| g)
+        .collect();
     let homes0 = fb.pool_mut().as_ref().map_or(0, |p| p.stats.replica_home_reads);
     let mut wrote = false;
     for g in &gs {
@@ -4178,6 +4210,35 @@ mod tests {
         assert!(poll_at(&mut fb, &mut NoGpu, true));
         assert_eq!(fb.read_u64(x + 16), Some(0xabcd));
         assert_eq!(last(&fb).replicas_merged, 1);
+    }
+
+    /// At an MMU invalidate only the replicas whose home is a page table the device follows
+    /// are merged ([`sync_untracked_tables`]): the guest's PTE write through the area reaches
+    /// the walk, while a data replica's write waits for the next engine start, whose flush
+    /// point ([`sync_untracked`]) merges it.
+    #[test]
+    fn an_invalidate_merges_the_table_replicas_and_leaves_the_data_ones() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        // A table replica: the shadow watches cpt, the guest maps it into area page 5.
+        let (root, cpt) = context_tree(&mut fb);
+        fb.write_u64(pt + 8 * 5, pte(cpt));
+        // A data replica: x mapped twice, area page 7 holds it, area page 8 is its replica.
+        let x = BASE + 0x40_0000;
+        fb.write_u64(pt + 8 * 7, pte(x));
+        fb.write_u64(pt + 8 * 8, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(replicas(&fb), 2);
+        // The guest writes both through the area, then invalidates.
+        fb.write_raw(pool0 + 0x5000 + 8 * 4, &pte(BASE + 0x41_0000).to_le_bytes());
+        fb.write_raw(pool0 + 0x8000 + 16, &0xabcdu64.to_le_bytes());
+        assert!(sync_untracked_tables(&mut fb));
+        assert_eq!(fb.read_u64(cpt + 8 * 4), Some(pte(BASE + 0x41_0000)), "the PTE reached the table");
+        assert!(fb.tables_dirty(root));
+        assert_eq!(fb.read_u64(x + 16), Some(0), "the data waits for the engine start");
+        // The engine start's flush point merges the data replica too.
+        assert!(sync_untracked(&mut fb));
+        assert_eq!(fb.read_u64(x + 16), Some(0xabcd));
     }
 
     /// The pool's walk reads each table page from the FB once and keeps a write-through

@@ -928,7 +928,7 @@ impl Dispatcher {
                     // tables into BAR1) reaches the walks as a tracked write before the
                     // invalidate plans the shadow, as at the register invalidate
                     // (docs/caraxes/bar1-pool.md §13).
-                    crate::bar1pool::sync_untracked(gm.fb);
+                    crate::bar1pool::sync_untracked_tables(gm.fb);
                     let n: usize = inv.iter().map(|_| m.invalidate_tlb(gm.fb, None)).sum();
                     let mut notes = vec![format!(
                         "mirror: {} software TLB invalidate(s) -> invalidated on {n} mirror VA space(s) [host]",
