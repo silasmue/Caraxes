@@ -502,6 +502,7 @@ impl SharedDevice {
         let t0 = std::time::Instant::now();
         self.gate.post(u32::from_le_bytes(token), t0);
         if crate::profile::on() {
+            crate::profile::doorbell_token(u32::from_le_bytes(token));
             crate::profile::access(region, true, offset, Some("usermode doorbell (posted)"), t0);
         }
         true
