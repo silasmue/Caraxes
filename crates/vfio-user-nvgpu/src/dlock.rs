@@ -59,15 +59,24 @@ pub enum Part {
     Translate = 0,
     /// The software CE's CPU reads, writes and fills.
     Copy = 1,
+    /// Reading GPFIFO entries and pushbuffer segments (their translations included).
+    Fetch = 2,
+    /// A software `MEM_OP` TLB invalidate's shadow plans, waited for until applied.
+    Invalidate = 3,
+    /// The GPGet store after every entry.
+    GpGet = 4,
 }
 
-const PARTS: usize = 2;
+pub const PARTS: usize = 5;
 
 impl Part {
     fn name(self) -> &'static str {
         match self {
             Part::Translate => "translate",
             Part::Copy => "CPU copy",
+            Part::Fetch => "fetch",
+            Part::Invalidate => "invalidate wait",
+            Part::GpGet => "GPGet store",
         }
     }
 }
@@ -410,10 +419,10 @@ mod tests {
             let _t = Spend::new(Part::Translate);
             std::thread::sleep(Duration::from_millis(1));
         }
-        let [translate, copy] = take_spent();
+        let [translate, copy, ..] = take_spent();
         assert!(copy >= Duration::from_millis(3) && copy <= block, "{copy:?} in a block of {block:?}");
         assert!(translate >= Duration::from_millis(1), "{translate:?}");
-        assert_eq!(take_spent(), [Duration::ZERO; 2]);
+        assert_eq!(take_spent(), [Duration::ZERO; PARTS]);
     }
 
     /// A long hold keeps what the work under it tagged; outside a hold a tag is dropped; the

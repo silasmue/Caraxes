@@ -850,7 +850,7 @@ impl Dispatcher {
         let maps0 = gm.fb.vram_stats().map_or(0, |v| v.maps);
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
         let spent = t0.elapsed();
-        let [translate, copy] = crate::dlock::take_spent();
+        let [translate, copy, fetch, inv_wait, gp_get] = crate::dlock::take_spent();
         let tlb1 = gm.fb.exec_tlb_stats();
         let maps = gm.fb.vram_stats().map_or(0, |v| v.maps) - maps0;
         let software = self.channels.software_runs != software_runs;
@@ -860,12 +860,15 @@ impl Dispatcher {
         if spent >= std::time::Duration::from_millis(1) {
             crate::dlock::tag(|| {
                 format!(
-                    "doorbell chid {chid} ({kind}) {} ms (translate {} ms: {} page hit(s), {} unit walk(s); CPU copy {} ms; {maps} window map(s))",
+                    "doorbell chid {chid} ({kind}) {} ms (translate {} ms: {} page hit(s), {} unit walk(s); CPU copy {} ms; fetch {} ms; invalidate wait {} ms; GPGet stores {} ms; {maps} window map(s))",
                     spent.as_millis(),
                     translate.as_millis(),
                     tlb1.0 - tlb0.0,
                     tlb1.1 - tlb0.1,
-                    copy.as_millis()
+                    copy.as_millis(),
+                    fetch.as_millis(),
+                    inv_wait.as_millis(),
+                    gp_get.as_millis()
                 )
             });
         }
@@ -1017,6 +1020,9 @@ impl Dispatcher {
                     // invalidate plans the shadow, as at the register invalidate
                     // (docs/caraxes/bar1-pool.md §13).
                     crate::bar1pool::sync_untracked_tables(gm.fb);
+                    // The table pages the guest wrote through the BAR2 memfd are synced by the
+                    // shadow's re-plan below (mirror.rs `shadow_resync`), as at the register
+                    // invalidate (bar2-memfd.md §3 rule 2).
                     let n: usize = inv.iter().map(|_| m.invalidate_tlb(gm.fb, None)).sum();
                     let mut notes = vec![format!(
                         "mirror: {} software TLB invalidate(s) -> invalidated on {n} mirror VA space(s) [host]",
