@@ -332,18 +332,10 @@ fn lock(device: &Mutex<Device>) -> std::sync::MutexGuard<'_, Device> {
 pub struct SharedDevice {
     device: Arc<Mutex<Device>>,
     routes: Routes,
-    /// The usermode doorbell's BAR0 offset (`None`: no boot model or
-    /// `CARAXES_POSTED_DOORBELL=0`, nothing is posted).
+    /// The usermode doorbell's BAR0 offset (`None`: no boot model, nothing is posted).
     doorbell: Option<u64>,
     gate: Arc<crate::ringgate::RingGate>,
-    /// The reads without the device lock (fastread.rs); off with `CARAXES_FAST_READS=0`.
-    fast_reads_on: bool,
 }
-
-/// A/B switch of the posted doorbell (execution.md §9.9): `0` traps it under the lock.
-pub const POSTED_DOORBELL_ENV: &str = "CARAXES_POSTED_DOORBELL";
-/// A/B switch of the reads without the device lock (execution.md §9.10): `0` locks them.
-pub const FAST_READS_ENV: &str = "CARAXES_FAST_READS";
 
 /// The current display engine, for the paths without the device mutex (`Device::display_slot`).
 pub type DisplaySlot = Arc<std::sync::RwLock<Option<Arc<Mutex<crate::display::engine::Engine>>>>>;
@@ -473,20 +465,7 @@ impl SharedDevice {
     /// The process's device with the process's ring gate, whose completer (main.rs) rings
     /// the posted doorbells.
     pub fn new(device: Arc<Mutex<Device>>, routes: Routes) -> Self {
-        let mut s = Self::with_gate(device, routes, crate::ringgate::global());
-        // A/B switches for the Windows guest (one change per run), both on by default:
-        // `CARAXES_POSTED_DOORBELL=0` traps the doorbell under the lock as before (§9.9),
-        // `CARAXES_FAST_READS=0` sends TRIGGER, the flush page and the time to the lock
-        // (§9.10). To be removed once proven on every guest.
-        if std::env::var(POSTED_DOORBELL_ENV).as_deref() == Ok("0") {
-            s.doorbell = None;
-            eprintln!("vfio-user-nvgpu: {POSTED_DOORBELL_ENV}=0: trapped doorbells take the device lock (execution.md §9.9)");
-        }
-        if std::env::var(FAST_READS_ENV).as_deref() == Ok("0") {
-            s.fast_reads_on = false;
-            eprintln!("vfio-user-nvgpu: {FAST_READS_ENV}=0: TRIGGER, flush-page and time reads take the device lock (execution.md §9.10)");
-        }
-        s
+        Self::with_gate(device, routes, crate::ringgate::global())
     }
 
     fn with_gate(device: Arc<Mutex<Device>>, routes: Routes, gate: Arc<crate::ringgate::RingGate>) -> Self {
@@ -501,7 +480,6 @@ impl SharedDevice {
             routes,
             doorbell,
             gate,
-            fast_reads_on: true,
         }
     }
 
@@ -607,7 +585,7 @@ impl ServerBackend for SharedDevice {
         // answered from the published state, without the device lock (fastread.rs,
         // docs/caraxes/execution.md §9.10); anything else, and those when the state does not
         // suffice, take the lock below.
-        if self.fast_reads_on && (region == VFIO_PCI_BAR0_REGION_INDEX || region == 3) {
+        if region == VFIO_PCI_BAR0_REGION_INDEX || region == 3 {
             let t0 = std::time::Instant::now();
             if self.fast_reads().try_read(region, offset, data) {
                 if crate::profile::on() {

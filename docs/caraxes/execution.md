@@ -637,8 +637,8 @@ clock's per-tick work takes the display engine's lock and never D.
   starts). No access passes a doorbell the guest wrote before it, as on PCIe, where a read
   or write does not pass a posted write. The card promises no more: a doorbell only makes the GPU
   fetch the new entries eventually.
-- A/B switch for the Windows guest: `CARAXES_POSTED_DOORBELL=0` traps the doorbell under D as
-  before (default on; to be removed once proven on every guest).
+- Always on (its A/B switch `CARAXES_POSTED_DOORBELL=0` went on 2026-09-30, after the train's
+  four-guest gate).
 - Counted: the exit summary's `posted doorbells` line (writes, joined, rung by the completer or by
   a later access, queue time mean and max, deepest queue); the profile's "posted doorbell: posted
   to rung" and "posted doorbell: rung (device time)"; the D holders "posted doorbells" and the
@@ -692,14 +692,11 @@ clock's per-tick work takes the display engine's lock and never D.
     active head (from `Head::t0_ns`, `ticks` and `period_ns`), published after every catch-up:
     a read at `now` below it needs no catch-up.
 - These reads take D:
-  - every one of them with `CARAXES_FAST_READS=0` (A/B switch for the Windows guest, default
-    on; to be removed once proven on every guest);
   - TRIGGER while a BAR1 pool batch runs (its slices continue at those reads);
   - a register the trace writes a line for (`CARAXES_TRACE_ACCESSES`, per kind: TRIGGER, the
     flush page, PTIMER, the usermode time; a BAR0 range without them keeps them off D);
   - reads narrower than a dword;
-  - the first read of the flush page after its copy went (it publishes a new one);
-  - with the flush reads syncing at once (`CARAXES_BAR2_MEMFD_DEFER_FLUSH=0`).
+  - the first read of the flush page after its copy went (it publishes a new one).
 - Card semantics: TRIGGER reads pending until the invalidate's roots have their jobs applied,
   then idle; the flush read orders the guest's BAR2 writes (the owed sync, settled at the next
   engine start or by the flush clock) and returns the page's content.
