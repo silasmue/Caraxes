@@ -1,0 +1,31 @@
+     3860334 R bar0 0x00088050 4  0x0          NV_PCFG (config mirror)
+     3860364 W bar0 0x00088050 4  0x0          NV_PCFG (config mirror)
+     4880558 R bar0 0x00088050 4  0x0          NV_PCFG (config mirror)
+     4880590 W bar0 0x00088050 4  0x1          NV_PCFG (config mirror)
+     4898003 E boot: doorbell 1: libos args PA 0x0 (mapped), wpr meta PA unknown
+     4898005 E boot: guest ABI: not known yet (libos arguments at 0x0: no RMARGS region in the libos init arguments)
+     4898007 E boot: queues: not linked (the guest's ABI is not known yet)
+     4898080 E boot: doorbell 2: libos args PA 0x0 (mapped), wpr meta PA unknown
+     4898083 E boot: guest ABI: not known yet (libos arguments at 0x0: no RMARGS region in the libos init arguments)
+     4898084 E boot: queues: not linked (the guest's ABI is not known yet)
+     4908933 E boot: gsp start 1: halted
+     4908935 E boot: fwsec: data buffer PA 0x112ce9200, command 0x15 (FRTS), DMEMMAPPER at +0x20, frtsOffset 0x1ffe00000 (from the FWSEC command in guest RAM), WPR2 lo 0x1ffe000 hi 0x1ffeff0
+     5379381 E boot: sec2 start 1: booter done, wpr meta PA 0x112ce7000 (mapped), gsp riscv active
+     5379393 E boot: guest ABI 610 (610.57.04): RMARGS without the 615 magic: message queue v0; 610 until the first element's frame says otherwise
+    45197252 E ZBC (real compression): 0 setter(s) forwarded (0 equal, 0 filled, 0 host table full), 0 at the cap, 0 refused here, 0 entr(ies) lost to a host flush; guest ZBC-kind surfaces at exit: never reported
+vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 (/proc/driver/nvidia/version)); guest 
+vfio-user-nvgpu: host BAR1 floor 64 MiB: 0 admitted, 0 refused (0 below the floor, 0 unknown free, 0 in back-off), 0 NO_MEMORY answer(s), 0 free-size read(s) (every BAR1 window of the VRAM store is admitted against the host's free BAR1 minus the window; docs/caraxes/host-resources.md)
+vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows (budget 2 x 16 MiB = 32 MiB of the host's shared BAR1; CARAXES_BAR1_WINDOWS, CARAXES_BAR1_WINDOW_MIB); guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest 
+vfio-user-nvgpu: guest ABI chosen by the guest (570, 610 or 615; 610 until its GSP boot shows it) (transport read from the guest)
+vfio-user-nvgpu: soak line every 60 s (CARAXES_SOAK_SECS; 0 turns it off), once at exit; host VRAM floor 1024 MiB: 0 admitted, 0 refused (0 below the floor, 0 unknown free, 0 in back-off), 0 NO_MEMORY answer(s), 0 free-size read(s)
+vfio-user-nvgpu: soak exit: rss_kib=4204832 vram_used_mib=6818 vram_free_mib=1373 bar1_used_mib=93 bar1_free_mib=162 foll_pin=1083851 pinned_chunks=4 pinned_mib=4096 host_objects=0 vas=0 virtual=0 tsg=0 channel=0 engine=0 guest_page=0 event=0 other=0 gathers=0 floor_refused=0 no_memory=0 shadow_vas=
+vfio-user-nvgpu: ZBC (real compression): 0 setter(s) forwarded (0 equal, 0 filled, 0 host table full), 0 at the cap, 0 refused here, 0 entr(ies) lost to a host flush; guest ZBC-kind surfaces at exit: never reported
+vfio-user-nvgpu: soak after teardown: rss_kib=4204840 vram_used_mib=- vram_free_mib=- bar1_used_mib=- bar1_free_mib=- foll_pin=35275 pinned_chunks=0 pinned_mib=0 host_objects=0 vas=0 virtual=0 tsg=0 channel=0 engine=0 guest_page=0 event=0 other=0 gathers=0 floor_refused=0 no_memory=0; host VRAM floo
+bar0 config-mirror writes: 2 (the MSI re-arm among them), no BAR1 pool poll after them; 0 pool poll(s) held the device over 2 ms (docs/caraxes/sottr-stage.md §11)
+dma table: 0 DMA address(es) outside the table refused
+fb: reservation [0x69800000, 0xa9800000); accesses outside it: 0 reads, 0 writes
+vram store: 0 window map(s), 0 refused, 0 eviction(s), 0 stall(s) without any window, 0 access(es) failed closed, 0 window(s) held; 0 read(s) of 0 bytes, 0 write(s) of 0 bytes
+mirror: 0 channel(s) created, 0 freed, 0 live; 0 doorbell(s) forwarded, 0 TLB invalidate(s) (0 MEM_OP push(es), 0 slow), 0 refusal(s), longest mirror build 0 us; events raised 0, MSIs 0 (coalesced 0), host RC events 0; untrapped GPPut: rule on (CARAXES_SHADOW_UNTRAPPED_HOLD); 0 invalidate(s) held un
+preemption, host GR TSGs: 0 read at build (0 GET refused), 0 at teardown; compute bound CTA 0 CILP 0 (0 of them after the build), already at or above the request 0, no guest request 0, not bound (WFI/unknown asked) 0, REFUSED 0 (host default kept), late SET not idle 0 (host default kept); graphics a
+doorbell routing: 0 ring(s) by host token, 0 collision(s) avoided (a guest channel's own token that is also another channel's host token; the old order rang the other channel), 0 pool token(s) written at the mirror's scheduling
+host boost: 0 renewals (0 from guest requests), 0 refused, first at never; RM call mean 0 us, max 0 us over 0 call(s)

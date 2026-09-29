@@ -1,0 +1,301 @@
+[    0.000000] Linux version 7.2.7-nova (silas@manacor) (clang version 22.1.8, GNU ld (GNU Binutils) 2.47) #2 SMP PREEMPT_DYNAMIC Tue Sep 29 07:06:04 CEST 2026
+[    0.059461] Console: colour dummy device 80x25
+[    0.279188] pid_max: default: 32768 minimum: 301
+[    0.393696] iommu: Default domain type: Translated
+[    0.408130] NetLabel:  unlabeled traffic allowed by default
+[    0.458406] PCI: CLS 0 bytes, default 64
+[    0.504394] virtio_blk virtio0: 1/0/0 default/read/poll queues
+[    0.509742] virtio_blk virtio1: 1/0/0 default/read/poll queues
+[    0.556589]   No soundcards found.
+[    0.569822] VFS: Mounted root (ext4 filesystem) on device 253:1.
+[    0.647370] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB
+[    0.777214] systemd[1]: Queued start job for default target graphical.target.
+[[0;32m  OK  [0m] Started [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
+CARAXES-CHECK begin 2026-09-29T05:48:43+00:00 7.2.7-nova
+CARAXES-CHECK firmware
+CARAXES-CHECK R1 probe
+/etc/modprobe.d/caraxes-openrender.conf:1:# Caraxes openrender guest: openrender-check.sh loads nouveau itself
+/etc/modprobe.d/caraxes-openrender.conf:2:blacklist nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:5:blacklist nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:6:blacklist lbm-nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:8:alias nouveau off
+/lib/modprobe.d/nvidia-graphics-drivers.conf:9:alias lbm-nouveau off
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:5:blacklist nouveau
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:6:blacklist lbm-nouveau
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:8:alias nouveau off
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:9:alias lbm-nouveau off
+[   34.957107] nouveau 0000:00:04.0: gsp: init failed, -110
+[   34.958437] nouveau 0000:00:04.0: init failed with -110
+[   34.959116] nouveau: drm:00000000:00000080: init failed with -110
+[   34.959946] nouveau 0000:00:04.0: drm: Device allocation failed: -110
+[   34.962920] nouveau 0000:00:04.0: probe with driver nouveau failed with error -110
+modprobe nouveau rc=0
+[    4.358700] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.358702] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.358703] nouveau 0000:00:04.0: gsp: 	binSize          : 59392
+[    4.358704] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.358705] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x88
+[    4.358705] nouveau 0000:00:04.0: gsp: 	dataSize         : 0xe700
+[    4.358706] nouveau 0000:00:04.0: gsp: hsHeader:
+[    4.358707] nouveau 0000:00:04.0: gsp: 	sigProdOffset    : 0x3c
+[    4.358708] nouveau 0000:00:04.0: gsp: 	sigProdSize      : 0x10
+[    4.358709] nouveau 0000:00:04.0: gsp: 	patchLoc         : 0x4c
+[    4.358710] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    4.358711] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    4.358711] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    4.358712] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    4.358713] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    4.358714] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    4.358727] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    4.358728] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    4.358729] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    4.358730] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x8500
+[    4.358731] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x6200
+[    4.358732] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    4.358733] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x8400
+[    4.358734] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.358735] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.358736] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.358737] nouveau 0000:00:04.0: gsp: 	binSize          : 39424
+[    4.358737] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.358738] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x88
+[    4.358739] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x9900
+[    4.358740] nouveau 0000:00:04.0: gsp: hsHeader:
+[    4.358741] nouveau 0000:00:04.0: gsp: 	sigProdOffset    : 0x3c
+[    4.358741] nouveau 0000:00:04.0: gsp: 	sigProdSize      : 0x10
+[    4.358742] nouveau 0000:00:04.0: gsp: 	patchLoc         : 0x4c
+[    4.358743] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    4.358744] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    4.358744] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    4.358745] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    4.358746] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    4.358747] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    4.358755] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    4.358755] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    4.358756] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    4.358757] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x4c00
+[    4.358758] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x4d00
+[    4.358759] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    4.358759] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x4b00
+[    4.373561] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" loaded - 1280 byte(s)
+[    4.373567] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.373568] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.373569] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.373570] nouveau 0000:00:04.0: gsp: 	binSize          : 1280
+[    4.373571] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x100
+[    4.373571] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x200
+[    4.373572] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x300
+[    4.373573] nouveau 0000:00:04.0: gsp: blDesc
+[    4.373574] nouveau 0000:00:04.0: gsp: 	startTag         : 0xfd
+[    4.373574] nouveau 0000:00:04.0: gsp: 	dmemLoadOff      : 0x0
+[    4.373575] nouveau 0000:00:04.0: gsp: 	codeOff          : 0x0
+[    4.373576] nouveau 0000:00:04.0: gsp: 	codeSize         : 0x200
+[    4.373576] nouveau 0000:00:04.0: gsp: 	dataOff          : 0x200
+[    4.373577] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x100
+[    4.373579] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.373580] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.373581] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.373581] nouveau 0000:00:04.0: gsp: 	binSize          : 4352
+[    4.373582] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.373583] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x64
+[    4.373584] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x1000
+[    4.374149] nouveau 0000:00:04.0: gsp: created debugfs GSP-RM logging entries
+[    4.374397] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" loaded - 1280 byte(s)
+[    4.374399] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.374400] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.374401] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.374401] nouveau 0000:00:04.0: gsp: 	binSize          : 1280
+[    4.374402] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x100
+[    4.374403] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x200
+[    4.374404] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x300
+[    4.374404] nouveau 0000:00:04.0: gsp: blDesc
+[    4.374405] nouveau 0000:00:04.0: gsp: 	startTag         : 0xfd
+[    4.374406] nouveau 0000:00:04.0: gsp: 	dmemLoadOff      : 0x0
+[    4.374406] nouveau 0000:00:04.0: gsp: 	codeOff          : 0x0
+[    4.374407] nouveau 0000:00:04.0: gsp: 	codeSize         : 0x200
+[    4.374408] nouveau 0000:00:04.0: gsp: 	dataOff          : 0x200
+[    4.374408] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x100
+[    4.374410] nouveau 0000:00:04.0: gsp: acquired gsp falcon
+[    4.374511] nouveau 0000:00:04.0: gsp:fwsec-frts: resetting
+[    4.375775] nouveau 0000:00:04.0: gsp:fwsec-frts: loading
+[    4.375961] nouveau 0000:00:04.0: gsp: imem 0000fe00 <- 00000200 bytes at 00000000
+[    4.383604] nouveau 0000:00:04.0: gsp: flcnBlDmemDesc
+[    4.383606] nouveau 0000:00:04.0: gsp: 	reserved      : 0x00000000 0x00000000 0x00000000 0x00000000
+[    4.383607] nouveau 0000:00:04.0: gsp: 	signature     : 0x00000000 0x00000000 0x00000000 0x00000000
+[    4.383608] nouveau 0000:00:04.0: gsp: 	ctxDma        : 4
+[    4.383609] nouveau 0000:00:04.0: gsp: 	codeDmaBase   : 0x112ce9000
+[    4.383610] nouveau 0000:00:04.0: gsp: 	nonSecCodeOff : 0x0
+[    4.383611] nouveau 0000:00:04.0: gsp: 	nonSecCodeSize: 0x100
+[    4.383611] nouveau 0000:00:04.0: gsp: 	secCodeOff    : 0x100
+[    4.383612] nouveau 0000:00:04.0: gsp: 	secCodeSize   : 0x100
+[    4.383613] nouveau 0000:00:04.0: gsp: 	codeEntryPoint: 0x0
+[    4.383613] nouveau 0000:00:04.0: gsp: 	dataDmaBase   : 0x112ce9200
+[    4.383614] nouveau 0000:00:04.0: gsp: 	dataSize      : 0x100
+[    4.383615] nouveau 0000:00:04.0: gsp: 	argc          : 0x00000000
+[    4.383615] nouveau 0000:00:04.0: gsp: 	argv          : 0x00000000
+[    4.383738] nouveau 0000:00:04.0: gsp: dmem 00000000 <- 00000054 bytes at 00000000
+[    4.385043] nouveau 0000:00:04.0: gsp:fwsec-frts: booting
+[    4.385369] nouveau 0000:00:04.0: gsp: mbox 00000000 00000000
+[    4.385372] nouveau 0000:00:04.0: gsp:fwsec-frts: booted
+[    4.385372] nouveau 0000:00:04.0: gsp: released gsp falcon
+[    4.385522] nouveau 0000:00:04.0: gsp: fwsec-frts: WPR2 @ 01ffe000 - 01ffeff0
+[    4.386049] nouveau 0000:00:04.0: gsp: acquired sec2 falcon
+[    4.386221] nouveau 0000:00:04.0: sec2(gsp):booter-load: patching sigs:1 size:16
+[    4.386849] nouveau 0000:00:04.0: sec2(gsp):booter-load: patch idx:0 src:0000003c dst:00008700
+[    4.386853] nouveau 0000:00:04.0: sec2(gsp):booter-load: resetting
+[    4.387533] nouveau 0000:00:04.0: sec2(gsp):booter-load: loading
+[    4.387622] nouveau 0000:00:04.0: sec2(gsp): imem 00000000 <- 00000100 bytes at 00000000
+[    4.389595] nouveau 0000:00:04.0: sec2(gsp): imem 00000100 <- 00008400 bytes at 00000100
+[    4.644055] nouveau 0000:00:04.0: sec2(gsp): dmem 00000000 <- 00006200 bytes at 00008500
+[    4.855515] nouveau 0000:00:04.0: sec2(gsp):booter-load: booting
+[    4.855750] nouveau 0000:00:04.0: sec2(gsp): mbox 00000000 00000001
+[    4.855752] nouveau 0000:00:04.0: sec2(gsp):booter-load: booted
+[    4.855753] nouveau 0000:00:04.0: gsp: released sec2 falcon
+[   34.954151] WARNING: drivers/gpu/drm/nouveau/nvkm/subdev/gsp/rm/r535/rpc.c:164 at r535_gsp_msgq_peek+0x50/0xa0 [nouveau], CPU#1: modprobe/577
+[   34.954516] Modules linked in: nouveau(+) drm_ttm_helper gpu_sched drm_gpuvm drm_exec
+[   34.954525] RIP: 0010:r535_gsp_msgq_peek+0x50/0xa0 [nouveau]
+[   34.954656]  r535_gsp_msg_recv+0x3a/0x520 [nouveau]
+[   34.954747]  r535_gsp_rpc_poll+0x2c/0x50 [nouveau]
+[   34.954927]  r535_gsp_init+0x69/0x5f0 [nouveau]
+[   34.955039]  ? nvkm_falcon_fw_boot+0x1db/0x580 [nouveau]
+[   34.955152]  tu102_gsp_init+0x91/0xc0 [nouveau]
+[   34.955253]  nvkm_subdev_init_+0x7f/0x140 [nouveau]
+[   34.955388]  nvkm_subdev_init+0x26/0x70 [nouveau]
+[   34.955561]  nvkm_device_init+0x16d/0x270 [nouveau]
+[   34.955737]  nvkm_udevice_init+0x31/0x50 [nouveau]
+[   34.955849]  nvkm_object_init+0x4a/0x190 [nouveau]
+[   34.955957]  nvkm_ioctl_new+0x24a/0x330 [nouveau]
+[   34.956044]  ? __pfx_nvkm_client_child_new+0x10/0x10 [nouveau]
+[   34.956145]  ? __pfx_nvkm_udevice_new+0x10/0x10 [nouveau]
+[   34.956262]  nvkm_ioctl+0xf6/0x1f0 [nouveau]
+[   34.956347]  nvif_object_ctor+0x121/0x270 [nouveau]
+[   34.956438]  ? nvif_client_ctor+0xa9/0xf0 [nouveau]
+[   34.956522]  nvif_device_ctor+0x29/0x70 [nouveau]
+[   34.956606]  nouveau_drm_device_new+0x19a/0x310 [nouveau]
+[   34.956711]  nouveau_drm_probe+0x87/0x160 [nouveau]
+[   34.956850]  init_module+0x1b8/0xff0 [nouveau]
+[   34.956959]  ? __pfx_init_module+0x10/0x10 [nouveau]
+[   34.957107] nouveau 0000:00:04.0: gsp: init failed, -110
+[   34.958437] nouveau 0000:00:04.0: init failed with -110
+[   34.959116] nouveau: drm:00000000:00000080: init failed with -110
+[   34.959946] nouveau 0000:00:04.0: drm: Device allocation failed: -110
+[   34.962920] nouveau 0000:00:04.0: probe with driver nouveau failed with error -110
+CARAXES-CHECK R2 accel
+[   34.959946] nouveau 0000:00:04.0: drm: Device allocation failed: -110
+ls: cannot access '/dev/dri': No such file or directory
+CARAXES-CHECK packages
+CARAXES-CHECK R3 nvk
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+CARAXES-CHECK R4-R5 vk-offscreen
+device 0: llvmpipe (LLVM 20.1.2, 256 bits), 10005:0000, driver llvmpipe (Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)), id 13
+vk-offscreen: no device for --driver nvk
+vk-offscreen rc=2
+CARAXES-CHECK R6 vkmark headless
+vkmark rc=1
+CARAXES-CHECK dmesg-after
+[    4.374397] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" loaded - 1280 byte(s)
+[    4.374399] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.374400] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.374401] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.374401] nouveau 0000:00:04.0: gsp: 	binSize          : 1280
+[    4.374402] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x100
+[    4.374403] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x200
+[    4.374404] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x300
+[    4.374404] nouveau 0000:00:04.0: gsp: blDesc
+[    4.374405] nouveau 0000:00:04.0: gsp: 	startTag         : 0xfd
+[    4.374406] nouveau 0000:00:04.0: gsp: 	dmemLoadOff      : 0x0
+[    4.374406] nouveau 0000:00:04.0: gsp: 	codeOff          : 0x0
+[    4.374407] nouveau 0000:00:04.0: gsp: 	codeSize         : 0x200
+[    4.374408] nouveau 0000:00:04.0: gsp: 	dataOff          : 0x200
+[    4.374408] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x100
+[    4.374410] nouveau 0000:00:04.0: gsp: acquired gsp falcon
+[    4.374511] nouveau 0000:00:04.0: gsp:fwsec-frts: resetting
+[    4.375775] nouveau 0000:00:04.0: gsp:fwsec-frts: loading
+[    4.375961] nouveau 0000:00:04.0: gsp: imem 0000fe00 <- 00000200 bytes at 00000000
+[    4.383604] nouveau 0000:00:04.0: gsp: flcnBlDmemDesc
+[    4.383606] nouveau 0000:00:04.0: gsp: 	reserved      : 0x00000000 0x00000000 0x00000000 0x00000000
+[    4.383607] nouveau 0000:00:04.0: gsp: 	signature     : 0x00000000 0x00000000 0x00000000 0x00000000
+[    4.383608] nouveau 0000:00:04.0: gsp: 	ctxDma        : 4
+[    4.383609] nouveau 0000:00:04.0: gsp: 	codeDmaBase   : 0x112ce9000
+[    4.383610] nouveau 0000:00:04.0: gsp: 	nonSecCodeOff : 0x0
+[    4.383611] nouveau 0000:00:04.0: gsp: 	nonSecCodeSize: 0x100
+[    4.383611] nouveau 0000:00:04.0: gsp: 	secCodeOff    : 0x100
+[    4.383612] nouveau 0000:00:04.0: gsp: 	secCodeSize   : 0x100
+[    4.383613] nouveau 0000:00:04.0: gsp: 	codeEntryPoint: 0x0
+[    4.383613] nouveau 0000:00:04.0: gsp: 	dataDmaBase   : 0x112ce9200
+[    4.383614] nouveau 0000:00:04.0: gsp: 	dataSize      : 0x100
+[    4.383615] nouveau 0000:00:04.0: gsp: 	argc          : 0x00000000
+[    4.383615] nouveau 0000:00:04.0: gsp: 	argv          : 0x00000000
+[    4.383738] nouveau 0000:00:04.0: gsp: dmem 00000000 <- 00000054 bytes at 00000000
+[    4.385043] nouveau 0000:00:04.0: gsp:fwsec-frts: booting
+[    4.385369] nouveau 0000:00:04.0: gsp: mbox 00000000 00000000
+[    4.385372] nouveau 0000:00:04.0: gsp:fwsec-frts: booted
+[    4.385372] nouveau 0000:00:04.0: gsp: released gsp falcon
+[    4.385522] nouveau 0000:00:04.0: gsp: fwsec-frts: WPR2 @ 01ffe000 - 01ffeff0
+[    4.386049] nouveau 0000:00:04.0: gsp: acquired sec2 falcon
+[    4.386221] nouveau 0000:00:04.0: sec2(gsp):booter-load: patching sigs:1 size:16
+[    4.386849] nouveau 0000:00:04.0: sec2(gsp):booter-load: patch idx:0 src:0000003c dst:00008700
+[    4.386853] nouveau 0000:00:04.0: sec2(gsp):booter-load: resetting
+[    4.387533] nouveau 0000:00:04.0: sec2(gsp):booter-load: loading
+[    4.387622] nouveau 0000:00:04.0: sec2(gsp): imem 00000000 <- 00000100 bytes at 00000000
+[    4.389595] nouveau 0000:00:04.0: sec2(gsp): imem 00000100 <- 00008400 bytes at 00000100
+[    4.644055] nouveau 0000:00:04.0: sec2(gsp): dmem 00000000 <- 00006200 bytes at 00008500
+[    4.855515] nouveau 0000:00:04.0: sec2(gsp):booter-load: booting
+[    4.855750] nouveau 0000:00:04.0: sec2(gsp): mbox 00000000 00000001
+[    4.855752] nouveau 0000:00:04.0: sec2(gsp):booter-load: booted
+[    4.855753] nouveau 0000:00:04.0: gsp: released sec2 falcon
+[   34.954151] WARNING: drivers/gpu/drm/nouveau/nvkm/subdev/gsp/rm/r535/rpc.c:164 at r535_gsp_msgq_peek+0x50/0xa0 [nouveau], CPU#1: modprobe/577
+[   34.954516] Modules linked in: nouveau(+) drm_ttm_helper gpu_sched drm_gpuvm drm_exec
+[   34.954525] RIP: 0010:r535_gsp_msgq_peek+0x50/0xa0 [nouveau]
+[   34.954656]  r535_gsp_msg_recv+0x3a/0x520 [nouveau]
+[   34.954747]  r535_gsp_rpc_poll+0x2c/0x50 [nouveau]
+[   34.954927]  r535_gsp_init+0x69/0x5f0 [nouveau]
+[   34.955039]  ? nvkm_falcon_fw_boot+0x1db/0x580 [nouveau]
+[   34.955152]  tu102_gsp_init+0x91/0xc0 [nouveau]
+[   34.955253]  nvkm_subdev_init_+0x7f/0x140 [nouveau]
+[   34.955388]  nvkm_subdev_init+0x26/0x70 [nouveau]
+[   34.955561]  nvkm_device_init+0x16d/0x270 [nouveau]
+[   34.955737]  nvkm_udevice_init+0x31/0x50 [nouveau]
+[   34.955849]  nvkm_object_init+0x4a/0x190 [nouveau]
+[   34.955957]  nvkm_ioctl_new+0x24a/0x330 [nouveau]
+[   34.956044]  ? __pfx_nvkm_client_child_new+0x10/0x10 [nouveau]
+[   34.956145]  ? __pfx_nvkm_udevice_new+0x10/0x10 [nouveau]
+[   34.956262]  nvkm_ioctl+0xf6/0x1f0 [nouveau]
+[   34.956347]  nvif_object_ctor+0x121/0x270 [nouveau]
+[   34.956438]  ? nvif_client_ctor+0xa9/0xf0 [nouveau]
+[   34.956522]  nvif_device_ctor+0x29/0x70 [nouveau]
+[   34.956606]  nouveau_drm_device_new+0x19a/0x310 [nouveau]
+[   34.956711]  nouveau_drm_probe+0x87/0x160 [nouveau]
+[   34.956850]  init_module+0x1b8/0xff0 [nouveau]
+[   34.956959]  ? __pfx_init_module+0x10/0x10 [nouveau]
+[   34.957107] nouveau 0000:00:04.0: gsp: init failed, -110
+[   34.958437] nouveau 0000:00:04.0: init failed with -110
+[   34.959116] nouveau: drm:00000000:00000080: init failed with -110
+[   34.959946] nouveau 0000:00:04.0: drm: Device allocation failed: -110
+[   34.962920] nouveau 0000:00:04.0: probe with driver nouveau failed with error -110
+CARAXES-CHECK unbind
+unbind rc=1
+[   34.955388]  nvkm_subdev_init+0x26/0x70 [nouveau]
+[   34.955561]  nvkm_device_init+0x16d/0x270 [nouveau]
+[   34.955737]  nvkm_udevice_init+0x31/0x50 [nouveau]
+[   34.955849]  nvkm_object_init+0x4a/0x190 [nouveau]
+[   34.955957]  nvkm_ioctl_new+0x24a/0x330 [nouveau]
+[   34.956044]  ? __pfx_nvkm_client_child_new+0x10/0x10 [nouveau]
+[   34.956145]  ? __pfx_nvkm_udevice_new+0x10/0x10 [nouveau]
+[   34.956262]  nvkm_ioctl+0xf6/0x1f0 [nouveau]
+[   34.956347]  nvif_object_ctor+0x121/0x270 [nouveau]
+[   34.956438]  ? nvif_client_ctor+0xa9/0xf0 [nouveau]
+[   34.956522]  nvif_device_ctor+0x29/0x70 [nouveau]
+[   34.956606]  nouveau_drm_device_new+0x19a/0x310 [nouveau]
+[   34.956711]  nouveau_drm_probe+0x87/0x160 [nouveau]
+[   34.956850]  init_module+0x1b8/0xff0 [nouveau]
+[   34.956959]  ? __pfx_init_module+0x10/0x10 [nouveau]
+[   34.957107] nouveau 0000:00:04.0: gsp: init failed, -110
+[   34.958437] nouveau 0000:00:04.0: init failed with -110
+[   34.959116] nouveau: drm:00000000:00000080: init failed with -110
+[   34.959946] nouveau 0000:00:04.0: drm: Device allocation failed: -110
+[   34.962920] nouveau 0000:00:04.0: probe with driver nouveau failed with error -110
+CARAXES-CHECK end
+[[0;32m  OK  [0m] Stopped [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.

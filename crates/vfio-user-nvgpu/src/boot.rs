@@ -2767,6 +2767,33 @@ impl BootModel {
                         "guest ABI: ERROR the guest's RMARGS at {rmargs:#x} carry the 615 magic \"GSP \"; this device is pinned to guest ABI {} with the 610 transport (unset CARAXES_GUEST_ABI and --guest-abi, or pin 615)",
                         crate::ver::guest()
                     ));
+                    return notes;
+                }
+            }
+            // Message queue v0: GSP-RM links the queues at its init from RMARGS, sends
+            // GSP_INIT_DONE and serves what the CPU queued before it started, without a
+            // doorbell. nouveau queues GSP_SET_SYSTEM_INFO and SET_REGISTRY before it boots
+            // GSP and then only polls for GSP_INIT_DONE (Linux 7.2.7
+            // nvkm/subdev/gsp/rm/r535/gsp.c `r535_gsp_init`, :1782-1795); the doorbells it
+            // rang then found no libos arguments yet. So the queues link here when the
+            // command queue already holds elements, whose first frame tells 570 from 610;
+            // an empty queue (nova-core and the 610 kernel send after the boot) still links
+            // at the first doorbell.
+            if self.queues.is_none() {
+                match self.cmd_queue_write_ptr(mem, pa) {
+                    Ok(w) if w != 0 => {
+                        notes.push(format!(
+                            "queues: {w} element slot(s) queued before GSP-RM started: linked now, as GSP-RM does at its init"
+                        ));
+                        self.libos_args_pa = Some(pa);
+                        notes.extend(self.service_queues(mem, pa));
+                    }
+                    Ok(_) => notes.push(
+                        "queues: command queue empty at GSP start; they link at the first doorbell".into(),
+                    ),
+                    Err(e) => notes.push(format!(
+                        "queues: not linked at GSP start ({e}); they link at the first doorbell"
+                    )),
                 }
             }
             return notes;
@@ -2777,6 +2804,33 @@ impl BootModel {
             Err(e) => notes.push(format!("queues (v2): {e}")),
         }
         notes
+    }
+
+    /// Message queue v0: the command queue's `writePtr` as the CPU left it (its
+    /// `msgqTxHeader` through RMARGS' queue arguments), without linking or writing
+    /// anything. 0 on a fresh boot means nothing is queued: GSP-RM's read pointer starts at 0.
+    fn cmd_queue_write_ptr(&self, mem: &GuestMemory, libos_args_pa: u64) -> Result<u32, String> {
+        use crate::ver::v610::{MQ_CMD_QUEUE_OFFSET, MQ_PAGE_TABLE_ENTRY_COUNT, MQ_SHARED_MEM_PA};
+        let mut probe = Vec::new();
+        let rmargs = Self::find_rmargs(mem, libos_args_pa, &mut probe)?;
+        let shared = mem.read_u64(rmargs + MQ_SHARED_MEM_PA).ok_or("RMARGS not mapped")?;
+        let count = mem.read_u32(rmargs + MQ_PAGE_TABLE_ENTRY_COUNT).unwrap_or(0);
+        let cmd_off = mem.read_u64(rmargs + MQ_CMD_QUEUE_OFFSET).unwrap_or(0);
+        if count == 0 || count > 4096 || cmd_off >= count as u64 * 4096 {
+            return Err(format!("implausible queue arguments: {count} pages, commands at {cmd_off:#x}"));
+        }
+        let pages = QueueMemory::read_page_table(mem, shared, count)
+            .ok_or("queue page table not mapped")?;
+        let qm = QueueMemory::new(mem, &pages);
+        let mut raw = [0u8; 32];
+        if !qm.read(cmd_off, &mut raw) {
+            return Err(format!("command queue header at {cmd_off:#x} not readable"));
+        }
+        let h = crate::msgq::TxHeader::parse(&raw);
+        if h.version != 0 || h.msg_size != 0x1000 || h.msg_count == 0 || h.write_ptr >= h.msg_count {
+            return Err(format!("command queue header not initialized: {h:?}"));
+        }
+        Ok(h.write_ptr)
     }
 
     /// The RMARGS region among the libos init arguments at `libos_args_pa`.
@@ -3257,6 +3311,86 @@ mod tests {
         assert_eq!(status(1).0, rpc::EV_GSP_INIT_DONE);
         let _ = std::fs::remove_file(path);
         first
+    }
+
+    /// nouveau's order (Linux 7.2.7 r570 path): GSP_SET_SYSTEM_INFO and SET_REGISTRY are
+    /// queued and the doorbell rung before the GSP mailboxes carry the libos arguments, then
+    /// FWSEC, the mailboxes, Booter Load, and only polling for GSP_INIT_DONE. The queues link
+    /// at the Booter Load (GSP-RM's init), the first element's frame chooses 570, and the
+    /// sequencer and GSP_INIT_DONE are in the status queue without a further doorbell.
+    #[test]
+    fn nouveau_570_queues_before_the_boot_link_at_booter_load() {
+        use crate::msgq::tests::queue_fixture;
+        use crate::ver::{GuestAbi, TestGuest};
+        let _g = TestGuest::pin(None);
+        let f = crate::fixture::rtx2070();
+        let (mem, pages, base, path) = queue_fixture("nouveau570-early");
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(1 << 30), f.identity(1 << 30));
+        let (gsp, sec2, queue_head) = (0x0011_0000u64, 0x0084_0000u64, 0x0011_0C00u64);
+        let (libos, rmargs) = (base + 0x90000, base + 0x91000);
+        let id8 = |s: &str| s.bytes().fold(0u64, |a, c| (a << 8) | c as u64);
+        assert!(mem.write(libos, &id8("LOGINIT").to_le_bytes()));
+        assert!(mem.write(libos + 32, &id8("RMARGS").to_le_bytes()));
+        assert!(mem.write(libos + 40, &rmargs.to_le_bytes()));
+        assert!(mem.write(rmargs, &base.to_le_bytes()));
+        assert!(mem.write(rmargs + 8, &129u32.to_le_bytes()));
+        assert!(mem.write(rmargs + 16, &0x1000u64.to_le_bytes()));
+        assert!(mem.write(rmargs + 24, &0x41000u64.to_le_bytes()));
+        let mut cmd = crate::msgq::TxHeader::standard(0x40000);
+        let qm = QueueMemory::new(&mem, &pages);
+        assert!(qm.write(0x1000, &cmd.encode()));
+        // Two pre-610 (0x30) elements, as r535/rpc.c frames them, and their doorbells.
+        for (seq, (function, len)) in [(rpc::FN_GSP_SET_SYSTEM_INFO, 928usize), (rpc::FN_SET_REGISTRY, 8)]
+            .into_iter()
+            .enumerate()
+        {
+            let total = 0x30 + 32 + len;
+            let mut raw = vec![0u8; total.div_ceil(8) * 8];
+            raw[0x24..0x28].copy_from_slice(&(seq as u32).to_le_bytes());
+            raw[0x28..0x2c].copy_from_slice(&1u32.to_le_bytes());
+            let h = RpcHeader {
+                header_version: 0x0300_0000,
+                signature: u32::from_le_bytes(*b"VRPC"),
+                length: (32 + len) as u32,
+                function,
+                rpc_result: 0xFFFF_FFFF,
+                rpc_result_private: 0xFFFF_FFFF,
+                sequence: seq as u32,
+                u: 0,
+            };
+            raw[0x30..0x50].copy_from_slice(&h.encode());
+            if function == rpc::FN_SET_REGISTRY {
+                raw[0x50] = 8; // an empty PACKED_REGISTRY_TABLE: size 8, 0 entries
+            }
+            let sum = crate::msgq::checksum32(&raw);
+            raw[0x20..0x24].copy_from_slice(&sum.to_le_bytes());
+            let at = 0x1000 + cmd.entry_off as u64 + cmd.write_ptr as u64 * 0x1000;
+            assert!(qm.write(at, &raw));
+            cmd.write_ptr += 1;
+            assert!(qm.write_u32(0x1000 + 16, cmd.write_ptr));
+            let notes = b.write32(queue_head, 0, &mem).unwrap();
+            assert!(notes.iter().any(|n| n.contains("not linked")), "{notes:?}");
+        }
+        // FWSEC is left out; the mailboxes, then Booter Load on SEC2.
+        b.write32(gsp + falcon::MAILBOX0, libos as u32, &mem);
+        b.write32(gsp + falcon::MAILBOX1, (libos >> 32) as u32, &mem);
+        b.write32(sec2 + falcon::MAILBOX0, 0x7654_3000, &mem);
+        b.write32(sec2 + falcon::MAILBOX1, 0, &mem);
+        let notes = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("queued before GSP-RM started")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.contains("GSP_SET_SYSTEM_INFO") && n.contains("checksum ok")), "{notes:?}");
+        assert_eq!(crate::ver::guest(), GuestAbi::V570, "chosen by the first element's frame");
+        let status = |slot: u64| {
+            let mut e = vec![0u8; 0x1000];
+            assert!(qm.read(0x42000 + slot * 0x1000, &mut e));
+            RpcHeader::parse(&e[0x30..]).function
+        };
+        assert_eq!(status(0), crate::ver::v570::EV_GSP_RUN_CPU_SEQUENCER);
+        assert_eq!(status(1), rpc::EV_GSP_INIT_DONE);
+        // An empty command queue at the Booter Load keeps the doorbell link (nova-core's order,
+        // `nova_570_boot_through_the_queue`).
+        let _ = std::fs::remove_file(path);
     }
 
     /// A 610 guest (OpenRM 610.57.04) on message queue v0: RMARGS without the 615 magic and
