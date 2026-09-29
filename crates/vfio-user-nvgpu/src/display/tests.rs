@@ -502,9 +502,9 @@ fn war_flags_case(g: crate::ver::GuestAbi) {
     assert!(disp.connector(DP).unwrap().sw_auto_read_war);
 }
 
-/// SYSTEM_GET_ACTIVE: no firmware-lit head, so from 615 on no stale head either: the output
-/// flag GOP_STALE_HEAD_NEEDS_CLEANUP is cleared and `staleSorIndex` is 0, whatever the
-/// caller left in them; the input flag CLIENT is kept.
+/// SYSTEM_GET_ACTIVE before any modeset: no firmware-lit head, so no active display and, from
+/// 615 on, no stale head either: the output flag GOP_STALE_HEAD_NEEDS_CLEANUP is cleared and
+/// `staleSorIndex` is 0, whatever the caller left in them; the input flag CLIENT is kept.
 #[test]
 fn get_active_reports_no_head_and_no_stale_head() {
     use crate::ver::{GuestAbi, TestGuest};
@@ -532,6 +532,49 @@ fn get_active_reports_no_head_and_no_stale_head() {
             None => assert_eq!((g, l.get_active_size), (GuestAbi::V610, 16)),
         }
     }
+}
+
+/// SYSTEM_GET_ACTIVE after a client's modeset (the Windows KMD asks right after it, the DP
+/// library's "is a head attached to this displayId"): the head a SOR drives returns that
+/// SOR's connector, with the CLIENT flag or without; other heads return 0; a head beyond the
+/// chip's heads is the header's INVALID_ARGUMENT; an idle head is 0 again.
+#[test]
+fn get_active_reports_the_display_a_client_lit() {
+    let mut disp = display();
+    let mut fb = FakeFb::new(1 << 20);
+    let mem = GuestMemory::new();
+    let lit = |on: bool| {
+        let mut armed = BTreeMap::new();
+        // SOR0 OWNER_MASK = head 0, PROTOCOL DP_A (clc57d.h SOR_SET_CONTROL).
+        armed.insert(0x300, if on { 0x1 | (8 << 8) } else { 0 });
+        // Head 0: raster 2200x1125, pixel clock 148.5 MHz, viewport 1920x1080.
+        armed.insert(0x2000 + 0x64, 2200 | (1125 << 16));
+        armed.insert(0x2000 + 0x0C, 148_500_000);
+        armed.insert(0x2000 + 0x4C, 1920 | (1080 << 16));
+        armed
+    };
+    let ask = |disp: &mut Display, head: u32, flags: u32| {
+        let l = &crate::ver::layouts().display;
+        let mut p = vec![0u8; l.get_active_size];
+        put32(&mut p, d::GET_ACTIVE_HEAD, head);
+        put32(&mut p, d::GET_ACTIVE_FLAGS, flags);
+        disp.control(d::CMD_SYSTEM_GET_ACTIVE, &p).unwrap()
+    };
+    disp.engine.core_update(&lit(true), 1_000, &mut fb, &mem);
+    for flags in [0, 1] {
+        let a = ask(&mut disp, 0, flags);
+        assert_eq!((a.status, get32(&a.params, d::GET_ACTIVE_DISPLAY_ID)), (NV_OK, DP), "{}", a.note);
+        assert!(a.note.contains("0x100 (SOR0"), "{}", a.note);
+    }
+    for head in 1..4 {
+        let a = ask(&mut disp, head, 0);
+        assert_eq!((a.status, get32(&a.params, d::GET_ACTIVE_DISPLAY_ID)), (NV_OK, 0));
+    }
+    let a = ask(&mut disp, 4, 0);
+    assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT, "{}", a.note);
+    disp.engine.core_update(&lit(false), 2_000, &mut fb, &mem);
+    let a = ask(&mut disp, 0, 0);
+    assert_eq!((a.status, get32(&a.params, d::GET_ACTIVE_DISPLAY_ID)), (NV_OK, 0));
 }
 
 /// DP_GET_CAPS: 615's `bIsInternalDpTunnelingSupported` (33, former padding) reads 0 (no

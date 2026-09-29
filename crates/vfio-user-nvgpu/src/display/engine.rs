@@ -639,6 +639,9 @@ pub struct Engine {
     irq: IrqHome,
     /// Display instance memory base in FB (from `WRITE_INST_MEM`).
     pub inst: Option<u64>,
+    /// The ARMED `SOR_SET_CONTROL(s)` OWNER_MASK (7:0, clc57d.h) of SORs 0-7: the heads
+    /// each SOR is driven by since the last core `UPDATE`.
+    pub sor_owners: [u32; 8],
     pub core_updates: u64,
     pub core_notifier_writes: u64,
     pub vblank_raised: u64,
@@ -653,6 +656,7 @@ impl Engine {
             windows: vec![Window::default(); windows.min(MAX_WINDOWS)],
             irq: IrqHome::Local(FeIrq::new(heads)),
             inst: None,
+            sor_owners: [0; 8],
             core_updates: 0,
             core_notifier_writes: 0,
             vblank_raised: 0,
@@ -664,6 +668,16 @@ impl Engine {
             ticker().set_want(h, false);
         }
         e
+    }
+
+    /// The SOR that drives head `h`: the one whose ARMED owner mask names the head, while
+    /// the head is active (a SOR owner and a raster, `core_update`). `None` for an idle or
+    /// unknown head.
+    pub fn head_sor(&self, h: usize) -> Option<u32> {
+        if !self.heads.get(h)?.active {
+            return None;
+        }
+        (0..8u32).find(|&s| self.sor_owners[s as usize] & (1 << h) != 0)
     }
 
     fn note(&mut self, s: String) {
@@ -1053,7 +1067,8 @@ impl Engine {
         // Heads.
         let mut sor_heads = 0u32;
         for s in 0..8 {
-            sor_heads |= get(C_SOR_SET_CONTROL + 0x20 * s) & 0xFF;
+            self.sor_owners[s as usize] = get(C_SOR_SET_CONTROL + 0x20 * s) & 0xFF;
+            sor_heads |= self.sor_owners[s as usize];
         }
         for h in 0..self.heads.len() {
             let base = C_HEAD + C_HEAD_STRIDE * h as u32;

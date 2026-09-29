@@ -267,6 +267,11 @@ pub struct Connector {
     pub sw_auto_read_war: bool,
 }
 
+/// The kicks of each window channel whose methods the trace lists (twice as many of the core
+/// channel's): the setup and the first presentations, which differ between guest drivers
+/// (NVKMS, the Windows KMD).
+const WINDOW_TRACE_KICKS: u32 = 8;
+
 /// A display channel: its pushbuffer (from `INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER`) and
 /// its USERD page.
 #[derive(Clone, Copy, Debug, Default)]
@@ -710,25 +715,44 @@ impl Display {
                     format!("head routing map: {asked:#x} -> map {map:#x} (fits {fits})"),
                 )
             }
-            // No head is lit by firmware, so no head is stale either: from 615 on the output
-            // flag GOP_STALE_HEAD_NEEDS_CLEANUP stays NO and `staleSorIndex` 0
-            // (615 ctrl0073system.h:638-678; ver/v615/display.rs).
+            // SYSTEM_GET_ACTIVE (ctrl0073system.h:611-678): the displayId driven by `head`,
+            // "setup at system boot by low-level software or later by an NV client", 0 for
+            // none; a head outside the chip's heads is an invalid argument. No head is lit
+            // by firmware here, so the input flag CLIENT (only heads an NV client set up)
+            // gives the same answer, and no head is stale: from 615 on the output flag
+            // GOP_STALE_HEAD_NEEDS_CLEANUP stays NO and `staleSorIndex` 0 (ver/v615/display.rs).
+            // The driving SOR is the one whose ARMED owner mask names the head (engine.rs
+            // `head_sor`), and the display is the connector on that SOR.
             d::CMD_SYSTEM_GET_ACTIVE => {
-                put32(&mut b, d::GET_ACTIVE_DISPLAY_ID, 0);
+                let head = get32(params, d::GET_ACTIVE_HEAD);
+                if head as usize >= self.engine.heads.len() {
+                    return Some(fail(
+                        NV_ERR_INVALID_ARGUMENT,
+                        b,
+                        SYNTH,
+                        format!(
+                            "head {head} active: not a head of this chip ({} heads; the header's INVALID_ARGUMENT)",
+                            self.engine.heads.len()
+                        ),
+                    ));
+                }
+                let sor = self.engine.head_sor(head as usize);
+                let did = sor
+                    .and_then(|s| self.connectors.iter().find(|c| c.sor == s))
+                    .map_or(0, |c| c.display_id);
+                put32(&mut b, d::GET_ACTIVE_DISPLAY_ID, did);
                 let l = &crate::ver::layouts().display;
                 let flags = get32(params, d::GET_ACTIVE_FLAGS) & !l.get_active_flags_gop_stale_head;
                 put32(&mut b, d::GET_ACTIVE_FLAGS, flags);
                 if let Some(o) = l.get_active_stale_sor_index {
                     put32(&mut b, o, 0);
                 }
-                ok(
-                    b,
-                    SYNTH,
-                    format!(
-                        "head {} active: none (no firmware-lit head)",
-                        get32(params, d::GET_ACTIVE_HEAD)
-                    ),
-                )
+                let what = match (sor, did) {
+                    (Some(s), 0) => format!("none (SOR{s} drives it, no connector on that SOR)"),
+                    (Some(s), d) => format!("{d:#x} (SOR{s}, set up by a client)"),
+                    (None, _) => "none (idle; no firmware-lit head)".into(),
+                };
+                ok(b, SYNTH, format!("head {head} active: {what}"))
             }
             d::CMD_SYSTEM_GET_INTERNAL_DISPLAYS => {
                 ok(vec![0u8; n], BOARD, "internal displays: none")
@@ -1700,8 +1724,16 @@ impl Display {
         let (start, end) = (ch.get as u64, ch.put as u64);
         let mut methods = 0u32;
         let mut updates = 0u32;
-        // Core methods written in this kick (for the trace: which state an UPDATE commits).
+        // Methods written in this kick, for the trace: which state a core UPDATE commits, and
+        // a window channel's first kicks and first presentations (`WINDOW_TRACE_KICKS`).
         let mut seen: Vec<(u32, u32)> = Vec::new();
+        let early = ch.kicks <= WINDOW_TRACE_KICKS * 2;
+        let listed = match (base == CORE_USERD, window.is_some()) {
+            (true, _) if early => 1024,
+            (true, _) => 64,
+            (false, true) if ch.kicks <= WINDOW_TRACE_KICKS => 1024,
+            _ => 0,
+        };
         let mut unreadable = false;
         if ch.valid && ch.pb_aspace == 1 && end <= ch.pb_limit + 1 {
             let mut pos = start;
@@ -1731,7 +1763,7 @@ impl Display {
                             pos += 4;
                             let m = if op == 0 { addr + 4 * k } else { addr };
                             methods += 1;
-                            if base == CORE_USERD && seen.len() < 64 {
+                            if seen.len() < listed {
                                 seen.push((m, data));
                             }
                             if base == CORE_USERD {
@@ -1766,13 +1798,14 @@ impl Display {
         // (clc57d.h): an UPDATE carrying them is a modeset (display-adapter.md §5).
         let raster = seen
             .iter()
+            .filter(|_| base == CORE_USERD)
             .filter(|(m, _)| {
                 *m >= 0x2000 && ((m - 0x2000) % 0x400) >= 0x64 && ((m - 0x2000) % 0x400) <= 0x70
             })
             .count();
-        let list = if updates > 0 && base == CORE_USERD {
+        let list = if (base == CORE_USERD && (updates > 0 || early)) || (window.is_some() && !seen.is_empty()) {
             let l: Vec<String> = seen.iter().map(|(m, v)| format!("{m:#x}={v:#x}")).collect();
-            format!("; core methods {}", l.join(" "))
+            format!("; {} methods {}", if window.is_some() { "window" } else { "core" }, l.join(" "))
         } else {
             String::new()
         };
