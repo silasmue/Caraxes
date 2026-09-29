@@ -53,6 +53,19 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 - Kernel: the nova tree of caraxes/runs/nova-2026-09-25 plus `DRM_NOUVEAU=m` (trace level compiled in, no SVM); only modules were added, 403 s at `-j2` [caraxes/runs/openrender-2026-09-29/build-kernel.sh, kernel.config].
 - `vk-offscreen`: step A a `vkCmdClearColorImage` plus a copy to a host buffer, step B a render pass with one constant-colour triangle; every pixel compared; PASS on lavapipe in an Ubuntu 24.04 container (20808 triangle pixels of 20972 expected at ±1) [caraxes/runs/openrender-2026-09-29/vk-offscreen/].
 
+### The vm10 runs (host execution, slot 5, 1 GiB, compression slice)
+
+| Run | Outcome | Cause | Fix |
+|---|---|---|---|
+| vm10-boot1 | nouveau never loads | the 615 image's NVIDIA packaging has `alias nouveau off` in modprobe.d | the check loads it with `modprobe -C /dev/null` (70411c7e) |
+| vm10-boot2 | probe fails, `fwsec-sb(v2): -2` | `nvidia/tu106/acr/bl.bin` missing: nouveau loads a v2 FWSEC descriptor through the generic falcon bootloader (N/nvkm/subdev/gsp/fwsec.c `nvkm_gsp_fwsec_v2`) | vm10 gets it (8abe58c9) |
+| vm10-boot3 | FWSEC-FRTS and Booter-Load run, then `GSP_INIT_DONE` times out (-110) | nouveau queues `GSP_SET_SYSTEM_INFO`/`SET_REGISTRY` and rings before the mailboxes carry the libos arguments, then only polls (r535/gsp.c:1782-1795); the device linked message queue v0 only at a doorbell | the queues link at Booter-Load when commands are queued, as GSP-RM does at its init (6715c4e3) |
+| vm10-boot4 | R1, R2: probe, kernel channels ("MM: using COPY for buffer copies"), `card0`, `renderD128`; NVK absent | nouveau allocates a user channel's objects with hObject 0; the device refused the second copy object as a live handle (0x1f) | RM's handle assignment for hObject 0 (f7e9f4c7) |
+| vm10-boot5 | pending | | |
+
+- Accel init took about 7 s; about 5 s of it are trapped 8-byte BAR2 writes (26 us each) with which nouveau zeroes the GR context buffers of its golden and scrubber channels: 952 KiB, 2 x 512 KiB and smaller pieces, 288k BAR2 writes in the boot [vm10-boot4 trace].
+- The BAR2 memfd would remove those exits, but its sync points are the 615 kernel's (the flush page at BAR2 0xfea000); nouveau flushes by reading FB page 0 through its own BAR2 mapping, 202 reads in vm10-boot4, served from the device's private store and counted as outside the reservation [vm10-boot4 gpu.log; N/nvkm/subdev/gsp/rm/r535/bar.c:33-45, 100-114].
+
 ### (c) Simpler options
 
 - A raw nouveau channel from userspace (`CHANNEL_ALLOC`, `EXEC`, a 3D-class clear) exercises the same device path as NVK's first submit and adds nothing NVK's clear step does not show; it stays a debugging fallback.
@@ -66,10 +79,11 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 | D1-D3 | 570 control frame, alloc translation, snapshots | ~400 lines incl. generated | done (67fb1128) |
 | G3, G5, G7 | Fermi mask queries, ZCULL, WAR id, NVDEC1/2 vectors, OS error log | ~250 lines | done (86d0e71f) |
 | K | kernel with nouveau, image vm10, check service, vk-offscreen | scripts | done (this commit) |
-| R1-R3 | nouveau probe with accel, render node, NVK device | run | user |
+| R1-R3 | nouveau probe with accel, render node, NVK device | run | R1, R2 in vm10-boot4; R3 in boot5 |
 | B | bare (TSG-less) GR channels: those with `TURING_COMPUTE_A` (NVK's) already take the GR shadow path with a host TSG of their own (`mirror.rs` `is_gr_shadow`, `tsg_key_of`); fixes only if R4/R5 show a gap | 0 to 350 lines | to verify in the run |
 | R4-R5 | clear+copy and triangle read back through NVK | run | after B |
-| R6 | vkcube under weston headless with a screenshot | 100-300 lines of bring-up | later |
+| R6, R7 | vkmark headless where the image's build has the plugin (vkcube 1.3.275 has no headless WSI), GL through EGL surfaceless | check script | in the image from the next prepare |
+| R8 | vkcube on a compositor (the image has neither weston nor mutter) | image work | later |
 
 - Evening goal: R1-R3 (nouveau binds with accel, `renderD128`, `vulkaninfo` lists NVK on the device); R4/R5 if the bare GR channels mirror without change.
 - The kernel's own GR and CE channels (fences, TTM moves) run on the device's software executor; NVK's GR channels carry `TURING_COMPUTE_A` and take the GR shadow path [crates/vfio-user-nvgpu/src/mirror.rs `is_gr_shadow` 1762-1776, `shadow_channel` 2297-2382, `tsg_key_of` 928-941, `eligible` 3379-3438; ctrl.rs 775-781].
@@ -84,7 +98,8 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 
 - R1-R5 on the device: the run commands are in caraxes/runs/openrender-2026-09-29/README.md.
 - Bare channels on the GR shadow mirror and GR objects allocated with no parameters.
-- The BAR2 flush read of FB page 0 makes the outside-reservation counter non-zero for every nouveau guest; the audit needs to name it or the device a scratch page for it.
+- The BAR2 flush read of FB page 0 makes the outside-reservation counter non-zero for every nouveau guest (202 reads in vm10-boot4); the audit needs to name it.
+- nouveau's GR context zeroing through trapped BAR2 writes (about 5 s per golden/scrubber setup, and per NVK GR channel): the BAR2 memfd needs nouveau's flush page as a sync point and a review of which instobjs nouveau reads back after the GPU wrote them.
 - Of the 57 changes `gsp-abi.py diff gsp-610.57.04 gsp-570.144` lists as affecting the device, nouveau reaches the control frame, the two alloc structs, the OS error log and the kernel table (all translated) and `GPFIFO_SCHEDULE` (echoed); the rest (display static info, KGR static sizes, `GPU_GET_INFO_V2`, `FB_GET_INFO_V2`, user shared data, PCE maps) only an OpenRM 570 kernel would send.
 - 570 control layouts beyond the ones nouveau sends (generated 570 tables `surface570`, `layouts570`, `dmodel570`; `d-controls.tsv` needs a `size_570` column).
 - The 595 pin reads channel allocations with 610 offsets (368 against 376 bytes).
