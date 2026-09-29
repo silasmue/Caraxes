@@ -220,6 +220,62 @@ pub fn ce_slices_pending() -> bool {
     CE_SLICES_PENDING.swap(false, std::sync::atomic::Ordering::AcqRel)
 }
 
+/// A software channel waits on a semaphore acquire ([`AcquireWait`]): the `ce-slices` clock
+/// re-reads the semaphore ([`Registry::ready_acquires`]).
+static ACQUIRE_WAITS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether a software channel may wait on a semaphore acquire (cleared by the check; the
+/// check sets it again while one still waits).
+pub fn acquire_waits_pending() -> bool {
+    ACQUIRE_WAITS.swap(false, std::sync::atomic::Ordering::AcqRel)
+}
+
+/// The semaphore acquire a software channel is blocked on: the host re-evaluates an acquire
+/// until it is satisfied (clc46f.h SEM_EXECUTE ACQUIRE*, the legacy SEMAPHORED ACQUIRE
+/// forms), so the executor re-reads this word at every tick of the `ce-slices` clock and
+/// continues the channel as soon as the release is there. Until 2026-09-29 a blocked acquire
+/// was retried only at the next doorbell or budget stop of any channel: C79's Sunshine
+/// capture setup lost 1.58 s in 59 such waits of the Windows KMD's channel (up to 401 ms).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AcquireWait {
+    pub root: Target,
+    pub va: u64,
+    /// 8-byte payload (SEM_EXECUTE PAYLOAD_SIZE_64BIT), else 4.
+    pub wide: bool,
+    pub payload: u64,
+    pub op: AcquireOp,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AcquireOp {
+    /// `== payload`.
+    Eq,
+    /// `>= payload`.
+    Geq,
+    /// `(cur - payload)` as signed `>= 0` (ACQ_CIRC_GEQ).
+    CircGeq,
+    /// `cur & payload != 0` (the legacy ACQUIRE_AND).
+    And,
+}
+
+impl AcquireOp {
+    fn ready(self, cur: u64, want: u64, wide: bool) -> bool {
+        let (cur, want) = if wide { (cur, want) } else { (cur & 0xFFFF_FFFF, want & 0xFFFF_FFFF) };
+        match self {
+            AcquireOp::Eq => cur == want,
+            AcquireOp::Geq => cur >= want,
+            AcquireOp::CircGeq => {
+                if wide {
+                    (cur.wrapping_sub(want) as i64) >= 0
+                } else {
+                    ((cur as u32).wrapping_sub(want as u32) as i32) >= 0
+                }
+            }
+            AcquireOp::And => cur & want != 0,
+        }
+    }
+}
+
 /// Compute-class stub state (`clc5c0.h`, E5c): report semaphores and inline-to-memory.
 #[derive(Clone, Debug, Default)]
 struct ComputeState {
@@ -368,6 +424,8 @@ pub struct Channel {
     deferred: Option<DeferredState>,
     /// Semaphore diagnostics already emitted as `(VA, payload)`; bounds retry logging.
     sem_diag_seen: std::collections::BTreeSet<(u64, u32)>,
+    /// The acquire the channel's last run blocked on ([`AcquireWait`]).
+    acquire_wait: Option<AcquireWait>,
 }
 
 impl Channel {
@@ -984,6 +1042,34 @@ impl Registry {
         self.channels.get(&chid).map(|c| c.gp_get)
     }
 
+    /// The software channels whose blocked acquire ([`AcquireWait`]) is satisfied now, read
+    /// through the same path as the acquire itself. The flag of [`acquire_waits_pending`]
+    /// stays set while a channel still waits.
+    pub fn ready_acquires(&self, mem: &GpuMem) -> Vec<u32> {
+        let mut ready = Vec::new();
+        let mut waiting = false;
+        for ch in self.channels.values() {
+            let Some(w) = ch.acquire_wait else { continue };
+            if ch.mirrored || ch.software_failed || ch.resume.is_none() {
+                continue;
+            }
+            let n = if w.wide { 8 } else { 4 };
+            let mut b = [0u8; 8];
+            let read = ce_pieces(mem, w.root, false, 0, w.va, n as u64, ch.software_fb_range)
+                .and_then(|pieces| ce_read(mem, &pieces, &mut b[..n]));
+            match read {
+                Ok(()) if w.op.ready(u64::from_le_bytes(b), w.payload, w.wide) => ready.push(ch.chid),
+                // Unreadable now: the channel's next run reports it.
+                Err(_) => ready.push(ch.chid),
+                Ok(()) => waiting = true,
+            }
+        }
+        if waiting {
+            ACQUIRE_WAITS.store(true, std::sync::atomic::Ordering::Release);
+        }
+        ready
+    }
+
     /// Software acquires may wait for a host GPU write without another guest doorbell.
     pub fn blocked_software_channels(&self) -> Vec<u32> {
         self.channels
@@ -1456,6 +1542,7 @@ impl Registry {
                     deferred_management: false,
                     deferred: None,
                     sem_diag_seen: std::collections::BTreeSet::new(),
+                    acquire_wait: None,
                 };
                 let mut note = format!(
                     "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?}{} alloc_flags {flags:#x} [guest]",
@@ -2157,6 +2244,7 @@ impl Registry {
         ch.software_fb_range = self.software_fb_range;
         ch.ce_slice = self.ce_slice;
         ch.budget_stop = false;
+        ch.acquire_wait = None;
         let started = std::time::Instant::now();
         let budget = self.run_budget;
         let Some(userd) = ch.userd else {
@@ -2574,6 +2662,18 @@ impl Registry {
                         _ => cur & payload != 0,
                     };
                     if !ready {
+                        ch.acquire_wait = Some(AcquireWait {
+                            root,
+                            va,
+                            wide: false,
+                            payload: payload as u64,
+                            op: match op {
+                                1 => AcquireOp::Eq,
+                                4 => AcquireOp::Geq,
+                                _ => AcquireOp::And,
+                            },
+                        });
+                        ACQUIRE_WAITS.store(true, std::sync::atomic::Ordering::Release);
                         return Err(MethodError::Blocked(format!("host legacy semaphore acquire va {va:#x}: {cur:#x} vs {payload:#x}, channel waits")));
                     }
                     None
@@ -2752,6 +2852,18 @@ impl Registry {
                             }
                         };
                         if !ok {
+                            ch.acquire_wait = Some(AcquireWait {
+                                root,
+                                va,
+                                wide,
+                                payload,
+                                op: match op {
+                                    0 => AcquireOp::Eq,
+                                    2 => AcquireOp::Geq,
+                                    _ => AcquireOp::CircGeq,
+                                },
+                            });
+                            ACQUIRE_WAITS.store(true, std::sync::atomic::Ordering::Release);
                             return Err(MethodError::Blocked(format!(
                                 "host semaphore acquire va {va:#x} op {op}: {cur:#x} vs {want:#x}, channel waits"
                             )));
@@ -4677,6 +4789,32 @@ mod tests {
             9,
         );
         assert!(reg.blocked_software_channels().is_empty());
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A blocked acquire is kept on the channel (`AcquireWait`) and re-read without a
+    /// doorbell: not ready while the semaphore lags, ready once the release lands, and the
+    /// wait is gone after the channel's next run (C79: the Windows KMD's channel waited for
+    /// the next unrelated doorbell, up to 401 ms).
+    #[test]
+    fn a_blocked_acquire_is_rechecked_without_a_doorbell() {
+        let pb = inc(0, 0x10, &[0, 0x1000_9000, 7, 4]);
+        let (mut fb, sys, path, mut reg) = software_fixture("ce-acquire-recheck", &pb);
+        reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert_eq!(reg.blocked_software_channels(), vec![9]);
+        assert_eq!(
+            reg.channel(9).and_then(|c| c.acquire_wait).map(|w| (w.va, w.payload, w.op)),
+            Some((0x1000_9000, 7, AcquireOp::Geq))
+        );
+        assert!(acquire_waits_pending());
+        assert!(reg.ready_acquires(&GpuMem { fb: &mut fb, sys: &sys }).is_empty());
+        assert!(acquire_waits_pending(), "still waiting: the flag stays for the next tick");
+        assert!(sys.write(0x4000_1000, &9u32.to_le_bytes()));
+        assert_eq!(reg.ready_acquires(&GpuMem { fb: &mut fb, sys: &sys }), vec![9]);
+        reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert!(reg.blocked_software_channels().is_empty());
+        assert_eq!(reg.channel(9).and_then(|c| c.acquire_wait), None);
         assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
         std::fs::remove_file(path).ok();
     }

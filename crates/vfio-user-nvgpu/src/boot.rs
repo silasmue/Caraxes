@@ -406,6 +406,16 @@ impl BootModel {
         self.ctrl.replay_held(&mut gm)
     }
 
+    /// The software channels whose blocked acquire is satisfied now continue (ctrl.rs
+    /// `recheck_acquires`).
+    pub fn recheck_acquires(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.recheck_acquires(&mut gm)
+    }
+
     /// The USERD poller's rings under the device lock (ctrl.rs `ring_userd_pending`).
     pub fn ring_userd_pending(&mut self, mem: &GuestMemory, chids: &[u32]) -> Vec<String> {
         self.ctrl.ring_userd_pending(

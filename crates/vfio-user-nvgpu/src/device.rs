@@ -1686,6 +1686,18 @@ impl Device {
         }
     }
 
+    /// The software channels whose blocked semaphore acquire is satisfied now continue
+    /// (channel.rs `AcquireWait`), on the `ce-slices` clock of main.rs.
+    pub fn recheck_acquires(&mut self) {
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.recheck_acquires(&self.mem),
+            None => return,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+    }
+
     /// A device reset (FLR or the client's reset): the interrupt vectors raised before it
     /// and not yet delivered go first, then the model and the guest aliases.
     fn reset_model(&mut self) {

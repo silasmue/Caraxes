@@ -1770,6 +1770,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                             .unwrap_or_else(PoisonError::into_inner)
                             .continue_ce_slices();
                     }
+                    // A software channel blocked on a semaphore acquire continues once the
+                    // release is there, as the host re-evaluates an acquire (channel.rs
+                    // `AcquireWait`), not at the next doorbell of any channel.
+                    if vfio_user_nvgpu::channel::acquire_waits_pending() {
+                        d.lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .recheck_acquires();
+                    }
                     // Guest RAM registered off the loop joins the table without waiting
                     // for the next access (registrar.rs).
                     if vfio_user_nvgpu::registrar::registrations_done() {

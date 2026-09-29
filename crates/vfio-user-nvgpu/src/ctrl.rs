@@ -725,6 +725,18 @@ impl Dispatcher {
         notes
     }
 
+    /// The software channels whose blocked semaphore acquire is satisfied now (channel.rs
+    /// `AcquireWait`) continue at once, on the `ce-slices` clock, as the host re-evaluates
+    /// an acquire until it holds; nothing runs while every acquire still waits.
+    pub fn recheck_acquires(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        let ready = self.channels.ready_acquires(gm);
+        if ready.is_empty() {
+            return Vec::new();
+        }
+        self.dstate.rc.held.extend(ready);
+        self.replay_held(gm)
+    }
+
     /// The software channels the guest's scheduling switches hold (rc.rs `RcState`, the
     /// device's one set of flags) whose doorbells arrived while they were off, run once
     /// they are enabled again. Called on the RC event path (boot.rs), which has guest
