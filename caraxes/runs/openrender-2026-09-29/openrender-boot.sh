@@ -59,4 +59,4 @@ grep -aE "CARAXES-CHECK|nouveau|NVK|nvk|vk-offscreen|step [AB]|device [0-9]|driv
 grep -aE "guest ABI|gsp start|sec2 start|fwsec|queues|static-info|unanswered|refused|not supported|ERROR|WARN|mirror|chid|doorbell|alloc: .*(0xc46f|0xc597|0xc5c0|0xc5b5|0x90f1)|ctrl 0x2080013[789]|ctrl 0x20801206|ctrl 0x20800a46|outside" \
     "$W/gpu-trace.log" "$out/gpu.log" 2>/dev/null | sed -E 's/^[^:]*://' | cut -c1-300 | head -n 2000 > "$out/device.txt" || true
 python3 "$HERE/extract-ppm.py" "$out/serial.log" "$out/vk-offscreen.png" 2>/dev/null || true
-grep -aE "CARAXES-CHECK R|modprobe nouveau rc|step [AB]|vk-offscreen: (PASS|FAIL)|vk-offscreen rc|driverName|failed|error" "$out/serial.log" | cut -c1-200 | head -n 40
+grep -aE "CARAXES-CHECK R|modprobe nouveau rc|step [AB]|vk-offscreen: (PASS|FAIL)|vk-offscreen rc|vkmark rc|FPS|Score|driverName|failed|error" "$out/serial.log" | cut -c1-200 | head -n 40
