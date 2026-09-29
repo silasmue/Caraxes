@@ -1493,6 +1493,13 @@ impl Device {
         // still running on it finishes (its lock) before the reset, and the old engine's FB
         // record windows go with the old FB store.
         *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
+        // What the old model's FB store, mirror and display did goes with it; the exit
+        // summary would only show the fresh model's (C65: the software channel's costs
+        // before the Windows TDR were lost with the FLR).
+        let before = self.bar0.boot().map(|b| b.exec_summary()).unwrap_or_default();
+        for l in before {
+            self.trace.event(&format!("reset: before: {l}"));
+        }
         if let Some(b) = self.bar0.boot() {
             b.ctrl.display.eng().pins.clear();
         }
