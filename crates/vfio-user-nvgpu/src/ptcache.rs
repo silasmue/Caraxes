@@ -195,6 +195,9 @@ pub struct Update {
     pub added: Vec<u64>,
     /// Whether the cache stopped watching a table page in this update.
     pub dropped: bool,
+    /// The table pages (4 KiB page numbers) it stopped watching in this update, sorted: the
+    /// victim cache drops their snapshots once no walk reads them (fb.rs `forget_victims`).
+    pub left: Vec<u64>,
     /// Nodes whose table lives in guest sysmem, re-read in this update (they cannot be
     /// watched; [`WalkCache::sys_uses`]).
     pub sys_nodes: usize,
@@ -234,6 +237,8 @@ pub struct WalkCache {
     /// Pages that entered `uses` and whether one left it, during the running update.
     added: Vec<u64>,
     dropped: bool,
+    /// The pages that left `uses` during the running update ([`Update::left`]).
+    left: Vec<u64>,
     /// A fresh stamp ([`fresh_generation`]) at creation and at every update that changed a
     /// unit's leaves: equal generations, equal leaves ([`Self::generation`]).
     generation: u64,
@@ -271,6 +276,7 @@ impl WalkCache {
             raw: HashMap::new(),
             reread: false,
             added: Vec::new(),
+            left: Vec::new(),
             dropped: false,
             generation: fresh_generation(),
             tables_generation: fresh_generation(),
@@ -407,6 +413,7 @@ impl WalkCache {
                 self.uses.remove(&page);
                 self.uses_hash ^= page_mix(page);
                 self.dropped = true;
+                self.left.push(page);
             }
         }
     }
@@ -419,6 +426,7 @@ impl WalkCache {
         self.reads = 0;
         self.added.clear();
         self.dropped = false;
+        self.left.clear();
         let dirty_pages = self.dirty.len();
         let mut changed = BTreeSet::new();
         let full = full || !self.built;
@@ -428,6 +436,7 @@ impl WalkCache {
             self.dirs.clear();
             self.units.clear();
             self.dropped |= !self.uses.is_empty();
+            self.left.extend(self.uses.keys().copied());
             self.uses.clear();
             self.uses_hash = 0;
             self.dirty.clear();
@@ -489,6 +498,10 @@ impl WalkCache {
         added.sort_unstable();
         added.dedup();
         added.retain(|p| uses.contains_key(p));
+        let mut left = std::mem::take(&mut self.left);
+        left.retain(|p| !uses.contains_key(p));
+        left.sort_unstable();
+        left.dedup();
         Update {
             full,
             changed: changed.into_iter().collect(),
@@ -496,6 +509,7 @@ impl WalkCache {
             dirty_pages,
             added,
             dropped: self.dropped,
+            left,
             sys_nodes,
         }
     }
@@ -754,10 +768,13 @@ impl WalkCache {
     /// docs/caraxes/bar2-memfd.md §3): every leaf's memory outside the VA ranges `exclude`
     /// (sorted or not), as `(start, bytes)`, and every table page (4 KiB page number) the
     /// MMU reads by physical address (NV_RAMIN_PAGE_DIR_BASE and the directory entries,
-    /// gm107/dev_ram.h:58-66). `None` when the cache cannot say: never built, a table in
-    /// sysmem (unwatched), or truncated at `max_leaves`.
+    /// gm107/dev_ram.h:58-66). `None` when the cache cannot say: never built, or truncated
+    /// at `max_leaves`. A table in sysmem is no reason: it is re-read at every update like a
+    /// dirty VRAM page (`sys_uses`), so the leaves are as current as the last update, which
+    /// is what the rule takes for any table (bar2-memfd.md §3 rule 2). Sysmem tables are not
+    /// among the table pages (they are not behind BAR2).
     pub fn observable(&self, exclude: &[(u64, u64)]) -> Option<Observable> {
-        if !self.built || self.sys_tables || self.truncated {
+        if !self.built || self.truncated {
             return None;
         }
         let mut ex: Vec<(u64, u64)> = exclude.iter().copied().filter(|(lo, hi)| lo < hi).collect();
@@ -924,6 +941,11 @@ mod tests {
         assert!(u.full);
         assert!(c.sys_tables && c.is_dirty(), "sysmem is never clean");
         assert_eq!(c.unit_leaves(UNIT), &[(UNIT + 0x2000, Target::Fb(0x30000), 0x1000, 6)]);
+        // What an engine could read is known all the same: the leaf behind the sysmem table,
+        // and the VRAM table pages (not the sysmem one).
+        let (pieces, tables) = c.observable(&[]).expect("known with a sysmem table");
+        assert!(pieces.contains(&(Target::Fb(0x30000), 0x1000)), "{pieces:x?}");
+        assert!(!tables.contains(&0x7), "{tables:x?}");
         // Nothing written: only the sysmem table is read again, nothing changed.
         let u = c.update(&m, false);
         assert!(!u.full);

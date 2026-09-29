@@ -858,8 +858,9 @@ impl TableReader for Reader<'_> {
 /// What settled an owed flush ([`Bar2Area::flush_settled`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Settle {
-    /// A sync point that syncs anyway: the MMU invalidate, the GSP command-queue doorbell,
-    /// or a flush read with the deferral off.
+    /// A sync point that syncs anyway: the GSP command-queue doorbell, the BAR2 bind, the
+    /// MMU invalidate while a host VA space walks the guest's tables, or a flush read with
+    /// the deferral off.
     SyncPoint,
     /// A channel doorbell (trapped, ioeventfd or token): the GPU may fetch what the guest
     /// wrote before it.
@@ -887,7 +888,10 @@ pub enum Point {
     /// nvkm/subdev/bar/g84.c:29-40).
     FbFlush,
     /// `NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE` with TRIGGER (turing/tu102/dev_vm.h:120-131):
-    /// the MMU walks the page tables again.
+    /// the MMU walks the page tables again. A full sync only while a host VA space walks the
+    /// guest's own tables (mirror.rs `walks_guest_tables`); otherwise the invalidate syncs the
+    /// table pages alone and an owed flush waits for the next engine start (bar2-memfd.md §3
+    /// rule 3).
     MmuInvalidate,
     /// `NV_PGSP_QUEUE_HEAD(0)` (turing/tu102/dev_gsp.h:38): GSP-RM consumes the command
     /// queue. On a GSP system the runlist submit is GSP-RM's own register write; the CPU's
@@ -1086,8 +1090,10 @@ pub struct Bar2Stats {
     pub doorbell_ns_max: u64,
     /// Time in the full syncs by [`Point`], in nanoseconds.
     pub point_ns: [u64; POINTS],
-    /// MMU invalidates that synced only the live table pages (no flush owed) and the pages.
+    /// MMU invalidates that synced only the live table pages, and the pages; of them, those
+    /// that found a flush owed and left it to the next engine start (bar2-memfd.md §3 rule 3).
     pub table_syncs: u64,
+    pub table_syncs_owed: u64,
     pub table_sync_pages: u64,
     pub table_sync_ns: u64,
     /// The doorbell rule's sets as last computed per channel: how many times, and the most
@@ -1160,6 +1166,8 @@ pub struct VictimStats {
     pub stale: u64,
     pub dropped: u64,
     pub evicted: u64,
+    /// Entries dropped because no walk reads the page as a table any more.
+    pub unwalked: u64,
 }
 
 impl Victims {
@@ -1494,6 +1502,17 @@ impl Bar2Area {
     ) {
         let mut v = self.victims.borrow_mut();
         read_through(&self.remap, self.mem.view(), store, tr, pa, buf, Some((&mut v, epoch)));
+    }
+
+    /// FB page `page` (4 KiB page number) is no table of any cached walk any more: its
+    /// snapshot may go stale (the page may be reused as data another writer changes), so the
+    /// victim cache drops it.
+    pub fn forget_victim(&self, page: u64) {
+        let mut v = self.victims.borrow_mut();
+        if v.pages.remove(&page).is_some() {
+            v.stamp.remove(&page);
+            v.stats.unwalked += 1;
+        }
     }
 
     /// FB `[pa, pa + len)` changed in VRAM without the device knowing the bytes (a host
@@ -1977,8 +1996,8 @@ impl Bar2Area {
         let v = self.victims.borrow();
         let s = &v.stats;
         format!(
-            "victim cache (page tables that left BAR2): {} kept, entries loaded from it {} (from VRAM {}), reads served {}, {} stale at use, {} dropped by a write behind the device, {} evicted, {} held now",
-            s.kept, s.load_hits, s.load_misses, s.read_hits, s.stale, s.dropped, s.evicted, v.len()
+            "victim cache (page tables that left BAR2): {} kept, entries loaded from it {} (from VRAM {}), reads served {}, {} stale at use, {} dropped by a write behind the device, {} dropped when no walk read them any more, {} evicted, {} held now",
+            s.kept, s.load_hits, s.load_misses, s.read_hits, s.stale, s.dropped, s.unwalked, s.evicted, v.len()
         )
     }
 
@@ -1988,7 +2007,7 @@ impl Bar2Area {
             format!("{} ({} us)", s.by_point[x as usize], s.point_ns[x as usize] / 1000)
         };
         format!(
-            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates with no flush owed: {} table sync(s) of {} live table page(s) ({} us); channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
+            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates: {} table sync(s) of {} live table page(s) ({} us), {} of them with a flush owed left to the next engine start; channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
             p(Point::FlushRead),
             p(Point::FbFlush),
             s.fb_flushes,
@@ -2000,6 +2019,7 @@ impl Bar2Area {
             s.table_syncs,
             s.table_sync_pages,
             s.table_sync_ns / 1000,
+            s.table_syncs_owed,
             s.observe_sets,
             s.observe_pages_max,
             s.observe_tables_max,

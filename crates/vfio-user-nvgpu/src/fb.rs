@@ -1132,9 +1132,9 @@ pub struct FakeFb {
     /// root's FB address (a sysmem root with bit 63): a guest write to one of its table
     /// pages marks that page dirty, and the next update re-reads only the dirty pages.
     walks: RefCell<std::collections::BTreeMap<u64, crate::ptcache::WalkCache>>,
-    /// Moves whenever a cached walk stops reading a table page (a full walk, a dropped
-    /// table, a walk removed): the BAR2 victim cache's snapshots of page tables stay valid
-    /// only while it stands (bar2area.rs `Victims`).
+    /// The BAR2 victim cache's table epoch (bar2area.rs `Victims`). It no longer moves:
+    /// a snapshot is dropped when no walk reads its page any more ([`Self::forget_victims`]),
+    /// not every snapshot whenever any walk drops any page.
     table_epoch: Cell<u64>,
     /// The BAR aperture TLB (docs/caraxes/mapping.md §3): `(root, va page) -> the page's
     /// target`, filled by the walk of a trapped BAR1/BAR2 access. Every BAR access used to
@@ -1378,10 +1378,34 @@ impl FakeFb {
         self.walks.borrow().len()
     }
 
+    /// Table pages that a walk stopped reading: the BAR2 victim cache drops the snapshots of
+    /// those no walk reads any more (bar2-memfd.md §3 rule 6). Before 2026-09-29 any walk's
+    /// dropped page moved a global table epoch that made every snapshot stale (SotTR run D:
+    /// 994 stale at use, 0 reads served from 1653 kept).
+    fn forget_victims(&self, pages: &[u64]) {
+        let Some(a) = self.bar2.as_deref() else {
+            return;
+        };
+        if pages.is_empty() || a.victims.borrow().is_empty() {
+            return;
+        }
+        let walks = self.walks.borrow();
+        for &p in pages {
+            if !walks.values().any(|c| c.watches(p)) {
+                a.forget_victim(p);
+            }
+        }
+    }
+
     /// Stop watching `root` (drops its cached walk).
     pub fn unwatch_tables(&self, root: Target) {
-        self.walks.borrow_mut().remove(&Self::watch_key(root));
-        self.table_epoch.set(self.table_epoch.get() + 1);
+        let gone: Vec<u64> = self
+            .walks
+            .borrow_mut()
+            .remove(&Self::watch_key(root))
+            .map(|c| c.watched_pages().collect())
+            .unwrap_or_default();
+        self.forget_victims(&gone);
         // Its table pages may stop being table pages: the pool's replicas of them may
         // move into the pool again (checked at the next poll).
         if let Some(p) = self.pool.borrow_mut().as_mut() {
@@ -1411,15 +1435,13 @@ impl FakeFb {
             });
         let before = c.table_pages();
         let u = c.update(&reader, full);
-        if u.dropped {
-            self.table_epoch.set(self.table_epoch.get() + 1);
-        }
         if c.table_pages() != before || u.full {
             if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
                 pt.hazard_dirty = true;
             }
         }
         drop(walks);
+        self.forget_victims(&u.left);
         // The pool checks only the pages this walk started to read (a pooled page that
         // became a table page is evicted at the next poll), not every table page of
         // every walk (docs/caraxes/bar1-pool.md §11).
@@ -1657,13 +1679,13 @@ impl FakeFb {
             || self.bar_tlb_pages.borrow().contains(&page)
     }
 
-    /// The MMU invalidate's sync of the BAR2 memfd when no flush is owed (docs/caraxes/
-    /// bar2-memfd.md §3, rule 2): the MMU re-reads page tables from here on, so the live
-    /// pages that are table pages ([`Self::device_table_page`]) are compared and written
-    /// back, and the BAR2 tables followed (a page that leaves the mapping is written back
-    /// first). Data the guest wrote through BAR2 reaches VRAM at the hand-over that gives
-    /// it to an engine (a doorbell, a GSP command, a flush's owed sync). Returns false
-    /// when the memfd is off.
+    /// The MMU invalidate's sync of the BAR2 memfd (docs/caraxes/bar2-memfd.md §3, rules 2
+    /// and 3): the MMU re-reads page tables from here on, so the live pages that are table
+    /// pages ([`Self::device_table_page`]) are compared and written back, and the BAR2
+    /// tables followed (a page that leaves the mapping is written back first). Data the
+    /// guest wrote through BAR2 reaches VRAM at the engine start that gives it to an engine
+    /// (a doorbell, a GSP command, or the flush clock for an owed flush): an owed flush stays
+    /// owed. Returns false when the memfd is off.
     pub fn bar2_sync_tables(&mut self, root: Option<u64>, sys: Option<&GuestMemory>) -> bool {
         let Some(a) = self.bar2.as_deref() else {
             return false;
@@ -1699,6 +1721,7 @@ impl FakeFb {
         let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys), &view);
         drop(walks);
         a.stats.table_syncs += 1;
+        a.stats.table_syncs_owed += u64::from(a.flush_pending());
         a.stats.table_sync_pages += keys.len() as u64;
         a.stats.table_sync_ns += t0.elapsed().as_nanos() as u64;
         drop(pool);
@@ -3576,8 +3599,8 @@ mod tests {
     /// The BAR2 victim cache (bar2area.rs `Victims`): a page table that leaves the BAR2
     /// mapping keeps its snapshot, which equals VRAM; reads and a re-entry are served from it
     /// without a VRAM read; a device write patches it; a write the device only learns of, or
-    /// a walk that stops reading a table (a new table epoch), invalidates it; a page that is
-    /// no table is not kept.
+    /// the last walk that reads the page stopping, invalidates it (another walk's dropped
+    /// table does not); a page that is no table is not kept.
     #[test]
     fn page_tables_leaving_bar2_are_kept_and_served_without_vram_reads() {
         use crate::bar2area::{Bar2Area, Config};
@@ -3651,14 +3674,26 @@ mod tests {
         repoint(&mut fb, &guest, 0x34000);
         assert_eq!(stats(&fb).load_misses, misses + 1);
         assert_eq!(guest.load_word(6, 7), pte(0x53000));
-        // The walk stops reading its tables (a new table epoch): a kept snapshot is stale.
         repoint(&mut fb, &guest, 0x60000);
         assert_eq!(stats(&fb).kept, 3);
+        // Another walk that stops reading one of its own tables leaves this snapshot alone
+        // (before, any dropped table page moved a global epoch that made every snapshot stale).
+        fb.write_u64(0x70000, vid(0x71000));
+        fb.write_u64(0x71000, vid(0x72000));
+        fb.write_u64(0x72000, vid(0x73000));
+        fb.write_u64(0x73008, vid(0x74000));
+        let other = Target::Fb(0x70000);
+        fb.walk_update(None, other, false, 1 << 20);
+        fb.write_u64(0x73008, 0);
+        assert_eq!(fb.walk_update(None, other, false, 1 << 20).left, vec![0x74]);
+        assert_eq!(fb.bar2_area().unwrap().victims.borrow().len(), 1, "0x34000 stays kept");
+        // The walk that reads 0x34000 stops: its snapshot goes at once, the next entry reads VRAM.
         fb.unwatch_tables(croot);
-        let misses = stats(&fb).load_misses;
-        repoint(&mut fb, &guest, 0x34000);
         let s = stats(&fb);
-        assert_eq!((s.stale, s.load_misses), (1, misses + 1));
+        assert_eq!((s.unwalked, s.stale), (1, 0));
+        let misses = s.load_misses;
+        repoint(&mut fb, &guest, 0x34000);
+        assert_eq!(stats(&fb).load_misses, misses + 1);
         assert_eq!(guest.load_word(6, 5), pte(0x51000));
         // Not walked any more: leaving again keeps nothing.
         repoint(&mut fb, &guest, 0x60000);

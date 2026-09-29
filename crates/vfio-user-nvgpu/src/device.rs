@@ -2047,6 +2047,7 @@ impl Device {
                     let t0 = std::time::Instant::now();
                     crate::bar1pool::poll_model(b, &self.mem, merge);
                     let held = t0.elapsed();
+                    crate::dlock::work("BAR0 write", "BAR1 pool poll".into(), held);
                     if held > SLOW_POOL_POLL {
                         self.slow_pool_polls += 1;
                         let bd = b
