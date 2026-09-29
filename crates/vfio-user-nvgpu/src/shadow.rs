@@ -652,8 +652,11 @@ pub struct ShadowStats {
     pub syncs: u64,
     /// Resync requests answered without a walk (no page-table write since the last).
     pub skipped: u64,
-    /// Syncs that walked the whole tree (first sync, sysmem tables, always-resync).
+    /// Syncs that walked the whole tree (the first sync, always-resync).
     pub full_walks: u64,
+    /// Syncs that re-read tables in guest sysmem (unwatchable), and the nodes re-read.
+    pub sys_syncs: u64,
+    pub sys_nodes: u64,
     /// Table blocks read over all syncs, and 2 MiB units diffed.
     pub table_reads: u64,
     pub units_diffed: u64,
@@ -789,6 +792,8 @@ pub struct Plan {
     pub notes: Vec<String>,
     pub full: bool,
     pub reads: usize,
+    /// Nodes whose table lives in guest sysmem, re-read by this walk (ptcache.rs).
+    pub sys_nodes: usize,
     pub truncated: bool,
     pub walked: usize,
     pub want: usize,
@@ -926,6 +931,7 @@ impl ShadowFront {
             exclude: exclude.to_vec(),
             full: upd.full,
             reads: upd.reads,
+            sys_nodes: upd.sys_nodes,
             truncated: fb.with_walk(root, |c| c.truncated) == Some(true),
             ghosts: upd.removed.clone(),
             ..Default::default()
@@ -1980,6 +1986,10 @@ impl ShadowVas {
         if plan.full {
             self.stats.full_walks += 1;
         }
+        if plan.sys_nodes > 0 {
+            self.stats.sys_syncs += 1;
+            self.stats.sys_nodes += plan.sys_nodes as u64;
+        }
         self.stats.table_reads += plan.reads as u64;
         self.stats.units_diffed += plan.units.len() as u64;
         self.stats.refused = plan.refused_total;
@@ -2148,10 +2158,12 @@ impl ShadowVas {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} left unmapped on an exhausted host in {} sync(s), {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects, {} gather descriptor(s) for {} leaves ({} refused, {} live); {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
+            "{} syncs ({} skipped clean, {} full walks, {} with tables in guest sysmem re-read ({} node(s)), {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} left unmapped on an exhausted host in {} sync(s), {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects, {} gather descriptor(s) for {} leaves ({} refused, {} live); {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
             s.syncs,
             s.skipped,
             s.full_walks,
+            s.sys_syncs,
+            s.sys_nodes,
             s.table_reads,
             s.units_diffed,
             s.max_sync_us,
