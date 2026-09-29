@@ -1061,6 +1061,21 @@ impl BootModel {
         notes
     }
 
+    /// A write of `value` to the usermode doorbell that arrived through its guest-token
+    /// ioeventfd (device.rs `doorbell_guest_tokens`): the same steps as the trapped write
+    /// (`Reg::UsermodeDoorbell` in `write32`), then the channel-error scan the pool's
+    /// eventfd path runs after a ring.
+    pub fn doorbell_value(&mut self, mem: &GuestMemory, value: u32) -> Vec<String> {
+        self.bar2_doorbell_sync(mem);
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        let mut notes = self.ctrl.doorbell(&mut gm, value);
+        notes.extend(self.scan_channel_errors(mem, false));
+        notes
+    }
+
     /// BAR0 offset of the usermode doorbell (`NOTIFY_CHANNEL_PENDING`).
     pub fn usermode_doorbell(&self) -> u64 {
         self.regs.usermode_doorbell

@@ -85,6 +85,9 @@ pub struct Device {
     /// Doorbell ioeventfd: wakeups of the reader thread and guest writes they counted.
     doorbell_wakeups: u64,
     doorbell_writes: u64,
+    /// Guest-token ioeventfds (`CARAXES_DOORBELL_GUEST_TOKENS`): wakeups and guest writes.
+    guest_token_rings: u64,
+    guest_token_writes: u64,
     /// MSI re-arm ioeventfd (`CARAXES_MSI_REARM_IOEVENTFD=1`): wakeups and guest writes.
     rearm_wakeups: u64,
     rearm_writes: u64,
@@ -193,6 +196,26 @@ pub fn doorbell_token_sub_regions(
         .collect()
 }
 
+/// The guest-token sub-regions (tokens.rs `GuestTokens`, docs/caraxes/doorbell-token-pool.md
+/// (g)): for each value one ioeventfd sub-region of the doorbell register `offset`, size 4,
+/// `IOEVENTFD_FLAG_DATAMATCH` with the value as datamatch, and its own eventfd, so the
+/// eventfd names the value written (vfio-user.rst, "Sub-Region IO FD info format
+/// (ioeventfd)"). The readers come back in `values` order.
+pub fn doorbell_value_sub_regions(
+    offset: u64,
+    values: &[u32],
+) -> std::io::Result<Vec<(IoEventFdSubRegion, File)>> {
+    values
+        .iter()
+        .map(|&v| {
+            let (mut sub_region, reader) = doorbell_sub_region(offset)?;
+            sub_region.flags = vfio_user::IOEVENTFD_FLAG_DATAMATCH;
+            sub_region.datamatch = u64::from(v);
+            Ok((sub_region, reader))
+        })
+        .collect()
+}
+
 /// Wait on the pool's eventfds with one epoll loop and ring the channel of every token
 /// signalled, for as long as the process runs. `readers[i]` is the eventfd of slot i.
 /// `reactor` says how the loop waits (`CARAXES_DOORBELL_POLL`, poll.rs): blocked in
@@ -203,7 +226,7 @@ pub fn spawn_token_reader(
     readers: Vec<File>,
     reactor: crate::poll::Reactor,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    spawn_token_reader_hooked(device, doorbell, readers, reactor, None, None, None)
+    spawn_token_reader_hooked(device, doorbell, readers, Vec::new(), reactor, None, None, None)
 }
 
 /// As [`spawn_token_reader`], with a hook the reactor runs on every iteration (the
@@ -211,17 +234,24 @@ pub fn spawn_token_reader(
 /// the tokens' (`CARAXES_MSI_REARM_IOEVENTFD=1`), `(BAR0 offset, eventfd)`; its wakeups go
 /// to [`Device::msi_rearm_ioeventfd`], never to a token. `rpc`: the command-queue head
 /// eventfd (`CARAXES_RPC_IOEVENTFD=1`) as one more reader after those, `(BAR0 offset,
-/// eventfd)`; its wakeups go to [`Device::rpc_ioeventfd`].
+/// eventfd)`; its wakeups go to [`Device::rpc_ioeventfd`]. `guest`: the guest-token
+/// eventfds (`CARAXES_DOORBELL_GUEST_TOKENS`) and their values, read right after the pool's;
+/// their wakeups go to [`Device::doorbell_guest_tokens`].
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_token_reader_hooked(
     device: Arc<Mutex<Device>>,
     doorbell: u64,
     mut readers: Vec<File>,
+    guest: Vec<(u32, File)>,
     reactor: crate::poll::Reactor,
     hook: Option<Box<dyn crate::poll::Hook>>,
     rearm: Option<(u64, File)>,
     rpc: Option<(u64, File)>,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
     let tokens = readers.len();
+    let values: Vec<u32> = guest.iter().map(|(v, _)| *v).collect();
+    readers.extend(guest.into_iter().map(|(_, f)| f));
+    let guest_end = readers.len();
     let mut extra = |e: Option<(u64, File)>| {
         e.map(|(offset, fd)| {
             readers.push(fd);
@@ -236,7 +266,7 @@ pub fn spawn_token_reader_hooked(
             let mut d = lock(&device);
             st.lock_wait.record(seen.elapsed());
             crate::launch::mark(crate::launch::Step::Lock);
-            if rearm_at.is_none() && rpc_at.is_none() {
+            if rearm_at.is_none() && rpc_at.is_none() && values.is_empty() {
                 return d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host));
             }
             for r in rings {
@@ -246,6 +276,11 @@ pub fn spawn_token_reader_hooked(
                             st.ring(seen, host)
                         })
                     }
+                    _ if r.0 < guest_end => d.doorbell_guest_tokens(
+                        doorbell,
+                        &[(values[r.0 - tokens], r.1)],
+                        &mut |host| st.ring(seen, host),
+                    ),
                     (Some((i, offset)), _) if r.0 == i => d.msi_rearm_ioeventfd(offset, r.1),
                     (_, Some((i, offset))) if r.0 == i => d.rpc_ioeventfd(offset, r.1),
                     _ => {}
@@ -576,6 +611,8 @@ impl Device {
             intr: None,
             doorbell_wakeups: 0,
             doorbell_writes: 0,
+            guest_token_rings: 0,
+            guest_token_writes: 0,
             rearm_wakeups: 0,
             rearm_writes: 0,
             mirror_writes_unsynced: 0,
@@ -722,6 +759,49 @@ impl Device {
             }
             boot.take_host_doorbell();
             notes.extend(boot.doorbell_token(mem, token));
+            rung(boot.take_host_doorbell());
+        }
+        if fast {
+            self.trace.events(&notes);
+        } else {
+            for n in notes {
+                self.trace.event(&n);
+            }
+        }
+    }
+
+    /// Guest tokens whose ioeventfds fired (`CARAXES_DOORBELL_GUEST_TOKENS`): `(value, guest
+    /// writes counted)` each. The eventfd names the value, so each is rung exactly as the
+    /// trapped write of that value (boot.rs `doorbell_value`, ctrl.rs `doorbell`); writes of
+    /// one value coalesced into one wakeup ring once (a doorbell only makes the channel look
+    /// at GPPut). `rung` as for [`Self::doorbell_tokens`].
+    pub fn doorbell_guest_tokens(
+        &mut self,
+        doorbell: u64,
+        rings: &[(u32, u64)],
+        rung: &mut dyn FnMut(Option<std::time::Instant>),
+    ) {
+        for &(_, writes) in rings {
+            self.guest_token_rings += 1;
+            self.guest_token_writes += writes;
+        }
+        let mem = &self.mem;
+        let Some(boot) = self.bar0.boot_mut() else {
+            self.trace
+                .event("doorbell guest tokens: no boot model, nothing rung");
+            return;
+        };
+        let fast = crate::launch::fast();
+        let mut notes = Vec::new();
+        for &(value, writes) in rings {
+            crate::profile::window("guest tokens: eventfd rings (units: guest writes)", writes);
+            if !fast {
+                notes.push(format!(
+                    "doorbell ioeventfd: {writes} guest write(s) of token {value:#x} to BAR0 {doorbell:#x} signalled"
+                ));
+            }
+            boot.take_host_doorbell();
+            notes.extend(boot.doorbell_value(mem, value));
             rung(boot.take_host_doorbell());
         }
         if fast {
@@ -1346,6 +1426,12 @@ impl Device {
                 self.mirror_writes_unsynced,
                 self.slow_pool_polls,
                 SLOW_POOL_POLL.as_millis()
+            ));
+        }
+        if self.guest_token_rings > 0 {
+            s.push_str(&format!(
+                "doorbell guest tokens: {} guest write(s) in {} eventfd wakeup(s), each rung as the trapped write of its value\n",
+                self.guest_token_writes, self.guest_token_rings
             ));
         }
         if self.rearm_wakeups > 0 {
@@ -1979,6 +2065,7 @@ mod tests {
             device.clone(),
             0xbb_0090,
             token_readers,
+            Vec::new(),
             reactor,
             None,
             Some((at, rearm_reader)),
@@ -1997,6 +2084,55 @@ mod tests {
         let cfg: Vec<u32> = (0..0x1000).step_by(4).map(|o| d.cfg.dword(o)).collect();
         assert_eq!(cfg, before);
         assert!(d.summary().contains("msi re-arm ioeventfd: 2 guest write(s) in 1 wakeup(s)"));
+    }
+
+    /// The guest-token sub-regions (CARAXES_DOORBELL_GUEST_TOKENS): one datamatch entry and
+    /// one eventfd per value, in the order given; the reactor hands a wakeup of one to
+    /// `doorbell_guest_tokens` with its value, beside the pool's slots.
+    #[test]
+    fn guest_token_eventfds_are_datamatch_entries_read_by_the_token_reactor() {
+        use std::io::Write;
+        let values = crate::tokens::GuestTokens::parse("0,1:2").unwrap().unwrap().values();
+        assert_eq!(values, vec![0x0, 0x1, 0x10000, 0x10001]);
+        let subs = doorbell_value_sub_regions(0xbb_0090, &values).unwrap();
+        let mut fds = std::collections::BTreeSet::new();
+        for ((s, _), v) in subs.iter().zip(&values) {
+            assert_eq!((s.offset, s.size, s.flags, s.datamatch), (0xbb_0090, 4, vfio_user::IOEVENTFD_FLAG_DATAMATCH, u64::from(*v)));
+            fds.insert(std::os::fd::AsRawFd::as_raw_fd(&*s.fd));
+        }
+        assert_eq!(fds.len(), values.len(), "one eventfd per value: the eventfd names the value");
+        let (pool_sub, pool_reader) = doorbell_token_sub_regions(0xbb_0090, 1).unwrap().pop().unwrap();
+        let pool_writer = File::from(pool_sub.fd.try_clone().unwrap());
+        let mut writers = Vec::new();
+        let mut guest = Vec::new();
+        for ((s, r), v) in subs.into_iter().zip(values) {
+            writers.push(File::from(s.fd.try_clone().unwrap()));
+            guest.push((v, r));
+        }
+        (&writers[2]).write_all(&3u64.to_ne_bytes()).unwrap();
+        (&pool_writer).write_all(&1u64.to_ne_bytes()).unwrap();
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let reactor = crate::poll::Reactor::new("test", crate::poll::Config::default(), None).unwrap();
+        let stats = spawn_token_reader_hooked(
+            device.clone(),
+            0xbb_0090,
+            vec![pool_reader],
+            guest,
+            reactor,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let t0 = std::time::Instant::now();
+        while lock(&device).guest_token_rings == 0 {
+            assert!(t0.elapsed() < std::time::Duration::from_secs(5), "reactor did not read");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        stats.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let d = lock(&device);
+        assert_eq!((d.guest_token_rings, d.guest_token_writes), (1, 3));
+        assert!(d.summary().contains("doorbell guest tokens: 3 guest write(s) in 1 eventfd wakeup(s)"));
     }
 
     /// The invalidate page's trigger does what the trapped trigger write does: the same

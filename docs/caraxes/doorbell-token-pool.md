@@ -487,3 +487,43 @@ Checks:
 - `cargo clippy -p vfio-user-nvgpu --all-targets -- -D warnings -A clippy::unnecessary_cast -A
   clippy::field_reassign_with_default`: clean.
 - The new code is rustfmt-clean. Files that were not rustfmt-clean before stay as they were.
+
+## (g) Guest tokens as ioeventfds (2026-09-29, the Windows guest under Cloud Hypervisor)
+
+- **Why the pool misses Windows.** The pool reaches a channel only through its work-submit-token
+  notifier entry, which libcuda re-reads (section (a)). The Windows KMD computes its tokens in
+  its own RM and caches them, and nearly all its channels have no error notifier (P36: 1 of 53;
+  P37-arm2: 1355 rings "without notifier"). Under Cloud Hypervisor every Windows ring would
+  still trap.
+- **The spec's shape.** `VFIO_USER_DEVICE_GET_REGION_IO_FDS` is a client query; the spec has no
+  server-initiated update (vfio-user.rst, the command's section). The set is therefore fixed
+  when the client asks, at realize, before any channel exists: sub-regions cannot follow live
+  channels.
+- **The set.** A guest token is `runlist << 16 | chid` (RUNLIST_ID 22:16, VECTOR 11:0;
+  kfifoGenerateWorkSubmitTokenHal_TU102). `CARAXES_DOORBELL_GUEST_TOKENS=<runlists>:<chids>`
+  declares one datamatch sub-region per value, runlist-major in the order given, chids
+  ascending, each with its own eventfd.
+  - One eventfd per value: the eventfd names the written value, and the device rings it
+    exactly as the trapped write of that value (ctrl.rs `doorbell`: guest ChID first, the host
+    token as the fallback). No new routing, no scan.
+  - Refused: a runlist without a host-driven engine in the chip's device-info table, more
+    chids than the guest is told per runlist (`INTERNAL_FIFO_GET_NUM_CHANNELS`, 512), more
+    than 253 eventfds together with the pool (`SCM_MAX_FD`), and the token-less wildcard
+    (KVM: `EEXIST`, section (b)). Pool tokens (bits 31:23) and guest tokens never collide.
+  - A value outside the set traps as before.
+- **Cost.** KVM passes the entries of one address in registration order, ~25 ns each (section
+  (b)): the busiest runlist goes first. The pool, when both are on, goes first (Linux's libcuda
+  rings pool tokens).
+- **The Windows ring census** (trace `doorbell` lines with the channel's engine; runlists from
+  chips/tu106/device-info.toml: GR, CE0, CE1 on 0, CE2 1, CE3 2, CE4 3, NVENC 7):
+
+  | Run | runlist 0 | 1 | 2 | 3 | 7 | highest ChID |
+  |---|---|---|---|---|---|---|
+  | P43 (QEMU, workload block) | 201984 | 6698 | 495 | 15 | 3655 | 37 |
+  | C45 (CH, desktop, smoke, CUDA) | 5533 | 38214 | 205 | 10 | 29 | 35 |
+
+  - Hot values: `0x1a` (GR chid 26, the CUDA probe, 201098 rings in P43), `0x1000f` (chid 15 on
+    runlist 1, the KMD's paging CE, 38096 in C45), `0x70024` (NVENC chid 36).
+  - Proposed set: `0,1,2,3,7:48` = 240 values (runlist 0 at positions 0-47, 1 at 48-95, ...);
+    worst matched position 239 (~6 us of KVM scan, still below a trapped ring's ~25 us).
+- **Status.** Built with a reactor test and parse tests; not run yet.
