@@ -60,6 +60,9 @@ if [[ -f $REPO/Release ]]; then
           "tar-in $tmp/repo.tar /var/cache/caraxes-repo"
           "upload $tmp/repo.list /etc/apt/sources.list.d/caraxes-openrender.list")
 fi
+# No systemd status lines on the console: the check runs for minutes and its serial output
+# must not be interleaved with "Job ... running" updates (vm10-boot6).
+printf '%s\n' "[Manager]" "ShowStatus=no" > "$tmp/showstatus.conf"
 printf '%s\n' "[Unit]" "Description=Caraxes open-driver render check" "After=multi-user.target" "" \
     "[Service]" "Type=oneshot" "ExecStart=/usr/local/sbin/caraxes-check.sh" "" \
     "[Install]" "WantedBy=multi-user.target" > "$tmp/unit"
@@ -71,6 +74,8 @@ mkdir-p /lib/firmware/nvidia/tu106
 rm-rf /lib/firmware/nvidia/tu106/gsp
 ln-sf ../tu102/gsp /lib/firmware/nvidia/tu106/gsp
 upload $tmp/openrender.conf /etc/modprobe.d/caraxes-openrender.conf
+mkdir-p /etc/systemd/system.conf.d
+upload $tmp/showstatus.conf /etc/systemd/system.conf.d/caraxes-showstatus.conf
 upload $tmp/unit /etc/systemd/system/caraxes-check.service
 upload $HERE/openrender-check.sh /usr/local/sbin/caraxes-check.sh
 chmod 0755 /usr/local/sbin/caraxes-check.sh

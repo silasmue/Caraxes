@@ -19,6 +19,11 @@ lspci -nn -d 10de:
 mount -t debugfs none /sys/kernel/debug 2>/dev/null
 echo "CARAXES-CHECK firmware"
 ls -la /lib/firmware/nvidia/tu106/gsp/ 2>&1
+# Results that are files (images, logs) go to $RES; openrender-boot.sh copies the directory
+# out of the overlay after the power-off and checks the sha256 lines printed here. The serial
+# copies below are a fallback only (the console can interleave other writers).
+RES=/var/tmp/caraxes-results
+rm -rf $RES; mkdir -p $RES
 echo "CARAXES-CHECK R1 probe"
 # debug=gsp=debug: the RPC and event lines of rm/r535/rpc.c; the rest at the default level.
 # The image's NVIDIA packaging keeps nouveau off in modprobe.d (vm10-boot1: modprobe resolved
@@ -42,6 +47,8 @@ timeout 60 vulkaninfo --summary 2>&1 | grep -E "deviceName|driverName|driverInfo
 echo "CARAXES-CHECK R4-R5 vk-offscreen"
 timeout 120 /usr/local/bin/vk-offscreen /var/tmp/vk-offscreen.ppm; echo "vk-offscreen rc=$?"
 if [ -s /var/tmp/vk-offscreen.ppm ]; then
+    cp /var/tmp/vk-offscreen.ppm $RES/
+    echo "CARAXES-SHA256 $(sha256sum /var/tmp/vk-offscreen.ppm | cut -d' ' -f1) vk-offscreen.ppm"
     echo "CARAXES-PPM-BEGIN"
     gzip -9c /var/tmp/vk-offscreen.ppm | base64 -w 76
     echo "CARAXES-PPM-END"
@@ -113,19 +120,28 @@ if command -v weston >/dev/null 2>&1; then
     grep -iE "renderer|EGL|GL_RENDERER|gl version|error|fail" /var/tmp/weston.log | head -n 8
     export WAYLAND_DISPLAY=$WL
     if [ -S $XDG_RUNTIME_DIR/$WL ]; then
-        # vkcube through the Wayland WSI: 600 frames, the wall time gives the frame rate.
+        # vkcube through the Wayland WSI. Its start-up (device and swapchain creation) takes
+        # many seconds on this device, so the frame rate is the difference of two runs (60 and
+        # 1260 frames); a third run, stopped after the screenshot, is what the screenshot shows.
         t0=$(date +%s%N)
-        $AS timeout 120 vkcube-wayland --c 600 > /var/tmp/vkcube.txt 2>&1; rc=$?
-        ms=$(( ($(date +%s%N) - t0) / 1000000 ))
-        echo "vkcube-wayland --c 600 rc=$rc in $ms ms ($(( 600000 / (ms + 1) )) FPS)"
-        tail -n 3 /var/tmp/vkcube.txt
-        # A screenshot of a running vkcube (weston --debug allows weston-screenshooter).
-        $AS timeout 60 vkcube-wayland --c 3000 > /dev/null 2>&1 &
-        VPID=$!; sleep 4
+        $AS timeout 120 vkcube-wayland --c 60 > /var/tmp/vkcube.txt 2>&1; rc=$?
+        ms1=$(( ($(date +%s%N) - t0) / 1000000 ))
+        echo "vkcube-wayland --c 60 rc=$rc in $ms1 ms"
+        t0=$(date +%s%N)
+        $AS timeout 240 vkcube-wayland --c 1260 >> /var/tmp/vkcube.txt 2>&1; rc=$?
+        ms2=$(( ($(date +%s%N) - t0) / 1000000 ))
+        echo "vkcube-wayland --c 1260 rc=$rc in $ms2 ms; steady $(( 1200000 / (ms2 - ms1 + 1) )) FPS (1200 frames over the difference)"
+        $AS timeout 120 vkcube-wayland >> /var/tmp/vkcube.txt 2>&1 &
+        VPID=$!
+        sleep 40
+        # A screenshot of the running vkcube (weston --debug allows weston-screenshooter).
         (cd /var/tmp && rm -f wayland-screenshot-*.png && $AS timeout 20 weston-screenshooter; echo "weston-screenshooter rc=$?")
         kill $VPID 2>/dev/null; wait $VPID 2>/dev/null
+        tail -n 3 /var/tmp/vkcube.txt
         SHOT=$(ls /var/tmp/wayland-screenshot-*.png 2>/dev/null | head -n 1)
         if [ -n "$SHOT" ]; then
+            cp "$SHOT" $RES/weston-vkcube.png
+            echo "CARAXES-SHA256 $(sha256sum "$SHOT" | cut -d' ' -f1) weston-vkcube.png"
             echo "CARAXES-PNG-BEGIN"
             base64 -w 76 "$SHOT"
             echo "CARAXES-PNG-END"
@@ -141,6 +157,8 @@ if command -v weston >/dev/null 2>&1; then
 else
     echo "weston not installed"
 fi
+cp /var/tmp/weston.log /var/tmp/vkcube.txt /var/tmp/vkmark.txt $RES/ 2>/dev/null
+dmesg > $RES/dmesg.txt
 echo "CARAXES-CHECK dmesg-after"
 dmesg | grep -iE "nouveau|gsp|fault|xid|timeout|channel" | tail -n 80
 echo "CARAXES-CHECK unbind"

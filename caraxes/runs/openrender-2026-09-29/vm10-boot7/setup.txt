@@ -1,0 +1,36 @@
+dbbb96fdc464a02af2bab3c27e9678238de0ee11242fa7068163ee20342ac45b  /mnt/vmstore/caraxes/vfio-user-nvgpu-openrender-f7e9f4c7
+98908e0833b2d10ee6018529eaa3217e82794c73a6e31d0acac01fc1165febf8  /mnt/vmstore/caraxes/nova-kernel/build-openrender/arch/x86/boot/bzImage
+b7651733ccade3a420b0c2c5f795b636c3442f0c40e99cd28680ed54ba8391fc  /mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+b916c054 runs: openrender R8, presented frames on weston headless (GL renderer on zink/NVK) from a verified local apt repository
+CARAXES_BAR1_PASSTHROUGH=pool
+CARAXES_BAR1_POOL_MIB=32
+CARAXES_BAR1_WINDOWS=2
+CARAXES_BAR1_WINDOW_MIB=16
+CARAXES_BOOT_MODEL=1
+CARAXES_CE_SHADOW=1
+CARAXES_COMPRESSION=slice
+CARAXES_CPUS=4
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_GUEST_DMA_GPA=1
+CARAXES_HOST_BAR1_FLOOR_MIB=64
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_HOST_VRAM_FLOOR_MIB=1024
+CARAXES_INITRD=none
+CARAXES_INTR_PAGE=1
+CARAXES_KERNEL=/mnt/vmstore/caraxes/nova-kernel/build-openrender/arch/x86/boot/bzImage
+CARAXES_MEM=4G
+CARAXES_MIRROR_BARE_CE=1
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_MSI_REARM_IOEVENTFD=1
+CARAXES_RESERVE_SLOT=5
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-openrender-f7e9f4c7
+CARAXES_TAP=none
+CARAXES_VBIOS=/mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+VM=vm10
