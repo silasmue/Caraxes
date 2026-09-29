@@ -185,6 +185,9 @@ pub struct Layout {
     /// `[lo, hi)` held by host placeholder objects from the VAS's creation ([`Layout::fenced`]):
     /// the host's own buffers land above it; guest leaves inside take their region from it.
     pub fence: Option<(u64, u64)>,
+    /// The owned-GFXP slots' private VA window (gfxpslot.rs `SLOT_VA_BASE`): above every VA a
+    /// guest allocator gives out, never mirrored, so no guest leaf can land on a slot VA.
+    pub slot_window: Option<(u64, u64)>,
 }
 
 impl Layout {
@@ -216,15 +219,27 @@ impl Layout {
             host_area: (base, GUEST_RM_VA_BASE),
             host_server: (server, server + SERVER_RM_VA_SIZE),
             fence: None,
+            slot_window: None,
+        }
+    }
+
+    /// The same layout with the owned-GFXP slot VA window `window` held out of the mirror.
+    pub fn with_slot_window(self, window: Option<(u64, u64)>) -> Self {
+        Layout {
+            slot_window: window,
+            ..self
         }
     }
 
     /// Why guest VAs `[lo, hi)` cannot be mirrored in this layout, if they cannot.
     pub fn unmirrorable(&self, lo: u64, hi: u64) -> Option<&'static str> {
+        let hit = |(a, b): (u64, u64)| lo < b && hi > a;
+        if self.slot_window.is_some_and(hit) {
+            return Some("in the owned-GFXP slot VA window");
+        }
         if self.va_base == 0 {
             return None;
         }
-        let hit = |(a, b): (u64, u64)| lo < b && hi > a;
         if lo < self.va_base {
             Some("below the video shadow VAS base (a 32-bit pointer allocation)")
         } else if hit(self.host_area) {
@@ -938,6 +953,11 @@ impl ShadowFront {
                 let resolved = match self.layout.unmirrorable(*va, va + size) {
                     _ if wrong_root => Resolved::Refused("the root holds malformed entries (wrong root?)"),
                     Some(why) => Resolved::Refused(why),
+                    // The device's private pages (the owned-GFXP slots among them) are never
+                    // a guest leaf's target (fb.rs `FbLayout::private_ranges`).
+                    None if matches!(t, Target::Fb(pa) if fb.private_overlaps(*pa, *size)) => {
+                        Resolved::Refused("the device's private pages")
+                    }
                     None => resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs, comp.as_deref()),
                 };
                 // The kind the leaf is mapped with (D16b: the allowlist, compslice.rs).
@@ -3452,6 +3472,56 @@ mod tests {
         assert!(plan.notes.iter().any(|l| l.contains("below the video shadow VAS base")));
         let plan = ShadowFront::new(root).plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
         assert_eq!((plan.want, plan.refused_now), (4, 0));
+    }
+
+    /// A guest leaf onto the device's private pages (an owned-GFXP slot of the VM's slice) is
+    /// refused by name, whatever the reservation range allows; the rest map as before.
+    #[test]
+    fn a_leaf_onto_a_gfxp_slot_is_refused() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1 | (0x06u64 << 56);
+        let (root, pd2, pd1, pd0, pt) = (
+            BASE,
+            BASE + 0x1000,
+            BASE + 0x2000,
+            BASE + 0x3000,
+            BASE + 0x4000,
+        );
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        let x = BASE + 0x10_0000;
+        for i in 0..4u64 {
+            fb.write_u64(pt + 8 * (i + 1), pte(x + i * 0x1000));
+        }
+        fb.set_private(vec![(x + 0x2000, x + 0x4000)]);
+        let mem = GuestMemory::new();
+        let plan = ShadowFront::new(root)
+            .plan(&fb, &mem, BASE, END, 1, &[], &[])
+            .unwrap();
+        assert_eq!((plan.want, plan.refused_now), (2, 2));
+        assert!(plan
+            .notes
+            .iter()
+            .any(|l| l.contains("the device's private pages")));
+    }
+
+    /// The slot VA window is never mirrored: a guest leaf there is refused by name.
+    #[test]
+    fn a_leaf_in_the_slot_va_window_is_refused() {
+        let w = (
+            crate::gfxpslot::SLOT_VA_BASE,
+            crate::gfxpslot::SLOT_VA_BASE + (54 << 20),
+        );
+        let l = Layout::fenced().with_slot_window(Some(w));
+        assert!(l
+            .unmirrorable(w.0 + 0x10_0000, w.0 + 0x10_1000)
+            .unwrap()
+            .contains("slot VA window"));
+        assert_eq!(l.unmirrorable(0x1_2000_0000, 0x1_2000_1000), None);
+        assert_eq!(l.fence, Layout::fenced().fence);
     }
 
     // ---- D16b: real compression per slice (compslice.rs). ----

@@ -304,12 +304,9 @@ impl BootModel {
             base,
             end,
         )));
-        // The device's private pages (devce.rs `PRIVATE_AT`) are no guest memory for BAR
-        // accesses either, as for the software CE and the shadow.
-        self.fb.set_private(Some((
-            end.saturating_sub(crate::devce::PRIVATE_AT).max(base),
-            end,
-        )));
+        // The device's private pages (the owned-GFXP slots and devce.rs `PRIVATE_AT`) are no
+        // guest memory for BAR accesses either, as for the software CE and the shadow.
+        self.fb.set_private(self.layout.private_ranges());
         let r = self.regs;
         self.intr = IntrTree::new(r.intr_tree, r.intr_tree_size).with_shared(shared.clone());
         self.ctrl.mirror = Some(Mirror::new(hm.clone(), shared.clone(), self.chip.data(), &self.layout)?);
@@ -4167,7 +4164,7 @@ mod tests {
         let f = crate::fixture::rtx2070();
         let mut b = BootModel::new(f.chip, layout, f.identity(256 * MIB));
         let private = end - crate::devce::PRIVATE_AT;
-        b.fb.set_private(Some((private, end)));
+        b.fb.set_private(vec![(private, end)]);
         b.fb.write_u64(private, 0x1234_5678);
         let mem = GuestMemory::new();
         let (window, pramin) = (b.regs.bar0_window, b.regs.pramin);

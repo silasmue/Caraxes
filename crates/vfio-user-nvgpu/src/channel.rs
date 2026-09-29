@@ -3482,8 +3482,12 @@ fn ce_pieces(
     }
     for &(target, n) in &pieces {
         let ok = match target {
+            // The device's private pages (fb.rs `FbLayout::private_ranges`: the owned-GFXP
+            // slots, the device CE's and the invalidator's pages) are no VM backing.
             Target::Fb(pa) => pa.checked_add(n as u64).is_some_and(|end| {
-                end <= mem.fb.size() && fb_range.is_none_or(|(lo, hi)| pa >= lo && end <= hi)
+                end <= mem.fb.size()
+                    && fb_range.is_none_or(|(lo, hi)| pa >= lo && end <= hi)
+                    && !mem.fb.private_overlaps(pa, n as u64)
             }),
             Target::Sys(pa) => mem.sys.covers(pa, n as u64),
             _ => false,
@@ -4369,6 +4373,36 @@ mod tests {
         let events = reg.take_software_events();
         assert_eq!(events.len(), 1);
         assert!(events[0].nonstall && events[0].failure.is_none());
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A software CE fill into the device's private pages (an owned-GFXP slot of the VM's
+    /// slice, inside the software FB range) is refused as outside VM backing, like any other
+    /// range the guest does not own; nothing is written there.
+    #[test]
+    fn a_software_ce_fill_into_a_gfxp_slot_is_refused() {
+        let mut pb = physical_fill(0x30_0000, 1);
+        pb.extend(inc(0, 0x10, &[0, 0x1000_9000, 99, 0x0110_0002]));
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("ce-gfxp-slot", &pb);
+        reg.software_fb_range = Some((0, 0x100_0000));
+        fb.set_private(vec![(0x30_0000, 0x40_0000)]);
+        fb.write_u64(0x30_0000, 0x5a5a);
+        reg.doorbell(
+            &mut GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        );
+        let events = reg.take_software_events();
+        assert_eq!(events.len(), 1);
+        assert!(events[0]
+            .failure
+            .as_ref()
+            .unwrap()
+            .contains("outside VM backing"));
+        assert_eq!(fb.read_u64(0x30_0000), Some(0x5a5a));
         std::fs::remove_file(path).ok();
     }
 

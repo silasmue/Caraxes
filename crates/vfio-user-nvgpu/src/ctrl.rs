@@ -35,6 +35,8 @@ pub use crate::ver::common::{
 };
 
 /// `NV_ERR_INSUFFICIENT_PERMISSIONS` (nvstatuscodes.h).
+/// `NV2080_CTRL_CMD_GR_CTXSW_PREEMPTION_BIND` (ctrl2080gr.h:917-929).
+const CMD_GR_CTXSW_PREEMPTION_BIND: u32 = 0x2080_1211;
 const NV_ERR_INSUFFICIENT_PERMISSIONS: u32 = 0x1B;
 
 /// The internal client, device and subdevice handles the device hands the guest
@@ -1615,7 +1617,7 @@ impl Dispatcher {
                 if kept < params.len() { " (truncated)" } else { "" }
             ));
         }
-        const GR_CTXSW_PREEMPTION_BIND: u32 = 0x2080_1211;
+        const GR_CTXSW_PREEMPTION_BIND: u32 = CMD_GR_CTXSW_PREEMPTION_BIND;
         static SHADOW_CHANNEL_CAPTURED: std::sync::atomic::AtomicUsize =
             std::sync::atomic::AtomicUsize::new(0);
         if cmd == GR_CTXSW_PREEMPTION_BIND
@@ -1655,19 +1657,53 @@ impl Dispatcher {
         answer
     }
 
-    fn control_inner(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
-        if self.mirror.is_some()
-            && (cmd == crate::recorded::GR_GFX_POOL_QUERY_SIZE
-                || crate::recorded::GR_GFX_POOL_MANAGE.contains(&cmd))
-        {
-            // The bootstrap answers size and acknowledge a pool without constructing
-            // one. They cannot describe an executable host-backed graphics context.
-            return Answer {
-                status: NV_ERR_NOT_SUPPORTED,
-                params: params.to_vec(),
-                label: "refused (host GFXP pool is not implemented)",
-                note: format!("gfx pool {cmd:#x}: no host pool lifecycle; bootstrap acknowledgement disabled"),
+    /// `GR_CTXSW_PREEMPTION_BIND` (0x20801211, the Windows KMD's; ctrl2080gr.h:917-929) on a
+    /// mirrored device. Compute CTA or CILP, pointer-free, is bound on the host TSG and
+    /// verified (mirror.rs `bind_owned_compute`). The graphics part never forwards the guest's
+    /// buffers: the host TSG has GFXP from a slot of the VM's slice when it has a 3D object
+    /// (bound at its build), else WFI; a graphics request is acknowledged.
+    fn preemption_bind(&mut self, params: &[u8]) -> Answer {
+        let word = |o: usize| {
+            params
+                .get(o..o + 4)
+                .map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()))
+        };
+        let (flags, client, tsg, gfxp, cilp) = (word(0), word(4), word(8), word(88), word(92));
+        let pointer_free = params.len() == 112
+            && params[12..88].iter().all(|b| *b == 0)
+            && params[96..112].iter().all(|b| *b == 0);
+        if flags == 1 && gfxp == 0 && matches!(cilp, 1 | 2) && pointer_free {
+            let r =
+                self.mirror
+                    .as_mut()
+                    .unwrap()
+                    .bind_owned_compute(&self.channels, client, tsg, cilp);
+            let (status, note) = match r {
+                Ok(notes) => (NV_OK, notes.join("; ")),
+                Err(e) => (NV_ERR_NOT_SUPPORTED, e),
             };
+            return Answer {
+                status,
+                params: params.to_vec(),
+                label: "host (compute preemption bound on the host TSG and verified)",
+                note: format!("preemption bind {client:#x}/{tsg:#x} compute {cilp}: {note}"),
+            };
+        }
+        Answer {
+            status: NV_OK,
+            params: params.to_vec(),
+            label: "guest (acknowledged: the host TSG's graphics mode is GFXP from a slot of the VM's slice for a 3D TSG, else WFI; the guest's buffers are never used)",
+            note: format!("preemption bind {client:#x}/{tsg:#x} flags {flags:#x} gfxp {gfxp} cilp {cilp}: acknowledged"),
+        }
+    }
+
+    fn control_inner(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+        // The Windows KMD's graphics-preemption pool (GR_GFX_POOL_QUERY_SIZE and the three
+        // pool controls) gets recorded.rs's answer: the pool is the KMD's own heap memory,
+        // part of the VM's slice; the host context's GFXP comes from a slot bound at its
+        // build (gfxpslot.rs). Refusing it unloads the KMD (P39: Code 43).
+        if cmd == CMD_GR_CTXSW_PREEMPTION_BIND && self.mirror.is_some() {
+            return self.preemption_bind(params);
         }
         if matches!(cmd, 0x5080_0101..=0x5080_0104)
             && self.deferred_context.enabled {

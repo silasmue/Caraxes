@@ -350,12 +350,14 @@ unsafe impl Send for DeviceCe {}
 
 impl DeviceCe {
     /// Build the engine: its page tables and ring in the private pages below the
-    /// invalidator's, mapping guest FB `[guest.0, guest.1 - carve-out)` (host VRAM
+    /// invalidator's, mapping the guest's usable FB `[guest.0, usable_end)` (host VRAM
     /// `[host.0, ...)`) at [`WINDOW_VA`]; `reservation` is the host handle of the VRAM.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         hm: &mut HostMemory,
         fb: &mut FakeFb,
         guest: (u64, u64),
+        usable_end: u64,
         host: (u64, u64),
         reservation: u32,
         gpfifo_class: u32,
@@ -366,7 +368,15 @@ impl DeviceCe {
         if g1 - g0 != h1 - h0 || g1 - g0 <= crate::fb::CARVE_OUT {
             return Err("guest and host reservations differ in size or have no usable part".into());
         }
-        let len = (g1 - g0) - crate::fb::CARVE_OUT;
+        // The window maps the guest's usable FB only: not the owned-GFXP slots, the BAR1 pool
+        // or the carve-out above it (fb.rs `FbLayout::usable`).
+        if usable_end <= g0 || usable_end > g1 - crate::fb::CARVE_OUT {
+            return Err(format!(
+                "usable end {usable_end:#x} outside [{g0:#x}, {:#x})",
+                g1 - crate::fb::CARVE_OUT
+            ));
+        }
+        let len = usable_end - g0;
         if len % (2 << 20) != 0 || len > PD0_FB_PAGES * (512 << 20) {
             return Err(format!(
                 "usable FB of {len:#x} bytes: not 2 MiB aligned or above 16 GiB"

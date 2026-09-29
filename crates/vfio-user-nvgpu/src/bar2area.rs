@@ -682,8 +682,10 @@ fn read_through(
 }
 
 /// Whether `[pa, pa + len)` touches `private` (fb.rs `FakeFb::private_overlaps`).
-fn overlaps(private: Option<(u64, u64)>, pa: u64, len: u64) -> bool {
-    private.is_some_and(|(b, e)| pa < e && b < pa.saturating_add(len))
+fn overlaps(private: &[(u64, u64)], pa: u64, len: u64) -> bool {
+    private
+        .iter()
+        .any(|&(b, e)| pa < e && b < pa.saturating_add(len))
 }
 
 /// The FB (through the remap) and guest RAM as the BAR2 walk's table reader.
@@ -694,7 +696,7 @@ struct Reader<'a> {
     tr: Translate<'a>,
     fb_size: u64,
     sys: Option<&'a GuestMemory>,
-    private: Option<(u64, u64)>,
+    private: &'a [(u64, u64)],
 }
 
 impl TableReader for Reader<'_> {
@@ -907,7 +909,7 @@ pub struct Bar2Area {
     drift_at: Option<std::time::Instant>,
     /// The device's private FB pages (devce.rs `PRIVATE_AT`): never mapped into the memfd
     /// nor read as a BAR2 table; a guest access there traps (fb.rs `bar_access` refuses it).
-    private: Option<(u64, u64)>,
+    private: Vec<(u64, u64)>,
 }
 
 impl Bar2Area {
@@ -937,14 +939,14 @@ impl Bar2Area {
                     DeferredFlush::default()
                 })
             }),
-            private: None,
+            private: Vec::new(),
             drift_cursor: 0,
             drift_at: None,
         })
     }
 
     /// See [`Bar2Area::private`]; set before the first sync.
-    pub fn set_private(&mut self, private: Option<(u64, u64)>) {
+    pub fn set_private(&mut self, private: Vec<(u64, u64)>) {
         self.private = private;
     }
 
@@ -1173,7 +1175,7 @@ impl Bar2Area {
                     tr,
                     fb_size,
                     sys,
-                    private: self.private,
+                    private: &self.private,
                 };
                 c.update(&r, false)
             };
@@ -1206,7 +1208,7 @@ impl Bar2Area {
                     tr,
                     fb_size,
                     sys,
-                    private: self.private,
+                    private: &self.private,
                 };
                 c.update(&r, false)
             };
@@ -1249,7 +1251,7 @@ impl Bar2Area {
                 let key = match t {
                     Target::Fb(pa)
                         if pa + (k + 1) * PAGE <= fb_size
-                            && !overlaps(self.private, pa + k * PAGE, PAGE) =>
+                            && !overlaps(&self.private, pa + k * PAGE, PAGE) =>
                     {
                         key_of(Target::Fb(pa + k * PAGE))
                     }

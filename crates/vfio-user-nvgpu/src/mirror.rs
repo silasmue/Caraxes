@@ -50,7 +50,7 @@ use crate::chip::ChipData;
 use crate::fb::{FakeFb, FbLayout};
 use crate::fb::Target;
 use crate::guestmem::GuestMemory;
-use crate::hostmem::{HostGfxp, HostMemory, HostUserd, OsEvent};
+use crate::hostmem::{HostMemory, HostUserd, OsEvent};
 use crate::intr::IntrShared;
 use crate::invalidate::Invalidator;
 use crate::ver::common as v;
@@ -585,28 +585,147 @@ const PAGE: u64 = 4096;
 /// USERD offsets of GPGet and GPPut (`clc46f.h:61-62`).
 const USERD_GP_GET: u64 = 0x88;
 const USERD_GP_PUT: u64 = 0x8C;
-const CMD_GET_ENGINE_CONTEXT_PROPERTIES: u32 = 0x0080_1707;
 const CMD_BIND_CTXSW_PREEMPTION_MODE: u32 = 0x2080_1211;
 const CMD_GET_CTXSW_PREEMPTION_MODE: u32 = 0x2080_1235;
-const GFXP_BUFFER_CAP: u64 = 64 << 20;
-const GFXP_TSG_CAP: usize = 8;
+/// The host's 3D class (the executing chip is a Turing, board.rs `host_class_of`): a host TSG
+/// with an object of it gets owned GFXP at its build.
+const HOST_3D_CLASS: u32 = 0xC597;
 
+/// One buffer of an owned-GFXP set: a fixed VA of the slot window, mapped through the
+/// reservation's handle at the slot's offset (gfxpslot.rs).
 struct OwnedGfxpBuffer {
-    memory: Option<HostGfxp>,
     virtual_handle: Option<u32>,
     va: u64,
     len: u64,
     mapped: bool,
 }
 
+/// The owned-GFXP set of one host TSG: its slot in the VM's slice, bound at the build.
 struct OwnedGfxp {
-    chid: u32,
-    generation: u64,
-    host_channel: u32,
-    root: u64,
+    slot: usize,
     bind_attempted: bool,
     bound: bool,
     buffers: Vec<OwnedGfxpBuffer>,
+}
+
+/// Unmap and free what `owned` holds, newest first, and give its slot back. A step that
+/// fails keeps the set (fail closed); returns the error.
+fn release_gfxp(
+    h: &mut HostMemory,
+    slots: Option<&mut crate::gfxpslot::Slots>,
+    reservation: u32,
+    owned: &mut OwnedGfxp,
+) -> Result<(), String> {
+    for b in owned.buffers.iter_mut().rev() {
+        if b.mapped {
+            let st = h.unmap_dma(b.virtual_handle.unwrap(), reservation, b.va, b.len, false);
+            if st != sys::NV_OK {
+                return Err(format!(
+                    "unmapping GFXP VA {:#x}: {}",
+                    b.va,
+                    status_name(st)
+                ));
+            }
+            b.mapped = false;
+        }
+        if let Some(vh) = b.virtual_handle {
+            h.free_object(vh)
+                .map_err(|st| format!("freeing GFXP virtual {vh:#x}: {}", status_name(st)))?;
+            b.virtual_handle = None;
+        }
+    }
+    owned.buffers.clear();
+    if let Some(s) = slots {
+        s.free(owned.slot);
+    }
+    Ok(())
+}
+
+/// Bind owned GFXP to host TSG `tsg` at its build, before its first schedule: a slot of the
+/// VM's slice, its five buffers mapped at the slot's fixed VAs in VA space `vas` through the
+/// reservation's handle, then `BIND {GFXP_SET, gfxp 1}` on the TSG and a GET on `channel`
+/// that must show 1. On an error what was made is released again (or kept, if that fails).
+#[allow(clippy::too_many_arguments)]
+fn attach_gfxp(
+    h: &mut HostMemory,
+    slots: &mut crate::gfxpslot::Slots,
+    vas: u32,
+    tsg: u32,
+    channel: u32,
+    reservation: u32,
+    guest_base: u64,
+) -> Result<OwnedGfxp, (Option<OwnedGfxp>, String)> {
+    let slot = slots
+        .alloc()
+        .ok_or((None, format!("all {} slots in use", slots.count())))?;
+    let mut owned = OwnedGfxp {
+        slot,
+        bind_attempted: false,
+        bound: false,
+        buffers: Vec::new(),
+    };
+    let result = (|| -> Result<(), String> {
+        let mut addresses = [0u64; 5];
+        for (k, (pa, va, len)) in slots.buffers(slot).into_iter().enumerate() {
+            if len == 0 {
+                continue;
+            }
+            let vh = h
+                .alloc_gfxp_virtual(vas, va, len)
+                .map_err(|st| format!("GFXP VA {va:#x}: {}", status_name(st)))?;
+            owned.buffers.push(OwnedGfxpBuffer {
+                virtual_handle: Some(vh),
+                va,
+                len,
+                mapped: false,
+            });
+            let st = h.map_dma_fixed(
+                vh,
+                reservation,
+                pa - guest_base,
+                len,
+                va,
+                nvrm_abi::nvgpu::nvos46_flags::PAGE_SIZE_4KB,
+                false,
+                Some(0x06),
+                false,
+            );
+            if st != sys::NV_OK {
+                return Err(format!(
+                    "GFXP map of slot {slot} buffer {:#x}: {}",
+                    crate::gfxpslot::ENGINES[k],
+                    status_name(st)
+                ));
+            }
+            owned.buffers.last_mut().unwrap().mapped = true;
+            addresses[k] = va;
+        }
+        owned.bind_attempted = true;
+        let st = bind_gfxp(h, tsg, 1, &addresses);
+        let (get, mode) = get_gfxp_mode(h, channel);
+        if st != sys::NV_OK || get != sys::NV_OK || mode != 1 {
+            return Err(format!(
+                "GFXP BIND/GET: bind {}, get {}, mode {mode:#x}",
+                status_name(st),
+                status_name(get)
+            ));
+        }
+        owned.bound = true;
+        Ok(())
+    })();
+    match result {
+        Ok(()) => Ok(owned),
+        Err(why) => {
+            // The context is not scheduled yet: back to WFI, then release.
+            if owned.bind_attempted {
+                let _ = bind_gfxp(h, tsg, 0, &[0; 5]);
+            }
+            match release_gfxp(h, Some(slots), reservation, &mut owned) {
+                Ok(()) => Err((None, why)),
+                Err(e) => Err((Some(owned), format!("{why}; release: {e}"))),
+            }
+        }
+    }
 }
 
 fn get_preemption_modes(host: &HostMemory, channel: u32) -> (u32, u32, u32) {
@@ -686,10 +805,6 @@ struct ShadowSpace {
     /// stands for their GR context ([`held_at_free`]); released at that TSG's host free.
     /// Changed only through [`ShadowSpace::hold`] and [`ShadowSpace::release`].
     held: BTreeMap<TsgKey, Vec<(u64, u64)>>,
-    /// Host-private ordinary-GFXP buffers mapped in this VAS. These ranges stay out of
-    /// the guest shadow even after a partial allocation or cleanup failure. Changed only
-    /// through [`ShadowSpace::add_private`] and [`ShadowSpace::drop_private`].
-    private: BTreeMap<TsgKey, Vec<(u64, u64)>>,
     chids: std::collections::BTreeSet<u32>,
     tsgs: std::collections::BTreeSet<TsgKey>,
 }
@@ -702,7 +817,6 @@ impl ShadowSpace {
             exclude: Vec::new(),
             set_b_stamp: None,
             held: BTreeMap::new(),
-            private: BTreeMap::new(),
             chids: Default::default(),
             tsgs: Default::default(),
         }
@@ -724,22 +838,6 @@ impl ShadowSpace {
             self.set_b_stamp = None;
         }
         r
-    }
-
-    /// A host-private range `[va, end)` of host TSG `key`, kept out of set A at once.
-    fn add_private(&mut self, key: TsgKey, va: u64, end: u64) {
-        self.private.entry(key).or_default().push((va, end));
-        self.exclude.push((va, end));
-        self.exclude.sort_unstable();
-        self.exclude.dedup();
-        self.set_b_stamp = None;
-    }
-
-    /// Forget the host-private ranges of host TSG `key`.
-    fn drop_private(&mut self, key: TsgKey) {
-        if self.private.remove(&key).is_some() {
-            self.set_b_stamp = None;
-        }
     }
 }
 
@@ -1156,7 +1254,6 @@ impl GlobalExtents {
         match space {
             Some(sp) => {
                 let mut out = set_b_with_held(live, &sp.held);
-                out.extend(sp.private.values().flatten().copied());
                 out.sort_unstable();
                 out.dedup();
                 out
@@ -1344,6 +1441,14 @@ pub struct Mirror {
     preemption_ready_tsg: std::collections::BTreeSet<TsgKey>,
     /// Host TSGs whose context preemption modes were read once (`log_preemption_modes`).
     modes_read: std::collections::BTreeSet<TsgKey>,
+    /// The owned-GFXP slots in the VM's slice (gfxpslot.rs); `None`: every host GR context
+    /// stays in graphics WFI.
+    slots: Option<crate::gfxpslot::Slots>,
+    /// The end of the guest's usable FB (fb.rs `FbLayout::usable`): the device CE's window.
+    usable_end: u64,
+    /// GFXP binds done at a host TSG's build, and TSGs left in WFI for want of a slot.
+    pub gfxp_bound: u64,
+    pub gfxp_no_slot: u64,
     /// Guest roots whose shadow VAS was handed to the teardown: the FB store drops their
     /// cached walks ([`Mirror::take_reaped_roots`]; before, a walk cache of up to 4M leaves
     /// stayed for every context that ever ran).
@@ -1428,6 +1533,21 @@ impl Mirror {
             None => None,
         };
         let worker = ShadowWorker::new(hm.clone(), intr.clone());
+        // Owned GFXP (gfxpslot.rs): the layout's slots, with the host's buffer geometry.
+        let slots = layout.gfxp_range().and_then(|range| {
+            match crate::gfxpslot::host_geometry(&hm.lock().unwrap()) {
+                Ok(g) if g.slot <= range.1 - range.0 => Some(crate::gfxpslot::Slots::new(range, g)),
+                Ok(g) => {
+                    eprintln!("vfio-user-nvgpu: WARNING gfxp slots: slot of {:#x} bytes above the carve-out {:#x}; none", g.slot, range.1 - range.0);
+                    None
+                }
+                Err(e) => {
+                    eprintln!("vfio-user-nvgpu: WARNING gfxp slots: none ({e})");
+                    None
+                }
+            }
+        });
+        let usable_end = layout.usable().map_or(end, |(_, e)| e);
         Ok(Mirror {
             hm,
             intr,
@@ -1525,6 +1645,10 @@ impl Mirror {
             preemption_ready: std::collections::BTreeSet::new(),
             preemption_ready_tsg: std::collections::BTreeSet::new(),
             modes_read: std::collections::BTreeSet::new(),
+            slots,
+            usable_end,
+            gfxp_bound: 0,
+            gfxp_no_slot: 0,
             reaped_roots: Vec::new(),
             released_roots: Vec::new(),
             exhausted: Default::default(),
@@ -2090,7 +2214,7 @@ impl Mirror {
         let empty: Vec<u64> = self
             .shadows
             .iter()
-            .filter(|(_, sp)| sp.chids.is_empty() && sp.tsgs.is_empty() && sp.private.is_empty())
+            .filter(|(_, sp)| sp.chids.is_empty() && sp.tsgs.is_empty())
             .map(|(r, _)| *r)
             .collect();
         for r in empty {
@@ -2280,7 +2404,9 @@ impl Mirror {
             crate::shadow::Layout::fenced()
         } else {
             crate::shadow::Layout::default()
-        };
+        }
+        // The owned-GFXP slot VA window is never mirrored (gfxpslot.rs).
+        .with_slot_window(self.slots.as_ref().map(|s| s.va_window()));
         if let std::collections::btree_map::Entry::Vacant(slot) = self.shadows.entry(root) {
             match crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone(), &layout) {
                 Ok(mut sv) => {
@@ -2382,6 +2508,7 @@ impl Mirror {
         // context on the host too, so state a push sets on one channel is what a launch
         // on another sees (the guest's layout; before, every channel got its own TSG and
         // context, and `self.tsgs` kept only the last handle).
+        let mut new_tsg = false;
         let tsg = match self.tsgs.get(&tsg_key) {
             Some(t) => {
                 notes.push(format!(
@@ -2432,9 +2559,13 @@ impl Mirror {
                         gfxp: None,
                     },
                 );
+                new_tsg = true;
                 tsg
             }
         };
+        // Owned GFXP for a new host TSG with a 3D object (gfxpslot.rs), bound in the build
+        // below before the first schedule; `None`: not attempted.
+        let mut gfxp: Option<Result<OwnedGfxp, (Option<OwnedGfxp>, String)>> = None;
         // Everything this build makes on the host, freed newest first when it fails (a
         // channel refused after its guest pages were wrapped, or built but never scheduled,
         // used to stay until the device exited: one leak per doorbell of a refused channel).
@@ -2614,6 +2745,26 @@ impl Mirror {
                     video_engine(engine).unwrap_or("copy engine")
                 ));
             }
+            // Owned GFXP (gfxpslot.rs): a new host TSG with a 3D object gets a slot of the VM's
+            // slice bound before its first schedule, for every guest (NVIDIA's vGPU binds GFXP
+            // for every 3D object of a Unix guest, rpc.c:3951-3956 of 615). No slot: the
+            // context stays in graphics WFI.
+            let three_d = objects
+                .iter()
+                .any(|(class, _)| crate::board::host_class_of(*class) == HOST_3D_CLASS);
+            if new_tsg && three_d {
+                if let Some(slots) = self.slots.as_mut() {
+                    gfxp = Some(attach_gfxp(
+                        &mut h,
+                        slots,
+                        vas_handle,
+                        tsg,
+                        channel,
+                        self.reservation,
+                        self.base,
+                    ));
+                }
+            }
             if let Some(u) = shadow_userd.as_mut() {
                 // Initialize an unscheduled, empty ring once. Later copies never
                 // overwrite GPU-owned state; new GPPut is published before the doorbell.
@@ -2644,6 +2795,18 @@ impl Mirror {
             Ok(b) => b,
             Err((why, st)) => {
                 notes.push(why);
+                // An owned GFXP set bound in this build goes back first (WFI, unmap, slot).
+                if let Some(Ok(mut set)) = gfxp.take() {
+                    let _ = bind_gfxp(&h, tsg, 0, &[0; 5]);
+                    if let Err(e) =
+                        release_gfxp(&mut h, self.slots.as_mut(), self.reservation, &mut set)
+                    {
+                        notes.push(format!("ERROR gfxp: tsg {tsg_key}: {e}; set retained"));
+                        if let Some(t) = self.tsgs.get_mut(&tsg_key) {
+                            t.gfxp = Some(set);
+                        }
+                    }
+                }
                 // Newest first: the channel (with its engine objects), then the guest pages.
                 let mut freed = true;
                 for d in owned.into_iter().rev() {
@@ -2665,6 +2828,35 @@ impl Mirror {
             }
         };
         let pages: Vec<u32> = owned.into_iter().filter(|d| *d != channel).collect();
+        match gfxp {
+            Some(Ok(set)) => {
+                let (lo, hi) = self
+                    .slots
+                    .as_ref()
+                    .map(|s| s.range(set.slot))
+                    .unwrap_or_default();
+                notes.push(format!(
+                    "shadow: tsg {tsg_key}: owned GFXP bound at build (slot {} of the VM's slice [{lo:#x}, {hi:#x}), graphics mode 1 verified) [host]",
+                    set.slot
+                ));
+                self.gfxp_bound += 1;
+                if let Some(t) = self.tsgs.get_mut(&tsg_key) {
+                    t.gfxp = Some(set);
+                }
+            }
+            Some(Err((kept, why))) => {
+                let line = format!(
+                    "WARNING gfxp: tsg {tsg_key} (guest chid {chid}) stays in graphics WFI: {why}"
+                );
+                eprintln!("vfio-user-nvgpu: {line}");
+                notes.push(line);
+                self.gfxp_no_slot += 1;
+                if let (Some(set), Some(t)) = (kept, self.tsgs.get_mut(&tsg_key)) {
+                    t.gfxp = Some(set);
+                }
+            }
+            None => {}
+        }
         self.stats.channels_created += 1;
         self.channels.insert(
             chid,
@@ -2861,130 +3053,6 @@ impl Mirror {
         ))
     }
 
-    /// Bind mirror-owned ordinary-GFXP buffers to one prepared GR TSG. Every address in
-    /// the BIND is selected by host RM in the private shadow VAS; guest pointers are not
-    /// forwarded.
-    pub fn bind_owned_gfxp(&mut self, reg: &Registry, client: u32, guest_tsg: u32) -> Result<Vec<String>, String> {
-        let guest = reg.resolve((client, guest_tsg));
-        if reg.tsg(guest).is_none_or(|(_, engine)| engine != 1) {
-            return Err("owned GFXP target is not a live GR TSG".into());
-        }
-        let key = tsg_key_of_guest(reg, guest).ok_or("owned GFXP target has no TSG key")?;
-        let mut members = reg.channels().filter(|ch| tsg_key_of(reg, ch).0 == key);
-        let ch = members.next().ok_or("owned GFXP TSG has no channel")?;
-        if members.next().is_some() {
-            return Err("owned GFXP currently requires a single-channel TSG".into());
-        }
-        let (chid, generation) = (ch.chid, ch.generation);
-        let vas_key = reg.vas_key_of(ch).ok_or("owned GFXP target has no VAS")?;
-        let root = match reg.vas_root(vas_key) {
-            Some(Target::Fb(root)) => root,
-            _ => return Err("owned GFXP target has no shadow FB root".into()),
-        };
-        let (host_channel, host_tsg, vas) = {
-            let hc = self.channels.get(&chid)
-                .filter(|hc| hc.generation == generation && hc.context_ready && hc.tsg == key)
-                .ok_or("owned GFXP target has no prepared and promoted host context")?;
-            let ht = self.tsgs.get(&key).ok_or("owned GFXP host TSG is gone")?;
-            if ht.guest != guest || ht.engine != 1 || ht.vas != vas_key || hc.shadow_root != Some(root) {
-                return Err("owned GFXP host TSG identity changed".into());
-            }
-            if let Some(gfxp) = ht.gfxp.as_ref() {
-                if gfxp.chid == chid && gfxp.generation == generation && gfxp.host_channel == hc.handle
-                    && gfxp.root == root && gfxp.bound {
-                    return Ok(vec![format!("tsg {key}: owned ordinary-GFXP buffers already bound to chid {chid} generation {generation} [host]")]);
-                }
-                return Err("owned GFXP TSG has retained partial or mismatched state".into());
-            }
-            let userd = hc.userd.as_ref().ok_or("owned GFXP target has no private USERD")?;
-            if hc.doorbells != 0 || userd.published_put.is_some()
-                || userd.storage.read_u32(USERD_GP_GET) != 0 || userd.storage.read_u32(USERD_GP_PUT) != 0 {
-                return Err("owned GFXP target is not an empty first-use context at cursor zero".into());
-            }
-            (hc.handle, ht.handle, self.shadows.get(&root).ok_or("owned GFXP shadow VAS is gone")?.vas)
-        };
-        if self.tsgs.values().filter(|t| t.gfxp.is_some()).count() >= GFXP_TSG_CAP {
-            return Err(format!("owned GFXP cap of {GFXP_TSG_CAP} TSGs reached"));
-        }
-
-        self.channels.get_mut(&chid).unwrap().context_ready = false;
-        let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
-            | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
-        let (status, idle_note) = self.idle_host_channels(&[(chid, host_channel)], flags, 100_000);
-        if status != sys::NV_OK { return Err(idle_note); }
-        let hc = self.channels.get(&chid).filter(|hc| hc.generation == generation && hc.handle == host_channel
-            && hc.tsg == key && hc.shadow_root == Some(root)).ok_or("owned GFXP target changed while idling")?;
-        let userd = hc.userd.as_ref().ok_or("owned GFXP private USERD disappeared")?;
-        if hc.doorbells != 0 || userd.published_put.is_some()
-            || userd.storage.read_u32(USERD_GP_GET) != 0 || userd.storage.read_u32(USERD_GP_PUT) != 0 {
-            return Err("owned GFXP target changed from its empty initial state while idling".into());
-        }
-        self.worker.wait_all();
-        self.worker.wait_idle();
-
-        let mut owned = OwnedGfxp { chid, generation, host_channel, root, bind_attempted: false, bound: false, buffers: Vec::new() };
-        let mut notes = vec![idle_note];
-        let attempt = (|| -> Result<(), String> {
-            let mut addresses = [0u64; 5];
-            let mut total = 0u64;
-            let mut host = self.hm.lock().unwrap();
-            for (slot, engine) in (0xbu32..=0xf).enumerate() {
-                let mut p = [0u8; 12];
-                p[..4].copy_from_slice(&engine.to_le_bytes());
-                let st = host.control(host.device(), CMD_GET_ENGINE_CONTEXT_PROPERTIES, &mut p);
-                let alignment = u32::from_le_bytes(p[4..8].try_into().unwrap()) as u64;
-                let size = u32::from_le_bytes(p[8..12].try_into().unwrap()) as u64;
-                if st != sys::NV_OK || (size != 0 && !alignment.is_power_of_two()) {
-                    return Err(format!("GFXP property {engine:#x} refused or invalid: {} size {size:#x} alignment {alignment:#x}", status_name(st)));
-                }
-                if size == 0 {
-                    notes.push(format!("GFXP buffer {engine:#x}: host reports no allocation required [host]"));
-                    continue;
-                }
-                let alignment = alignment.max(PAGE);
-                let len = size.checked_add(alignment - 1).map(|n| n & !(alignment - 1)).ok_or("GFXP buffer size overflow")?;
-                total = total.checked_add(len).ok_or("GFXP total size overflow")?;
-                if total > GFXP_BUFFER_CAP { return Err(format!("GFXP buffers exceed the {GFXP_BUFFER_CAP:#x}-byte cap")); }
-                let memory = host.alloc_host_gfxp(len, alignment)
-                    .map_err(|st| format!("GFXP physical {engine:#x}: {}", status_name(st)))?;
-                owned.buffers.push(OwnedGfxpBuffer { memory: Some(memory), virtual_handle: None, va: 0, len, mapped: false });
-                let buffer = owned.buffers.last_mut().unwrap();
-                let (virtual_handle, va) = host.alloc_virtual_aligned(vas, len, alignment)
-                    .map_err(|st| format!("GFXP virtual {engine:#x}: {}", status_name(st)))?;
-                buffer.virtual_handle = Some(virtual_handle);
-                buffer.va = va;
-                if !crate::hostmem::valid_aligned_virtual(len, alignment, va) {
-                    return Err("GFXP host virtual allocation returned an invalid range; handle retained".into());
-                }
-                let end = va.checked_add(len).ok_or("GFXP private VA overflow")?;
-                let sp = self.shadows.get_mut(&root).ok_or("GFXP shadow disappeared")?;
-                sp.add_private(key, va, end);
-                let st = host.map_dma_fixed(virtual_handle, buffer.memory.as_ref().unwrap().handle(), 0, len, va,
-                    nvrm_abi::nvgpu::nvos46_flags::PAGE_SIZE_4KB, false, None, false);
-                if st != sys::NV_OK { return Err(format!("GFXP map {engine:#x}: {}", status_name(st))); }
-                buffer.mapped = true;
-                addresses[slot] = va;
-                notes.push(format!("GFXP buffer {engine:#x}: size {size:#x}, mapped span {len:#x} at private VA {va:#x} [host]"));
-            }
-            owned.bind_attempted = true;
-            let st = bind_gfxp(&host, host_tsg, 1, &addresses);
-            let (get_st, mode) = get_gfxp_mode(&host, host_channel);
-            if st != sys::NV_OK || get_st != sys::NV_OK || mode != 1 {
-                return Err(format!("GFXP BIND1/GET refused: bind {}, get {}, mode {mode:#x}", status_name(st), status_name(get_st)));
-            }
-            owned.bound = true;
-            notes.push(format!("tsg {key}: host-owned ordinary-GFXP mode 1 bound and verified ({total} bytes) [host]"));
-            Ok(())
-        })();
-        self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
-        if attempt.is_ok() {
-            self.channels.get_mut(&chid).unwrap().context_ready = true;
-            Ok(notes)
-        } else {
-            Err(format!("{}; resources retained and target blocked", attempt.unwrap_err()))
-        }
-    }
-
     /// Set compute CTA preemption on an exact host-owned ordinary-GFXP context. This
     /// translates only the captured pointer-free shape: flags COMPUTE, CTA mode, every
     /// buffer and route field zero. The guest's control payload is never consumed.
@@ -3018,9 +3086,6 @@ impl Mirror {
             _ => return Err(format!("compute preemption mode {mode:#x} is not CTA or CILP")),
         };
         let (key, host_tsg, with_gfxp, hosted) = self.prepared_tsg(reg, client, guest_tsg, what)?;
-        if with_gfxp && hosted.len() != 1 {
-            return Err(format!("owned {what} with an owned GFXP set requires a single-channel TSG"));
-        }
         let (_, _, probe) = hosted[0];
         let gfxp_before = {
             let host = self.hm.lock().unwrap();
@@ -3129,43 +3194,12 @@ impl Mirror {
         if hosted.is_empty() {
             return Err(format!("owned {what} TSG has no prepared host context"));
         }
-        if let Some(owned) = ht.gfxp.as_ref() {
-            let (chid, generation, handle) = hosted[0];
-            if !(owned.bound && owned.chid == chid && owned.generation == generation
-                && owned.host_channel == handle)
-            {
-                return Err(format!("owned {what}: the TSG's ordinary-GFXP set is not the exact bound one"));
-            }
-        }
-        Ok((key, ht.handle, ht.gfxp.is_some(), hosted))
-    }
-
-    /// The guest's pointer-free graphics BIND to WFI (flags GFXP_SET, gfxpPreemptMode 0; run
-    /// P22): nothing is bound on the host; a GET on a prepared host channel of the TSG must
-    /// show graphics WFI. Refused otherwise.
-    pub fn confirm_gfx_wfi(
-        &mut self,
-        reg: &Registry,
-        client: u32,
-        guest_tsg: u32,
-    ) -> Result<Vec<String>, String> {
-        let (key, _, _, hosted) = self.prepared_tsg(reg, client, guest_tsg, "graphics WFI")?;
-        let host = self.hm.lock().unwrap();
-        let (st, gfxp, cilp) = get_preemption_modes(&host, hosted[0].2);
-        drop(host);
-        if st != sys::NV_OK || gfxp != 0 {
+        if ht.gfxp.as_ref().is_some_and(|owned| !owned.bound) {
             return Err(format!(
-                "graphics WFI not confirmed: host GET {}, gfxp {gfxp:#x}, cilp {cilp:#x}",
-                status_name(st)
+                "owned {what}: the TSG's owned-GFXP set is not bound"
             ));
         }
-        for (chid, generation, _) in &hosted {
-            self.note_preemption_ready(*chid, *generation);
-        }
-        self.preemption_ready_tsg.insert(key);
-        Ok(vec![format!(
-            "tsg {key}: host context confirmed in graphics WFI (GET gfxp 0, cilp {cilp:#x}); nothing bound [host read]"
-        )])
+        Ok((key, ht.handle, ht.gfxp.is_some(), hosted))
     }
 
     /// The host context's graphics and compute preemption modes, read once per host GR TSG
@@ -4354,6 +4388,7 @@ impl Mirror {
             &mut h,
             fb,
             (self.base, self.end),
+            self.usable_end,
             (host_base, host_end),
             self.reservation,
             crate::board::host_class_of(self.chip.channel.gpfifo),
@@ -4740,9 +4775,9 @@ impl Mirror {
         let sp = self.shadows.get(&root)?;
         let hit = |r: &[(u64, u64)]| r.iter().any(|(lo, hi)| page < *hi && page + PAGE > *lo);
         let set_b = hit(&sp.exclude) || sp.held.values().any(|r| hit(r));
-        let private = sp.private.values().any(|r| hit(r));
+        let slot_window = sp.front.layout.slot_window.is_some_and(|w| hit(&[w]));
         Some(format!(
-            "shadow fault diagnostic: chid {chid} fault {va:#x} type {fault_type:#x} ({what}) on shadow root {root:#x}: guest {guest}; shadow {host}; set B {set_b}; host-private {private}{} [host read]",
+            "shadow fault diagnostic: chid {chid} fault {va:#x} type {fault_type:#x} ({what}) on shadow root {root:#x}: guest {guest}; shadow {host}; set B {set_b}; GFXP slot window {slot_window}{} [host read]",
             sp.front.layout.unmirrorable(page, page + PAGE).map_or(String::new(), |why| format!("; unmirrorable: {why}"))
         ))
     }
@@ -4753,32 +4788,37 @@ impl Mirror {
         let Some(mut owned) = self.tsgs.get_mut(&key).and_then(|t| t.gfxp.take()) else {
             return true;
         };
-        let Some((host_tsg, host_channel)) = self.tsgs.get(&key).and_then(|t| {
-            self.channels.get(&owned.chid)
-                .filter(|hc| hc.generation == owned.generation && hc.tsg == key
-                    && hc.handle == owned.host_channel && hc.shadow_root == Some(owned.root))
-                .map(|hc| (t.handle, hc.handle))
-        }) else {
-            self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
-            notes.push(format!("tsg {key}: ERROR owned GFXP channel identity changed; retained"));
-            return false;
-        };
-        self.channels.get_mut(&owned.chid).unwrap().context_ready = false;
-        let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
-            | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
-        let (status, note) = self.idle_host_channels(&[(owned.chid, host_channel)], flags, 100_000);
-        notes.push(note);
-        if status != sys::NV_OK {
-            self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
-            return false;
+        let host_tsg = self.tsgs.get(&key).map(|t| t.handle);
+        // The TSG's host channels, idled before the BIND to WFI (the context must not run).
+        let hosted: Vec<(u32, u32)> = self
+            .channels
+            .iter()
+            .filter(|(_, hc)| hc.tsg == key)
+            .map(|(c, hc)| (*c, hc.handle))
+            .collect();
+        if !hosted.is_empty() {
+            let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER
+                | sys::NVOS30_FLAGS_IDLE_CACHE1
+                | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES)
+                << 8)
+                | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
+            let (status, note) = self.idle_host_channels(&hosted, flags, 100_000);
+            notes.push(note);
+            if status != sys::NV_OK {
+                self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
+                return false;
+            }
         }
         if owned.bind_attempted {
             let host = self.hm.lock().unwrap();
-            let bind = bind_gfxp(&host, host_tsg, 0, &[0; 5]);
-            let (get, mode) = get_gfxp_mode(&host, host_channel);
+            let bind = host_tsg.map_or(sys::NV_OK, |t| bind_gfxp(&host, t, 0, &[0; 5]));
+            let (get, mode) = hosted
+                .first()
+                .map_or((sys::NV_OK, 0), |(_, hc)| get_gfxp_mode(&host, *hc));
             if bind != sys::NV_OK || get != sys::NV_OK || mode != 0 {
                 notes.push(format!("tsg {key}: ERROR GFXP BIND WFI/GET: bind {}, get {}, mode {mode:#x}; retained",
                     status_name(bind), status_name(get)));
+                drop(host);
                 self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
                 return false;
             }
@@ -4787,51 +4827,28 @@ impl Mirror {
         self.worker.wait_all();
         self.worker.wait_idle();
         let mut host = self.hm.lock().unwrap();
-        for buffer in owned.buffers.iter_mut().rev() {
-            if buffer.mapped {
-                let st = host.unmap_dma(buffer.virtual_handle.unwrap(), buffer.memory.as_ref().unwrap().handle(), buffer.va, buffer.len, false);
-                if st != sys::NV_OK {
-                    notes.push(format!("tsg {key}: ERROR unmapping private GFXP VA {:#x}: {}; retained", buffer.va, status_name(st)));
-                    drop(host);
-                    self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
-                    return false;
-                }
-                buffer.mapped = false;
-            }
-            if let Some(handle) = buffer.virtual_handle {
-                if let Err(st) = host.free_object(handle) {
-                    notes.push(format!("tsg {key}: ERROR freeing private GFXP virtual {handle:#x}: {}; retained", status_name(st)));
-                    drop(host);
-                    self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
-                    return false;
-                }
-                buffer.virtual_handle = None;
-            }
-            if let Some(memory) = buffer.memory.take() {
-                if let Err((st, memory)) = host.free_host_gfxp(memory) {
-                    buffer.memory = Some(memory);
-                    notes.push(format!("tsg {key}: ERROR freeing private GFXP memory: {}; retained", status_name(st)));
-                    drop(host);
-                    self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
-                    return false;
-                }
-            }
+        if let Err(e) = release_gfxp(&mut host, self.slots.as_mut(), self.reservation, &mut owned) {
+            notes.push(format!("tsg {key}: ERROR {e}; retained"));
+            drop(host);
+            self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
+            return false;
         }
         drop(host);
-        if let Some(sp) = self.shadows.get_mut(&owned.root) {
-            sp.drop_private(key);
-            // `exclude` is the merged live + held + private set. Do not subtract exact
-            // tuples here: another owner may have the same range. The normal root re-sync
-            // recomputes it from all owners after `released_roots` is consumed.
-            self.released_roots.push(owned.root);
-        }
-        notes.push(format!("tsg {key}: owned ordinary-GFXP buffers detached and freed [host]"));
+        notes.push(format!(
+            "tsg {key}: owned GFXP back to WFI, slot {} freed [host]",
+            owned.slot
+        ));
         true
     }
 
     fn free_channel(&mut self, chid: u32, notes: &mut Vec<String>) -> bool {
+        // The owned-GFXP set belongs to the TSG's context: it goes with the TSG's last host
+        // channel (or its 3D object, `free_host_objects`).
         if let Some(key) = self.channels.get(&chid).map(|hc| hc.tsg) {
-            if !self.free_owned_gfxp(key, notes) { return false; }
+            let last = self.channels.values().filter(|hc| hc.tsg == key).count() == 1;
+            if last && !self.free_owned_gfxp(key, notes) {
+                return false;
+            }
         }
         self.exhausted.remove(&chid);
         self.exhausted_raised.remove(&chid);
@@ -5101,7 +5118,7 @@ impl Mirror {
     /// [`Mirror::free_object`] without the set-B holds.
     fn free_host_objects(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
         let mut notes = Vec::new();
-        if let Some((chid, generation, _, _)) = reg.engine_object(h_client, h_object) {
+        if let Some((chid, generation, class, _)) = reg.engine_object(h_client, h_object) {
             if self.video_pending.get(&chid).is_some_and(|(handle, _, _)| *handle == h_object) {
                 self.video_pending.remove(&chid);
                 notes.push(format!("chid {chid}: pending engine {h_object:#x} dropped [guest]"));
@@ -5110,7 +5127,10 @@ impl Mirror {
                 .filter(|hc| hc.generation == generation)
                 .map(|hc| hc.tsg)
             {
-                if self.tsgs.get(&key).is_some_and(|t| t.gfxp.is_some())
+                // The 3D object's GFXP set goes before it (NVIDIA's vGPU BINDs WFI before it
+                // frees the buffers, rpc.c:3051-3110 of 615).
+                if crate::board::host_class_of(class) == HOST_3D_CLASS
+                    && self.tsgs.get(&key).is_some_and(|t| t.gfxp.is_some())
                     && !self.free_owned_gfxp(key, &mut notes)
                 {
                     notes.push(format!("chid {chid}: engine {h_object:#x} retained because owned GFXP cleanup failed"));
@@ -5279,6 +5299,10 @@ impl Mirror {
             .device_ce
             .as_ref()
             .map_or(String::new(), |c| format!("; {}", c.lock().unwrap_or_else(|e| e.into_inner()).summary()))
+            + &self.slots.as_ref().map_or("; gfxp slots: none (every host GR context in graphics WFI)".to_string(), |sl| format!(
+                "; gfxp slots: {} of {} in use, {} TSG(s) bound GFXP at build, {} left in WFI",
+                sl.in_use(), sl.count(), self.gfxp_bound, self.gfxp_no_slot
+            ))
     }
 }
 
@@ -7158,21 +7182,11 @@ mod tests {
         resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
         assert_eq!(ext.computed.get(), computed(6));
         assert_eq!(sp.exclude, set_b);
-        // A private range: out of set A at once, and kept by the computation it forces.
-        sp.add_private(key, 0x2_4000_0000, 0x2_4001_0000);
-        assert!(sp.exclude.contains(&(0x2_4000_0000, 0x2_4001_0000)));
-        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
-        assert_eq!(ext.computed.get(), computed(7));
-        assert!(sp.exclude.contains(&(0x2_4000_0000, 0x2_4001_0000)));
-        sp.drop_private(key);
-        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
-        assert_eq!(ext.computed.get(), computed(8));
-        assert_eq!(sp.exclude, set_b);
         // A channel of another root changes the registry: set B is computed again (and
         // stays the same).
         reg.record_free(0xc1f0_0001, 0x206);
         assert!(!resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false));
-        assert_eq!(ext.computed.get(), computed(9));
+        assert_eq!(ext.computed.get(), computed(7));
         assert_eq!(sp.exclude, set_b);
         // A host size not answered for good (a transient error) is asked again at the next
         // refresh, and once answered the stamp holds.
@@ -7265,7 +7279,6 @@ mod tests {
         let old_set_b = || {
             let live = exclusions_of(reg, root, |id, va| old_ext.extent(Some(fb), root, id, va, &query));
             let mut out = set_b_with_held(live, &sp.held);
-            out.extend(sp.private.values().flatten().copied());
             out.sort_unstable();
             out.dedup();
             out

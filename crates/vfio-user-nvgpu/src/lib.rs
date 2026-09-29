@@ -37,6 +37,7 @@ pub mod falcon;
 pub mod families;
 pub mod fwdcache;
 pub mod fb;
+pub mod gfxpslot;
 pub mod gmcapi;
 pub mod gspboot;
 pub mod gspmem;

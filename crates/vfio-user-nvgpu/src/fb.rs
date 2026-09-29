@@ -45,6 +45,10 @@ pub struct FbLayout {
     /// P21 design H: bytes of the reservation below the carve-out held back as the BAR1
     /// pool (docs/caraxes/bar1-pool.md); 0 without it. Taken out of the usable FB.
     pub pool: u64,
+    /// Bytes of the reservation below the BAR1 pool held as the owned-GFXP slots
+    /// (gfxpslot.rs, docs/research/gr-preemption-2026-09-29.md step 2); 0 without them.
+    /// Taken out of the usable FB and reported reserved; device-private.
+    pub gfxp: u64,
     /// Real compression per VM slice (`CARAXES_COMPRESSION=slice`, compression.rs): the
     /// guest is told that its usable FB is compressible. Only with a reservation, whose
     /// physical pages carry their own comptag lines ([`Self::with_compression`]).
@@ -60,6 +64,7 @@ impl FbLayout {
             reservation: None,
             host_reservation: None,
             pool: 0,
+            gfxp: 0,
             compressible: false,
         }
     }
@@ -90,6 +95,7 @@ impl FbLayout {
             reservation: Some((base, end)),
             host_reservation: Some((base, end)),
             pool: 0,
+            gfxp: 0,
             compressible: false,
         })
     }
@@ -153,6 +159,47 @@ impl FbLayout {
         })
     }
 
+    /// The same layout with `len` bytes (a multiple of 2 MiB) of owned-GFXP slots carved from
+    /// the top of the usable FB, right below the BAR1 pool (or the carve-out): the region
+    /// table reports them reserved with the rest above the usable end, and they join the
+    /// device's private pages ([`Self::private_ranges`]).
+    pub fn with_gfxp(self, len: u64) -> Result<Self, String> {
+        let (lo, hi) = self
+            .usable()
+            .ok_or("GFXP slots need a VRAM reservation (--reserve-vram)")?;
+        if len == 0 || len % (2 * MIB) != 0 || len.saturating_add(2 * MIB) > hi - lo {
+            return Err(format!(
+                "GFXP slots of {len:#x} bytes do not fit the usable FB [{lo:#x}, {hi:#x}) in 2 MiB units"
+            ));
+        }
+        Ok(FbLayout {
+            gfxp: self.gfxp + len,
+            ..self
+        })
+    }
+
+    /// The owned-GFXP slots `[start, end)`, right below the BAR1 pool, when there are some.
+    pub fn gfxp_range(&self) -> Option<(u64, u64)> {
+        match self.reservation {
+            Some((_, end)) if self.gfxp > 0 => {
+                let top = end - CARVE_OUT - self.pool;
+                Some((top - self.gfxp, top))
+            }
+            _ => None,
+        }
+    }
+
+    /// The device's private pages: no guest BAR, PRAMIN, CE or shadow access may reach them
+    /// (`FakeFb::set_private`): the owned-GFXP slots and the top of the carve-out (the device
+    /// CE's and the invalidator's tables and rings, devce.rs `PRIVATE_AT`).
+    pub fn private_ranges(&self) -> Vec<(u64, u64)> {
+        let mut out: Vec<(u64, u64)> = self.gfxp_range().into_iter().collect();
+        if let Some((base, end)) = self.reservation {
+            out.push((end.saturating_sub(crate::devce::PRIVATE_AT).max(base), end));
+        }
+        out
+    }
+
     /// The same layout with its usable FB given to the guest as compressible (`on`) or not.
     /// In 1:1 comptag mode a page's comptag line follows from its physical address
     /// (compression.rs), so only a reservation can be: its lines are this VM's alone. Set
@@ -183,11 +230,11 @@ impl FbLayout {
             .map(|(_, end)| (end - CARVE_OUT, end - CARVE_OUT + PAGE))
     }
 
-    /// The usable FB `[base, end - CARVE_OUT - pool)` the region table gives the guest's
-    /// heap, with a reservation.
+    /// The usable FB `[base, end - CARVE_OUT - pool - gfxp)` the region table gives the
+    /// guest's heap, with a reservation.
     pub fn usable(&self) -> Option<(u64, u64)> {
         self.reservation
-            .map(|(base, end)| (base, end - CARVE_OUT - self.pool))
+            .map(|(base, end)| (base, end - CARVE_OUT - self.pool - self.gfxp))
     }
 
     /// Whether `[pa, pa + len)` lies inside the reservation or plain address space.
@@ -963,7 +1010,7 @@ pub struct FakeFb {
     /// the device CE's and the invalidator's tables and rings), with host execution: a
     /// guest BAR access or BAR table there is refused ([`Self::bar_access`], the PRAMIN
     /// window in boot.rs, the BAR2 memfd), and counted.
-    private: Option<(u64, u64)>,
+    private: Vec<(u64, u64)>,
     private_refused: Cell<u64>,
 }
 
@@ -994,23 +1041,23 @@ impl FakeFb {
             bar2: None,
             device_ce: None,
             mmu_v3: false,
-            private: None,
+            private: Vec::new(),
             private_refused: Cell::new(0),
         }
     }
 
-    /// See [`FakeFb::private`]; the BAR2 memfd follows.
-    pub fn set_private(&mut self, private: Option<(u64, u64)>) {
-        self.private = private;
+    /// See [`FakeFb::private`] (`FbLayout::private_ranges`); the BAR2 memfd follows.
+    pub fn set_private(&mut self, private: Vec<(u64, u64)>) {
         if let Some(a) = self.bar2.as_deref_mut() {
-            a.set_private(private);
+            a.set_private(private.clone());
         }
+        self.private = private;
     }
 
     /// Whether `[pa, pa + len)` touches the device's private pages.
     pub fn private_overlaps(&self, pa: u64, len: u64) -> bool {
-        self.private
-            .is_some_and(|(b, e)| pa < e && b < pa.saturating_add(len.max(1)))
+        let end = pa.saturating_add(len.max(1));
+        self.private.iter().any(|&(b, e)| pa < e && b < end)
     }
 
     /// Count a guest access refused at the private pages (returns the new count).
@@ -1357,7 +1404,7 @@ impl FakeFb {
             return Err("the BAR2 memfd follows GMMU v2 tables only (this chip uses v3)".into());
         }
         let mut area = area;
-        area.set_private(self.private);
+        area.set_private(self.private.clone());
         self.bar2 = Some(Box::new(area));
         Ok(())
     }
@@ -1431,7 +1478,7 @@ impl FakeFb {
             drop(pool);
             self.store.flush();
             a.reset_mapping();
-            a.set_private(to.private);
+            a.set_private(to.private.clone());
             to.bar2 = Some(a);
         }
     }
@@ -2469,7 +2516,7 @@ mod tests {
     fn guest_bar_accesses_to_the_private_pages_are_refused() {
         use crate::bar2area::{Bar2Area, Config};
         let mut fb = FakeFb::new(1 << 20);
-        fb.set_private(Some((0xF_0000, 0x10_0000)));
+        fb.set_private(vec![(0xF_0000, 0x10_0000)]);
         let vid = |a: u64| ((a >> 12) << 8) | 0b010;
         let pte = |a: u64| ((a >> 12) << 8) | 1;
         let (root, pd2, pd1, pd0, pt) = (0x10000, 0x11000, 0x12000, 0x13000, 0x14000);
@@ -2523,6 +2570,48 @@ mod tests {
         assert!(fb.bar2_sync(Some(root), None));
         assert_eq!(fb.backing(0x20000), Backing::Bar2Memfd(0x1000));
         assert_eq!(fb.backing(0xF_1000), Backing::Store);
+    }
+
+    /// The owned-GFXP slots (fb.rs `FbLayout::with_gfxp`): carved below the BAR1 pool, out of
+    /// the usable FB (so the region table reports them reserved), and among the device's
+    /// private pages with the top of the carve-out.
+    #[test]
+    fn gfxp_slots_sit_below_the_pool_and_are_private() {
+        const MIB: u64 = 1 << 20;
+        let (base, end) = (0x4000_0000u64, 0x8000_0000u64);
+        let l = FbLayout::reserved(1 << 30, 8 << 30, base, end).unwrap();
+        assert_eq!(l.gfxp_range(), None);
+        let l = l.with_pool(4 * MIB).unwrap().with_gfxp(14 * MIB).unwrap();
+        assert_eq!(l.pool_range(), Some((end - 6 * MIB, end - 2 * MIB)));
+        assert_eq!(l.gfxp_range(), Some((end - 20 * MIB, end - 6 * MIB)));
+        assert_eq!(l.usable(), Some((base, end - 20 * MIB)));
+        assert_eq!(
+            l.private_ranges(),
+            vec![
+                (end - 20 * MIB, end - 6 * MIB),
+                (end - crate::devce::PRIVATE_AT, end)
+            ]
+        );
+        assert!(l.with_gfxp(MIB).is_err(), "2 MiB units");
+        assert!(l.with_gfxp(1 << 30).is_err(), "must fit the usable FB");
+        // A guest BAR access through a PTE into a slot is refused like the top pages.
+        let mut fb = FakeFb::new(1 << 20);
+        fb.set_private(vec![(0x8_0000, 0x9_0000), (0xF_0000, 0x10_0000)]);
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        let (root, pd2, pd1, pd0, pt) = (0x10000, 0x11000, 0x12000, 0x13000, 0x14000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        fb.write_u64(pt + 8, pte(0x8_1000));
+        fb.write_u64(0x8_1000, 0x77);
+        let mem = GuestMemory::new();
+        let mut d = [0xAAu8; 8];
+        fb.bar_access(&mem, root, 0x1000, &mut d, true);
+        assert_eq!(fb.read_u64(0x8_1000), Some(0x77));
+        assert_eq!(fb.private_refused(), 1);
+        assert!(fb.private_overlaps(0x7_F000, 0x2000) && !fb.private_overlaps(0x9_0000, 0x1000));
     }
 
     /// The BAR2 memfd's drift check: a GPU engine's write to VRAM behind a mapped page (the
