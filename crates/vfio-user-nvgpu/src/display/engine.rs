@@ -511,6 +511,17 @@ pub struct MemRef {
 }
 
 impl MemRef {
+    /// The four words of the 16-byte record (NV_DISP_NOTIFIER layout), for the trace.
+    fn record(&self, fb: &FakeFb, mem: &GuestMemory) -> Option<[u32; 4]> {
+        let mut b = [0u8; 16];
+        let ok = if self.target == 1 {
+            fb.read(self.addr, &mut b)
+        } else {
+            mem.read(self.addr, &mut b)
+        };
+        ok.then(|| std::array::from_fn(|i| u32::from_le_bytes(b[4 * i..4 * i + 4].try_into().unwrap())))
+    }
+
     fn read32(&self, fb: &FakeFb, mem: &GuestMemory) -> Option<u32> {
         let mut b = [0u8; 4];
         let ok = if self.target == 1 {
@@ -1091,6 +1102,21 @@ impl Engine {
         }
         let f = self.windows[w].pending.pop_front().unwrap();
         let stamp = ptimer_stamp(tick_ns).to_le_bytes();
+        // What the guest left in the records before the device writes them (the trace of
+        // the first latches): how its driver resets a notifier and a semaphore.
+        let before = |m: Option<MemRef>| {
+            m.and_then(|m| m.record(fb, mem))
+                .map_or("-".to_string(), |r| format!("[{:#x} {:#x} {:#x} {:#x}]", r[0], r[1], r[2], r[3]))
+        };
+        let seen = if self.windows[w].flips < 32 {
+            format!(
+                "; before: notifier {}, previous release {}",
+                before(f.notifier.map(|(m, _)| m)),
+                before(self.windows[w].prev_release.map(|(m, _)| m))
+            )
+        } else {
+            String::new()
+        };
         let win = &mut self.windows[w];
         // The previous presentation's release: its surface is displaced now ("To match
         // display hardware behavior, we release the semaphore when we flip *away*",
@@ -1149,7 +1175,7 @@ impl Engine {
                 f.notifier.map_or("none".into(), |(m, a)| format!("{}{}", m.describe(), if a { " awaken" } else { "" })),
                 f.acquire.map_or("none".into(), |(m, v)| format!("{} == {v:#x}", m.describe())),
                 f.release.map_or("none".into(), |(m, v)| format!("{} := {v:#x}", m.describe())),
-            );
+            ) + &seen;
             self.note(line);
         }
         true
