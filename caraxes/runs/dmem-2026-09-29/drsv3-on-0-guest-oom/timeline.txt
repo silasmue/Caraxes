@@ -1,0 +1,59 @@
+11:26:02 vm up
+      1 <value name="ExtraCommandLine" type="string">-benchmark</value>
+      1 <value name="ExtraCommandLineEnabled" type="integer">1</value>
+      2 <value name="FullscreenHeight" type="integer">1080</value>
+      2 <value name="FullscreenWidth" type="integer">1920</value>
+      1 <value name="GameOptionsDialogShouldShow" type="integer">0</value>
+      3 <value name="ScreenH" type="integer">1080</value>
+      3 <value name="ScreenW" type="integer">1920</value>
+loaded /opt/caraxes/display-reserve-v2/6.8.0-136-generic: nvidia (NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 09:12:12 UTC 2026), nvidia_modeset display_reserve_mib=-1; RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+modules-ok
+sunshine: active 0::/user.slice/user-1000.slice/user@1000.service/session.slice/app-dev.lizardbyte.app.Sunshine.service
+caraxes-dmem-cap (off): inactive
+Starting caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: no dmem controller in kernel 6.8.0-136-generic (needs >= 6.14 with CONFIG_CGROUP_DMEM): no cap
+Finished caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+Stopping caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+Stopped caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+kernel 6.8.0-136-generic; dmem controller: no
+saves before: 3
+11:26:41 moonlight pid 3450884 alive=yes
+try 1: the game exited: [S_API FAIL] SteamAPI_Init() failed; connect to global user failed.
+steam -silent, game started directly (try 2)
+game window 8388612 after 27 s: game starting
+   3707       00:49  0.0  3360 ./signalwrapper /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/Shadow
+   3708       00:49 95.1 668800 /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaider
+cgroup steam 2657: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-ra8ec2db0250b43d3a8de7f994e1ab542.scope
+cgroup signalwrapper 3707: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-rfde92dfbbc7842988450545426a7032e.scope
+Terminated
+11:33:07 host-free=2386 host-mean=0.101122 host-rmse=- guest-mean=? |  | result=none
+11:33:38 host-free=2385 host-mean=0.123147 host-rmse=10087.1 guest-mean=- |  | result=none
+11:34:09 host-free=2374 host-mean=0.123147 host-rmse=80.6311 guest-mean=? | 09:34:03 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:34:40 host-free=2387 host-mean=0.123148 host-rmse=6.86332 guest-mean=- | 09:34:34 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:35:11 host-free=2388 host-mean=0.123147 host-rmse=89.6887 guest-mean=? | 09:35:05 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:35:42 host-free=2365 host-mean=0.123147 host-rmse=2.14622 guest-mean=- | 09:35:37 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:36:13 host-free=2385 host-mean=0.123148 host-rmse=49.7299 guest-mean=? | 09:36:08 vram=442 free=3448 gpu=9 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:36:44 host-free=2375 host-mean=0.123149 host-rmse=6.83344 guest-mean=- | 09:36:39 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:37:15 host-free=2386 host-mean=0.123147 host-rmse=79.8456 guest-mean=? | 09:37:10 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:37:46 host-free=2371 host-mean=0.123146 host-rmse=7.16255 guest-mean=- | 09:37:41 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:38:17 host-free=2381 host-mean=0.123149 host-rmse=70.1086 guest-mean=? | 09:38:12 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:38:48 host-free=2385 host-mean=0.123149 host-rmse=6.83344 guest-mean=- | 09:38:43 vram=442 free=3448 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:39:19 host-free=2378 host-mean=0.123149 host-rmse=41.3001 guest-mean=? | 09:39:14 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:39:50 host-free=2378 host-mean=0.123148 host-rmse=4.18343 guest-mean=- | 09:39:45 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:40:21 host-free=2386 host-mean=0.123149 host-rmse=93.1887 guest-mean=? | 09:40:16 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:40:52 host-free=2372 host-mean=0.123149 host-rmse=4.57522 guest-mean=- | 09:40:46 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:41:23 host-free=2386 host-mean=0.123146 host-rmse=70.3868 guest-mean=? | 09:41:18 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:41:54 host-free=2370 host-mean=0.123147 host-rmse=7.26138 guest-mean=- | 09:41:49 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:42:25 host-free=2377 host-mean=0.123149 host-rmse=72.6903 guest-mean=? | 09:42:20 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:42:56 host-free=2374 host-mean=0.123148 host-rmse=6.71754 guest-mean=- | 09:42:51 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:43:28 host-free=2386 host-mean=0.123149 host-rmse=54.1446 guest-mean=? | 09:43:22 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:43:59 host-free=2379 host-mean=0.123149 host-rmse=4.05201 guest-mean=- | 09:43:53 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:44:30 host-free=2381 host-mean=0.123149 host-rmse=80.4749 guest-mean=? | 09:44:24 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:45:01 host-free=2380 host-mean=0.123149 host-rmse=4.18343 guest-mean=- | 09:44:55 vram=388 free=3503 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:45:32 host-free=2383 host-mean=0.123148 host-rmse=89.1723 guest-mean=? | 09:45:27 vram=387 free=3504 gpu=10 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:46:03 host-free=2382 host-mean=0.123149 host-rmse=50.0886 guest-mean=- | 09:45:58 vram=387 free=3504 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:46:34 host-free=2366 host-mean=0.123149 host-rmse=4.05201 guest-mean=? | 09:46:29 vram=387 free=3504 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:47:05 host-free=2369 host-mean=0.123147 host-rmse=80.2401 guest-mean=- | 09:47:00 vram=387 free=3504 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:47:36 host-free=2379 host-mean=0.123147 host-rmse=4.18343 guest-mean=? | 09:47:31 vram=387 free=3504 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:48:07 host-free=2379 host-mean=0.12315 host-rmse=69.9031 guest-mean=- | 09:48:03 vram=387 free=3504 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none
+11:48:38 host-free=2376 host-mean=0.123149 host-rmse=6.71754 guest-mean=? | 09:48:34 vram=387 free=3504 gpu=9 app=-/- session=- game=none nvkms_fail=0 xid=0 | result=none

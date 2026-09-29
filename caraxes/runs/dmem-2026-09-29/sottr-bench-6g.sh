@@ -42,7 +42,7 @@ mkdir -p "$OUT/host-shots" "$OUT/guest-shots"
 log() { echo "$(date +%T) $*" | tee -a "$OUT/timeline.txt"; }
 gssh() { timeout "${T:-60}" "$W" ssh "$@" 2>&1 | grep -v "unable to resolve"; }
 
-NIGHT_SERVER=$BIN NIGHT_FB_MIB=${SOTTR_FB_MIB:-6144} NIGHT_VRAM_FLOOR_MIB=${SOTTR_VRAM_FLOOR_MIB:-512} NIGHT_SLOT=0 CARAXES_NO_TRACE=1 timeout 400 "$W" up > "$OUT/up.txt" 2>&1 \
+NIGHT_SERVER=$BIN NIGHT_MEM=${SOTTR_MEM:-8G} NIGHT_FB_MIB=${SOTTR_FB_MIB:-6144} NIGHT_VRAM_FLOOR_MIB=${SOTTR_VRAM_FLOOR_MIB:-512} NIGHT_SLOT=0 CARAXES_NO_TRACE=1 timeout 400 "$W" up > "$OUT/up.txt" 2>&1 \
     || { log "up failed"; tail -5 "$OUT/up.txt"; exit 1; }
 timeout 240 "$W" wait 200 >> "$OUT/up.txt" 2>&1
 log "vm up"

@@ -350,6 +350,22 @@ Evidence: `B/drsv3-smoke/smoke-1.txt` (`-1`), `smoke-2-mib0.txt` (`0`); the buil
 - **Take-back wins where v2's refill lost:** every refill in this smoke failed with 0x51, and the reserve still came back to full at each free of a run-shaped buffer.
 - **The limit shows as documented:** a surface smaller than a run returns its pages to PMA.
 
+## SotTR with v3 (2026-09-29, desktop-b-dmem, 4 GiB, slot 0, 1080p, `-1`)
+
+### drsv3-on-0: the reserve held; the guest ran out of RAM
+
+Evidence: `B/drsv3-on-0-guest-oom/guest-dmesg-reserve-oom.txt`, `guest-monitor.txt`, `timeline.txt`.
+
+- **Declared at 14 s:** 52224 KiB for 10240 KiB scanout surfaces (GNOME's bound framebuffers), 6 runs, full.
+- **11 refused 10240 KiB scanout allocations** (260.97-286.46 s, the game's start and fullscreen switch): all 11 served, and all 11 taken back when freed.
+  - The reserve was full again within 1-5 s each time, while every timer refill in between failed (0x51, the game held the VRAM).
+  - The last pair: served at 286.43 and 286.46 s, taken back at 288.93 and 289.00 s, "holds 52224 KiB" at 290.48 s.
+- **No NVKMS failure and no Xid** (`nvkms_fail=0 xid=0` in the monitor). In drsv2-on-1 the sixth allocation had killed the game.
+- **Concurrent peak: 2 runs out at once.** The lowest level is "holds 31744 of 52224 KiB" (263.5, 271.4, 280.1, 283.8, 286.5 s), so 5·S leaves three runs spare in this run.
+- **The run ended at 399 s with a guest RAM OOM**, not a VRAM one: the kernel's OOM killer took ShadowOfTheTomb (total-vm 11.5 GB, anon-rss 3.6 GB, shmem-rss 2.3 GB) in an 8 GB guest. The benchmark was never reached.
+  - This is unrelated to the reserve, which holds video memory only.
+  - Guest RAM is now a parameter: `desktop-b-dmem-6g.sh` `NIGHT_MEM`, `sottr-bench-6g.sh` `SOTTR_MEM`. drsv3-on-1 reruns with 12 GB.
+
 ## Test pack dry run (2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, no desktop)
 
 Evidence: `B/drsv3-testpack/` (the result tarball's logs; sha256 6f0524b0…). This was a VM run of `patches/nvidia/display-reserve/testpack.sh run` with the default steps: every step passed, in about 7 min including the build.
@@ -414,6 +430,7 @@ Evidence: `B/drsv-smoke3/`; the build is `B/drsv-build2/prepare.txt`.
    - `MIB=0` refuses every dumb buffer.
    - Passed on 2026-09-29 (see "Smoke results (v3)").
 2. **SotTR 1080p at 4 GiB**, `-1` and a control with 0. Pass: no NVKMS failure, no Xid, a results file. The lowest "holds X" of the take-back lines gives the concurrent peak (is 5·S enough).
+   - drsv3-on-0: 11 served, 11 taken back, peak 2 runs out, no NVKMS failure; ended by a guest RAM OOM before the benchmark (see "SotTR with v3"). The rerun with 12 GB is drsv3-on-1.
 3. **Not yet exercised:** suspend/resume with a held reserve, GC6/RTD3, unload under load, several GPUs, MIG. These are for the bare-metal test pack.
 
 
