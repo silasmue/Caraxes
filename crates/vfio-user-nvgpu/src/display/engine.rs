@@ -11,12 +11,14 @@
 //!   semaphore and surface are resolved through RAMHT in the display instance memory
 //!   (`disp_inst_mem_0300.c`), so later writes need no guest state. The per-head clock
 //!   latches it at the next tick (display-connector.md section 2.2): acquire semaphore
-//!   satisfied, `MIN_PRESENT_INTERVAL` ticks since the last latch, then the previous
-//!   presentation's release semaphore, the notifier FINISHED with a timestamp, and
-//!   `AWAKEN_WIN`. `BEGIN_MODE_IMMEDIATE` latches at the `UPDATE`.
+//!   satisfied, `MIN_PRESENT_INTERVAL` ticks since the last latch, PTIMER at or past the
+//!   `SET_UPDATE_TIMESTAMP` when `TIMESTAMP_MODE` is enabled; then the previous
+//!   presentation's release semaphore (flip-away), the notifier BEGUN with a PTIMER
+//!   timestamp, and `AWAKEN_WIN`. `BEGIN_MODE_IMMEDIATE` latches at the `UPDATE`.
 //! - Every tick advances `RG_DPCA` and the LOADV counter and sets `LAST_DATA`; with the
 //!   RM's enable that is the vblank interrupt (dev_disp.h v03/v04, kern_disp_0300.c).
-//! - The clock is `CLOCK_MONOTONIC` with absolute deadlines `t0 + n * period`. A
+//! - The clock is the device clock (`channel::device_epoch`, the PTIMER's base), with
+//!   absolute deadlines `t0 + n * period`. A
 //!   ticker thread only raises the DISP vector at the deadlines while a head has work
 //!   (a pending presentation, or vblank enabled); the state advances on the server
 //!   thread when the guest's interrupt handler reads the display registers
@@ -28,7 +30,7 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::fe_page::{FeIrq, FePage};
 use crate::fb::FakeFb;
@@ -67,9 +69,29 @@ pub const CTRL_DISP_AWAKEN: u32 = 1 << 8;
 /// `FE_CORE_HEAD_STATE_OPERATING_MODE` 9:8 = AWAKE.
 pub const HEAD_STATE_AWAKE: u32 = 2 << 8;
 
-// NV_DISP_NOTIFIER (clc57d.h): 16 bytes, STATUS 31:30 of word 0, timestamp in words 2-3.
+// NV_DISP_NOTIFIER (clc57d.h:34-54): 16 bytes; word 0 PRESENT_COUNT 7:0, FIELD 8:8,
+// FLIP_TYPE 9:9, STATUS 31:30 (NOT_BEGUN 0, BEGUN 1, FINISHED 2); TIMESTAMP_LO/HI in
+// words 2-3. The same four-word record is the window semaphore's (FOUR_WORD_NVDISPLAY,
+// nvkms-api-types.h:174-177): payload in word 0 (nvkms-sync.c:190-193).
+//
+// A core notifier completes FINISHED (NVKMS waits for it, nvkms-evo3.c:6330-6344). A
+// window notifier is BEGUN once the flip is scanned out: NVKMS resets it NOT_BEGUN and
+// "when EVO performs the flip, it changes the notifier to BEGUN" (nvkms-headsurface.c:
+// 1896-1922, which tests for BEGUN), and its emulation of a client notifier writes BEGUN
+// and the timestamp "to emulate what the client would observe if their notifier was used
+// in hardware" (nvkms-headsurface.c:1996-2013, nvkms-sync.c:77-91). PRESENT_COUNT and
+// FIELD stay 0 there (progressive scanout).
+const NOTIFIER_BEGUN: u32 = 1 << 30;
 const NOTIFIER_FINISHED: u32 = 2 << 30;
 const NOTIFIER_FLIP_TYPE_IMMEDIATE: u32 = 1 << 9;
+
+/// A display timestamp: the PTIMER value at `ns` of the device clock. `NV_PTIMER_TIME_0`
+/// counts in NSEC 31:5 (gm107/dev_timer.h), so the low five bits are 0 and the low word
+/// is never 1, the value NVKMS resets a notifier's TIMESTAMP_LO to as "not yet written"
+/// (nvkms-sync.c:29-37, 62-66).
+pub fn ptimer_stamp(ns: u64) -> u64 {
+    ns & !0x1F
+}
 
 // Channel numbers (NV_PDISP_CHN_NUM_*), the RAMHT key.
 pub const CHN_CORE: u32 = 0;
@@ -106,6 +128,12 @@ const W_SET_PLANAR_STORAGE: u32 = 0x230;
 const W_SET_CONTEXT_DMA_ISO: u32 = 0x240;
 const W_SET_OFFSET: u32 = 0x260;
 const W_SET_PRESENT_CONTROL: u32 = 0x308;
+const W_SET_UPDATE_TIMESTAMP_LO: u32 = 0x348;
+const W_SET_UPDATE_TIMESTAMP_HI: u32 = 0x34C;
+/// `SET_PRESENT_CONTROL_TIMESTAMP_MODE` 8:8 (clc57e.h:270-272): ENABLE holds the flip
+/// until PTIMER >= `SET_UPDATE_TIMESTAMP` ("When non-zero, block the flip until PTIMER >=
+/// timeStamp", nvkms-api.h:925-926; programmed so in nvkms-evo3.c:3772-3777, 3904-3906).
+const PRESENT_TIMESTAMP_MODE_ENABLE: u32 = 1 << 8;
 
 // RAMHT and context DMA objects (disp/v03_00/dev_disp.h NV_UDISP_*, NV_DMA_*).
 const HASH_LIMIT: u64 = 0x2000;
@@ -114,11 +142,11 @@ const HASH_ENTRY: u64 = 8;
 // -------------------------------------------------------------------------------------
 // The clock and the ticker thread.
 
-static EPOCH: OnceLock<Instant> = OnceLock::new();
-
-/// Nanoseconds of the display clock (CLOCK_MONOTONIC through `Instant`).
+/// Nanoseconds of the display clock: the device clock, PTIMER's base
+/// ([`crate::channel::device_now_ns`]), so notifier timestamps and the guest's PTIMER
+/// reads compare.
 pub fn now_ns() -> u64 {
-    EPOCH.get_or_init(Instant::now).elapsed().as_nanos() as u64
+    crate::channel::device_now_ns()
 }
 
 #[derive(Default)]
@@ -629,6 +657,8 @@ pub struct Flip {
     pub release: Option<(MemRef, u32)>,
     pub min_interval: u32,
     pub immediate: bool,
+    /// `TIMESTAMP_MODE` enabled: the PTIMER time the flip waits for.
+    pub not_before_ns: Option<u64>,
     pub surface: Surface,
 }
 
@@ -643,6 +673,8 @@ pub struct Window {
     pub updates: u64,
     pub flips: u64,
     pub acquire_waits: u64,
+    /// Ticks a flip waited for its `SET_UPDATE_TIMESTAMP`.
+    pub timestamp_waits: u64,
 }
 
 /// The display engine's method and timing state.
@@ -1041,6 +1073,15 @@ impl Engine {
                 }
             }
         }
+        // TIMESTAMP_MODE: not before PTIMER reaches the flip's timestamp, on a head that
+        // scans out (a window without an active head completes at once).
+        let live = win.head.is_some_and(|h| self.heads.get(h).is_some_and(|hd| hd.active));
+        if let Some(ts) = f.not_before_ns {
+            if live && tick_ns < ts {
+                self.windows[w].timestamp_waits += 1;
+                return false;
+            }
+        }
         if let Some((m, want)) = f.acquire {
             let have = m.read32(fb, mem);
             if have != Some(want) {
@@ -1049,24 +1090,28 @@ impl Engine {
             }
         }
         let f = self.windows[w].pending.pop_front().unwrap();
+        let stamp = ptimer_stamp(tick_ns).to_le_bytes();
         let win = &mut self.windows[w];
+        // The previous presentation's release: its surface is displaced now ("To match
+        // display hardware behavior, we release the semaphore when we flip *away*",
+        // nvkms-displayless.c:262-270; nvkms-api.h:677-690). The four-word record gets
+        // the timestamp too (nvkms-headsurface.c:598-604), the payload last.
         if let Some((m, v)) = win.prev_release.take() {
+            m.write(fb, mem, 8, &stamp);
             m.write(fb, mem, 0, &v.to_le_bytes());
         }
         win.prev_release = f.release;
         if let Some((m, _)) = f.notifier {
-            let mut rec = [0u8; 16];
-            let w0 = NOTIFIER_FINISHED
+            let w0 = NOTIFIER_BEGUN
                 | if f.immediate {
                     NOTIFIER_FLIP_TYPE_IMMEDIATE
                 } else {
                     0
                 };
-            rec[0..4].copy_from_slice(&w0.to_le_bytes());
-            rec[8..16].copy_from_slice(&tick_ns.to_le_bytes());
-            // Timestamp first, status last, as the hardware orders its writes.
-            m.write(fb, mem, 8, &rec[8..16]);
-            m.write(fb, mem, 0, &rec[0..4]);
+            // Timestamp first, status last: a reader that sees BEGUN finds the timestamp
+            // (NVKMS polls for it after the status, nvkms-sync.c:55-58).
+            m.write(fb, mem, 8, &stamp);
+            m.write(fb, mem, 0, &w0.to_le_bytes());
         }
         // AWAKEN follows the rule nvidia-drm models the hardware by
         // (`__will_generate_flip_event`, nvidia-drm-modeset.c:96-140): a flip event only
@@ -1086,8 +1131,9 @@ impl Engine {
         if changed || n <= 3 {
             let s = &f.surface;
             let line = format!(
-                "display: window {w} latch {n} at tick {tick}{}: surface {} {}x{} format {:#x} {} pitch {} (block height 2^{}), notifier {}, acquire {}, release {} [guest]",
+                "display: window {w} latch {n} at tick {tick}{}{}: surface {} {}x{} format {:#x} {} pitch {} (block height 2^{}), notifier {}, acquire {}, release {} [guest]",
                 if force { " (immediate)" } else { "" },
+                f.not_before_ns.map_or(String::new(), |ts| format!(" (timestamp {ts}, now {tick_ns})")),
                 s.mem.map_or("none".into(), |m| m.describe()),
                 s.width,
                 s.height,
@@ -1291,6 +1337,10 @@ impl Engine {
             block_height_log2: storage & 0xF,
         };
         let present = get(W_SET_PRESENT_CONTROL);
+        let not_before_ns = (present & PRESENT_TIMESTAMP_MODE_ENABLE != 0).then(|| {
+            u64::from(get(W_SET_UPDATE_TIMESTAMP_LO))
+                | u64::from(get(W_SET_UPDATE_TIMESTAMP_HI)) << 32
+        });
         let flip = Flip {
             queued_ns: now,
             notifier,
@@ -1298,6 +1348,7 @@ impl Engine {
             release: sem.map(|m| (m, get(W_SET_SEMAPHORE_RELEASE))),
             min_interval: present & 0xF,
             immediate: (present >> 4) & 7 == 1,
+            not_before_ns,
             surface: if iso == 0 {
                 Surface::default()
             } else {
@@ -1344,11 +1395,12 @@ impl Engine {
             .filter(|(_, w)| w.updates > 0)
             .map(|(i, w)| {
                 format!(
-                    "window {i}: {} updates, {} latched, {} pending, {} acquire waits",
+                    "window {i}: {} updates, {} latched, {} pending, {} acquire waits, {} timestamp waits",
                     w.updates,
                     w.flips,
                     w.pending.len(),
-                    w.acquire_waits
+                    w.acquire_waits,
+                    w.timestamp_waits
                 )
             })
             .collect();
@@ -1372,6 +1424,7 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     const INST: u64 = 0x10_0000;
 
@@ -1537,12 +1590,15 @@ mod tests {
         fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
         e.catch_up(t0 + 2 * p + 5, &mut fb, &mem);
         assert!(!e.window_busy(0));
+        // The window notifier: BEGUN (not FINISHED, the core's completion), non-tearing,
+        // PRESENT_COUNT 0, and the PTIMER time of the tick.
         let mut b = [0u8; 4];
         fb.read(0x50_0000 + 16, &mut b);
-        assert_eq!(u32::from_le_bytes(b) >> 30, 2);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
         let mut ts = [0u8; 8];
         fb.read(0x50_0000 + 24, &mut ts);
-        assert_eq!(u64::from_le_bytes(ts), t0 + 2 * p);
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 2 * p));
+        assert_eq!(u64::from_le_bytes(ts) & 0x1F, 0);
         // The window was off before: the notifier is written, but no AWAKEN (the
         // nvidia-drm model of the hardware).
         assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(0));
@@ -1555,6 +1611,9 @@ mod tests {
         e.catch_up(t0 + 3 * p, &mut fb, &mem);
         fb.read(0x60_0000 + 32, &mut b);
         assert_eq!(u32::from_le_bytes(b), 8);
+        // The release record carries the flip-away time.
+        fb.read(0x60_0000 + 40, &mut ts);
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 3 * p));
         // Flipping away from a scanned-out surface raises AWAKEN.
         assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(1));
         assert_eq!(
@@ -1566,6 +1625,66 @@ mod tests {
         assert_eq!(e.read32(FE_RM_INTR_STAT_CTRL_DISP, 0), Some(0));
         assert_eq!(e.read32(RG_DPCA, 0).unwrap() >> 16, 3);
         assert_eq!(e.read32(POSTCOMP_HEAD_LOADV_COUNTER, 0), Some(3));
+    }
+
+    /// `TIMESTAMP_MODE` ENABLE holds a flip until PTIMER reaches `SET_UPDATE_TIMESTAMP`
+    /// (nvkms-api.h:925), at the first tick at or past it; without the mode the timestamp
+    /// methods are ignored.
+    #[test]
+    fn a_timestamped_flip_waits_for_its_time() {
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        let (t0, p) = (e.heads[0].t0_ns, e.heads[0].period_ns);
+        let at = t0 + 3 * p - 10;
+        for (m, v) in [
+            (W_SET_CONTEXT_DMA_NOTIFIER, 0x20),
+            (W_SET_NOTIFIER_CONTROL, 0),
+            (W_SET_CONTEXT_DMA_ISO, 0x40),
+            (W_SET_SIZE, 1920 | (1080 << 16)),
+            (W_SET_UPDATE_TIMESTAMP_LO, at as u32),
+            (W_SET_UPDATE_TIMESTAMP_HI, (at >> 32) as u32),
+            (W_SET_PRESENT_CONTROL, 1 | PRESENT_TIMESTAMP_MODE_ENABLE),
+        ] {
+            e.window_method(0, m, v);
+        }
+        e.window_update(0, t0 + 1, &mut fb, &mem);
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
+        assert!(e.window_busy(0));
+        assert_eq!(e.windows[0].timestamp_waits, 2);
+        let mut b = [0u8; 4];
+        fb.read(0x50_0000, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0, "not begun");
+        e.catch_up(t0 + 3 * p, &mut fb, &mem);
+        assert!(!e.window_busy(0));
+        fb.read(0x50_0000, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
+        // An immediate flip with a timestamp in the future waits for the tick too.
+        e.window_method(0, W_SET_UPDATE_TIMESTAMP_LO, (t0 + 4 * p) as u32);
+        e.window_method(0, W_SET_PRESENT_CONTROL, (1 << 4) | PRESENT_TIMESTAMP_MODE_ENABLE);
+        e.window_update(0, t0 + 3 * p + 1, &mut fb, &mem);
+        assert!(e.window_busy(0));
+        e.catch_up(t0 + 4 * p, &mut fb, &mem);
+        assert!(!e.window_busy(0));
+        // Mode disabled: the timestamp methods do not hold the flip.
+        e.window_method(0, W_SET_UPDATE_TIMESTAMP_LO, u32::MAX);
+        e.window_method(0, W_SET_PRESENT_CONTROL, 1);
+        e.window_update(0, t0 + 4 * p + 1, &mut fb, &mem);
+        e.catch_up(t0 + 5 * p, &mut fb, &mem);
+        assert!(!e.window_busy(0));
+    }
+
+    /// The display clock is the device clock: PTIMER (the channel registry's clock) and
+    /// the display engine's notifier timestamps are on one base.
+    #[test]
+    fn the_display_clock_is_the_ptimer_base() {
+        let reg = crate::channel::Registry::new(crate::fixture::rtx2070().chip.data().channel);
+        let a = reg.now_ns();
+        let d = now_ns();
+        let b = reg.now_ns();
+        assert!(a <= d && d <= b, "{a} {d} {b}");
+        assert_eq!(reg.epoch(), Some(crate::channel::device_epoch()));
+        assert_eq!(ptimer_stamp(0x1_0000_003F), 0x1_0000_0020);
     }
 
     #[test]
@@ -1600,7 +1719,7 @@ mod tests {
         assert!(!e.window_busy(3));
         let mut b = [0u8; 4];
         fb.read(0x50_0000, &mut b);
-        assert_eq!(u32::from_le_bytes(b) >> 30, 2, "notifier written");
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN, "notifier written");
         assert_eq!(
             e.read32(FE_EVT_STAT_AWAKEN_WIN, 0),
             Some(0),

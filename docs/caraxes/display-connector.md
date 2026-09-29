@@ -277,8 +277,11 @@ One periodic timer per active head.
      last latch; and any `SET_UPDATE_TIMESTAMP` time has arrived. An eligible flip latches:
      - the device releases the **previous** flip's release semaphore (hardware releases on
        flip-away; the displayless HAL copies this rule, `nvkms-displayless.c:262-276`);
-     - it writes the window notifier: status FINISHED in word 0, the device's PTIMER value
-       in words 2-3 (`NV_DISP_NOTIFIER__2/3_TIMESTAMP`, `clc67d.h:45-54`);
+     - it writes the window notifier: status BEGUN in word 0, the device's PTIMER value
+       in words 2-3 (`NV_DISP_NOTIFIER__2/3_TIMESTAMP`, `clc67d.h:45-54`). BEGUN, not
+       FINISHED: "when EVO performs the flip, it changes the notifier to BEGUN"
+       (`nvkms-headsurface.c:1896-1922`); FINISHED is the core notifier's completion.
+       Until 2026-09-29 the device wrote FINISHED, which nvidia-drm never reads;
      - it sets the window's `AWAKEN_WIN` bit if the notifier mode is `WRITE_AWAKEN`.
   2. **Advance the raster.** Increment the `RG_DPCA` frame count and the LOADV counter.
   3. **Raise vblank.** Set `LAST_DATA` if the RM enabled it.
@@ -287,7 +290,8 @@ One periodic timer per active head.
   path) latch as soon as their acquire is satisfied, without waiting for a tick.
 - **PTIMER.** It must be the same clock the notifier timestamps use.
   `NV2080_CTRL_CMD_TIMER_GET_TIME` (`nvkms-rm.c:4914-4933`) and the notifier words must
-  agree, so the device serves PTIMER from the same `CLOCK_MONOTONIC` base.
+  agree, so the device serves PTIMER from the same `CLOCK_MONOTONIC` base: one device
+  clock per process (`channel::device_epoch`), kept across a function-level reset.
 - **Latency.** The chain is: device thread → vfio-user `SET_IRQS` eventfd → Cloud
   Hypervisor/KVM irqfd → guest MSI → RM ISR → NVKMS deferred timer work
   (`nvkms_alloc_timer_with_ref_ptr(..., 0)`) → nvidia-drm event. Tens to a few hundred µs

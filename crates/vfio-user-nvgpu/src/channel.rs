@@ -442,6 +442,23 @@ impl Channel {
     }
 }
 
+/// The device clock's epoch: one per device process, the base of `NV_PTIMER_TIME_0/1`,
+/// the usermode TIME_0/1, semaphore timestamps, the time correlation, and the display
+/// engine's vblank clock and notifier timestamps (display/engine.rs), so every time the
+/// guest reads or finds in memory is on one base. A function-level reset does not restart
+/// it: the RM sets PTIMER to the wall-clock time before every GSP boot
+/// (`kernel_gsp.c:5677-5682`, `tmrSetCurrentTime_GV100`, timer_gv100.c:47-72), so on the
+/// card the timer never goes back across a reset either.
+pub fn device_epoch() -> std::time::Instant {
+    static EPOCH: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    *EPOCH.get_or_init(std::time::Instant::now)
+}
+
+/// Nanoseconds of the device clock ([`device_epoch`]).
+pub fn device_now_ns() -> u64 {
+    device_epoch().elapsed().as_nanos() as u64
+}
+
 /// Completed software work or a terminal method failure, drained by the dispatcher.
 pub struct SoftwareEvent {
     pub chid: u32,
@@ -508,7 +525,8 @@ pub struct Registry {
     channels: BTreeMap<u32, Channel>,
     /// Last generation assigned to an accepted channel allocation.
     channel_generation: u64,
-    /// Device clock base for semaphore timestamps.
+    /// Device clock base for semaphore timestamps: [`device_epoch`], shared with PTIMER
+    /// and the display engine and kept across a function-level reset.
     start: Option<std::time::Instant>,
     pub doorbells: u64,
     /// TLB invalidates the software executor ran into (`MEM_OP` MMU_TLB_INVALIDATE):
@@ -581,7 +599,7 @@ impl Registry {
             client_share: BTreeMap::new(),
             channels: BTreeMap::new(),
             channel_generation: 0,
-            start: Some(std::time::Instant::now()),
+            start: Some(device_epoch()),
             doorbells: 0,
             tlb_invalidates: Vec::new(),
             memop_hold: None,
