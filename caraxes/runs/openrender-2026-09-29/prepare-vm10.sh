@@ -14,6 +14,9 @@
 #   - nouveau and nova_core blacklisted from autoload (openrender-check.sh loads nouveau), the
 #     stock nvidia modules blacklisted (built for 6.8, they never load under 7.2.7 anyway),
 #   - vk-offscreen (vk-offscreen/build.sh) in /usr/local/bin,
+#   - when $REPO exists (fetch-weston-debs.sh), that local apt repository in
+#     /var/cache/caraxes-repo and a source line for it in its own list file, which only the
+#     check's weston install reads (the image's other sources are untouched),
 #   - vm9's service masks (gdm, serial getty, network waits) and openrender-check.sh as
 #     caraxes-check.service.
 # The kernel itself is not in the image: the launcher boots the bzImage directly
@@ -26,6 +29,7 @@ W=$S/vm10
 KV=7.2.7-nova
 KMODS=${KMODS:-$S/nova-kernel/modules-openrender}
 BASE=${BASE:-$S/images/guest-baked-2026-09-24-615.71.09.qcow2}
+REPO=${REPO:-$S/openrender-debs}
 MODS=$KMODS/lib/modules/$KV
 [[ -d $MODS ]] || { echo "ERROR: $MODS missing (build-kernel.sh build)" >&2; exit 1; }
 [[ -n $(find "$MODS" -name 'nouveau.ko*' -print -quit) ]] || { echo "ERROR: no nouveau.ko under $MODS" >&2; exit 1; }
@@ -48,6 +52,14 @@ tar -C / -chf "$tmp/firmware.tar" \
 printf '%s\n' "# Caraxes openrender guest: openrender-check.sh loads nouveau itself" \
     "blacklist nouveau" "blacklist nova_core" "blacklist nova_drm" "blacklist nvidia" \
     "blacklist nvidia_drm" "blacklist nvidia_modeset" "blacklist nvidia_uvm" > "$tmp/openrender.conf"
+repo=()
+if [[ -f $REPO/Release ]]; then
+    tar -C "$REPO" --exclude=.index -cf "$tmp/repo.tar" .
+    echo "deb [trusted=yes] file:/var/cache/caraxes-repo ./" > "$tmp/repo.list"
+    repo=("rm-rf /var/cache/caraxes-repo" "mkdir-p /var/cache/caraxes-repo"
+          "tar-in $tmp/repo.tar /var/cache/caraxes-repo"
+          "upload $tmp/repo.list /etc/apt/sources.list.d/caraxes-openrender.list")
+fi
 printf '%s\n' "[Unit]" "Description=Caraxes open-driver render check" "After=multi-user.target" "" \
     "[Service]" "Type=oneshot" "ExecStart=/usr/local/sbin/caraxes-check.sh" "" \
     "[Install]" "WantedBy=multi-user.target" > "$tmp/unit"
@@ -70,6 +82,7 @@ ln-sf /dev/null /etc/systemd/system/nvidia-persistenced.service
 ln-sf /dev/null /etc/systemd/system/serial-getty@ttyS0.service
 ln-sf /dev/null /etc/systemd/system/NetworkManager-wait-online.service
 ln-sf /dev/null /etc/systemd/system/systemd-networkd-wait-online.service
+$(printf '%s\n' "${repo[@]}")
 GF
 guestfish --ro -a "$W/rootfs.qcow2" -i sh \
-    "ls -la /lib/firmware/nvidia/tu106/ /lib/firmware/nvidia/tu106/acr/ /lib/firmware/nvidia/tu102/gsp/; find /lib/modules/$KV -name 'nouveau*' -o -name 'nova*'; cat /etc/modprobe.d/caraxes-openrender.conf; ls -la /usr/local/bin/vk-offscreen /usr/share/vulkan/icd.d/nouveau_icd.json"
+    "ls -la /lib/firmware/nvidia/tu106/ /lib/firmware/nvidia/tu106/acr/ /lib/firmware/nvidia/tu102/gsp/; find /lib/modules/$KV -name 'nouveau*' -o -name 'nova*'; cat /etc/modprobe.d/caraxes-openrender.conf; ls -la /usr/local/bin/vk-offscreen /usr/share/vulkan/icd.d/nouveau_icd.json; ls /var/cache/caraxes-repo 2>/dev/null | wc -l; cat /etc/apt/sources.list.d/caraxes-openrender.list 2>/dev/null"

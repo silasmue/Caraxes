@@ -5,7 +5,8 @@
 
 openrender-check.sh prints the PPM gzip-compressed and base64-encoded between the lines
 CARAXES-PPM-BEGIN and CARAXES-PPM-END. Usage: extract-ppm.py serial.log out.png
-(standard library only)."""
+(standard library only). `extract-ppm.py --png serial.log out.png` writes the PNG printed
+between CARAXES-PNG-BEGIN and CARAXES-PNG-END as it is (weston's screenshot, R8)."""
 import base64
 import gzip
 import struct
@@ -24,20 +25,36 @@ def png(width: int, height: int, rgb: bytes) -> bytes:
             + chunk(b"IEND", b""))
 
 
-def main() -> int:
-    if len(sys.argv) != 3:
-        print(__doc__.strip(), file=sys.stderr)
-        return 2
+def block(path: str, tag: str) -> list:
+    """The base64 lines between CARAXES-<tag>-BEGIN and -END (the last such block)."""
     lines, inside = [], False
-    with open(sys.argv[1], "r", errors="replace") as f:
+    with open(path, "r", errors="replace") as f:
         for line in f:
             line = line.strip().split("\r")[-1]
-            if line.endswith("CARAXES-PPM-BEGIN"):
+            if line.endswith(f"CARAXES-{tag}-BEGIN"):
                 lines, inside = [], True
-            elif line.endswith("CARAXES-PPM-END"):
+            elif line.endswith(f"CARAXES-{tag}-END"):
                 inside = False
             elif inside:
                 lines.append(line)
+    return lines
+
+
+def main() -> int:
+    if len(sys.argv) == 4 and sys.argv[1] == "--png":
+        # A PNG the guest printed as is (openrender-check.sh R8: weston's screenshot).
+        lines = block(sys.argv[2], "PNG")
+        if not lines:
+            print("no CARAXES-PNG block in", sys.argv[2], file=sys.stderr)
+            return 1
+        with open(sys.argv[3], "wb") as f:
+            f.write(base64.b64decode("".join(lines)))
+        print(f"{sys.argv[3]}: PNG from {sys.argv[2]}")
+        return 0
+    if len(sys.argv) != 3:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    lines = block(sys.argv[1], "PPM")
     if not lines:
         print("no CARAXES-PPM block in", sys.argv[1], file=sys.stderr)
         return 1

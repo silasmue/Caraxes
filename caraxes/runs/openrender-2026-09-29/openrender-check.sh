@@ -77,6 +77,70 @@ if command -v eglinfo >/dev/null 2>&1; then
 else
     echo "eglinfo not installed"
 fi
+# R8: presented frames on a compositor: weston's headless backend with its GL renderer (EGL on
+# the render node, zink on NVK), clients through the Wayland WSI and EGL. weston comes from the
+# local repository prepare-vm10.sh put into the image (fetch-weston-debs.sh: Ubuntu noble
+# packages, installed once; only that repository is a source for this apt run, no network).
+echo "CARAXES-CHECK R8 weston headless"
+REPO_LIST=/etc/apt/sources.list.d/caraxes-openrender.list
+if ! command -v weston >/dev/null 2>&1 && [ -f $REPO_LIST ]; then
+    APT="-q -o Dir::Etc::sourcelist=$REPO_LIST -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0"
+    apt-get $APT update 2>&1 | tail -n 3
+    # No --no-download: apt fetches from a file: source by copying, which that option forbids;
+    # the source list above is the only source, so nothing reaches a network.
+    DEBIAN_FRONTEND=noninteractive apt-get $APT -y --no-install-recommends install weston 2>&1 | tail -n 6
+fi
+if command -v weston >/dev/null 2>&1; then
+    dpkg-query -W -f '${Package} ${Version}\n' weston libweston-13-0 2>&1
+    export XDG_RUNTIME_DIR=/run/caraxes-wl
+    rm -rf $XDG_RUNTIME_DIR; mkdir -p -m 0700 $XDG_RUNTIME_DIR
+    WL=wl-caraxes
+    start_weston() {
+        "$@" weston --backend=headless --renderer=gl --width=1280 --height=720 --socket=$WL \
+            --idle-time=0 --debug --log=/var/tmp/weston.log > /var/tmp/weston.out 2>&1 &
+        WPID=$!
+        for _ in $(seq 30); do [ -S $XDG_RUNTIME_DIR/$WL ] && return 0; sleep 1; done
+        return 1
+    }
+    AS=""
+    if ! start_weston; then
+        # weston may refuse root: run it and the clients as the image's desktop user.
+        kill $WPID 2>/dev/null; tail -n 5 /var/tmp/weston.out /var/tmp/weston.log 2>/dev/null
+        chown leandro $XDG_RUNTIME_DIR
+        AS="runuser -u leandro -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR WAYLAND_DISPLAY=$WL"
+        start_weston $AS || echo "weston did not start"
+    fi
+    grep -iE "renderer|EGL|GL_RENDERER|gl version|error|fail" /var/tmp/weston.log | head -n 8
+    export WAYLAND_DISPLAY=$WL
+    if [ -S $XDG_RUNTIME_DIR/$WL ]; then
+        # vkcube through the Wayland WSI: 600 frames, the wall time gives the frame rate.
+        t0=$(date +%s%N)
+        $AS timeout 120 vkcube-wayland --c 600 > /var/tmp/vkcube.txt 2>&1; rc=$?
+        ms=$(( ($(date +%s%N) - t0) / 1000000 ))
+        echo "vkcube-wayland --c 600 rc=$rc in $ms ms ($(( 600000 / (ms + 1) )) FPS)"
+        tail -n 3 /var/tmp/vkcube.txt
+        # A screenshot of a running vkcube (weston --debug allows weston-screenshooter).
+        $AS timeout 60 vkcube-wayland --c 3000 > /dev/null 2>&1 &
+        VPID=$!; sleep 4
+        (cd /var/tmp && rm -f wayland-screenshot-*.png && $AS timeout 20 weston-screenshooter; echo "weston-screenshooter rc=$?")
+        kill $VPID 2>/dev/null; wait $VPID 2>/dev/null
+        SHOT=$(ls /var/tmp/wayland-screenshot-*.png 2>/dev/null | head -n 1)
+        if [ -n "$SHOT" ]; then
+            echo "CARAXES-PNG-BEGIN"
+            base64 -w 76 "$SHOT"
+            echo "CARAXES-PNG-END"
+        fi
+        $AS timeout 90 glmark2-wayland -s 640x480 -b build:duration=5 -b texture:duration=5 -b shading:duration=5 2>&1 \
+            | grep -E "FPS|Score|Renderer|Version|rror" | head -n 10
+        if ls /usr/lib/x86_64-linux-gnu/vkmark/ 2>/dev/null | grep -q wayland; then
+            $AS timeout 90 vkmark --winsys wayland -s 640x480 -b cube:duration=5 -b clear:duration=3 2>&1 \
+                | grep -E "^\[|FPS|Score|rror" | head -n 10
+        fi
+    fi
+    kill $WPID 2>/dev/null; sleep 1
+else
+    echo "weston not installed"
+fi
 echo "CARAXES-CHECK dmesg-after"
 dmesg | grep -iE "nouveau|gsp|fault|xid|timeout|channel" | tail -n 80
 echo "CARAXES-CHECK unbind"

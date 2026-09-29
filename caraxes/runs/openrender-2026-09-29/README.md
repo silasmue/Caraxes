@@ -13,7 +13,10 @@ vm10 is an overlay on the 615 image (Mesa 25.2.8 with NVK) booting the Linux 7.2
 | `openrender-check.sh` | the guest's check service: R1 probe, R2 kernel channels, R3 NVK device, R4 clear+copy, R5 triangle, the image as gzip+base64 on the serial console, unbind, power off |
 | `openrender-boot.sh` | one boot of vm10 with host execution; keeps `setup.txt`, `guest.txt`, `device.txt`, `vk-offscreen.png` |
 | `vk-offscreen/` | the offscreen Vulkan check (`build.sh`: glslc, gcc, needs at most GLIBC_2.39) |
-| `extract-ppm.py` | the image from `serial.log` as PNG |
+| `extract-ppm.py` | the image from `serial.log` as PNG; `--png` for a PNG printed as is (weston's screenshot) |
+| `fetch-weston-debs.sh`, `apt-closure.py` | weston 13 and its dependency closure from Ubuntu noble as a flat local apt repository in `/mnt/vmstore/caraxes/openrender-debs` (InRelease signatures checked against the pinned archive key, every index and .deb against its SHA256); `prepare-vm10.sh` copies it into the image, the check installs weston from it once (R8) |
+| `vm10-boot1` .. `vm10-boot5` | the ladder runs: see the note's "The vm10 runs" |
+| `nova-regress/` | the nova-core regression of this branch's device (PASS, `RESULT.md`) |
 
 ## Inputs (2026-09-29)
 
@@ -41,10 +44,22 @@ caraxes/runs/openrender-2026-09-29/openrender-boot.sh caraxes/runs/openrender-20
   `vm10-boot1/guest.txt` and `vm10-boot1/device.txt`; `grep 'guest ABI' vm10-boot1/gpu.log`
   must say 570.
 
+## Regression (nova-core, pure emulation, no slot)
+
+```sh
+cd /mnt/vmstore/caraxes/wt-openrender
+caraxes/runs/nova-2026-09-25/nova-boot.sh caraxes/runs/openrender-2026-09-29/nova-regress \
+    CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-openrender-f7e9f4c7 \
+    CARAXES_KERNEL=/mnt/vmstore/caraxes/nova-kernel/build/arch/x86/boot/bzImage \
+    CARAXES_VBIOS=/mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin CARAXES_GUEST_ABI=
+```
+
 ## Expected at this commit
 
-- R1-R3: nouveau binds with GSP-RM 570.144, creates its kernel channels, `/dev/dri/renderD128`
-  appears, `vulkaninfo` lists NVK on the device.
+- R1-R5, R7 (vm10-boot5): nouveau binds with GSP-RM 570.144, its kernel channels come up,
+  `renderD128` appears, NVK lists the device, vk-offscreen passes, GL runs as zink on NVK.
+- R8 (from vm10-boot6): weston headless with its GL renderer, vkcube-wayland FPS, a screenshot
+  (`weston-vkcube.png`), glmark2-wayland and vkmark (wayland) scores.
 - nouveau makes no TSG (every channel's parent is the device; the RM wraps such a channel in
   a TSG of its own, kernel_channel.c:365-410 of 615). Where each channel runs:
   - NVK's GR channels carry `TURING_COMPUTE_A`, so the GR shadow path takes them
