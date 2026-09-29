@@ -9,11 +9,12 @@
 # rebuild it from serial.log (extract-ppm.py). Everything goes to the serial console; then
 # power off. nouveau is blacklisted from autoload in the image, so this script decides when
 # it binds. Rungs: R1 probe, R2 kernel channels, R3 NVK device, R4 clear+copy, R5 triangle,
-# R6 vkmark on its headless winsys (when the image has vkmark).
+# R6 headless scenes (vkmark, vkcube, where the image's builds have a headless WSI), R7 GL
+# through EGL surfaceless.
 exec > /dev/ttyS0 2>&1
 echo "CARAXES-CHECK begin $(date -Is) $(uname -r)"
 echo 1 > /proc/sys/kernel/sysrq
-( sleep 420; echo "CARAXES-CHECK watchdog: forced power-off"; sync; echo o > /proc/sysrq-trigger ) &
+( sleep 600; echo "CARAXES-CHECK watchdog: forced power-off"; sync; echo o > /proc/sysrq-trigger ) &
 lspci -nn -d 10de:
 mount -t debugfs none /sys/kernel/debug 2>/dev/null
 echo "CARAXES-CHECK firmware"
@@ -45,15 +46,36 @@ if [ -s /var/tmp/vk-offscreen.ppm ]; then
     gzip -9c /var/tmp/vk-offscreen.ppm | base64 -w 76
     echo "CARAXES-PPM-END"
 fi
-# R6: a moving scene without a window system (vkmark's headless winsys, VK_EXT_headless_surface),
-# when the image has vkmark; frames are rendered and presented to nothing, the FPS is the result.
-echo "CARAXES-CHECK R6 vkmark headless"
-if command -v vkmark >/dev/null 2>&1; then
+# R6: moving scenes without a window system, where the image's tools offer one: vkmark's
+# headless winsys plugin (VK_EXT_headless_surface), then vkcube's --wsi headless. Frames are
+# rendered and presented to nothing; FPS and exit codes are the result.
+echo "CARAXES-CHECK R6 headless scenes"
+ls /usr/lib/x86_64-linux-gnu/vkmark/ 2>&1 | tr '\n' ' '; echo
+if ls /usr/lib/x86_64-linux-gnu/vkmark/ 2>/dev/null | grep -q headless; then
     timeout 120 vkmark --winsys headless -s 640x480 -b cube:duration=5 -b clear:duration=3 > /var/tmp/vkmark.txt 2>&1
     echo "vkmark rc=$?"
     grep -E "^\[|FPS|Score|rror|ERR|not supported" /var/tmp/vkmark.txt | head -n 20
 else
-    echo "vkmark not installed"
+    echo "vkmark: no headless winsys in this image"
+fi
+vkcube --help 2>&1 | grep -iE "wsi|headless" | head -n 4
+if vkcube --help 2>&1 | grep -qi headless; then
+    t0=$(date +%s%N)
+    timeout 60 vkcube --wsi headless --c 60 > /var/tmp/vkcube.txt 2>&1
+    rc=$?
+    echo "vkcube headless --c 60 rc=$rc in $(( ($(date +%s%N) - t0) / 1000000 )) ms"
+    tail -n 5 /var/tmp/vkcube.txt
+else
+    echo "vkcube: no headless WSI in this image"
+fi
+# R7: OpenGL on the render node without a window system (EGL surfaceless; for Turing Mesa 25.x
+# runs GL as zink on NVK): the renderer and version it reports.
+echo "CARAXES-CHECK R7 egl surfaceless"
+if command -v eglinfo >/dev/null 2>&1; then
+    timeout 60 eglinfo -B -p surfaceless 2>&1 | grep -iE "renderer|version|vendor|error|fail" | head -n 12
+    echo "eglinfo rc=$?"
+else
+    echo "eglinfo not installed"
 fi
 echo "CARAXES-CHECK dmesg-after"
 dmesg | grep -iE "nouveau|gsp|fault|xid|timeout|channel" | tail -n 80

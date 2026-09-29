@@ -58,7 +58,7 @@ if pgrep -f "(vfio-user-nvgpu|cloud-hypervisor)[^ ]* .*$W/" >/dev/null; then ech
 { sha256sum "$CARAXES_SERVER" "$CARAXES_KERNEL" "$CARAXES_VBIOS"; git -C "$R" log --oneline -1; env | grep -E '^CARAXES_|^VM=' | sort; } > "$out/setup.txt"
 rm -f "$W/serial.log"
 "$R/tools/caraxes-vm.sh" up | tee "$out/up.txt"
-for _ in $(seq 300); do
+for _ in $(seq 360); do
     kill -0 "$(cat "$W/ch.pid")" 2>/dev/null || break
     grep -q "CARAXES-CHECK end" "$W/serial.log" 2>/dev/null && sleep 5 && break
     sleep 2
@@ -72,5 +72,5 @@ grep -aE "guest ABI|gsp start|sec2 start|fwsec|queues|static-info|unanswered|ref
     "$W/gpu-trace.log" "$out/gpu.log" 2>/dev/null | sed -E 's/^[^:]*://' | cut -c1-300 | head -n 2000 > "$out/device.txt" || true
 python3 "$HERE/extract-ppm.py" "$out/serial.log" "$out/vk-offscreen.png" 2>/dev/null || true
 # The rung lines: probe, render node, kernel channels, the Vulkan devices, the checks.
-grep -aE "CARAXES-CHECK R|modprobe nouveau rc|probe with driver|init failed|renderD128|MM: using|deviceName|driverName|device [0-9]:|step [AB]|vk-offscreen: (PASS|FAIL)|vk-offscreen rc|vkmark rc|FPS|Score" \
+grep -aE "CARAXES-CHECK R|modprobe nouveau rc|probe with driver|init failed|renderD128|MM: using|deviceName|driverName|device [0-9]:|step [AB]|vk-offscreen: (PASS|FAIL)|vk-offscreen rc|vkmark|vkcube|eglinfo rc|OpenGL|FPS|Score" \
     "$out/serial.log" | grep -v "gsp: " | cut -c1-200 | head -n 40
