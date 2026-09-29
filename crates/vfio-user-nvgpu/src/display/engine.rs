@@ -1123,12 +1123,17 @@ impl Engine {
             self.with_irq(|i| i.awaken_win |= 1 << w);
         }
         let win = &mut self.windows[w];
-        let changed = win.latched != f.surface;
+        // The trace names the first flips, every change of what is scanned out other than
+        // the buffer (a flip chain alternates buffers every frame), and every 600th flip.
+        let geometry = |s: &Surface| {
+            (s.mem.is_some(), s.width, s.height, s.format, s.pitch, s.pitch_layout, s.block_height_log2)
+        };
+        let changed = geometry(&win.latched) != geometry(&f.surface);
         win.latched = f.surface.clone();
         win.last_latch_tick = Some(tick);
         win.flips += 1;
         let n = win.flips;
-        if changed || n <= 3 {
+        if changed || n <= 32 || n % 600 == 0 {
             let s = &f.surface;
             let line = format!(
                 "display: window {w} latch {n} at tick {tick}{}{}: surface {} {}x{} format {:#x} {} pitch {} (block height 2^{}), notifier {}, acquire {}, release {} [guest]",
