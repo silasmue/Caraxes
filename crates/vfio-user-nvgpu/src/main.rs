@@ -113,57 +113,20 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
              none: no table). A comma-separated list merges several captures, e.g. that file
              and falcon-pmu-sec2-2026-09-25.txt. A missing or malformed file, or one whose NV_PMC_BOOT_0 is not
              the presented chip's, leaves no table (those reads stay 0)
-Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
-  ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
-  Hypervisor, a client without it keeps trapping); the eventfd carries no token, so a
-  wakeup rings every channel whose GPPut moved since its last doorbell. Refused with
-  CARAXES_BAR1_PASSTHROUGH=1.
-  CARAXES_BAR1_PASSTHROUGH=pool (P21 design H, docs/caraxes/bar1-pool.md) carves a pool of
-  CARAXES_BAR1_POOL_MIB (even, 2-128, default 64) from the top of the usable FB, offers
-  guest BAR1 [0, pool) as one sparse mmap area backed by a dma-buf of it, and moves every
-  page the guest maps there into the pool; needs --reserve-vram, host execution and every
-  host channel on a shadow VA space (CARAXES_MIRROR_GR_SHADOW=1, not CARAXES_CE_SHADOW=0,
-  not CARAXES_MIRROR_GR=1). Refused with CARAXES_DOORBELL_IOEVENTFD=1.
-  CARAXES_BAR1_POOL_WARM=refuse never moves a page the GPU maps (no preempt barrier).
-  CARAXES_DOORBELL_TOKENS=N (1-253, or on = 64) offers the doorbell register as N
-  ioeventfd sub-regions with KVM datamatch, one eventfd per device-chosen token; a
-  channel's first doorbell traps and hands it a pool token through its work-submit-token
-  notifier entry, every later ring ends in the token's eventfd (needs patch 0005 and a
-  client announcing max_msg_fds; docs/caraxes/doorbell-token-pool.md). Excludes
-  CARAXES_DOORBELL_IOEVENTFD=1; combines with CARAXES_BAR1_PASSTHROUGH=1.
-  CARAXES_DOORBELL_GUEST_TOKENS (default auto with --boot-model): the guest's own
-  work-submit tokens (runlist << 16 | chid) as datamatch ioeventfd sub-regions, one eventfd
-  each; a write of one of them is rung exactly as its trapped write. auto derives the set
-  from the device-info table (GR and the first async CE runlist interleaved per ChID, then
-  NVENC, the other CEs, NVDEC; 48 ChIDs; as many as fit 253 eventfds beside the pool's and
-  the re-arm and head eventfds); off disables; <hot>[,<runlist>...]:<chids> with the hot
-  runlists joined by + sets it for an A/B. For guests that never read the notifier entry the
-  pool uses (the Windows KMD). Not with CARAXES_DOORBELL_IOEVENTFD=1 (docs/caraxes/
-  doorbell-token-pool.md (g)).
-  CARAXES_MSI_REARM_IOEVENTFD=1 offers the MSI re-arm register (NV_XVE_CYA_2 in the NV_PCFG
-  mirror, BAR0 0x88704 on Turing, value ignored) as one more ioeventfd sub-region, no
-  datamatch, read by the token pool's reactor, which does what the trapped write does
-  (docs/caraxes/intr-page.md §4); needs CARAXES_DOORBELL_TOKENS=N. A client that does not
-  register it keeps trapping the write.
-  CARAXES_EXT_CONFIG=1 shows the extended configuration space (0x100-0xFFF, the capture's
-  capabilities without SR-IOV, ARI and the serial number) in the vfio-user config region
-  too, so the guest OS sees VC, LTR, L1SS, Power Budgeting, AER, the VSEC, Secondary PCIe
-  and Resizable BAR (read-only); without it the region reads zeros there and only the
-  BAR0 mirror NV_PCFG serves those bytes (docs/caraxes/vfio-user.md).
-  CARAXES_FALCON_STALLACK=<hex> is what a falcon's ENGCTL (+0xa4) reads after a stall
-  request (a write with bit 1): default 0x200 (STALLACK_T), e.g. 0 or 600 to try the other
-  answers the Windows driver's PMU poll may want (boot.toml `stallack` sets the default).
-  CARAXES_DOORBELL_POLL=off|spin|hybrid chooses how the thread that reads those eventfds
-  waits: off blocks in epoll_wait (default), spin polls with epoll_wait timeout 0 and
-  never sleeps, hybrid spins CARAXES_DOORBELL_POLL_IDLE_US (default 200) after the last
-  event and then blocks. spin and hybrid pin the reader to CARAXES_DOORBELL_POLL_CPU=<n>,
-  or to a core chosen at start (auto, the default: not CPU 0, not a vCPU thread's, the
-  highest-numbered idle one), or not at all (none). Needs one of the two above
-  (docs/caraxes/doorbell-poll.md)
-  CARAXES_HOST_BOOST=0 turns off the host clock boost of --host-exec (on by default: a
-  3 s PERF_BOOST to the highest P-state on the device's own host subdevice, renewed at
-  most every second while the VM rings doorbells or its host engines raise events;
-  docs/research/host-boost-2026-09-28.md).
+Configuration: one set for every guest OS. With --host-exec every host channel runs on a
+  shadow VA space, guest DMA addresses are GPAs, and the interrupt page, the hybrid
+  doorbell reactor, the guest-token ioeventfds, a 32 MiB BAR1 pool (2 x 16 MiB windows
+  beside it) and the host clock boost are on; pure emulation keeps the trapped paths.
+  The knobs, besides --profile/--fb-mib and --display:
+  CARAXES_COMPRESSION=off|slice  real compression per VM slice (default off, D16b)
+  CARAXES_DOORBELL_POLL=off|hybrid|spin  how the doorbell reactor waits (default hybrid
+             with --host-exec, off without; off is refused with the interrupt page)
+  CARAXES_BAR1_POOL_MIB=<n>  the BAR1 pool, an even 2-128 MiB, 0 for none (default 32
+             with --host-exec; docs/caraxes/bar1-pool.md)
+  The open switches (kept until an A/B decides them), the diagnostics and the variables
+  removed on 2026-09-30 are listed in src/settings.rs. At start the device logs its
+  effective configuration in one block (\"config:\" lines) and one warning for every
+  removed variable that is still set.
 Paths default relative to LEA_ROOT or the current directory.";
 
 struct Args {
@@ -362,6 +325,120 @@ fn parse_args() -> Result<Args> {
     Ok(a)
 }
 
+/// What the start-up resolved, for the configuration block.
+struct ConfigView<'a> {
+    a: &'a Args,
+    env: &'a [(String, String)],
+    poll: &'static str,
+    compression: bool,
+    pool_mib: Option<u64>,
+    doorbell_tokens: Option<usize>,
+    guest_tokens: Option<usize>,
+    msi_rearm: bool,
+    rpc_ioeventfd: bool,
+    intr_page: bool,
+    display_page: bool,
+    kick_page: bool,
+    usermode_page: bool,
+    invalidate_page: bool,
+    bar2_memfd: bool,
+    zero_fb: bool,
+}
+
+/// The effective configuration in one block (settings.rs): the mode, the five knobs with
+/// where each value came from, the fast paths in force, the open switches and diagnostics
+/// that are set, and the `CARAXES_` variables the device does not read.
+fn config_block(c: &ConfigView) -> Vec<String> {
+    use vfio_user_nvgpu::settings::{self, Class};
+    let a = c.a;
+    let on = |b: bool| if b { "on" } else { "off" };
+    let from = |name: &str| {
+        if c.env.iter().any(|(k, _)| k == name) {
+            "set"
+        } else {
+            "default"
+        }
+    };
+    let mode = if a.host_exec {
+        format!(
+            "host execution (boot model, host RM, VRAM reservation slot {}, registered guest RAM)",
+            a.reserve_slot
+        )
+    } else if a.boot_model {
+        "pure emulation with the boot model".to_string()
+    } else {
+        "pure emulation".to_string()
+    };
+    let mut lines = vec![
+        format!(
+            "mode {mode}; chip {}, board {}; guest ABI {}",
+            a.chip.data().short_name,
+            a.board,
+            describe_guest_abi(a.guest_abi)
+        ),
+        format!(
+            "knobs: VRAM {} MiB (--fb-mib/--profile, LEA_VRAM_PROFILE_MIB); display {} (--display); {}={} ({}); {}={} ({}); {}={} ({})",
+            a.fb_mib,
+            on(a.display),
+            compslice::ENV,
+            if c.compression { "slice" } else { "off" },
+            from(compslice::ENV),
+            vfio_user_nvgpu::poll::POLL_ENV,
+            c.poll,
+            from(vfio_user_nvgpu::poll::POLL_ENV),
+            vfio_user_nvgpu::bar1pool::POOL_MIB_ENV,
+            c.pool_mib.unwrap_or(0),
+            from(vfio_user_nvgpu::bar1pool::POOL_MIB_ENV),
+        ),
+    ];
+    let mut paths = Vec::new();
+    if a.host_exec {
+        paths.push("every host channel on a shadow VA space, GPA DMA, host boost".to_string());
+    }
+    if a.reserve_vram {
+        let (w, n) = vfio_user_nvgpu::fb::bar1_budget();
+        paths.push(format!("BAR1 windows {n} x {} MiB", w >> 20));
+    }
+    paths.push(format!("interrupt page {}", on(c.intr_page)));
+    paths.push(format!(
+        "doorbell tokens {}, guest tokens {}",
+        c.doorbell_tokens.map_or("off".into(), |t| t.to_string()),
+        c.guest_tokens.map_or("off".into(), |t| t.to_string())
+    ));
+    paths.push(format!(
+        "MSI re-arm ioeventfd {}, GSP queue head ioeventfd {}",
+        on(c.msi_rearm),
+        on(c.rpc_ioeventfd)
+    ));
+    paths.push(format!(
+        "display page {}, kick page {}, usermode page {}, invalidate page {}",
+        on(c.display_page),
+        on(c.kick_page),
+        on(c.usermode_page),
+        on(c.invalidate_page)
+    ));
+    paths.push(format!("BAR2 memfd {}", on(c.bar2_memfd)));
+    if c.zero_fb {
+        paths.push("zero-based guest FB".to_string());
+    }
+    lines.push(format!("paths: {}", paths.join("; ")));
+    let or_none = |v: Vec<String>| if v.is_empty() { "none".to_string() } else { v.join(" ") };
+    lines.push(format!("open switches: {}", or_none(settings::set_of(c.env, Class::Open))));
+    lines.push(format!("diagnostics: {}", or_none(settings::set_of(c.env, Class::Diag))));
+    let inputs = settings::set_of(c.env, Class::Input);
+    if !inputs.is_empty() {
+        lines.push(format!("inputs: {}", inputs.join(" ")));
+    }
+    let unread = settings::unread(c.env);
+    if !unread.is_empty() {
+        lines.push(format!(
+            "not read by the device (launcher settings or misspelled): {}",
+            unread.join(" ")
+        ));
+    }
+    lines
+}
+
 fn config_space(a: &Args) -> Result<ConfigSpace> {
     let dump = std::fs::read_to_string(&a.config)
         .with_context(|| format!("read {}", a.config.display()))?;
@@ -521,6 +598,13 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
 }
 
 fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
+    // The environment against the settings table (settings.rs): a removed variable that is
+    // still set is named at once, so an old wrapper is noticed; the whole configuration
+    // follows in one block before the server starts (`config_block`).
+    let env = vfio_user_nvgpu::settings::environment();
+    for w in vfio_user_nvgpu::settings::removed_warnings(&env) {
+        eprintln!("vfio-user-nvgpu: config: {w}");
+    }
     // The profile first, before any thread: SIGUSR2 must be blocked in every thread so
     // that only the dump thread's sigwait takes it (profile.rs).
     if profile::requested() {
@@ -1282,6 +1366,26 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .chain(kicks.as_ref().map(|k| k.area()))
             .collect(),
     });
+    for l in config_block(&ConfigView {
+        a,
+        env: &env,
+        poll: poll.mode.name(),
+        compression: compression == compslice::Mode::Slice,
+        pool_mib: bar1_pool.map(|b| b >> 20),
+        doorbell_tokens,
+        guest_tokens: guest_tokens.as_ref().map(|g| g.len()),
+        msi_rearm,
+        rpc_ioeventfd,
+        intr_page: intr_page.is_some(),
+        display_page: fe.is_some(),
+        kick_page: kicks.is_some(),
+        usermode_page: um.is_some(),
+        invalidate_page: inv.is_some(),
+        bar2_memfd: bar2_region.is_some(),
+        zero_fb,
+    }) {
+        eprintln!("vfio-user-nvgpu: config: {l}");
+    }
     // The listening socket stays open across clients (a VMM reboot connects a new client,
     // `client_waiting`); a duplicate of it tells whether one is waiting.
     let listener = std::os::unix::net::UnixListener::bind(socket)

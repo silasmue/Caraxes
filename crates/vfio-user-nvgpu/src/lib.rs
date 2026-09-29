@@ -77,6 +77,7 @@ pub mod registrar;
 pub mod rpc;
 pub mod rusd;
 pub mod selftest;
+pub mod settings;
 pub mod shadow;
 pub mod soak;
 pub mod tokens;
