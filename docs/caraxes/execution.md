@@ -410,3 +410,36 @@ for 20+ minutes, P43, 4 GiB).
 - **Tests.** `invgate::tests` (out-of-order finish, urgency while waiting and while a gate is
   armed, a gate with nothing in flight), `untrapped::tests::a_held_invalidate_waits_for_its_scope_only`,
   `mirror::tests::the_worker_takes_a_waited_for_root_first_and_keeps_each_roots_order`.
+
+## 9. Lock ordering and what may run under the device lock (2026-09-29)
+
+The device lock (D, `Arc<Mutex<Device>>`, device.rs) serialises every trapped access, every
+reactor wake-up and every clock. A long hold stops unrelated engines: Windows C61 timed out its
+VSync behind a 495 ms mirror build and 500-650 ms control replies; SotTR on Linux waited up to
+441 ms behind a pool poll. The card's rules bound what needs D:
+
+- a doorbell only promises that the GPU fetches the new entries eventually;
+- a control reply may take as long as it needs, but must not stop unrelated engines;
+- the held invalidate's trigger read waits at most 50 us per read (§8), and the guest polls it.
+
+**Order.** D first, then any of: the BAR1 pool's lock, the display engine's lock, the host RM
+mutex (`hm`, `HostMemory`), the shadow worker's and the builder's internals (`invgate::Progress`,
+job queues), the BAR2 flush state. A thread that holds any of these never takes D. The shadow
+worker, a builder, the pool's mover and the display clock hand their results to D-holders through
+queues or atomics (a completion drained at the next D hold, or a host doorbell write the worker
+does itself).
+
+**What runs under D.** Short state changes only: reading a guest structure, updating the
+registry and the mirror's maps, writing a reply or a register, submitting a job. Not under D:
+
+- waiting for the shadow worker, a builder or the pool (a doorbell holds its ring instead, §9.1);
+- host RM calls that build objects (a channel's mirror build, §9.2) or serve a slow control
+  (the RPC worker, §9.4);
+- a shadow full walk (bounded resumable steps, §9.3).
+
+The one wait that stays is the trigger read's `POLL_WAIT` (50 us). A wait under D that is not
+bounded is a bug; the D hold histogram in the exit summary names the holder of every long hold.
+
+§9.1-9.4 are the steps (branch lockfree-2026-09-29): the held ring, the build off D, bounded walks,
+the RPC worker. The pool's barrier becomes a held ring as well (the pool rework); the display
+clock's per-tick work takes the display engine's lock and never D.
