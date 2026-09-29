@@ -12,8 +12,8 @@ One binary on dev (b2e0d749 + docs): the guest's ABI is detected at the GSP boot
 - **Windows 11 / 617.14:** D3D11, D3D12, Vulkan, CUDA, managed memory, NVENC/NVDEC, smoke ALL PASS; 0 Xid, 0 TDR.
   - **Caveat:** every Windows run binary (P28-P38) carried the P17 diagnostic build patch, which binds owned GFXP buffers on the host (host vidmem, outside the VM's slice). dev itself has no such bind.
   - **P39 confirmed it (05:00): the plain dev binary does not start the Windows driver at all (Code 43).** dev refuses the KMD's GR_GFX_POOL_QUERY_SIZE, and the KMD unloads.
-  - Productizing P17 is now the top stability item: the pool bootstrap plus owned GFXP in the VM's slice (your "Puffer in den SLICE der VM"), for both guests. It is being implemented. It is also step 2 of the Linux Xid 109 fix.
-  - Until it lands, Windows needs the P17 diagnostic build.
+  - **Fixed in P41 (06:00), with no diagnostic patch:** the pool-query answer, the captured TU106 display caps (for every guest), and compute preemption parity. D3D11 and smoke ALL PASS, CUDA and NVENC work.
+  - P43 (P41 without the unused GFXP slots) is the production candidate being gated on Linux, nova and Windows.
 
 ## Performance, Linux vs native (defaults, no extra switches)
 
@@ -86,7 +86,14 @@ Graphics: the vblank handler's display-page writes each ran an unrelated BAR1 po
    - See docs/research/windows-traps-exit-2026-09-29.md.
 4. **The device trace** costs ~10 % in graphics micro-benchmarks. Off by default in the launcher?
 5. **NAS:** the games disk reads at ~62 MiB/s (qcow2 on /mnt/vmstore); you mentioned 25 Gbit/s.
-6. **GFXP slots cost VM VRAM:** ~6.6 MiB per GR context, e.g. 8 slots = 53 MiB of a 4 GiB slice. The alternative is host VRAM outside the slice, as in P17. It is being implemented in the slice as you decided; say if the cost changes your mind.
+6. **GFXP (graphics preemption, the Linux Xid 109 fix) needs a VA decision.**
+   - Built in the slice as you decided, P42 bound it at VAs ≥ 2^47, and the context-switch unit, which keeps only 47 bits, faulted on both VMs (host Xid 31). It is reverted.
+   - The buffers must sit below 2^47 in a range no guest can map. Options:
+     - ~~(a) the guest's reserved server-RM range~~: ruled out by the RM source (gvaspaceReserveSplitVaSpace always puts the host's own server range there in a base-0 shadow VAS);
+     - (c) host first fit per TSG with a VA fence on Linux too: worked on Windows in 20 runs, but not structurally collision-free;
+     - (d) the host RM allocates them in its own server range: structurally safe, but host VRAM outside the slice, ~6.6 MiB per GR context, capped per VM;
+     - (e, Windows only) the KMD's own pool VAs: does not help Linux.
+   - Until then: **production = P41** (Windows runs without any patch, compute CTA/CILP parity on both OSes, graphics WFI).
 7. **Long-draw test:** proving the Xid 109 fix needs a synthetic guest draw of ~6 s. It provokes one host Xid and a ~4 s host-desktop freeze, so it waits for your go.
 
 ## Open items (not blocking)
