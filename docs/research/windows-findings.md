@@ -990,3 +990,42 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   the device lock (mirror builds and shadow full walks async behind a held doorbell), and the
   display engine's per-tick work on its own lock.
 - Memory model: none for the display; the long holders are the mirror and shadow paths.
+
+## Cloud Hypervisor, step 11: exact mode reaches the guest; a re-arm storm after the FLR (2026-09-29, C62-C64)
+
+- **Runs:**
+
+  | run | binary, CH | tree mode | first desktop flip | FLR | after the FLR |
+  |---|---|---|---|---|---|
+  | C62-intrpage | ch16, CH 0007 | tagged (0007 lost the read-only flag) | 152.7 s | 174.4 s | re-init, 1268 RPCs |
+  | C63-lf | lf1, CH 0007 | tagged | 152.8 s | 160.4 s | re-init, 1526 RPCs |
+  | C64-exact | lf1, CH 0008 | exact from 11.8 s | 135.5 s | 151.7 s | hung at RPC 124 |
+
+- **CH 0008:** EDK2 moves every BAR at boot and `move_bar()` re-created the read-only area
+  writable. With 0008 the guest's tree stores trap ("exact register values from now on").
+- **The reset is not caused by the tree mode:** in all three runs the KMD tears the device down in
+  order 8-22 s after the first desktop flip (FREEs, display shut down, DP link powered down),
+  then an FLR. There is no stall before it, and no channel is behind.
+  - The display clock still waits behind the device lock. In C64 the driver (lock plus
+    catch-up) had p99 <= 524 ms and max 801 ms; the catch-up alone max 46 us.
+  - Longest holds: doorbell/re-arm/rpc eventfds (360 holds, 25.9 s in total, max 806 ms) and a
+    config-space write (684 ms).
+- **C64's hang after the FLR was the model's:**
+  - 4.35M MSIs at the guest's MSI re-arm (`kbifRearmMSI_GM107`), 58k from the watchdog, 12.8M
+    trapped reads of `FE_RM_INTR_DISPATCH` (0x611ec0) and no tree ack. vcpu0 spun in the ISR,
+    with no network.
+  - Cause: the display clock raised the DISP vector at every tick with work, whatever the FE
+    showed. After the FLR the fresh engine had nothing pending, so the KMD's display handler
+    found nothing and left the leaf. Exact mode then re-sent the MSI at every re-arm, as the
+    card does for a pending enabled vector.
+  - On the card the leaf follows the FE's interrupt line.
+- **Fix (8a12eada):**
+  - The clock raises the vector only while the FE line is asserted after the tick (a
+    `LAST_DATA` left pending is still raised again at the next frame).
+  - A device reset drops the vectors raised before it.
+  - Diagnostics (6b09dba1): the first 256 trapped tree stores after each reset, and the busiest
+    trapped BAR0 offsets at exit.
+  - Binary lf2 (win-lockfree 9f6d5126).
+- **The ETW start failed:** SSH dropped at the reset. Start the trace before the desktop.
+- Memory model: none. The storm and the fix are interrupt semantics; the long holders are the
+  mirror and shadow paths.
