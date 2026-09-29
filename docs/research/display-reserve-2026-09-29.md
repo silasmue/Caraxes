@@ -57,6 +57,30 @@ An independent review found five blocking defects. The coordinator decided to re
   - per-GPU state in a file-static array.
 - **What the smoke taught** (kept below as history): mutter allocates its framebuffers from userspace GL. So sizing from allocations cannot be both automatic and safe. The display driver knows every head's committed mode and must be the one to declare the reserve.
 
+## Review response (v2, patch commit c14f81c)
+
+`P` = the patched tree (`/mnt/vmstore/caraxes/ogkm-615-display-reserve`, branch `display-reserve-v2`); `D` = `P/src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c`.
+
+| # | Finding | v2 |
+|---|---|---|
+| 1 | No refill after a release | Every release schedules a refill 1 s later [D:671-676]; a short refill re-arms at 1 s doubling to 30 s [D:404-416] |
+| 2 | Any process controls the size | The size is NVKMS's declaration from the committed modes [P/src/nvidia-modeset/src/nvkms-rm.c:5215-5260, nvkms-modeset.c:4364], through a kernel-only control [P/src/nvidia/generated/g_disp_objs_nvoc.c:4024-4040 (flags 0x0)]. No allocation is tracked any more |
+| 3 | Never shrinks while full | Every declaration change queues a refill that re-cuts to the new need, smaller included [D:555-588, 320-363]. Heads off → need 0 → no runs |
+| 4 | A re-cut freed the old reserve first | New runs are allocated first, swapped in under the mutex, then the old ones freed [D:320-363] |
+| 5 | RTD3/GCx deadlock, no full-power check | No RM objects remain, so no client lock exists to wait on. Stop frees PMA runs directly under the GPU lock [D:514-548]. The refill takes no GPU lock while in PMA and returns unless `gpuIsGpuFullPower` [D:303] |
+| 6 | `heldSize` mixed request and page sizes | `heldBytes` and `targetBytes` count PMA bytes (`pageCount × pageSize`) [D:192-196, 348-353, 388, 658] |
+| 7 | Atomicity overstated | Stated for API-locked allocations only; UVM and `RmRoApiLock` can take freed pages, and the loop releases the next run [D:40-46; note "Layer"] |
+| 8 | No PMA or MIG gate | No reserve without PMA [D:434]; refill and declaration refused with MIG enabled [D:303, 566] |
+| 9 | Scrubber already destroyed at unload | Runs are freed with `PMA_FREE_SKIP_SCRUB` (never mapped or written; PMA hands out zeroed pages) [D:211-216; D:53-56] |
+| 10 | memacct charge to the RmInitAdapter process | PMA-level runs, no `vidmemConstruct`, no charge [D:198-209] |
+| nit | `TMR_FLAG_USE_OS_TIMER` | [D:449-450] |
+| nit | Ignored return values | Init failure is logged [P/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c:829-833]; timer and work-item errors are logged [D:234-274] |
+| nit | Rate of the warning | One `LEVEL_WARNING` per release, not per run [D:671-674] |
+| nit | Size key MB vs MiB, validation | Registry keys removed. `display_reserve_mib` is validated (< −1 rejected with a warning) [P/src/nvidia-modeset/src/nvkms-rm.c:5227-5232]; RM rejects a size without a surface [D:569-570] |
+| nit | A CPU-side NO_MEMORY also released | The release sits right after `pmaAllocatePages` in `_vidmemPmaAllocate` [P/src/nvidia/src/kernel/mem_mgr/video_mem.c:320-333] |
+| nit | False comment, redundant NULL check | The file is rewritten; the comments describe v2 |
+| nit | Per-GPU state in a file-static array | `MemoryManager.pDisplayReserve` [P/src/nvidia/generated/g_mem_mgr_nvoc.h:745; D:459, 480] |
+
 ## Design (redesign)
 
 ### NVKMS declares the need
