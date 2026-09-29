@@ -754,10 +754,13 @@ impl WalkCache {
     /// docs/caraxes/bar2-memfd.md §3): every leaf's memory outside the VA ranges `exclude`
     /// (sorted or not), as `(start, bytes)`, and every table page (4 KiB page number) the
     /// MMU reads by physical address (NV_RAMIN_PAGE_DIR_BASE and the directory entries,
-    /// gm107/dev_ram.h:58-66). `None` when the cache cannot say: never built, a table in
-    /// sysmem (unwatched), or truncated at `max_leaves`.
+    /// gm107/dev_ram.h:58-66). `None` when the cache cannot say: never built, or truncated
+    /// at `max_leaves`. A table in sysmem is no reason: it is re-read at every update like a
+    /// dirty VRAM page (`sys_uses`), so the leaves are as current as the last update, which
+    /// is what the rule takes for any table (bar2-memfd.md §3 rule 2). Sysmem tables are not
+    /// among the table pages (they are not behind BAR2).
     pub fn observable(&self, exclude: &[(u64, u64)]) -> Option<Observable> {
-        if !self.built || self.sys_tables || self.truncated {
+        if !self.built || self.truncated {
             return None;
         }
         let mut ex: Vec<(u64, u64)> = exclude.iter().copied().filter(|(lo, hi)| lo < hi).collect();
@@ -924,6 +927,11 @@ mod tests {
         assert!(u.full);
         assert!(c.sys_tables && c.is_dirty(), "sysmem is never clean");
         assert_eq!(c.unit_leaves(UNIT), &[(UNIT + 0x2000, Target::Fb(0x30000), 0x1000, 6)]);
+        // What an engine could read is known all the same: the leaf behind the sysmem table,
+        // and the VRAM table pages (not the sysmem one).
+        let (pieces, tables) = c.observable(&[]).expect("known with a sysmem table");
+        assert!(pieces.contains(&(Target::Fb(0x30000), 0x1000)), "{pieces:x?}");
+        assert!(!tables.contains(&0x7), "{tables:x?}");
         // Nothing written: only the sysmem table is read again, nothing changed.
         let u = c.update(&m, false);
         assert!(!u.full);
