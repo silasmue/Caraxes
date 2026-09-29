@@ -2275,6 +2275,51 @@ impl Mirror {
         self.hm.lock().unwrap().control(handle, 0xA06C_0105, &mut p)
     }
 
+    /// The BAR1 pool's barrier without the device lock (bar1-pool.md §15): the preempt of
+    /// host TSG `handle` as a worker job in order with `root`'s plans. Returns the job
+    /// (root, sequence number) and the slot its status lands in.
+    pub fn submit_preempt(&mut self, root: u64, handle: u32) -> ((u64, u64), Arc<Mutex<Option<u32>>>) {
+        let slot = Arc::new(Mutex::new(None));
+        let out = slot.clone();
+        let call: HostCall = Box::new(move |hm: &Mutex<HostMemory>| {
+            // bWait, bManualTimeout, pad, timeoutUs (as `preempt_tsg`).
+            let mut p = [1u8, 0, 0, 0, 0, 0, 0, 0];
+            let st = hm.lock().unwrap().control(handle, 0xA06C_0105, &mut p);
+            *out.lock().unwrap() = Some(st);
+            Vec::new()
+        });
+        self.submit_call(root, call, None);
+        ((root, self.worker.seqs.last_of(root)), slot)
+    }
+
+    /// Release ring hold `token` once `root`'s jobs submitted so far are applied (a job
+    /// that does nothing but release it, in order with the root's plans).
+    pub fn release_rings_after(&mut self, root: u64, token: u64) -> (u64, u64) {
+        self.submit_call(root, Box::new(|_: &Mutex<HostMemory>| Vec::new()), Some(token));
+        (root, self.worker.seqs.last_of(root))
+    }
+
+    /// Whether shadow jobs `jobs` ((root, sequence number): each root's jobs up to it) are
+    /// applied, waiting at most `max` (`None`: to the end). True without a worker thread.
+    pub fn shadow_jobs_applied(&self, jobs: &[(u64, u64)], max: Option<Duration>) -> bool {
+        if self.worker.thread.is_none() || jobs.is_empty() {
+            return true;
+        }
+        let t = crate::invgate::Target::Roots(jobs.to_vec());
+        match max {
+            None => {
+                self.worker.progress.wait(&t);
+                true
+            }
+            Some(m) => self.worker.progress.wait_at_most(&t, m),
+        }
+    }
+
+    /// Whether the shadow worker runs (jobs submitted are applied at all).
+    pub fn shadow_worker_running(&self) -> bool {
+        self.worker.thread.is_some()
+    }
+
     /// Wait until the worker applied everything submitted so far: the mirror of every
     /// root is then consistent with the guest's tables as of the last resync (the
     /// ordering guarantee a doorbell needs).
@@ -5492,6 +5537,7 @@ impl Mirror {
         self.ring_stats.dropped += self.held_rings.len() as u64;
         self.held_rings.clear();
         self.ring_gate.set_waiting(0);
+        self.ring_gate.clear_holds();
         if let Some(inv) = self.invalidator.take() {
             let mut h = self.hm.lock().unwrap();
             notes.push(inv.free(&mut h));

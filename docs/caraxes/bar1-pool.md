@@ -928,10 +928,9 @@ drsv3-on-2-profile.*.tsv, benchmark-window-20s-device.md); Windows C57-C59b (§1
   and a batch older than `BATCH_FALLBACK` (1 s, inside RM's 4 s and nouveau's 2 s poll) run all
   moves at once; the wait for a job in flight stays bounded (a worker stuck past the guest's
   poll shows as the guest's invalidate timeout, not as a stalled vCPU).
-- Still under the device lock: the warm path (preempt, re-sync, worker drain; 24 times in the
-  SotTR session, never on Windows) and the copies of each slice. Next (after the lockfree
-  work's held rings, execution.md §9): the warm path as held rings plus worker jobs, and the
-  copies on a pool thread with pages in transit behind a pool lock (device lock, then pool).
+- Still under the device lock: the copies of each slice. The warm path waits no more (§15).
+  Next: the copies on a pool mover thread with pages in transit behind a pool lock (device
+  lock, then pool; execution.md §9.5).
 - The copies themselves stay under the lock for now: a copy on another thread needs a page
   state "in transit" that every device path (FB store, BAR2 memfd, software executor, device
   CE, display) respects. The slices bound each hold; with the lazy move back (§13) fewer copies
@@ -957,4 +956,49 @@ dropped leaf),
 gpu-exit-on-2.log (441 ms, 9779), `W wait(s) for a shadow job in flight` small against the polls
 that moved pages, the display clock's waits. Windows: no TDR at DWM start, `slowest poll` about
 one slice, the churn line (§13).
+
+## 15. The barrier as held rings (2026-09-29)
+
+The warm path (a page a shadow maps) waited under the device lock twice: for the TSG preempts
+(host RM calls with wait) and for the worker to apply the re-sync (`shadow_barrier`). Both are
+worker jobs now, behind the held rings of execution.md §9.1 (`PoolGpu::begin_barrier`,
+`barrier_ready`, `end_barrier`, `cancel_barrier`).
+
+- **Begin** (under the lock, one state change):
+  - every host channel on the roots must be idle (GPGet = GPPut), as before;
+  - each root's rings are held (`Mirror::hold_rings`): a doorbell of these roots is recorded,
+    not forwarded;
+  - each TSG's preempt is queued as a worker job in order with the root's plans
+    (`Mirror::submit_preempt`);
+  - the chunk waits as the batch's stage; TRIGGER reads busy.
+- **Ready** (trigger reads, at most `WAIT_SLICE` each): the preempt jobs are applied, each
+  returned `NV_OK`, and every channel is still idle. A failure releases the rings and refuses
+  the chunk's warm pages (retried); its other pages move.
+- **Moves**: the chunk's pages, in order, as before.
+- **End**:
+  - the roots are re-synced (plans submitted, `shadow_resync`);
+  - a release job per root is queued after its re-sync (`Mirror::release_rings_after`): the
+    worker releases the rings itself, and the completer forwards them;
+  - TRIGGER reads busy until those jobs are applied.
+- A barrier that ends up moving nothing releases its rings at once. A device reset drops every
+  hold (`RingGate::clear_holds` in `Mirror::reset`).
+- The invalidate page (`Pace::ALL`) waits for each step to the end, as before. Without a
+  worker thread the barrier stays synchronous (`quiesce`, `resync`).
+- Unchanged: a channel whose GPPut the guest stores without a trap can be scheduled by the
+  host between the copy and the re-sync if another doorbell makes the runlist run. The device
+  lock never closed that window: it does not stop a guest store or the host scheduler.
+
+**Counters.**
+- Exit summary: `H hold(s) left a barrier to the worker`.
+- The barrier line: `... re-synced, their rings held until the worker applied the re-sync,
+  before the guest continues`.
+
+**Test.**
+`bar1pool::tests::a_page_the_gpu_maps_moves_behind_held_rings_without_a_wait_under_the_lock`:
+- nothing moves before the preempt ran;
+- the rings stay held until the re-sync;
+- a failed preempt releases the rings and refuses the page;
+- the invalidate page's pace does all of it in one poll.
+
+`ringgate::tests::a_ring_waits_for_its_roots_jobs_and_holds_only` covers the reset.
 

@@ -462,36 +462,30 @@ clock's per-tick work takes the display engine's lock and never D.
 - Counters: the mirror line's `held rings: ...` part; the device-lock holds by holder
   (`dlock.rs`) at exit: count, total, p50/p99 bounds, max per holder, and the longest holds.
 - Still waiting under D: the preparation path (`submit` false), the trapped GPPut store's barrier
-  (`gp_put_barrier`), the software MEM_OP hold, the pool's barriers (pool rework), the first
-  doorbell's build (§9.2).
+  (`gp_put_barrier`), the software MEM_OP hold, the first doorbell's build (§9.2). The pool's
+  barrier holds rings instead (§9.5, bar1-pool.md §15).
 - Tests: `ringgate::tests` (a ring waits for its root's jobs and holds only; the completer wakes
   on a poke while rings are held), `dlock::tests`.
 
-### 9.5 The BAR1 pool (2026-09-29, bar1-pool.md §13-§14)
+### 9.5 The BAR1 pool (2026-09-29, bar1-pool.md §13-§15)
 
-- Now (branch bar1pool-lf-2026-09-29), under D:
+- Under D:
   - the poll's decision;
-  - the GPU check, without a worker drain (it waits only for a job in flight that took a page to
-    move out of a walk);
+  - the GPU check, with no worker drain;
   - the moves in slices of about 500 us behind the invalidate trigger;
-  - a wait for the worker of at most 50 us per poll, except with the invalidate page (as its held
-    invalidate).
-- Still under D:
-  - the warm path (quiesce, preempt, re-sync, worker drain; rare);
-  - each slice's copies.
-- Next, in this order, both within §9's order (D, then the pool's lock, the display lock, `hm`,
-  worker internals):
-  - The warm path on held rings:
-    - `hold_rings(roots)`;
-    - the preempt as `submit_call` in order with the roots' plans;
-    - the re-sync plans;
-    - `release_rings` by the worker;
-    - TRIGGER busy until the token is released.
-  - The copies on a pool mover thread that never takes D:
-    - the pool state behind its own lock;
-    - a page in transit stays at home for every device path;
-    - a device write to it marks it for a second copy;
-    - the mover commits the remap switch under the pool lock;
-    - a commit that changes a record page the display core pinned tells the display core (pool
-      lock, then display lock, never the reverse).
-
+  - the barrier's start (idle check, ring holds, preempt jobs queued) and its end (re-sync
+    plans, ring releases queued).
+- Waits for the worker: at most 50 us per poll (in-flight jobs, the barrier's preempts, its
+  re-sync), except with the invalidate page (as its held invalidate). The worker releases the
+  held rings itself.
+- Still under D: each slice's copies.
+- Next, within the order above (D, then the pool's lock, the display lock, `hm`, worker
+  internals): the copies on a pool mover thread that never takes D.
+  - The pool state goes behind its own lock.
+  - A page in transit stays at home for every device path; a device write to it marks it for a
+    second copy.
+  - The mover commits the remap switch under the pool lock.
+  - A commit that changes a record page the display core pinned tells the display core (pool
+    lock, then display lock, never the reverse).
+- `RingGate::clear_holds` at `Mirror::reset`: a reset drops the holds of a batch that went with
+  the model.

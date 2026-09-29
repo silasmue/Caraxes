@@ -62,6 +62,17 @@ impl RingGate {
         }
     }
 
+    /// Drop every hold (a device reset: the BAR1 pool's batch, whose barrier held them, is
+    /// gone with the model).
+    pub fn clear_holds(&self) {
+        let mut st = self.st();
+        if !st.holds.is_empty() {
+            st.holds.clear();
+            st.generation += 1;
+            self.cv.notify_all();
+        }
+    }
+
     /// Whether a hold names `root`.
     pub fn held(&self, root: u64) -> bool {
         self.st().holds.values().any(|rs| rs.contains(&root))
@@ -218,6 +229,11 @@ mod tests {
         assert!(!ready(&all, &p, &g), "a mirror without a shadow waits for every job");
         p.finish(2);
         assert!(ready(&all, &p, &g));
+        // A reset drops the holds the BAR1 pool left.
+        g.hold(vec![0xA000]);
+        assert!(!ready(&r, &p, &g));
+        g.clear_holds();
+        assert!(ready(&r, &p, &g));
     }
 
     /// The completer's wait: it returns when rings are held and something moved, at the
