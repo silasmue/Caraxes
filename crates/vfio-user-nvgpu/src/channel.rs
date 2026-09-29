@@ -3440,7 +3440,9 @@ impl Registry {
                         c.progress = None;
                     }
                 }
-            } else if c.progress.is_none() && bytes >= crate::devce::MIN_BYTES {
+            } else if c.progress.is_none()
+                && (bytes >= crate::devce::MIN_BYTES || (!remap && bytes >= DEVCE_VRAM_READ_MIN))
+            {
                 if let Some(engine) = mem.fb.device_ce() {
                     let mut e = engine.lock().unwrap_or_else(|e| e.into_inner());
                     if e.off().is_none() {
@@ -3472,6 +3474,16 @@ impl Registry {
                                         bytes_per_line,
                                         fb_range,
                                     )?);
+                                }
+                                // A small copy goes to the device CE only when it reads VRAM:
+                                // the CPU reads VRAM through the BAR1 windows at about 10 MB/s
+                                // (Windows C81: 63512 CPU copies, 19.9 s), while writes and guest
+                                // RAM reads are fast on the CPU.
+                                if !remap
+                                    && bytes < crate::devce::MIN_BYTES
+                                    && !from.iter().any(|(t, _)| matches!(t, Target::Fb(_)))
+                                {
+                                    return Err("a small copy without a VRAM source stays on the CPU".into());
                                 }
                                 let ops = if remap {
                                     let r = crate::devce::Remap {
@@ -3685,6 +3697,10 @@ const CE_SLICE: std::time::Duration = std::time::Duration::from_millis(4);
 /// events keep their order, and other channels run in between as on the GPU. Windows C67:
 /// software doorbells of the KMD's channel held the lock 516-562 ms.
 pub const RUN_BUDGET: std::time::Duration = std::time::Duration::from_millis(2);
+/// A copy that reads VRAM goes to the device CE from this size on (below
+/// [`crate::devce::MIN_BYTES`] the rest stays on the CPU): at 10 MB/s a CPU read of 1 KiB of
+/// VRAM costs about 100 us, a device CE push and its completion about as much.
+const DEVCE_VRAM_READ_MIN: u64 = 1 << 10;
 /// A copy's chunk between two slice checks: 64 KiB take 6.5 ms at the 10 MB/s of VRAM reads
 /// through the BAR1 windows (run P29), so a slice ends within about 11 ms.
 const CE_COPY_CHUNK: usize = 64 << 10;

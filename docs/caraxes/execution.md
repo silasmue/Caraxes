@@ -586,6 +586,11 @@ clock's per-tick work takes the display engine's lock and never D.
     other channels, host or software, run in between, as on the GPU (a doorbell only promises
     that the entries run eventually). Acquires go through the held replay as before.
   - A hold of a software run is bounded by the budget plus one entry (a CE chunk at most).
+  Since 2026-09-29 (Windows C81) the clock continues a stopped run after 50 us instead of 1 ms:
+  the KMD's paging channel is the critical path of a context creation, and the 1 ms pause idled
+  a third of it; the accesses waiting for D take it in the pause. A CE copy of 1 KiB or more
+  that reads VRAM goes to the device CE (the CPU reads VRAM through BAR1 at about 10 MB/s;
+  C81: 63512 CPU copies, 19.9 s); memsets and copies from guest RAM stay on the CPU.
 - Tests: `the_executor_tlb_holds_until_a_table_write_or_an_invalidate`,
   `a_run_past_its_budget_stops_between_entries_and_continues_in_order`,
   `a_range_translates_as_its_pages_do`.
