@@ -582,6 +582,46 @@ pub struct OsEvent {
     pub id: u32,
     pub handle: u32,
     pub notifier: u32,
+    /// How its notifier was armed.
+    pub armed: Armed,
+}
+
+/// `NV2080_CTRL_EVENT_SET_NOTIFICATION_ACTION_DISABLE` and `_REPEAT` (ctrl2080event.h).
+pub const NOTIFICATION_DISABLE: u32 = 0;
+pub const NOTIFICATION_REPEAT: u32 = 2;
+
+/// Arm a subdevice notifier to repeat through `set` (`NV2080_CTRL_CMD_EVENT_SET_NOTIFICATION`
+/// with an action, returning the RM status). The subdevice takes an active action only from
+/// DISABLE (subdevice_ctrl_event_kernel.c, NV_ERR_INVALID_STATE otherwise) and keeps it past
+/// the event, so a notifier still armed by an earlier mirror of the client is disabled and
+/// armed again. The error names every status.
+pub fn arm_notification(mut set: impl FnMut(u32) -> u32) -> Result<Armed, String> {
+    let st = set(NOTIFICATION_REPEAT);
+    if st == sys::NV_OK {
+        return Ok(Armed::Fresh);
+    }
+    if st != sys::NV_ERR_INVALID_STATE as u32 {
+        return Err(format!("REPEAT status {st:#x}"));
+    }
+    let off = set(NOTIFICATION_DISABLE);
+    let again = set(NOTIFICATION_REPEAT);
+    if again == sys::NV_OK {
+        Ok(Armed::Rearmed(st))
+    } else {
+        Err(format!(
+            "REPEAT status {st:#x} (still armed), DISABLE status {off:#x}, REPEAT again status {again:#x}"
+        ))
+    }
+}
+
+/// How [`HostMemory::os_event`] armed the notifier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Armed {
+    /// From DISABLE, as on a fresh subdevice.
+    Fresh,
+    /// The subdevice still had it armed (an earlier mirror of this client, before a
+    /// function-level reset; the RM status of the refused REPEAT): disabled and armed again.
+    Rearmed(u32),
 }
 
 impl OsEvent {
@@ -2092,23 +2132,40 @@ impl HostMemory {
             .map_err(|st| {
                 anyhow::anyhow!("NV01_EVENT_OS_EVENT notifier {notifier:#x}: status {st:#x}")
             })?;
-        // NV2080_CTRL_EVENT_SET_NOTIFICATION_PARAMS {event u32 @0, action u32 @4,
-        // bNotifyState u8 @8, info32 u32 @12, info16 u16 @16} = 20 bytes
-        // (ctrl2080event.h; host-exec.rs EventSetNotification); action REPEAT = 2.
-        let mut sn = [0u8; 20];
-        sn[0..4].copy_from_slice(&(notifier & 0xFFFF).to_le_bytes());
-        sn[4..8].copy_from_slice(&2u32.to_le_bytes());
-        sn[8] = 1;
-        let st = self.control(self.subdevice, v::CMD_EVENT_SET_NOTIFICATION, &mut sn);
-        if st != sys::NV_OK {
-            bail!("EVENT_SET_NOTIFICATION notifier {notifier:#x}: status {st:#x}");
-        }
+        // Armed to repeat. The subdevice keeps one action per notifier, set only from
+        // DISABLE (subdevice_ctrl_event_kernel.c: "must be in disabled state to transition
+        // to an active state", NV_ERR_INVALID_STATE otherwise), and freeing an event does
+        // not disarm it (notifyActions is reset only when the subdevice is constructed).
+        // A notifier an earlier mirror of this client armed (before a function-level
+        // reset) is disarmed and armed again; without that the event never fires.
+        let armed = match arm_notification(|action| self.set_notification(notifier, action)) {
+            Ok(a) => a,
+            Err(why) => {
+                let _ = self.free_object(handle);
+                bail!("EVENT_SET_NOTIFICATION notifier {notifier:#x}: {why}; event freed");
+            }
+        };
         Ok(OsEvent {
             ctl,
             id,
             handle,
             notifier,
+            armed,
         })
+    }
+
+    /// `NV2080_CTRL_CMD_EVENT_SET_NOTIFICATION` on the subdevice: `notifier` (the
+    /// `NV01_EVENT_NONSTALL_INTR` flag is not part of the index) to `action`
+    /// ([`NOTIFICATION_DISABLE`], [`NOTIFICATION_REPEAT`]). Returns the RM status.
+    pub fn set_notification(&mut self, notifier: u32, action: u32) -> u32 {
+        // NV2080_CTRL_EVENT_SET_NOTIFICATION_PARAMS {event u32 @0, action u32 @4,
+        // bNotifyState u8 @8, info32 u32 @12, info16 u16 @16} = 20 bytes
+        // (ctrl2080event.h; host-exec.rs EventSetNotification).
+        let mut sn = [0u8; 20];
+        sn[0..4].copy_from_slice(&(notifier & 0xFFFF).to_le_bytes());
+        sn[4..8].copy_from_slice(&action.to_le_bytes());
+        sn[8] = (action != NOTIFICATION_DISABLE) as u8;
+        self.control(self.subdevice, v::CMD_EVENT_SET_NOTIFICATION, &mut sn)
     }
 
     pub fn reservation(&self) -> Option<&Reservation> {
@@ -3391,5 +3448,69 @@ mod scan_tests {
         c[8..12].copy_from_slice(&P20_MAGIC.1.to_le_bytes());
         assert_eq!(count_pattern(&c), (0, 2));
         assert_eq!(count_pattern(&[0u8; 32]), (0, 0));
+    }
+}
+
+#[cfg(test)]
+mod event_arm_tests {
+    use super::*;
+
+    /// The subdevice's notification action as the RM keeps it
+    /// (subdevice_ctrl_event_kernel.c): an active action only from DISABLE, DISABLE always;
+    /// freeing an event leaves it as it is.
+    struct Subdevice {
+        action: u32,
+        calls: Vec<u32>,
+    }
+
+    impl Subdevice {
+        fn set(&mut self, action: u32) -> u32 {
+            self.calls.push(action);
+            if action != NOTIFICATION_DISABLE && self.action != NOTIFICATION_DISABLE {
+                return sys::NV_ERR_INVALID_STATE as u32;
+            }
+            self.action = action;
+            sys::NV_OK
+        }
+    }
+
+    /// C75-C89: the mirror after a function-level reset armed its notifiers on the same
+    /// subdevice while the old mirror's REPEAT was still set; the RM refused, no event ever
+    /// fired, and the guest waited for its GR completions for good. Now the second arm
+    /// disables and arms again; after a teardown's DISABLE it arms from DISABLE.
+    #[test]
+    fn a_notifier_still_armed_by_an_earlier_mirror_is_armed_again() {
+        let mut sd = Subdevice { action: NOTIFICATION_DISABLE, calls: Vec::new() };
+        assert_eq!(arm_notification(|a| sd.set(a)), Ok(Armed::Fresh));
+        assert_eq!(sd.action, NOTIFICATION_REPEAT);
+        // The old mirror's event freed without a DISABLE (before this fix): still armed.
+        sd.calls.clear();
+        assert_eq!(
+            arm_notification(|a| sd.set(a)),
+            Ok(Armed::Rearmed(sys::NV_ERR_INVALID_STATE as u32))
+        );
+        assert_eq!(sd.calls, vec![NOTIFICATION_REPEAT, NOTIFICATION_DISABLE, NOTIFICATION_REPEAT]);
+        assert_eq!(sd.action, NOTIFICATION_REPEAT);
+        // The teardown's DISABLE: the next mirror arms from DISABLE.
+        assert_eq!(sd.set(NOTIFICATION_DISABLE), sys::NV_OK);
+        assert_eq!(arm_notification(|a| sd.set(a)), Ok(Armed::Fresh));
+    }
+
+    /// Any other refusal is an error that names the status (no retry).
+    #[test]
+    fn another_refusal_is_an_error_with_its_status() {
+        let mut n = 0;
+        let r = arm_notification(|_| {
+            n += 1;
+            0x1f
+        });
+        assert_eq!(r, Err("REPEAT status 0x1f".to_string()));
+        assert_eq!(n, 1);
+        // Still refused after the DISABLE: every status named.
+        let r = arm_notification(|a| if a == NOTIFICATION_DISABLE { 0 } else { sys::NV_ERR_INVALID_STATE as u32 });
+        assert_eq!(
+            r,
+            Err("REPEAT status 0x40 (still armed), DISABLE status 0x0, REPEAT again status 0x40".to_string())
+        );
     }
 }
