@@ -1775,6 +1775,7 @@ impl Device {
                     let merge = b.pool_merge_after(offset);
                     let t0 = std::time::Instant::now();
                     crate::bar1pool::poll_model(b, &self.mem, merge, pace);
+                    crate::dlock::work("BAR0 write", "BAR1 pool poll".into(), t0.elapsed());
                     self.after_pool_poll("write", offset, t0.elapsed());
                 }
             }
