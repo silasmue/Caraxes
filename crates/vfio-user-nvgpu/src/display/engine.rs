@@ -178,9 +178,6 @@ pub fn now_ns() -> u64 {
 struct TickHead {
     period_ns: AtomicU64,
     t0_ns: AtomicU64,
-    /// From a tick (the blank's start, LAST_DATA) to the frame's latch point (the blank's
-    /// end): the clock fires at both.
-    latch_off_ns: AtomicU64,
     /// The head has work at its ticks: a pending presentation or vblank enabled.
     want: AtomicBool,
     /// Vblank enabled through the display page (fe_page.rs), where the guest's enable
@@ -453,13 +450,6 @@ impl Ticker {
         self.wake();
     }
 
-    fn set_latch_offset(&self, h: usize, off_ns: u64) {
-        if let Some(t) = self.heads.get(h) {
-            t.latch_off_ns.store(off_ns, Ordering::SeqCst);
-        }
-        self.wake();
-    }
-
     fn set_want(&self, h: usize, want: bool) {
         if let Some(t) = self.heads.get(h) {
             if t.want.swap(want, Ordering::SeqCst) != want && want {
@@ -493,7 +483,6 @@ impl Ticker {
 
     fn run(&self) {
         let mut last = [u64::MAX; MAX_HEADS];
-        let mut last_latch = [u64::MAX; MAX_HEADS];
         let mut polled = 0u64;
         loop {
             let now = now_ns();
@@ -526,18 +515,6 @@ impl Ticker {
                 }
                 let d = t0 + (n + 1) * p;
                 next = Some(next.map_or(d, |x: u64| x.min(d)));
-                // The frame's latch point, when it is not the tick itself.
-                let off = t.latch_off_ns.load(Ordering::SeqCst);
-                if off > 0 {
-                    let m = now.checked_sub(t0 + off).map(|x| x / p);
-                    if let Some(m) = m.filter(|&m| m > 0 && m != last_latch[h]) {
-                        fire = true;
-                        due = due.max(t0 + m * p + off);
-                        last_latch[h] = m;
-                    }
-                    let dl = t0 + m.map_or(0, |m| m + 1) * p + off;
-                    next = Some(next.map_or(dl, |x: u64| x.min(dl)));
-                }
             }
             if fire {
                 let late = now.saturating_sub(due) / 1000;
@@ -706,12 +683,8 @@ pub struct Head {
     pub height: u32,
     pub period_ns: u64,
     pub t0_ns: u64,
-    /// Ticks processed since t0: the blank's starts, where LAST_DATA rises.
+    /// Ticks processed since t0.
     pub ticks: u64,
-    /// From a tick to the frame's latch point, the blank's end (0: the tick itself), and
-    /// the ticks whose latch point has been processed.
-    pub latch_off_ns: u64,
-    pub latched_through: u64,
     /// `RG_DPCA` frame count and the LOADV counter.
     pub frames: u32,
     pub loadv: u32,
@@ -773,6 +746,9 @@ pub struct Window {
     pub pending: VecDeque<Flip>,
     pub last_latch_tick: Option<u64>,
     pub prev_release: Option<(MemRef, u32)>,
+    /// The notifier of the presentation being scanned out, BEGUN since its latch, and its
+    /// word 0: FINISHED when the next presentation displaces it.
+    pub shown: Option<(MemRef, u32)>,
     pub latched: Surface,
     pub updates: u64,
     pub flips: u64,
@@ -1209,36 +1185,25 @@ impl Engine {
                 let skip = cur - 1 - self.heads[h].ticks;
                 let hd = &mut self.heads[h];
                 hd.ticks = cur - 1;
-                hd.latched_through = hd.ticks;
                 hd.frames = hd.frames.wrapping_add(skip as u32);
                 hd.loadv = hd.loadv.wrapping_add(skip as u32);
             }
-            let off = self.heads[h].latch_off_ns;
-            // The frame's events in time order: LAST_DATA at the blank's start (the tick),
-            // the latch at the blank's end, `off` later (at the tick itself when 0, before
-            // LAST_DATA as before).
-            loop {
-                let (ticks, through) = (self.heads[h].ticks, self.heads[h].latched_through);
-                let next_tick = t0 + (ticks + 1) * p;
-                let next_latch = (off > 0 && through < ticks).then(|| t0 + (through + 1) * p + off);
-                if let Some(at) = next_latch.filter(|&at| at <= now && at < next_tick) {
-                    self.heads[h].latched_through = through + 1;
-                    self.latch_frame(h, through + 1, at, io);
-                    continue;
-                }
-                if next_tick > now {
-                    break;
-                }
+            while self.heads[h].ticks < cur {
                 self.heads[h].ticks += 1;
                 let tick = self.heads[h].ticks;
+                let tick_ns = t0 + tick * p;
                 {
                     let hd = &mut self.heads[h];
                     hd.frames = hd.frames.wrapping_add(1);
                     hd.loadv = hd.loadv.wrapping_add(1);
                 }
-                if off == 0 {
-                    self.heads[h].latched_through = tick;
-                    self.latch_frame(h, tick, next_tick, io);
+                for w in 0..self.windows.len() {
+                    if self.windows[w].head == Some(h) {
+                        self.try_latch(w, tick, tick_ns, false, io);
+                    }
+                }
+                if !self.watched.is_empty() {
+                    self.check_watched(tick_ns, io);
                 }
                 let newly = self.with_irq(|i| {
                     let newly = i.en[h] & LAST_DATA != 0 && i.evt[h] & LAST_DATA == 0;
@@ -1268,36 +1233,6 @@ impl Engine {
         self.sync_ticker();
         if snap(self) != before {
             self.signal();
-        }
-    }
-
-    /// The earliest display-clock time at which [`Engine::catch_up`] would change anything
-    /// the guest can see: the next tick (LAST_DATA) or latch point of an active head. A
-    /// guest time read before it needs no catch-up (boot.rs `sync_display_clock`).
-    pub fn next_event_ns(&self) -> Option<u64> {
-        self.heads
-            .iter()
-            .filter(|hd| hd.active && hd.period_ns > 0)
-            .flat_map(|hd| {
-                let tick = hd.t0_ns + (hd.ticks + 1) * hd.period_ns;
-                let latch = (hd.latch_off_ns > 0 && hd.latched_through < hd.ticks)
-                    .then(|| hd.t0_ns + (hd.latched_through + 1) * hd.period_ns + hd.latch_off_ns);
-                [Some(tick), latch]
-            })
-            .flatten()
-            .min()
-    }
-
-    /// Frame `n`'s latch point on head `h` at `at`: every window of the head latches its
-    /// first eligible presentation.
-    fn latch_frame(&mut self, h: usize, n: u64, at: u64, io: &mut dyn RecordIo) {
-        for w in 0..self.windows.len() {
-            if self.windows[w].head == Some(h) {
-                self.try_latch(w, n, at, false, io);
-            }
-        }
-        if !self.watched.is_empty() {
-            self.check_watched(at, io);
         }
     }
 
@@ -1342,6 +1277,7 @@ impl Engine {
         if !reach(acquire.map(|(m, _)| m), 4)
             || !reach(self.windows[w].prev_release.map(|(m, _)| m), 16)
             || !reach(f.notifier.map(|(m, _)| m), 16)
+            || !reach(self.windows[w].shown.map(|(m, _)| m), 4)
         {
             return false;
         }
@@ -1402,14 +1338,33 @@ impl Engine {
             self.put(io, m, 0, &v.to_le_bytes(), tick_ns, "release");
         }
         self.windows[w].prev_release = f.release;
-        // The notifier went BEGUN when the UPDATE was armed (`window_update`); the latch
-        // makes the presentation active: FINISHED with the latch's PTIMER time. Timestamp
-        // first, status last: a reader that sees the status finds the timestamp (NVKMS
-        // polls for it after the status, nvkms-sync.c:55-58).
+        // The notifier: BEGUN with the latch's PTIMER time when the presentation starts
+        // being scanned out, FINISHED when a later one displaces it (the slot is free
+        // again), at once on a head without scanout. The drivers read it so: nouveau waits
+        // for exactly BEGUN after its UPDATE (base507c_ntfy_wait_begun), NVKMS headsurface
+        // asserts BEGUN for the previous flip at its next frame (nvkms-headsurface.c:
+        // 1996-2008), and the Windows KMD, which presets its slots FINISHED and resets one to
+        // NOT_BEGUN before a flip, checks the flip's slot ~0.6 ms after programming it and
+        // takes a FINISHED there for a flip gone wrong (windows-findings.md step 16).
+        // Timestamp first, status last (NVKMS polls for it after the status,
+        // nvkms-sync.c:55-58).
+        if let Some((m, w0)) = self.windows[w].shown.take() {
+            if f.notifier.is_none_or(|(n, _)| n != m) {
+                let done = (w0 & !(3 << 30)) | NOTIFIER_FINISHED;
+                self.put(io, m, 0, &done.to_le_bytes(), tick_ns, "notifier FINISHED");
+                self.watch(m, done);
+            }
+        }
         if let Some((m, _)) = f.notifier {
-            let w0 = NOTIFIER_FINISHED | flip_type(f.immediate);
+            let mut w0 = NOTIFIER_BEGUN | flip_type(f.immediate);
             self.put(io, m, 8, &stamp, tick_ns, "notifier timestamp");
-            self.put(io, m, 0, &w0.to_le_bytes(), tick_ns, "notifier FINISHED");
+            self.put(io, m, 0, &w0.to_le_bytes(), tick_ns, "notifier BEGUN");
+            if !live {
+                w0 = (w0 & !(3 << 30)) | NOTIFIER_FINISHED;
+                self.put(io, m, 0, &w0.to_le_bytes(), tick_ns, "notifier FINISHED");
+            } else {
+                self.windows[w].shown = Some((m, w0));
+            }
             self.watch(m, w0);
         }
         // AWAKEN follows the rule nvidia-drm models the hardware by
@@ -1541,17 +1496,6 @@ impl Engine {
                 hd.vblank_end = (get(base + C_HEAD_RASTER_BLANK_END) >> 16) & 0x7FFF;
                 hd.vblank_start = (get(base + C_HEAD_RASTER_BLANK_START) >> 16) & 0x7FFF;
             }
-            // The latch point: the blank's end, where the next frame's scanout starts from
-            // the state the latch makes active; the tick (LAST_DATA) is the blank's start.
-            let off = if active && hd.vblank_start > hd.vblank_end && hd.vblank_start < vtotal {
-                ((vtotal - hd.vblank_start + hd.vblank_end) as u64 * period_ns).div_ceil(vtotal as u64)
-            } else {
-                0
-            };
-            if hd.latch_off_ns != off {
-                hd.latch_off_ns = off;
-                ticker().set_latch_offset(h, off);
-            }
             if hd.active != active || hd.period_ns != period_ns {
                 hd.active = active;
                 hd.period_ns = period_ns;
@@ -1564,7 +1508,6 @@ impl Engine {
                 hd.vblank_start = (get(base + C_HEAD_RASTER_BLANK_START) >> 16) & 0x7FFF;
                 hd.t0_ns = now;
                 hd.ticks = 0;
-                hd.latched_through = 0;
                 hd.report = (0, now);
                 hd.modesets += 1;
                 ticker().set_head(h, period_ns, now);
@@ -1698,19 +1641,11 @@ impl Engine {
             },
         };
         let immediate = flip.immediate;
-        // The UPDATE is armed now: the notifier goes BEGUN, with this PTIMER time (the
-        // latch makes it FINISHED). nouveau waits for exactly BEGUN right after its UPDATE
-        // (`nv50_wndw_wait_armed`, base507c_ntfy_wait_begun); the Windows KMD's flip DDI
-        // waits for the notifier to leave NOT_BEGUN and reports the presentation at the
-        // vblank that makes it FINISHED (docs/research/windows-findings.md step 14).
+        // The UPDATE is armed; its notifier stays as the guest left it (NOT_BEGUN) until the
+        // latch (`try_latch`).
         if let Some((m, _)) = flip.notifier {
-            let io = &mut DeviceIo { fb: &mut *fb, mem };
-            let w0 = NOTIFIER_BEGUN | flip_type(immediate);
-            self.put(io, m, 8, &ptimer_stamp(now).to_le_bytes(), now, "notifier timestamp");
-            self.put(io, m, 0, &w0.to_le_bytes(), now, "notifier BEGUN");
-            self.watch(m, w0);
             let n = self.windows[w].updates + 1;
-            self.recent(now, format!("window {w} update {n} armed: notifier {} BEGUN [device]", m.describe()));
+            self.recent(now, format!("window {w} update {n} armed: notifier {} [device]", m.describe()));
         }
         let win = &mut self.windows[w];
         win.updates += 1;
@@ -1992,20 +1927,19 @@ mod tests {
         assert!(!lock(&engine).window_busy(0), "latched without the device mutex");
         let mut b = [0u8; 4];
         fb.read(0x50_0000 + 16, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
         let e = lock(&engine);
         assert_eq!(e.core_ticks, 1);
         // The recent events name the path: armed on the device, latched by the clock.
-        assert!(e.recent.iter().any(|s| s.contains("update 1 armed: notifier fb 0x500010 BEGUN [device]")), "{:?}", e.recent);
+        assert!(e.recent.iter().any(|s| s.contains("update 1 armed: notifier fb 0x500010 [device]")), "{:?}", e.recent);
         assert!(e.recent.iter().any(|s| s.contains("latch") && s.ends_with("[clock]: surface fb 0x810000, notifier fb 0x500010, acquire fb 0x600020 == 0x7")), "{:?}", e.recent);
         assert_eq!(e.record_write_failures, 0);
     }
 
-    /// Two flips on consecutive frames (C68, C70: the Windows KMD's VSync timeout on the
-    /// second): each notifier goes BEGUN when its UPDATE is armed and FINISHED at its own
-    /// latch, with its own latch time; neither waits for the other's frame.
+    /// Two flips on consecutive frames: each notifier goes BEGUN at its own latch with its
+    /// latch time, and the first goes FINISHED when the second displaces it.
     #[test]
-    fn back_to_back_flips_finish_at_their_own_latch() {
+    fn a_displaced_flip_is_finished() {
         let mut fb = FakeFb::new(16 << 20);
         let mut e = engine_with_head(&mut fb);
         let mem = GuestMemory::new();
@@ -2025,25 +1959,24 @@ mod tests {
         }
         e.window_method(0, W_SET_NOTIFIER_CONTROL, 1 << 4);
         e.window_update(0, t0 + p - 3_000_000, &mut fb, &mem);
-        assert_eq!(notifier(&fb, 1).0, NOTIFIER_BEGUN, "armed at the UPDATE");
+        assert_eq!(notifier(&fb, 1).0, 0, "armed: not begun");
         e.catch_up(t0 + p, &mut fb, &mem);
-        assert_eq!(notifier(&fb, 1), (NOTIFIER_FINISHED, ptimer_stamp(t0 + p)));
+        assert_eq!(notifier(&fb, 1), (NOTIFIER_BEGUN, ptimer_stamp(t0 + p)));
         // The next flip, programmed within the frame.
         e.window_method(0, W_SET_NOTIFIER_CONTROL, 2 << 4);
         e.window_update(0, t0 + p + 2_000_000, &mut fb, &mem);
-        assert_eq!(notifier(&fb, 2).0, NOTIFIER_BEGUN);
+        assert_eq!(notifier(&fb, 2).0, 0);
         e.catch_up(t0 + 2 * p, &mut fb, &mem);
-        assert_eq!(notifier(&fb, 2), (NOTIFIER_FINISHED, ptimer_stamp(t0 + 2 * p)));
-        assert_eq!(notifier(&fb, 1), (NOTIFIER_FINISHED, ptimer_stamp(t0 + p)), "untouched");
+        assert_eq!(notifier(&fb, 2), (NOTIFIER_BEGUN, ptimer_stamp(t0 + 2 * p)));
+        assert_eq!(notifier(&fb, 1), (NOTIFIER_FINISHED, ptimer_stamp(t0 + p)), "displaced");
         assert_eq!(e.windows[0].flips, 2);
     }
 
-    /// The tick (LAST_DATA) is the vertical blank's start, where the scan line reads
-    /// `BLANK_START`; the latch point is the blank's end (`BLANK_END`), where the next frame's
-    /// scanout begins: a flip armed before it latches there, even one armed inside the blank;
-    /// one armed after it waits a frame.
+    /// The tick is the vertical blank's start: the scan line reads `BLANK_START` there, and a
+    /// flip whose UPDATE comes after that line (the Windows KMD reads the line right before
+    /// it) latches a frame later; one armed a few lines before latches at the tick.
     #[test]
-    fn the_latch_is_at_the_blank_end_line() {
+    fn the_latch_is_at_the_blank_start_line() {
         let mut fb = FakeFb::new(16 << 20);
         let mut e = engine_with_head(&mut fb);
         let mem = GuestMemory::new();
@@ -2058,32 +1991,22 @@ mod tests {
         e.core_update(&armed, 5_000, &mut fb, &mem);
         let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
         let line_ns = p / 1125;
-        let off = e.heads[0].latch_off_ns;
-        assert_eq!(off, (45 * p).div_ceil(1125), "5 lines to the frame's end and 40 into the next");
         assert_eq!(e.scanline(0, t0 + p), 1120, "the tick is the blank's first line");
-        assert_eq!(e.scanline(0, t0 + p + off), 40, "the latch point is its end");
+        assert_eq!(e.scanline(0, t0 + p - 3 * line_ns - 10), 1116);
         assert_eq!(e.rg_scan_line(0, t0 + p) >> 16, 1, "in the blank");
         for (m, v) in [(W_SET_CONTEXT_DMA_ISO, 0x40), (W_SET_SIZE, 1920 | (1080 << 16)), (W_SET_PRESENT_CONTROL, 1)] {
             e.window_method(0, m, v);
         }
-        // Armed two lines into the blank of frame 2: latched at its end, not at its start.
-        e.window_update(0, t0 + 2 * p + 2 * line_ns, &mut fb, &mem);
-        e.catch_up(t0 + 2 * p + off - 1, &mut fb, &mem);
-        assert!(e.window_busy(0), "LAST_DATA passed, the latch point not yet");
-        assert_eq!(e.heads[0].ticks, 2);
-        e.catch_up(t0 + 2 * p + off, &mut fb, &mem);
+        // Armed three lines before the blank: this tick.
+        e.window_update(0, t0 + 2 * p - 3 * line_ns, &mut fb, &mem);
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
         assert_eq!((e.windows[0].flips, e.windows[0].last_latch_tick), (1, Some(2)));
-        // Armed five lines after the blank's end: the next frame's latch point.
-        e.window_update(0, t0 + 3 * p + off + 5 * line_ns, &mut fb, &mem);
-        e.catch_up(t0 + 4 * p + off - 1, &mut fb, &mem);
+        // Armed two lines into the blank: the next frame.
+        e.window_update(0, t0 + 3 * p + 2 * line_ns, &mut fb, &mem);
+        e.catch_up(t0 + 4 * p - 1, &mut fb, &mem);
         assert!(e.window_busy(0));
-        e.catch_up(t0 + 4 * p + off, &mut fb, &mem);
+        e.catch_up(t0 + 4 * p, &mut fb, &mem);
         assert_eq!((e.windows[0].flips, e.windows[0].last_latch_tick), (2, Some(4)));
-        assert_eq!(e.heads[0].latched_through, 4);
-        // The next event: frame 5's tick (frame 4 is latched).
-        assert_eq!(e.next_event_ns(), Some(t0 + 5 * p));
-        e.catch_up(t0 + 5 * p, &mut fb, &mem);
-        assert_eq!(e.next_event_ns(), Some(t0 + 5 * p + off), "then its latch point");
     }
 
     /// FB records the store cannot share wait for the device path: the clock without the
@@ -2103,11 +2026,11 @@ mod tests {
         assert!(e.window_busy(0), "no latch without its records");
         let mut b = [0u8; 4];
         fb.read(0x50_0000 + 16, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN, "armed, not latched");
+        assert_eq!(u32::from_le_bytes(b), 0, "nothing written");
         e.catch_up(t0 + 2 * p, &mut fb, &mem);
         assert!(!e.window_busy(0));
         fb.read(0x50_0000 + 16, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
     }
 
     #[test]
@@ -2150,18 +2073,18 @@ mod tests {
         fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
         e.catch_up(t0 + 2 * p + 5, &mut fb, &mem);
         assert!(!e.window_busy(0));
-        // The window notifier: FINISHED at the latch, non-tearing, PRESENT_COUNT 0, with the
-        // PTIMER time of the tick.
+        // The window notifier: BEGUN at the latch, non-tearing, PRESENT_COUNT 0, with the
+        // PTIMER time of the tick; it stays BEGUN while the presentation is scanned out.
         let mut b = [0u8; 4];
         fb.read(0x50_0000 + 16, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
         let mut ts = [0u8; 8];
         fb.read(0x50_0000 + 24, &mut ts);
         assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 2 * p));
         assert_eq!(u64::from_le_bytes(ts) & 0x1F, 0);
         e.catch_up(t0 + 3 * p, &mut fb, &mem);
         fb.read(0x50_0000 + 16, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN, "still scanned out");
         fb.read(0x50_0000 + 24, &mut ts);
         assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 2 * p));
         // The window was off before: the notifier is written, but no AWAKEN (the
@@ -2176,12 +2099,14 @@ mod tests {
         e.catch_up(t0 + 4 * p, &mut fb, &mem);
         fb.read(0x60_0000 + 32, &mut b);
         assert_eq!(u32::from_le_bytes(b), 8);
-        // The release record carries the flip-away time; the new flip's notifier is
-        // FINISHED at its latch.
+        // The release record carries the flip-away time; the new flip uses the same notifier
+        // record, so it reads BEGUN again (the new presentation) with the new time.
         fb.read(0x60_0000 + 40, &mut ts);
         assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 4 * p));
         fb.read(0x50_0000 + 16, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
+        fb.read(0x50_0000 + 24, &mut ts);
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 4 * p));
         // Flipping away from a scanned-out surface raises AWAKEN.
         assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(1));
         assert_eq!(
@@ -2217,22 +2142,19 @@ mod tests {
             e.window_method(0, m, v);
         }
         e.window_update(0, t0 + 1, &mut fb, &mem);
-        // Armed: BEGUN at the UPDATE, with its time.
+        // Armed: the notifier stays as the guest left it.
         let mut b = [0u8; 4];
         fb.read(0x50_0000, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN, "armed");
-        let mut ts = [0u8; 8];
-        fb.read(0x50_0000 + 8, &mut ts);
-        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 1));
+        assert_eq!(u32::from_le_bytes(b), 0, "armed, not begun");
         e.catch_up(t0 + 2 * p, &mut fb, &mem);
         assert!(e.window_busy(0));
         assert_eq!(e.windows[0].timestamp_waits, 2);
         fb.read(0x50_0000, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN, "waiting for its time");
+        assert_eq!(u32::from_le_bytes(b), 0, "waiting for its time");
         e.catch_up(t0 + 3 * p, &mut fb, &mem);
         assert!(!e.window_busy(0));
         fb.read(0x50_0000, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
         // An immediate flip with a timestamp in the future waits for the tick too.
         e.window_method(0, W_SET_UPDATE_TIMESTAMP_LO, (t0 + 4 * p) as u32);
         e.window_method(0, W_SET_PRESENT_CONTROL, (1 << 4) | PRESENT_TIMESTAMP_MODE_ENABLE);

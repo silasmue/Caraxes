@@ -1159,27 +1159,31 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   the_latch_is_at_the_blank_start_line.
 - Memory model: none.
 
-## Cloud Hypervisor, step 16: the latch at the blank's end (2026-09-29, C74, C75)
+## Cloud Hypervisor, step 16: the notifier's state at the KMD's check (2026-09-29, C74-C76)
 
-- **C74 (lf14, with the time-read catch-up):** VSync TDR again; afterwards no FLR and a hang.
-  An MSI storm (16.26M re-arm MSIs, 60k watchdog) from the host channels' non-stall
-  notifiers (60,597 events) after the KMD's display teardown.
-- **C75 (lf13, latch and LAST_DATA at the blank's start):** VSync TDR for the flip armed
-  0.4 ms before the latch (scan line 1095, blank from 1120). The FLR recovered the guest.
-- **The rule over C71-C75:** the flip fails when the latch lands in the ~0.6 ms after its
-  UPDATE in which the KMD spins on PTIMER, then polls GET/PUT for 2 s.
-  - Flips latched later are fine, including those programmed at scan lines 1039-1074 with
-    the latch 0.75-1.3 ms away.
-  - The KMD programs flips as late as line 1119 and then spins, so it does not expect a latch
-    within about 40 lines of the blank's start.
-  - Where the card's frame begins its scanout, at the blank's end (RASTER_BLANK_END, line 40),
-    the latch is 45 lines (0.67 ms) after the blank's start.
+- **C74** (lf14, time-read catch-up): VSync TDR, then a hang without FLR. An MSI storm from
+  the host channels' non-stall notifiers after the KMD's display teardown: 16.26M re-arm MSIs,
+  60,597 host events.
+- **C75** (lf13, latch at the blank's start): VSync TDR for the flip armed 0.4 ms before the
+  latch (scan line 1095, blank from 1120). The FLR recovered the guest.
+- **C76** (lf15, latch at the blank's end): the first desktop flip failed. The KMD programmed it
+  inside the blank (scan line 3); the latch at line 40 came 0.55 ms later.
+- **What decides:** after programming a flip, the KMD spins on PTIMER for ~0.6 ms and then
+  checks the flip's notifier. Every failing flip (C71-C76) had latched within that window,
+  wherever the latch point was.
+  - With the notifier FINISHED at the latch (lf11-lf15), the check found FINISHED and the KMD
+    went into its GET/PUT poll. Flips latched after the check (BEGUN from the arm, or
+    NOT_BEGUN) went through.
+  - The KMD presets its slots FINISHED and resets one to NOT_BEGUN before a flip. FINISHED is
+    its "slot free" state, not "latched".
+  - nouveau's wait for exactly BEGUN and NVKMS headsurface's BEGUN assert say the same: a
+    latched presentation reads BEGUN.
 - **Model since 2026-09-29:**
-  - LAST_DATA at the blank's start (the tick).
-  - The latch at the blank's end, `latch_off` later: a flip armed before it latches there,
-    one armed after waits a frame.
-  - The display clock fires at both.
-  - Engine::next_event_ns gives the next event for lock-free time reads.
-  - Test: the_latch_is_at_the_blank_end_line.
-- C70 (lf9) does not fit the rule. It ran with the old notifier timing.
+  - NOT_BEGUN (as the guest left it) until the latch.
+  - BEGUN with the latch's time at the latch.
+  - FINISHED when the next presentation displaces it.
+  - FINISHED at once on a head without scanout.
+  - The latch stays at the blank's start (0493209e reverted); the time-read catch-up is
+    reverted too (b4d8975d, not needed with this).
+  - Test: a_displaced_flip_is_finished.
 - Memory model: none.
