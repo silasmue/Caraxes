@@ -7,10 +7,13 @@
 # preferences carry ExtraCommandLine=-benchmark (backup preferences.pre-benchmark-2026-09-29).
 # On the host: Moonlight windowed and a grim screenshot of its window every 30 s with the mean
 # brightness and the change against the previous shot. Ends at the results file or after
-# SOTTR_MAX_S (default 2100 s). Usage: sottr-bench.sh OUT BINARY
+# SOTTR_MAX_S (default 2100 s). SOTTR_RES=WxH (default 1920x1080) sets the fullscreen resolution;
+# the script sets -benchmark and skips the options dialog itself, and restores the guest's
+# preferences at the end. Usage: sottr-bench.sh OUT BINARY
 set -uo pipefail
 OUT=$1 BIN=$2
 MAX=${SOTTR_MAX_S:-2100}
+RES=${SOTTR_RES:-1920x1080}; RW=${RES%x*}; RH=${RES#*x}
 W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh
 mkdir -p "$OUT/host-shots" "$OUT/guest-shots"
 log() { echo "$(date +%T) $*" | tee -a "$OUT/timeline.txt"; }
@@ -39,6 +42,19 @@ M
 chmod +x /tmp/sottr-mon.sh; setsid -f /tmp/sottr-mon.sh > /tmp/sottr-mon.log 2>&1
 echo "saves before: $(ls ~/.local/share/feral-interactive/'Shadow of the Tomb Raider'/SaveData | grep -c benchmarkresults)"
 G
+# The benchmark variant of the preferences: -benchmark, no options dialog, the resolution.
+T=60 gssh 'bash -s' >> "$OUT/timeline.txt" <<PREFS
+P="\$HOME/.local/share/feral-interactive/Shadow of the Tomb Raider/preferences"
+cp "\$P" "\$P.before-sottr-bench"
+sed -i -e 's|<value name="ExtraCommandLine" type="string">[^<]*</value>|<value name="ExtraCommandLine" type="string">-benchmark</value>|' \\
+       -e 's|<value name="ExtraCommandLineEnabled" type="integer">0</value>|<value name="ExtraCommandLineEnabled" type="integer">1</value>|' \\
+       -e 's|<value name="GameOptionsDialogShouldShow" type="integer">1</value>|<value name="GameOptionsDialogShouldShow" type="integer">0</value>|' \\
+       -e 's|<value name="FullscreenWidth" type="integer">[0-9]*</value>|<value name="FullscreenWidth" type="integer">$RW</value>|' \\
+       -e 's|<value name="ScreenW" type="integer">[0-9]*</value>|<value name="ScreenW" type="integer">$RW</value>|' \\
+       -e 's|<value name="FullscreenHeight" type="integer">[0-9]*</value>|<value name="FullscreenHeight" type="integer">$RH</value>|' \\
+       -e 's|<value name="ScreenH" type="integer">[0-9]*</value>|<value name="ScreenH" type="integer">$RH</value>|' "\$P"
+grep -E '"(ExtraCommandLine|ExtraCommandLineEnabled|GameOptionsDialogShouldShow|FullscreenWidth|FullscreenHeight|ScreenW|ScreenH)"' "\$P" | sed -E 's/^ +//' | sort | uniq -c
+PREFS
 cat "$OUT/guest-prep.txt" >> "$OUT/timeline.txt"
 
 # The host client.
@@ -51,14 +67,18 @@ T=330 gssh 'bash -s' > "$OUT/game-start.txt" <<'G'
 export XDG_RUNTIME_DIR=/run/user/1000 DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 export XAUTHORITY=$(ls -t /run/user/1000/.mutter-Xwaylandauth.* | head -1)
 setsid nohup /usr/games/steam steam://rungameid/750920 > /tmp/steam-run.log 2>&1 < /dev/null &
+G=Shadow; G="${G}OfTheTombRaider"
 for i in $(seq 1 100); do
   w=$(xdotool search --name "Shadow of the Tomb Raider Options" 2>/dev/null | head -1)
-  [ -n "$w" ] && break; sleep 3
+  if [ -n "$w" ]; then
+    echo "launcher window $w after $((i*3)) s: clicking PLAY"
+    xdotool windowactivate $w 2>/dev/null; sleep 1; xdotool mousemove --window $w 878 650 click 1; sleep 10
+  fi
+  g=$(xdotool search --name "^Shadow of the Tomb Raider$" 2>/dev/null | head -1)
+  if [ -n "$g" ]; then echo "game window $g after $((i*3)) s: game starting"; break; fi
+  sleep 3
 done
-echo "launcher window: ${w:-none} after $((i*3)) s"
-[ -n "$w" ] || exit 1
-sleep 3; xdotool windowactivate --sync $w 2>/dev/null; sleep 1; xdotool key --window $w Return; sleep 10
-xdotool search --name "Shadow of the Tomb Raider Options" >/dev/null 2>&1 && echo "launcher still open" || echo "launcher closed: game starting"
+ps -eo pid,etime,pcpu,rss,args | grep "bin/$G" | grep -v grep | cut -c1-120
 G
 cat "$OUT/game-start.txt" >> "$OUT/timeline.txt"
 
@@ -94,3 +114,4 @@ T=60 gssh 'D=~/.local/share/feral-interactive/"Shadow of the Tomb Raider"/SaveDa
 T=60 gssh 'cat /tmp/sottr-mon.log; echo ===; sudo dmesg | grep -E "NVKMS|NVRM: Xid|nvidia-modeset|drm" | tail -20' > "$OUT/guest-monitor.txt"
 log "result: $(grep -m1 'Average FPS' "$OUT/benchmark-result.txt" | tr -s ' \t' ' ')"
 kill "$MP" 2>/dev/null; log "moonlight stopped"
+T=60 gssh 'P="$HOME/.local/share/feral-interactive/Shadow of the Tomb Raider/preferences"; cp "$P" "$P.after-sottr-bench"; cp "$P.before-sottr-bench" "$P"; sync; echo restored' >> "$OUT/timeline.txt"

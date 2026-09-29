@@ -1,0 +1,3 @@
+game window 8388612 after 102 s: game starting
+   3356       01:08  0.0 25724 ./signalwrapper /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/Shadow
+   3357       01:08 90.7 1067216 /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaide

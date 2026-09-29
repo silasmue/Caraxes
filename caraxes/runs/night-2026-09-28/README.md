@@ -233,3 +233,21 @@ Contents: the device CE, the private-pages security fix (the device's own tables
 | Windows 11 (P36, the Windows agent) | smoke ALL PASS, 0 TDR, 0 ERROR, 0 private-page refusals, registrar "the shadow waited 0 times", device CE all NV_OK, teardown clean | the Windows run dirs, windows-findings.md |
 
 dev after the fast-forward: 706 tests pass.
+
+## SotTR at 720p (the user: "We don't want the balloon yet, first test on 720p that should be sufficient"; `sottr720-8e621e0a/`)
+
+Linux B, 4 GiB slot 0, the gated dev code (8e621e0a: boost, FAST=2 and the kick page by default), trace off. `sottr-bench.sh` with `SOTTR_RES=1280x720` sets the resolution, `-benchmark` and no options dialog, and restores the preferences afterwards.
+
+Timeline (guest time):
+- 216 s: the loading screen was on the client, and VRAM reached 3883 MiB.
+  - At 720p the game fills VRAM the same way: it sizes its texture pool by the budget, not the resolution.
+  - `Failed to allocate NVKMS memory for GEM object`.
+- Unlike at 1080p, the benchmark kept rendering (GPU 88 %), but the stream froze on the loading screen (RMSE 29 between shots).
+- 279 s: **host Xid 109 CTX SWITCH TIMEOUT** on the game's GR channel (host channel 0x97; guest channels 65/66, delivered as per-channel RC).
+- Then `vkWaitForFences failed: -4` (VK_ERROR_DEVICE_LOST), and the game aborted with signal 6.
+  - Feral's dialog offered only "OK", so nothing was sent. The dump is set aside in `crashes-held-2026-09-29` so the next start does not offer to send it.
+- The preferences were restored.
+
+Result: 720p is not sufficient.
+- The NVKMS refusal is independent of the resolution.
+- A new stability finding: the game's GR context could not be switched out within the host's timeout, probably because long benchmark draws run without graphics preemption (GFXP) on the host context. It is being analysed separately.

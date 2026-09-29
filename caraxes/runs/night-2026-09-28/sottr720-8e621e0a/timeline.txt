@@ -1,0 +1,22 @@
+04:27:50 vm up
+      1 <value name="ExtraCommandLine" type="string">-benchmark</value>
+      1 <value name="ExtraCommandLineEnabled" type="integer">1</value>
+      2 <value name="FullscreenHeight" type="integer">720</value>
+      2 <value name="FullscreenWidth" type="integer">1280</value>
+      1 <value name="GameOptionsDialogShouldShow" type="integer">0</value>
+      3 <value name="ScreenH" type="integer">720</value>
+      3 <value name="ScreenW" type="integer">1280</value>
+modules-ok
+sunshine: active
+saves before: 0
+04:28:28 moonlight pid 2004608 alive=yes
+game window 8388612 after 102 s: game starting
+   3356       01:08  0.0 25724 ./signalwrapper /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/Shadow
+   3357       01:08 90.7 1067216 /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaide
+04:30:10 host-mean=0.0192336 host-rmse=- guest-mean=0.00148725 | 02:30:05 vram=609 gpu=1 game=3356 nvkms_fail=0 xid=0 | result=none
+04:30:42 host-mean=0.233947 host-rmse=24514.4 guest-mean=- | 02:30:37 vram=1581 gpu=5 game=3356 nvkms_fail=0 xid=0 | result=none
+04:31:16 host-mean=0.236519 host-rmse=1999.86 guest-mean=0.36675 | 02:31:15 vram=3690 gpu=4 game=3356 nvkms_fail=0 xid=0 | result=none
+04:31:47 host-mean=0.236636 host-rmse=615.868 guest-mean=- | 02:31:47 vram=3883 gpu=6 game=3356 nvkms_fail=1 xid=0 | result=none
+04:32:23 host-mean=0.236637 host-rmse=29.1342 guest-mean=0.00312313 | 02:32:19 vram=3724 gpu=88 game=3356 nvkms_fail=1 xid=0 | result=none
+04:32:54 host-mean=0.152184 host-rmse=17030.4 guest-mean=- | 02:32:25 vram=656 gpu=1 game=3356 nvkms_fail=1 xid=2 | result=none
+04:33:25 host-mean=0.145032 host-rmse=7518.03 guest-mean=? | 02:33:24 vram=612 gpu=15 game=3356 nvkms_fail=1 xid=2 | result=none
