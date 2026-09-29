@@ -1,0 +1,217 @@
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:56:44 vram=252 gpu=0 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:56:49 vram=252 gpu=18 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:56:54 vram=252 gpu=11 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:56:59 vram=273 gpu=7 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:05 vram=326 gpu=12 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:10 vram=393 gpu=12 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:15 vram=391 gpu=12 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:20 vram=439 gpu=9 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:25 vram=452 gpu=11 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:31 vram=551 gpu=10 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:36 vram=719 gpu=15 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:42 vram=735 gpu=19 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:47 vram=746 gpu=18 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:52 vram=750 gpu=19 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:57:57 vram=766 gpu=18 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:02 vram=774 gpu=16 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:07 vram=782 gpu=15 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:13 vram=796 gpu=14 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:18 vram=802 gpu=14 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:23 vram=804 gpu=10 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:28 vram=765 gpu=12 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:33 vram=764 gpu=11 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:38 vram=761 gpu=12 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:44 vram=794 gpu=12 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:49 vram=797 gpu=12 game=3216 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:54 vram=639 gpu=11 game=none nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:58:59 vram=621 gpu=11 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:59:04 vram=1573 gpu=1 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:59:11 vram=2852 gpu=0 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:59:20 vram=804 gpu=0 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:59:28 vram=2570 gpu=1 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:59:35 vram=2634 gpu=0 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:59:44 vram=714 gpu=0 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:59:51 vram=2828 gpu=1 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+23:59:57 vram=2506 gpu=0 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:07 vram=650 gpu=1 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:14 vram=1113 gpu=5 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:19 vram=1450 gpu=7 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:25 vram=1706 gpu=9 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:30 vram=2079 gpu=8 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:36 vram=2120 gpu=15 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:41 vram=2057 gpu=6 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:47 vram=1718 gpu=3 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:52 vram=1452 gpu=3 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:00:58 vram=1914 gpu=10 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:03 vram=2306 gpu=9 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:08 vram=2686 gpu=10 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:14 vram=2951 gpu=10 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:19 vram=3326 gpu=6 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:25 vram=3563 gpu=6 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:30 vram=3829 gpu=6 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:36 vram=3886 gpu=9 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:41 vram=3860 gpu=7 game=4663 nvkms_fail=0 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:46 vram=3885 gpu=6 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:52 vram=3888 gpu=5 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:01:57 vram=3889 gpu=10 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:03 vram=3880 gpu=9 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:08 vram=3889 gpu=5 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:14 vram=3884 gpu=5 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:19 vram=3885 gpu=7 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:25 vram=3883 gpu=6 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:31 vram=3797 gpu=2 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:36 vram=3730 gpu=3 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:42 vram=3819 gpu=5 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:47 vram=3848 gpu=3 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:53 vram=3733 gpu=3 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:02:58 vram=450 gpu=0 game=4663 nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:03:35 vram=519 gpu=10 game=none nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:03:40 vram=527 gpu=11 game=none nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:03:45 vram=544 gpu=12 game=none nvkms_fail=1 xid=0
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+00:03:50 vram=524 gpu=12 game=none nvkms_fail=1 xid=0
+===
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+[    8.598834] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:15:27 UTC 2026
+[  335.376069] [drm:nv_drm_gem_alloc_nvkms_memory_ioctl [nvidia_drm]] *ERROR* [nvidia-drm] [GPU ID 0x00000006] Failed to allocate NVKMS memory for GEM object

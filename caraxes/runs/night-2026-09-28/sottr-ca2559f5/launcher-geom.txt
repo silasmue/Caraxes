@@ -1,0 +1,3 @@
+Window 8388612
+  Position: 481,208 (screen: 0)
+  Geometry: 958x706
