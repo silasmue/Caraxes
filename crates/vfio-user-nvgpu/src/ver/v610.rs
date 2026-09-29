@@ -371,6 +371,10 @@ pub fn lookup(table: &[(&str, u32)], name: &str) -> Option<u32> {
 // RM classes (sdk/class/*.h). The chip's own channel and copy classes are chip data.
 
 pub const NV01_ROOT: u32 = 0x0;
+/// The other root classes (sdk/class/cl0001.h, cl0041.h): a client allocated by an
+/// unprivileged or an in-kernel caller.
+pub const NV01_ROOT_NON_PRIV: u32 = 0x1;
+pub const NV01_ROOT_CLIENT: u32 = 0x41;
 pub const NV01_DEVICE_0: u32 = 0x80;
 pub const NV20_SUBDEVICE_0: u32 = 0x2080;
 pub const NV01_EVENT_KERNEL_CALLBACK_EX: u32 = 0x7E;

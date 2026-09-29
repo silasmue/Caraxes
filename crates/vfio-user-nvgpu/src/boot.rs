@@ -2031,6 +2031,25 @@ impl BootModel {
                         let translated = crate::ver::alloc_params_to_device(h_class, params);
                         let params: &[u8] = translated.as_deref().unwrap_or(params);
                         let h_client = w(v::RM_ALLOC_H_CLIENT);
+                        // hObject 0 (NV01_NULL_OBJECT): RM assigns the handle before the
+                        // class sees the request and returns it in the reply
+                        // (`Dispatcher::assign_handle`); a root class names the client.
+                        let is_root = h_class == v::NV01_ROOT
+                            || h_class == v::NV01_ROOT_NON_PRIV
+                            || h_class == v::NV01_ROOT_CLIENT;
+                        let assigned = (h_object == 0)
+                            .then(|| self.ctrl.assign_handle(h_client, h_class))
+                            .flatten();
+                        let (h_client, h_object) = match assigned {
+                            Some(h) if is_root => (h, h),
+                            Some(h) => (h_client, h),
+                            None => (h_client, h_object),
+                        };
+                        if let Some(h) = assigned {
+                            notes.push(format!(
+                                "alloc {h_class:#x} with hObject 0: handle {h:#x} assigned (RM's clientAssignResourceHandle)"
+                            ));
+                        }
                         let t_alloc = crate::profile::on().then(std::time::Instant::now);
                         // The event-buffer classes the 615 event import allocates on GSP
                         // (gspmem.rs) are checked against the registered memory first.
@@ -2117,6 +2136,15 @@ impl BootModel {
                         reply.resize(at, 0);
                         let st = v::RM_ALLOC_STATUS;
                         reply[st..st + 4].copy_from_slice(&a.status.to_le_bytes());
+                        if assigned.is_some() && a.status == rpc::NV_OK {
+                            // The assigned handle goes back in the reply's header.
+                            let o = v::RM_ALLOC_H_OBJECT;
+                            reply[o..o + 4].copy_from_slice(&h_object.to_le_bytes());
+                            if is_root {
+                                let c = v::RM_ALLOC_H_CLIENT;
+                                reply[c..c + 4].copy_from_slice(&h_client.to_le_bytes());
+                            }
+                        }
                         let mut out = crate::ver::alloc_params_to_guest(h_class, &a.params)
                             .unwrap_or(a.params);
                         out.resize(size, 0);
@@ -3390,6 +3418,57 @@ mod tests {
         assert_eq!(status(1), rpc::EV_GSP_INIT_DONE);
         // An empty command queue at the Booter Load keeps the doorbell link (nova-core's order,
         // `nova_570_boot_through_the_queue`).
+        //
+        // Allocations with hObject 0 (nouveau's user-channel objects): RM assigns the handle
+        // and returns it in the reply; a root with 0 gets a client handle.
+        let mut alloc = |seq: u32, h_client: u32, h_parent: u32, class: u32, params: usize| {
+            let mut body = vec![0u8; v::RM_ALLOC_PARAMS + params];
+            for (o, x) in [
+                (v::RM_ALLOC_H_CLIENT, h_client),
+                (v::RM_ALLOC_H_PARENT, h_parent),
+                (v::RM_ALLOC_H_OBJECT, 0),
+                (v::RM_ALLOC_H_CLASS, class),
+                (v::RM_ALLOC_PARAMS_SIZE, params as u32),
+            ] {
+                body[o..o + 4].copy_from_slice(&x.to_le_bytes());
+            }
+            let total = 0x30 + 32 + body.len();
+            let mut raw = vec![0u8; total.div_ceil(8) * 8];
+            raw[0x24..0x28].copy_from_slice(&seq.to_le_bytes());
+            raw[0x28..0x2c].copy_from_slice(&1u32.to_le_bytes());
+            let h = RpcHeader {
+                header_version: 0x0300_0000,
+                signature: u32::from_le_bytes(*b"VRPC"),
+                length: (32 + body.len()) as u32,
+                function: rpc::FN_GSP_RM_ALLOC,
+                rpc_result: 0xFFFF_FFFF,
+                rpc_result_private: 0xFFFF_FFFF,
+                sequence: seq,
+                u: 0,
+            };
+            raw[0x30..0x50].copy_from_slice(&h.encode());
+            raw[0x50..0x50 + body.len()].copy_from_slice(&body);
+            let sum = crate::msgq::checksum32(&raw);
+            raw[0x20..0x24].copy_from_slice(&sum.to_le_bytes());
+            let at = 0x1000 + cmd.entry_off as u64 + cmd.write_ptr as u64 * 0x1000;
+            assert!(qm.write(at, &raw));
+            cmd.write_ptr += 1;
+            assert!(qm.write_u32(0x1000 + 16, cmd.write_ptr));
+            b.write32(queue_head, 0, &mem).unwrap()
+        };
+        let reply = |slot: u64| {
+            let mut e = vec![0u8; 0x1000];
+            assert!(qm.read(0x42000 + slot * 0x1000, &mut e));
+            let at = |o: usize| u32::from_le_bytes(e[0x50 + o..0x54 + o].try_into().unwrap());
+            (at(v::RM_ALLOC_H_CLIENT), at(v::RM_ALLOC_H_OBJECT), at(v::RM_ALLOC_STATUS))
+        };
+        let notes = alloc(2, 0, 0, v::NV01_ROOT, 120);
+        assert!(notes.iter().any(|n| n.contains("handle 0xc1d00000 assigned")), "{notes:?}");
+        assert_eq!(reply(2), (0xc1d0_0000, 0xc1d0_0000, rpc::NV_OK));
+        alloc(3, 0xc1d0_0000, 0xc1d0_0000, v::NV01_DEVICE_0, 56);
+        assert_eq!(reply(3), (0xc1d0_0000, 0xcaf0_0000, rpc::NV_OK));
+        alloc(4, 0xc1d0_0000, 0xcaf0_0000, v::NV20_SUBDEVICE_0, 4);
+        assert_eq!(reply(4), (0xc1d0_0000, 0xcaf0_0001, rpc::NV_OK), "the next free handle");
         let _ = std::fs::remove_file(path);
     }
 

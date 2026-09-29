@@ -101,6 +101,10 @@ pub struct Dispatcher {
     /// (hClient, hObject) → class, for every alloc the device acknowledged. Handles are
     /// per client in RM, so the guest kernel's clients may reuse each other's numbers.
     objects: BTreeMap<(u32, u32), u32>,
+    /// The resource handle generator of each client (`handleGenIdx`, rs_client.c) and the
+    /// client handle generator (`assign_handle`).
+    handle_gen: BTreeMap<u32, u32>,
+    client_handle_gen: u32,
     deferred_context: deferred_context::State,
     /// PCI ids of the emulated function (config space).
     pub pci_device_id: u32,
@@ -258,6 +262,8 @@ impl Dispatcher {
             host,
             chip,
             objects,
+            handle_gen: BTreeMap::new(),
+            client_handle_gen: 0,
             deferred_context: deferred_context::State::default(),
             pci_device_id: id.pci.device_id(),
             pci_sub_device_id: id.pci.sub_device_id(),
@@ -290,6 +296,44 @@ impl Dispatcher {
             routing: TokenRouting::default(),
             pinned_now: None,
         }
+    }
+
+    /// The handle RM gives an allocation whose `hObject` is 0 (`NV01_NULL_OBJECT`), as
+    /// resserv assigns it before the class sees the request (`clientAssignResourceHandle`,
+    /// rs_client.c:985-1005 of 570.144): a resource gets the next free handle of its
+    /// client's generator, `RS_UNIQUE_HANDLE_BASE` + (index mod `RS_UNIQUE_HANDLE_RANGE`)
+    /// (0xcaf00000 and 0x80000, resserv/rs_client.h:37-38; `clientGenResourceHandle`
+    /// :948-980); a client (the root classes) the next free one from
+    /// `RS_CLIENT_HANDLE_BASE` 0xC1D00000 within `RS_CLIENT_HANDLE_MAX` 0x100000
+    /// (resserv.h:135, 152). `None` when the range is used up (RM:
+    /// NV_ERR_INSUFFICIENT_RESOURCES). nouveau's r535/r570 path allocates the objects a
+    /// user channel carries with handle 0 (vm10-boot4: two copy objects on one NVK channel).
+    pub fn assign_handle(&mut self, h_client: u32, h_class: u32) -> Option<u32> {
+        const RS_UNIQUE_HANDLE_BASE: u32 = 0xcaf0_0000;
+        const RS_UNIQUE_HANDLE_RANGE: u32 = 0x0008_0000;
+        const RS_CLIENT_HANDLE_BASE: u32 = 0xc1d0_0000;
+        const RS_CLIENT_HANDLE_MAX: u32 = 0x0010_0000;
+        if matches!(h_class, NV01_ROOT | v::NV01_ROOT_NON_PRIV | v::NV01_ROOT_CLIENT) {
+            for _ in 0..RS_CLIENT_HANDLE_MAX {
+                let h = RS_CLIENT_HANDLE_BASE + self.client_handle_gen % RS_CLIENT_HANDLE_MAX;
+                self.client_handle_gen = self.client_handle_gen.wrapping_add(1);
+                if !self.objects.keys().any(|&(c, _)| c == h) {
+                    return Some(h);
+                }
+            }
+            return None;
+        }
+        let idx = self.handle_gen.entry(h_client).or_insert(0);
+        for _ in 0..RS_UNIQUE_HANDLE_RANGE {
+            let h = RS_UNIQUE_HANDLE_BASE + *idx % RS_UNIQUE_HANDLE_RANGE;
+            *idx = idx.wrapping_add(1);
+            if !self.objects.contains_key(&(h_client, h))
+                && self.channels.engine_object(h_client, h).is_none()
+            {
+                return Some(h);
+            }
+        }
+        None
     }
 
     /// The dispatcher of a device holding the VRAM reservation `r` (`FbLayout::reservation`).
