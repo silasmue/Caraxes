@@ -105,6 +105,10 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 - A 570 guest is no longer "controls as 610": the control frame and the two alloc structs are translated, and every other 570 layout the device answers is checked against the snapshots, not assumed.
 - No nouveau or Mesa patch is needed so far: every gap was a device answer.
 
+## Gate (2026-09-29)
+
+- Combined gate PASS with 5fcf62ae (caraxes/runs/openrender-2026-09-29/vm10-gate/RESULT.md): nova-core 5 probes and 4 unloads, 0 ERROR; vm10 R1-R8 with the BAR2 memfd on, `vkCreateDevice` 81 ms; Linux B 615 kick-smoke with the BAR2 memfd on PASS (guest Xid 0, no host Xid, NVENC holder PASS). dev fast-forwarded to a7a61aed.
+
 ## Open
 
 - R1-R5 on the device: the run commands are in caraxes/runs/openrender-2026-09-29/README.md.
