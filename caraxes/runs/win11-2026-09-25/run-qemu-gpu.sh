@@ -6,6 +6,7 @@
 # comes from a shared memfd so the device can map it. rombar=0 by default: the VBIOS GOP driver
 # in the device's ROM spins on NV_PTIMER_TIME (0 before the PTIMER model) and hung the firmware.
 # Same firmware, TPM and disk as install-qemu.sh; the virtio-win ISO stays attached for drivers.
+# The RTC is UTC (the guest sets RealTimeIsUniversal=1), as under Cloud Hypervisor.
 # Start gpu-up.sh first. The QEMU guest agent of the virtio-win tools listens on $W/qga.sock
 # (qga.py runs PowerShell in the guest as SYSTEM and fetches files: ETW traces, logs); QMP on
 # $W/qmp.sock (qmp.py: screendump, sendkey, system_powerdown) for unattended runs.
@@ -72,4 +73,4 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0 \
     "${gpu[@]}" \
     -device qemu-xhci -device usb-tablet -device usb-kbd \
-    -vga "${WIN_VGA:-std}" -display "${WIN_QEMU_DISPLAY:-gtk}" -rtc base=localtime
+    -vga "${WIN_VGA:-std}" -display "${WIN_QEMU_DISPLAY:-gtk}" -rtc base=utc
