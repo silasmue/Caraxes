@@ -1313,24 +1313,6 @@ impl BootModel {
     /// TIME_0 read that follows a TIME_1 read whose high word has since moved on answers
     /// the last low value of that high word (0xFFFF_FFE0): the pair is then a time that
     /// already passed but never older than one read before, and the next pair catches up.
-    /// Whether `off` gives the guest the time: `NV_PTIMER_TIME_0/1` or the usermode
-    /// `TIME_0/1` (uvm.rs).
-    pub fn is_time_register(&self, off: u64) -> bool {
-        matches!(self.reg(off), Some(Reg::PtimerTime0 | Reg::PtimerTime1)) || self.vf.handles(off)
-    }
-
-    /// Bring the display up to now before the guest reads the time: whatever the display did
-    /// by that time (a latch, its notifier, LAST_DATA) is visible to a guest that has seen
-    /// the time. The card latches at the blank's start in its own time; the display clock's
-    /// thread reaches the tick some tens of µs late, and a KMD that waits on PTIMER for the
-    /// blank's start and then reads the flip's notifier (C72) must not find the flip unlatched.
-    pub fn sync_display_clock(&mut self, mem: &GuestMemory) {
-        if self.ctrl.display.enabled {
-            let now = crate::display::engine::now_ns();
-            self.ctrl.display.eng().catch_up(now, &mut self.fb, mem);
-        }
-    }
-
     pub fn ptimer_read(&mut self, hi: bool) -> u32 {
         ptimer_word(&mut self.ptimer_hi, self.ctrl.channels.now_ns(), hi)
     }
@@ -3427,13 +3409,6 @@ mod tests {
             let lo = b.read32(0x9400).unwrap() as u64;
             (hi << 32) | lo
         };
-        // The time registers are the ones that bring the display up to now first
-        // (sync_display_clock; headless here, so a no-op).
-        for off in [0x9400, 0x9410, um.usermode_time_0, um.usermode_time_1] {
-            assert!(b.is_time_register(off), "{off:#x}");
-        }
-        assert!(!b.is_time_register(0x0061_1ec0));
-        b.sync_display_clock(&GuestMemory::new());
         let t0 = t64(&mut b);
         std::thread::sleep(std::time::Duration::from_millis(2));
         let u0 = b.read32(um.usermode_time_0).unwrap() as u64
