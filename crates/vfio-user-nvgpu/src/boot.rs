@@ -186,6 +186,9 @@ pub struct BootModel {
     /// what came through it.
     rpc_eventfd: Option<std::fs::File>,
     pub rpc_eventfd_stats: RpcEventfdStats,
+    /// What the trapped TRIGGER and flush-page reads are answered from without the device
+    /// lock (fastread.rs); the FB holds it too, and a reset carries it.
+    fast: std::sync::Arc<crate::fastread::FastReads>,
 }
 
 /// What the command-queue head ioeventfd delivered (`BootModel::cmd_head_from_ring`).
@@ -245,6 +248,7 @@ impl BootModel {
         let d: &'static ChipData = chip.data();
         let r = d.registers;
         let fb_bytes = layout.addr_space;
+        let fast = std::sync::Arc::new(crate::fastread::FastReads::default());
         BootModel {
             chip,
             regs: r,
@@ -263,7 +267,11 @@ impl BootModel {
             rusd: Default::default(),
             pending: None,
             gspmem: crate::gspmem::GspMemory::new(),
-            fb: FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format),
+            fb: {
+                let mut fb = FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format);
+                fb.set_fast(fast.clone());
+                fb
+            },
             // Reset value as the VBIOS leaves it: the last MiB of FB (fb-model.md §4c).
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
             mmu_invalidate: (0, 0, 0),
@@ -294,7 +302,19 @@ impl BootModel {
             cpu_cmd_head: 0,
             rpc_eventfd: None,
             rpc_eventfd_stats: RpcEventfdStats::default(),
+            fast,
         }
+    }
+
+    /// The state the trapped TRIGGER and flush-page reads are answered from without the
+    /// device lock (fastread.rs; device.rs `SharedDevice::region_read`).
+    pub fn fast(&self) -> std::sync::Arc<crate::fastread::FastReads> {
+        self.fast.clone()
+    }
+
+    fn set_fast(&mut self, f: std::sync::Arc<crate::fastread::FastReads>) {
+        self.fb.set_fast(f.clone());
+        self.fast = f;
     }
 
     /// Execute on the physical GPU (E5b part 2): the FB is backed by the reserved VRAM
@@ -1036,6 +1056,9 @@ impl BootModel {
         };
         let refused = self.fb.private_refused();
         let t = self.fb.bar_access(mem, root, offset, data, write);
+        if bar == 3 && !write {
+            self.publish_flush_page(offset, t);
+        }
         if let (Target::Fb(pa), true) = (t, self.fb.private_refused() != refused) {
             private_refused_line(refused + 1, pa);
             return format!("fb {pa:#x} REFUSED: the device's private pages");
@@ -1049,6 +1072,25 @@ impl BootModel {
                 format!("UNMAPPED (level {level})")
             }
         }
+    }
+
+    /// A locked read of a trapped BAR2 page (the flush page, with the BAR2 memfd and deferred
+    /// flush reads): its bytes are published so the next reads are answered without the
+    /// device lock (fastread.rs). Nothing when the page is published already, the flush reads
+    /// sync at once, or the page is not in the FB.
+    fn publish_flush_page(&mut self, offset: u64, t: Target) {
+        let Some(defer) = self.fb.bar2_area().and_then(|a| a.deferred_flush()) else {
+            return;
+        };
+        self.fast.note_locked_flush();
+        let Target::Fb(pa) = t else { return };
+        let page = offset & !0xFFF;
+        if self.fast.flush_published(page) {
+            return;
+        }
+        let mut bytes = vec![0u8; 4096];
+        self.fb.read(pa & !0xFFF, &mut bytes);
+        self.fast.publish_flush(page, pa >> 12, bytes, defer);
     }
 
     /// The ordering rule of the doorbell (mirror.rs `gr_shadow_doorbell`) for the store
@@ -1201,6 +1243,10 @@ impl BootModel {
         fresh.auto_guest = self.auto_guest;
         fresh.rpc_eventfd = self.rpc_eventfd.take();
         fresh.rpc_eventfd_stats = self.rpc_eventfd_stats;
+        // The reads without the lock keep their state object (the server found it once);
+        // nothing is in flight after the reset.
+        self.fast.reset();
+        fresh.set_fast(self.fast.clone());
         *self = fresh;
     }
 
@@ -1392,10 +1438,14 @@ impl BootModel {
             // the guest polls it before its map call returns.
             // The BAR1 pool's moves left from the invalidate count as well (bar1pool.rs
             // `poll_sliced`, bar1-pool.md §14; device.rs ran the next slice before this).
+            // The hold the trigger write handed off (fastread.rs) counts as well; reads without
+            // the device lock answer the same state when no pool batch runs.
             Some(Reg::MmuInvalidate) => {
                 let held = self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy());
+                let handed = self.fast.trigger_busy(true);
                 let pool = self.fb.pool_mut().as_ref().is_some_and(|p| p.batch_pending());
-                (self.mmu_invalidate.2 & !(1 << 31)) | if held || pool { 1 << 31 } else { 0 }
+                self.fast.note_locked_trigger();
+                (self.mmu_invalidate.2 & !(1 << 31)) | if held || handed || pool { 1 << 31 } else { 0 }
             }
             // Write-only doorbell (`clc361.h:33`); reads return 0.
             Some(Reg::UsermodeDoorbell) => 0,
@@ -1514,6 +1564,11 @@ impl BootModel {
             }
             Some(Reg::MmuInvalidate) => {
                 notes.extend(self.mmu_invalidate_write(v, mem));
+                // The held invalidate leaves the lock: its TRIGGER reads are answered without
+                // it until the worker applied its roots (fastread.rs, execution.md §9.9).
+                if let Some(h) = self.ctrl.mirror.as_mut().and_then(|m| m.hand_off_invalidate()) {
+                    self.fast.push_hold(h);
+                }
             }
             None => {
                 notes.extend(self.queue_register_write(off, v, mem));
@@ -1599,6 +1654,7 @@ impl BootModel {
     fn mmu_invalidate_write(&mut self, v: u32, mem: &GuestMemory) -> Vec<String> {
         let mut notes = Vec::new();
         self.mmu_invalidate.2 = v;
+        self.fast.set_trigger(self.regs.mmu_invalidate, v);
         if v & (1 << 31) != 0 {
             // The executor's cached translations end at every invalidate (fb.rs `ExecTlb`).
             self.fb.exec_tlb_flush();
@@ -4795,6 +4851,50 @@ mod tests {
         assert!(b.fb.bar2_sync(Some(bar2), None));
         assert_eq!(b.fb.backing(x), crate::fb::Backing::Bar2Memfd(0x2000));
         (b, x, guest)
+    }
+
+    /// The reads without the device lock (fastread.rs, execution.md §9.9): a locked read of
+    /// the trapped flush page publishes its bytes, the next reads are answered from them and
+    /// mark the sync owed; a device write to the page drops the copy. TRIGGER reads busy on
+    /// the locked path too while a handed-off hold is not applied.
+    #[test]
+    fn the_flush_page_and_trigger_are_published_for_reads_without_the_lock() {
+        let (mut b, _x, _guest) = memfd_model(true);
+        let mem = GuestMemory::new();
+        b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock);
+        let flush_fb = 0x400_0000u64 + 0x2_0000;
+        b.fb.write_u64(flush_fb + 8, 0xfeed);
+        let fast = b.fast();
+        let mut w = [0u8; 4];
+        assert!(!fast.try_read(3, 0x1f008, &mut w), "nothing published yet");
+        let mut d = [0u8; 4];
+        b.bar_access(&mem, 3, 0x1f008, &mut d, false);
+        assert_eq!(u32::from_le_bytes(d), 0xfeed);
+        assert!(b.fb.bar2_flush_pending());
+        b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock);
+        assert!(!b.fb.bar2_flush_pending());
+        assert!(fast.try_read(3, 0x1f008, &mut w), "published");
+        assert_eq!(u32::from_le_bytes(w), 0xfeed);
+        assert!(b.fb.bar2_flush_pending(), "the read without the lock marked the sync owed");
+        b.fb.write_u64(flush_fb + 8, 0xbeef);
+        assert!(!fast.try_read(3, 0x1f008, &mut w), "a device write to the page drops the copy");
+        b.bar_access(&mem, 3, 0x1f008, &mut d, false);
+        assert!(fast.try_read(3, 0x1f008, &mut w));
+        assert_eq!(u32::from_le_bytes(w), 0xbeef);
+        // TRIGGER: the latched word; busy on both paths while a handed-off hold runs.
+        let r = b.regs;
+        b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert!(fast.try_read(0, r.mmu_invalidate, &mut w));
+        assert_eq!(u32::from_le_bytes(w), 5, "no hold: idle");
+        let p = std::sync::Arc::new(crate::invgate::Progress::default());
+        p.begin(3, 0xA000);
+        fast.push_hold(crate::invgate::Hold::new(p.clone(), vec![(0xA000, 3)], std::time::Instant::now()));
+        assert_eq!(b.read32(r.mmu_invalidate), Some(0x8000_0005));
+        assert!(fast.try_read(0, r.mmu_invalidate, &mut w));
+        assert_eq!(u32::from_le_bytes(w), 0x8000_0005);
+        p.finish(3);
+        assert_eq!(b.read32(r.mmu_invalidate), Some(5));
+        assert!(fast.summary().contains("1 held invalidate(s) completed by a read"));
     }
 
     fn vram_u64(b: &BootModel, pa: u64) -> u64 {

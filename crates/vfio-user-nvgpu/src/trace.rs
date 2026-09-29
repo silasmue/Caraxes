@@ -86,6 +86,12 @@ impl Trace {
         }
     }
 
+    /// Whether trapped accesses are written to the trace (the reads answered without the
+    /// device lock bypass it, so they are off then; fastread.rs).
+    pub fn records_accesses(&self) -> bool {
+        self.accesses && self.out.is_some()
+    }
+
     pub fn access(&mut self, dir: Dir, region: u32, offset: u64, data: &[u8], note: Option<&str>) {
         let r = region as usize;
         if r < 9 {
