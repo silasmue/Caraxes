@@ -909,7 +909,15 @@ impl IntrPage {
             return false;
         };
         let m = &st.model;
-        let enabled = (0..LEAVES).any(|i| m.leaf[i] & m.leaf_en[i] != 0);
+        let exact = self.exact();
+        // Exact mode sees every store, so no enable can be lost: only a vector pending and
+        // enabled at both levels counts, and the MSI is sent again without touching the
+        // enables the guest set.
+        let enabled = if exact {
+            m.top() & m.top_en != 0
+        } else {
+            (0..LEAVES).any(|i| m.leaf[i] & m.leaf_en[i] != 0)
+        };
         if !enabled {
             st.stale_since = None;
             return false;
@@ -920,8 +928,11 @@ impl IntrPage {
                 false
             }
             Some(t) if now.saturating_duration_since(t) >= period => {
-                // Late, not lost: every subtree enabled again, the MSI again.
-                st.model.top_en |= SUBTREES;
+                // Late, not lost: every subtree enabled again (the tagged display's lost
+                // enables), the MSI again.
+                if !exact {
+                    st.model.top_en |= SUBTREES;
+                }
                 let d = st.model.display(W_TOP_EN_SET, self.exact());
                 let w = self.watched(W_TOP_EN_SET);
                 let was = self.expected[W_TOP_EN_SET].load(Ordering::Relaxed);
@@ -1346,6 +1357,28 @@ mod tests {
         p.reset();
         assert!(p.exact());
         assert_eq!(load(&p, LEAF_EN_SET), 0);
+    }
+
+    /// Exact mode's watchdog leaves the guest's enables alone: a vector pending under a
+    /// masked subtree is no lost interrupt; one pending and enabled gets its MSI again.
+    /// (A raise signals as the trapped path's `IntrShared::raise` does, enables or not.)
+    #[test]
+    fn exact_watchdog_keeps_the_guests_enables() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        w(&p, LEAF_EN_SET, 0x10);
+        assert!(shared.raise(4));
+        p.scan();
+        assert_eq!(count(&mut msi), 1, "the raise's MSI, as the trapped path");
+        let t = Instant::now();
+        assert!(!p.tick(t));
+        assert!(!p.tick(t + Duration::from_millis(50)));
+        assert_eq!(load(&p, TOP_EN_SET), 0, "the mask stays");
+        w(&p, TOP_EN_SET, 1);
+        assert_eq!(count(&mut msi), 1, "the unmask is the edge");
+        assert!(!p.tick(t + Duration::from_millis(60)));
+        assert!(p.tick(t + Duration::from_millis(80)), "late, not lost: the MSI again");
+        assert_eq!(count(&mut msi), 1);
     }
 
     /// A host event for a vector the page still shows pending costs no MSI (series B on
