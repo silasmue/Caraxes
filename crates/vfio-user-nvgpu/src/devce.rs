@@ -688,6 +688,7 @@ impl Engine for DeviceCe {
         );
         self.running = None;
         self.off = Some(why.clone());
+        eprintln!("vfio-user-nvgpu: device CE: {why}");
         Poll::Failed(why)
     }
 
