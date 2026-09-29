@@ -1,11 +1,8 @@
-From b3ff0df6b9b39f6bb1e08e93b06b9e2c1c482163 Mon Sep 17 00:00:00 2001
+From 2d9de4f361d7cc146ff3b31468e1f71a38d8645e Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Silas=20M=C3=BCller?= <github@silasmueller.de>
 Date: Tue, 29 Sep 2026 14:42:24 +0200
 Subject: [PATCH] pci: vfio-user: keep read-only mmap areas read-only across
  BAR moves
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
 
 move_bar() removed each user memory region with its read-only flag but
 re-created it at the new base as writable. A guest whose firmware
@@ -13,8 +10,6 @@ reassigns the BAR (EDK2 moves every BAR at boot) thus lost the
 read-only areas configured with x_readonly_mmap_areas: its writes to
 them landed in the shared mapping instead of trapping to the vfio-user
 region protocol. Re-create the region with the flag it had.
-
-Signed-off-by: Silas Müller <github@silasmueller.de>
 ---
  pci/src/vfio_user.rs | 5 +++--
  1 file changed, 3 insertions(+), 2 deletions(-)
