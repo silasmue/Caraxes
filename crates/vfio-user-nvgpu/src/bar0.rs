@@ -430,7 +430,8 @@ impl Bar0 {
         data: &[u8],
     ) -> WriteEffect {
         if let Some(p) = self.page.as_ref().filter(|p| p.covers(offset)) {
-            // The reactor applies it as it applies the guest's own stores.
+            // The tree page: applied at once with the register's semantics (exact mode,
+            // intr_page.rs); page 0: stored as the guest would store it.
             p.write(offset, data);
             return WriteEffect::Model;
         }

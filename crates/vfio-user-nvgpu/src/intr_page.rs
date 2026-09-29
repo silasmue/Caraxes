@@ -15,11 +15,21 @@
 //! vector, checked at start) in the leaves and in `TOP_EN_SET`, 0 in the clear registers,
 //! `TRIGGER_IDLE` in the trigger. `LEAF_EN_SET` shows the exact mask (the guest reads and
 //! caches it, intr_tu102.c:250-270); a store of that same mask is a no-op anyway.
+//!
+//! Exact mode: when the VMM maps the tree page read-only (Cloud Hypervisor's
+//! `x_readonly_mmap_areas`) or not at all, the guest's stores to it trap. The first such
+//! store switches the page to the registers' own values (turing/tu102/dev_vm.h:31-67: a
+//! leaf shows its pending bits, `LEAF_EN_SET`/`LEAF_EN_CLEAR` both read the enable mask,
+//! `TOP_EN_SET`/`TOP_EN_CLEAR` both the top enables, the write-only `LEAF_TRIGGER` 0, the
+//! enables start at their reset value 0) and applies every store as it arrives
+//! ([`IntrPage::write`]); no tag, no scan for stores. Reads stay memory. The Windows KMD
+//! needs this: with the tag in every leaf it reset the GSP three times (windows-findings.md
+//! P37 arm 2).
 
 use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -256,15 +266,20 @@ impl Model {
         t
     }
 
-    /// The word the page shows for watched word `i`.
-    fn display(&self, i: usize) -> u32 {
+    /// The word the page shows for watched word `i`; `exact`: the register's own value
+    /// (the stores trap), else the tagged display a store can be told from.
+    fn display(&self, i: usize, exact: bool) -> u32 {
+        let tag = if exact { 0 } else { TAG };
         match i {
-            i if i < W_EN_SET => self.leaf[i] | TAG,
+            i if i < W_EN_SET => self.leaf[i] | tag,
             i if i < W_EN_CLEAR => self.leaf_en[i - W_EN_SET],
+            i if i < W_TOP && exact => self.leaf_en[i - W_EN_CLEAR],
             i if i < W_TOP => 0,
             W_TOP => self.top(),
-            W_TOP_EN_SET => (self.top_en & SUBTREES) | TAG,
+            W_TOP_EN_SET => (self.top_en & SUBTREES) | tag,
+            W_TOP_EN_CLEAR if exact => self.top_en & SUBTREES,
             W_TOP_EN_CLEAR => 0,
+            _ if exact => 0,
             _ => TRIGGER_IDLE,
         }
     }
@@ -280,15 +295,17 @@ enum Odd {
     BadTrigger,
     BootStore,
     TreeHole,
+    ExactStore,
 }
 
-const ODD_NAMES: [&str; 6] = [
+const ODD_NAMES: [&str; 7] = [
     "a store to the read-only TOP register (restored)",
     "a leaf store with the tag bit 31 (bit ignored)",
     "a LEAF_EN_SET store with the tag bit 31 (bit ignored)",
     "a LEAF_TRIGGER store outside the 256 vectors or at a tag bit (ignored)",
     "a store to a boot constant in page 0 (restored)",
     "a store to a word of the tree that is no register (restored to 0)",
+    "a store to the tree page in exact mode that did not trap (the page is writable; restored)",
 ];
 
 struct State {
@@ -321,7 +338,7 @@ pub struct Stats {
     pub msi_watchdog: AtomicU64,
     pub msi_refused: AtomicU64,
     pub cas_retries: AtomicU64,
-    pub odd: [AtomicU64; 6],
+    pub odd: [AtomicU64; 7],
     pub slow_ns_max: AtomicU64,
 }
 
@@ -351,6 +368,8 @@ pub struct IntrPage {
     state: Mutex<State>,
     /// The display values last written, for the lock-free comparison.
     expected: [AtomicU32; WATCHED],
+    /// The guest's stores to the tree page trap: exact mode (module doc).
+    exact: AtomicBool,
     pub stats: Stats,
 }
 
@@ -409,6 +428,7 @@ impl IntrPage {
                 logged: 0,
             }),
             expected: std::array::from_fn(|_| AtomicU32::new(0)),
+            exact: AtomicBool::new(false),
             stats: Stats::default(),
         };
         page.reset();
@@ -508,8 +528,11 @@ impl IntrPage {
     /// constants, the tree page showing the initial displays.
     pub fn reset(&self) {
         let mut st = self.lock();
+        let exact = self.exact();
         st.model = Model {
-            leaf_en: st.table_en,
+            // Exact mode: the enables' reset value (dev_vm.h:61, :65); else every vector of
+            // the kernel table (the tagged display's lost-store rule, `scan`).
+            leaf_en: if exact { [0; LEAVES] } else { st.table_en },
             ..Model::default()
         };
         st.again = [0; LEAVES];
@@ -521,12 +544,23 @@ impl IntrPage {
         for (off, v) in self.boot {
             self.pmc.word(off).store(v, Ordering::Relaxed);
         }
+        self.publish(&st.model);
+        std::sync::atomic::fence(Ordering::SeqCst);
+    }
+
+    /// Exact mode (module doc): the guest's stores to the tree page trap.
+    pub fn exact(&self) -> bool {
+        self.exact.load(Ordering::Acquire)
+    }
+
+    /// Every watched word shows `model`'s display (the state lock held).
+    fn publish(&self, model: &Model) {
+        let exact = self.exact();
         for i in 0..WATCHED {
-            let d = st.model.display(i);
-            self.watched(i).store(d, Ordering::Relaxed);
+            let d = model.display(i, exact);
+            self.watched(i).store(d, Ordering::Release);
             self.expected[i].store(d, Ordering::Relaxed);
         }
-        std::sync::atomic::fence(Ordering::SeqCst);
     }
 
     /// A trapped read of the pages (a client that did not map them): the memory.
@@ -534,8 +568,14 @@ impl IntrPage {
         self.word_at(off).load(Ordering::Acquire)
     }
 
-    /// A trapped write: stored as the guest would store it, found by the next scan.
+    /// A trapped write. To the tree page: applied at once with the register's semantics
+    /// (exact mode, switched on by the first); to page 0: stored as the guest would store
+    /// it (latched values and boot constants, `tick` restores the latter).
     pub fn write(&self, off: u64, data: &[u8]) {
+        if (self.tree_base..self.tree_base + PAGE).contains(&off) {
+            self.write_tree(off - self.tree_base, data);
+            return;
+        }
         for (i, &b) in data.iter().enumerate() {
             let o = off + i as u64;
             let shift = (o & 3) * 8;
@@ -548,6 +588,95 @@ impl IntrPage {
                     Err(c) => cur = c,
                 }
             }
+        }
+    }
+
+    /// A trapped store of `data` at tree-page offset `rel` (exact mode). Byte lanes not
+    /// written are 0 in the value, as a narrower store enables only its own lanes.
+    fn write_tree(&self, rel: u64, data: &[u8]) {
+        let a = rel & !3;
+        let mut v = 0u32;
+        for (i, &b) in data.iter().enumerate() {
+            let o = rel + i as u64;
+            if o & !3 == a {
+                v |= u32::from(b) << ((o & 3) * 8);
+            }
+        }
+        let mut st = self.lock();
+        if !self.exact.swap(true, Ordering::AcqRel) {
+            // The first trapped store: the guest's stores reach the device synchronously,
+            // so the registers' own values and semantics hold from here; the enables start
+            // at their reset value (dev_vm.h:61, :65).
+            st.model.leaf_en = [0; LEAVES];
+            let m = "intr page: the guest's stores to the interrupt tree trap (read-only mapping): exact register values from now on".to_string();
+            eprintln!("vfio-user-nvgpu: {m}");
+            self.shared.note(m);
+        }
+        let i = (0..WATCHED).find(|&i| watched_offset(i) == a);
+        let (mut rearm, mut rearm_by_set, mut acked) = (false, false, false);
+        match i {
+            Some(i) if i < W_EN_SET => {
+                st.model.leaf[i] &= !v;
+                acked = true;
+                bump(&self.stats.acks);
+                let again = st.again[i] & v;
+                st.again[i] &= !again;
+                st.model.leaf[i] |= again;
+                if again != 0 {
+                    rearm = true;
+                    bump(&self.stats.again);
+                }
+            }
+            Some(i) if i < W_EN_CLEAR => {
+                st.model.leaf_en[i - W_EN_SET] |= v;
+                rearm_by_set = true;
+                bump(&self.stats.en_set);
+            }
+            Some(i) if i < W_TOP => {
+                st.model.leaf_en[i - W_EN_CLEAR] &= !v;
+                bump(&self.stats.en_clear);
+            }
+            Some(W_TOP) => self.odd(&mut st, Odd::TopStore),
+            Some(W_TOP_EN_SET) => {
+                st.model.top_en |= v & SUBTREES;
+                rearm_by_set = true;
+                bump(&self.stats.top_en_set);
+            }
+            Some(W_TOP_EN_CLEAR) => {
+                st.model.top_en &= !v;
+                bump(&self.stats.top_en_clear);
+            }
+            Some(_) => {
+                let t = v & 0xFFF;
+                if t < 256 {
+                    let (l, b) = ((t / 32) as usize, 1u32 << (t % 32));
+                    if st.model.leaf[l] & b == 0 {
+                        rearm = true;
+                    }
+                    st.model.leaf[l] |= b;
+                    bump(&self.stats.triggers);
+                } else {
+                    self.odd(&mut st, Odd::BadTrigger);
+                }
+            }
+            None => self.odd(&mut st, Odd::TreeHole),
+        }
+        self.publish(&st.model);
+        let edge = rearm_by_set && !rearm && st.model.top() != 0;
+        let mut msi = false;
+        if edge || rearm {
+            std::sync::atomic::fence(Ordering::SeqCst);
+            msi = self.shared.signal_msi();
+            bump(if !msi {
+                &self.stats.msi_refused
+            } else if edge {
+                &self.stats.msi_edge
+            } else {
+                &self.stats.msi_raise
+            });
+        }
+        if acked || msi {
+            st.stale_since = None;
         }
     }
 
@@ -704,8 +833,14 @@ impl IntrPage {
         between();
         // Write the displays: compare-and-swap from what was read, so a store that
         // landed since is kept for the next scan.
+        let exact = self.exact();
+        if exact && (0..WATCHED).any(changed) {
+            // Exact mode shows the registers' own values: a store that did not trap means
+            // the page is writable after all; it cannot be told from the value it held.
+            self.odd(&mut st, Odd::ExactStore);
+        }
         for (i, &was) in w.iter().enumerate() {
-            let d = st.model.display(i);
+            let d = st.model.display(i, exact);
             if was != d
                 && self
                     .watched(i)
@@ -787,7 +922,7 @@ impl IntrPage {
             Some(t) if now.saturating_duration_since(t) >= period => {
                 // Late, not lost: every subtree enabled again, the MSI again.
                 st.model.top_en |= SUBTREES;
-                let d = st.model.display(W_TOP_EN_SET);
+                let d = st.model.display(W_TOP_EN_SET, self.exact());
                 let w = self.watched(W_TOP_EN_SET);
                 let was = self.expected[W_TOP_EN_SET].load(Ordering::Relaxed);
                 if w.compare_exchange(was, d, Ordering::AcqRel, Ordering::Acquire)
@@ -1150,6 +1285,69 @@ mod tests {
         assert!(p.summary().contains("1 ack(s)"));
     }
 
+    /// Exact mode (read-only mapping, Cloud Hypervisor's `x_readonly_mmap_areas`): the
+    /// first trapped store to the tree switches the page to the registers' own values
+    /// (dev_vm.h:31-67) and applies each store as it arrives: no tag, the clear registers
+    /// read the enables, the enables start at 0, W1C acks, trigger, re-arm edges.
+    #[test]
+    fn trapped_stores_make_the_page_exact() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        p.enable_vectors(&[4, 33]);
+        assert!(!p.exact());
+        assert_eq!(load(&p, LEAF), TAG);
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        // The first trapped store: the enables at their reset value, then this store.
+        w(&p, LEAF_EN_SET, 0x10);
+        assert!(p.exact());
+        assert_eq!(p.model().leaf_en[0], 0x10);
+        assert_eq!(p.model().leaf_en[1], 0, "the kernel table is not shown as enabled");
+        assert_eq!(load(&p, LEAF), 0);
+        assert_eq!(load(&p, LEAF_EN_SET), 0x10);
+        assert_eq!(load(&p, LEAF_EN_CLEAR), 0x10, "EN_CLEAR reads the enables");
+        assert_eq!(load(&p, LEAF_TRIGGER), 0);
+        w(&p, TOP_EN_SET, 0x1);
+        assert_eq!(load(&p, TOP_EN_SET), 1);
+        assert_eq!(load(&p, TOP_EN_CLEAR), 1);
+        assert_eq!(count(&mut msi), 0, "nothing pending: no edge");
+        // A raise: the page shows the bit without a tag, and the MSI.
+        assert!(shared.raise(4));
+        assert!(p.scan().msi);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert_eq!(load(&p, TOP), 1);
+        assert_eq!(count(&mut msi), 1);
+        // A raise while pending, then the W1C ack: pended again with its MSI.
+        assert!(shared.raise(4));
+        assert!(!p.scan().msi);
+        w(&p, LEAF, 0x10);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert_eq!(count(&mut msi), 1);
+        w(&p, LEAF, 0x10);
+        assert_eq!(load(&p, LEAF), 0);
+        assert_eq!(load(&p, TOP), 0);
+        // Masking the leaf, a trigger while masked, unmasking: the set store is an edge.
+        w(&p, LEAF_EN_CLEAR, 0x10);
+        assert_eq!(load(&p, LEAF_EN_SET), 0);
+        w(&p, LEAF_TRIGGER, 4);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert_eq!(count(&mut msi), 1, "a trigger pends and signals");
+        w(&p, LEAF_EN_SET, 0x10);
+        assert_eq!(count(&mut msi), 1, "the unmask of a pending vector is an edge");
+        w(&p, TOP_EN_CLEAR, 1);
+        assert_eq!(load(&p, TOP_EN_SET), 0);
+        // A byte store enables only its lane: bits 15:8 of LEAF_EN_SET(1).
+        p.write(p.tree_base + LEAF_EN_SET + 4 + 1, &[0x02]);
+        assert_eq!(p.model().leaf_en[1], 0x200);
+        // A store that did not trap is an inconsistency, restored at the next scan.
+        store(&p, LEAF, 0);
+        assert!(p.scan().work);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert!(p.summary().contains("did not trap"));
+        // A reset keeps exact mode, with the enables at 0.
+        p.reset();
+        assert!(p.exact());
+        assert_eq!(load(&p, LEAF_EN_SET), 0);
+    }
+
     /// A host event for a vector the page still shows pending costs no MSI (series B on
     /// vm0 without this: 14825 host events became as many MSIs in one Mutter window and
     /// the compositor stalled); the ack that clears it pends it again with one MSI, so an
@@ -1352,7 +1550,7 @@ mod tests {
             .iter()
             .map(|a| a.load(Ordering::Relaxed))
             .collect();
-        assert_eq!(odd, vec![1, 1, 0, 2, 1, 1]);
+        assert_eq!(odd, vec![1, 1, 0, 2, 1, 1, 0]);
         assert!(p
             .summary()
             .contains("inconsistencies: 1 x a store to the read-only TOP"));
