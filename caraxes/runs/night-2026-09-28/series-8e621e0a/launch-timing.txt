@@ -1,0 +1,16 @@
+vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: 1337957 ring(s) by the reactor (18058 after a blocking wait), 1337745 host doorbell(s); host events by the age of the last host doorbell: 0 none yet, 1370 < 1 ms, 1956 < 100 ms, 68 older (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: lock: n 1337957, mean 0.55 us, p10 0.5 us, p50 0.5 us, p90 0.6 us, p99 0.8 us, max 51731.9 us
+launch timing: dispatch: n 1335733, mean 0.24 us, p10 0.3 us, p50 0.3 us, p90 0.3 us, p99 0.6 us, max 36.2 us
+launch timing: ran-ahead check: n 1335733, mean 0.07 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.1 us, max 14.9 us
+launch timing: plan: n 1335733, mean 0.22 us, p10 0.3 us, p50 0.3 us, p90 0.3 us, p99 0.4 us, max 43.6 us
+launch timing: worker wait: n 1335733, mean 0.06 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.1 us, max 10.1 us
+launch timing: BAR1 flush: n 1335733, mean 0.05 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.1 us, max 9.7 us
+launch timing: USERD read: n 1335733, mean 1.29 us, p10 1.0 us, p50 1.1 us, p90 2.0 us, p99 4.0 us, max 854.5 us
+launch timing: host doorbell write: n 1335733, mean 0.06 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.1 us, max 19.2 us
+launch timing: tail after the host doorbell: n 1334576, mean 2.19 us, p10 2.0 us, p50 2.0 us, p90 2.4 us, p99 6.7 us, max 2018.7 us
+launch timing: ring to host doorbell (sum): n 1334576, mean 2.49 us, p10 2.1 us, p50 2.3 us, p90 3.3 us, p99 5.4 us, max 2111.8 us
+launch timing: host doorbell to the next ring: n 1337954, mean 252.57 us, p10 2.7 us, p50 15.4 us, p90 49.1 us, p99 390.0 us, max 2635510.4 us
+launch timing: host doorbell to host event: n 3394, mean 25651.51 us, p10 20.6 us, p50 1620.0 us, p90 2635470.0 us, p99 2635470.0 us, max 2635470.0 us
+launch timing: host event to raise: n 3394, mean 1.87 us, p10 0.7 us, p50 1.7 us, p90 3.4 us, p99 5.0 us, max 13.4 us
+launch timing: raise to MSI: n 3392, mean 41.19 us, p10 1.3 us, p50 6.7 us, p90 11.9 us, p99 23.3 us, max 67957.8 us

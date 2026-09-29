@@ -1,0 +1,188 @@
+     5444373 E boot: gsp start 1: halted
+     5444375 E boot: fwsec: data buffer PA 0x1668a200, command 0x15 (FRTS), DMEMMAPPER at +0x20, frtsOffset 0x3fe00000 (from the FWSEC command in guest RAM), WPR2 lo 0x3fe000 hi 0x3feff0
+     5445016 E boot: gsp start 2: halted
+     5953608 E boot: sec2 start 1: booter done, wpr meta PA 0x16653000 (mapped), gsp riscv active
+     5953609 E boot: wpr meta: fbSize 0x40000000 gspFwRsvdStart 0x37700000 nonWprHeap 0x37700000+0x100000 wprStart 0x37800000 frtsOffset 0x3fe00000 wprEnd 0x3ff00000 vgaWorkspace 0x3ff00000
+     5953905 E boot: doorbell 1: libos args PA 0x165e3000 (mapped), wpr meta PA 0x16653000
+     5953908 E boot: libos arg 0: "LOGINIT" pa 0x179f0000 size 0x10000
+     5953909 E boot: libos arg 1: "LOGINTR" pa 0x17a60000 size 0x10000
+     5953910 E boot: libos arg 2: "LOGRM" pa 0x17a70000 size 0x10000
+     5953911 E boot: libos arg 3: "RMARGS" pa 0x6124000 size 0x1000
+     5953912 E boot: rmargs: sharedMemPhysAddr 0x17b00000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+     5953913 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+     5953916 E boot: tx seq 0 event GSP_RUN_CPU_SEQUENCER (40 bytes)
+     5953917 E boot: tx seq 1 event GSP_INIT_DONE (4 bytes)
+     5953918 E boot: rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 960 checksum ok: gpuPhysAddr=0xe6000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x20 pciConfigMirror=0x88000+0x1000 PCIDeviceID=0x1f0210de PCISubDeviceID=0x40111458 rev=0xa1 maxUserVa=0x7ffffffff000 host
+     5953964 E boot: doorbell 2: libos args PA 0x165e3000 (mapped), wpr meta PA 0x16653000
+     5953966 E boot: rx seq 1 SET_REGISTRY (73) sequence 0 length 149 checksum ok: size=117 entries=3
+     5954037 E boot: doorbell 3: libos args PA 0x165e3000 (mapped), wpr meta PA 0x16653000
+     5954039 E boot: rx seq 2 GET_GSP_STATIC_INFO (65) sequence 0 length 1688 checksum ok: 1656 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+     5954040 E boot: static-info gidInfo.data[0..16] = 7fc490a1b1e981e2363d50dc8f183234 [synthesized (E4: per-VM UUID)]
+     5954041 E boot: static-info fbRegionInfoParams = 2 regions: usable [0x0, 0x37700000), reserved [0x37700000, 0x40000000) [guest (WPR meta gspFwRsvdStart)]
+     5954042 E boot: static-info bIsMigSupported = false [chip (the mig family and its [mig] table, families/mig.rs)]
+     5954047 E boot: static-info engineCaps = 0x80bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0, NVENC0, SW, SEC2, HOST) [synthesized (TU106 child list; E4: host GET_ENGINES_V2)]
+     5954048 E boot: static-info fb_length = 0x40000000 [profile]
+     5954049 E boot: static-info gpuNameString = Leandro VFIO RTX 2070-1G [profile (guest_card_name)]
+     5954050 E boot: static-info gpuShortNameString = TU106 [card]
+     5954052 E boot: static-info bar1PdeBase/bar2PdeBase = 0x37701000/0x37700000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+     5954053 E boot: static-info fwWprLayoutOffset = nonWprHeapOffset 0x37700000 frtsOffset 0x3fe00000 [guest (WPR meta; on GB20x as the FSP model laid it out)]
+     5954054 E boot: static-info vbios* = valid, subsystem 0x1458:0x4011, revision 0x90063d00, oem 0x76 [card (config space, VBIOS BIT)]
+     5954055 E boot: static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+     5954056 E boot: static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+     5954057 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 0 result 0x0 length 1688
+     9980411 E boot: doorbell 4: libos args PA 0x165e3000 (mapped), wpr meta PA 0x16653000
+     9980413 E boot: rx seq 3 UNLOADING_GUEST_DRIVER (47) sequence 0 length 40 checksum ok: 8 bytes: 0000000000000000
+     9980414 E boot: unloading guest driver: bInPMTransition 0 bGc6Entering 0 newLevel 0; MAILBOX0 0x165e3000 -> 0x965e3000 (processor suspended) [guest]
+     9980416 E boot: tx seq 3 reply UNLOADING_GUEST_DRIVER sequence 0 result 0x0 length 40
+     9986396 E boot: gsp start 3: halted
+    10318784 E boot: sec2 start 2: booter unload done (argument 0xff000000ff), WPR2 down, gsp riscv stopped
+    13646880 E boot: gsp start 4: halted
+    13646881 E boot: fwsec: data buffer PA 0x165fd200, command 0x15 (FRTS), DMEMMAPPER at +0x20, frtsOffset 0x3fe00000 (from the FWSEC command in guest RAM), WPR2 lo 0x3fe000 hi 0x3feff0
+    13647539 E boot: gsp start 5: halted
+    14179661 E boot: sec2 start 3: booter done, wpr meta PA 0x16654000 (mapped), gsp riscv active
+    14179663 E boot: queues: the previous boot's link dropped (new Booter Load); the next doorbell links again
+    14179664 E boot: wpr meta: fbSize 0x40000000 gspFwRsvdStart 0x37700000 nonWprHeap 0x37700000+0x100000 wprStart 0x37800000 frtsOffset 0x3fe00000 wprEnd 0x3ff00000 vgaWorkspace 0x3ff00000
+    14179987 E boot: doorbell 5: libos args PA 0x1783b000 (mapped), wpr meta PA 0x16654000
+    14179990 E boot: libos arg 0: "LOGINIT" pa 0x17880000 size 0x10000
+    14179992 E boot: libos arg 1: "LOGINTR" pa 0x179f0000 size 0x10000
+    14179993 E boot: libos arg 2: "LOGRM" pa 0x17a50000 size 0x10000
+    14179995 E boot: libos arg 3: "RMARGS" pa 0x17843000 size 0x1000
+    14179996 E boot: rmargs: sharedMemPhysAddr 0x17b00000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+    14179998 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+    14180001 E boot: tx seq 0 event GSP_RUN_CPU_SEQUENCER (40 bytes)
+    14180002 E boot: tx seq 1 event GSP_INIT_DONE (4 bytes)
+    14180004 E boot: rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 960 checksum ok: gpuPhysAddr=0xe6000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x20 pciConfigMirror=0x88000+0x1000 PCIDeviceID=0x1f0210de PCISubDeviceID=0x40111458 rev=0xa1 maxUserVa=0x7ffffffff000 host
+    14180058 E boot: doorbell 6: libos args PA 0x1783b000 (mapped), wpr meta PA 0x16654000
+    14180059 E boot: rx seq 1 SET_REGISTRY (73) sequence 0 length 149 checksum ok: size=117 entries=3
+    14180153 E boot: doorbell 7: libos args PA 0x1783b000 (mapped), wpr meta PA 0x16654000
+    14180155 E boot: rx seq 2 GET_GSP_STATIC_INFO (65) sequence 0 length 1688 checksum ok: 1656 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+    14180156 E boot: static-info gidInfo.data[0..16] = 7fc490a1b1e981e2363d50dc8f183234 [synthesized (E4: per-VM UUID)]
+    14180158 E boot: static-info fbRegionInfoParams = 2 regions: usable [0x0, 0x37700000), reserved [0x37700000, 0x40000000) [guest (WPR meta gspFwRsvdStart)]
+    14180159 E boot: static-info bIsMigSupported = false [chip (the mig family and its [mig] table, families/mig.rs)]
+    14180161 E boot: static-info engineCaps = 0x80bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0, NVENC0, SW, SEC2, HOST) [synthesized (TU106 child list; E4: host GET_ENGINES_V2)]
+    14180163 E boot: static-info fb_length = 0x40000000 [profile]
+    14180164 E boot: static-info gpuNameString = Leandro VFIO RTX 2070-1G [profile (guest_card_name)]
+    14180165 E boot: static-info gpuShortNameString = TU106 [card]
+    14180167 E boot: static-info bar1PdeBase/bar2PdeBase = 0x37701000/0x37700000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+    14180168 E boot: static-info fwWprLayoutOffset = nonWprHeapOffset 0x37700000 frtsOffset 0x3fe00000 [guest (WPR meta; on GB20x as the FSP model laid it out)]
+    14180170 E boot: static-info vbios* = valid, subsystem 0x1458:0x4011, revision 0x90063d00, oem 0x76 [card (config space, VBIOS BIT)]
+    14180171 E boot: static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+    14180173 E boot: static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+    14180174 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 0 result 0x0 length 1688
+    17198234 E boot: doorbell 8: libos args PA 0x1783b000 (mapped), wpr meta PA 0x16654000
+    17198237 E boot: rx seq 3 UNLOADING_GUEST_DRIVER (47) sequence 0 length 40 checksum ok: 8 bytes: 0000000000000000
+    17198239 E boot: unloading guest driver: bInPMTransition 0 bGc6Entering 0 newLevel 0; MAILBOX0 0x1783b000 -> 0x9783b000 (processor suspended) [guest]
+    17198242 E boot: tx seq 3 reply UNLOADING_GUEST_DRIVER sequence 0 result 0x0 length 40
+    17206690 E boot: gsp start 6: halted
+    17590983 E boot: sec2 start 4: booter unload done (argument 0xff000000ff), WPR2 down, gsp riscv stopped
+    20925952 E boot: gsp start 7: halted
+    20925953 E boot: fwsec: data buffer PA 0x4bd0200, command 0x15 (FRTS), DMEMMAPPER at +0x20, frtsOffset 0x3fe00000 (from the FWSEC command in guest RAM), WPR2 lo 0x3fe000 hi 0x3feff0
+    20926628 E boot: gsp start 8: halted
+    21515550 E boot: sec2 start 5: booter done, wpr meta PA 0x16602000 (mapped), gsp riscv active
+    21515551 E boot: queues: the previous boot's link dropped (new Booter Load); the next doorbell links again
+    21515553 E boot: wpr meta: fbSize 0x40000000 gspFwRsvdStart 0x37700000 nonWprHeap 0x37700000+0x100000 wprStart 0x37800000 frtsOffset 0x3fe00000 wprEnd 0x3ff00000 vgaWorkspace 0x3ff00000
+    21515866 E boot: doorbell 9: libos args PA 0x612a000 (mapped), wpr meta PA 0x16602000
+    21515868 E boot: libos arg 0: "LOGINIT" pa 0x17880000 size 0x10000
+    21515870 E boot: libos arg 1: "LOGINTR" pa 0x17850000 size 0x10000
+    21515871 E boot: libos arg 2: "LOGRM" pa 0x17a50000 size 0x10000
+    21515872 E boot: libos arg 3: "RMARGS" pa 0x16457000 size 0x1000
+    21515873 E boot: rmargs: sharedMemPhysAddr 0x17b00000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+    21515874 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+    21515877 E boot: tx seq 0 event GSP_RUN_CPU_SEQUENCER (40 bytes)
+    21515878 E boot: tx seq 1 event GSP_INIT_DONE (4 bytes)
+    21515891 E boot: rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 960 checksum ok: gpuPhysAddr=0xe6000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x20 pciConfigMirror=0x88000+0x1000 PCIDeviceID=0x1f0210de PCISubDeviceID=0x40111458 rev=0xa1 maxUserVa=0x7ffffffff000 host
+    21515938 E boot: doorbell 10: libos args PA 0x612a000 (mapped), wpr meta PA 0x16602000
+    21515939 E boot: rx seq 1 SET_REGISTRY (73) sequence 0 length 149 checksum ok: size=117 entries=3
+    21516018 E boot: doorbell 11: libos args PA 0x612a000 (mapped), wpr meta PA 0x16602000
+    21516019 E boot: rx seq 2 GET_GSP_STATIC_INFO (65) sequence 0 length 1688 checksum ok: 1656 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+    21516020 E boot: static-info gidInfo.data[0..16] = 7fc490a1b1e981e2363d50dc8f183234 [synthesized (E4: per-VM UUID)]
+    21516022 E boot: static-info fbRegionInfoParams = 2 regions: usable [0x0, 0x37700000), reserved [0x37700000, 0x40000000) [guest (WPR meta gspFwRsvdStart)]
+    21516023 E boot: static-info bIsMigSupported = false [chip (the mig family and its [mig] table, families/mig.rs)]
+    21516024 E boot: static-info engineCaps = 0x80bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0, NVENC0, SW, SEC2, HOST) [synthesized (TU106 child list; E4: host GET_ENGINES_V2)]
+    21516025 E boot: static-info fb_length = 0x40000000 [profile]
+    21516027 E boot: static-info gpuNameString = Leandro VFIO RTX 2070-1G [profile (guest_card_name)]
+    21516028 E boot: static-info gpuShortNameString = TU106 [card]
+    21516029 E boot: static-info bar1PdeBase/bar2PdeBase = 0x37701000/0x37700000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+    21516030 E boot: static-info fwWprLayoutOffset = nonWprHeapOffset 0x37700000 frtsOffset 0x3fe00000 [guest (WPR meta; on GB20x as the FSP model laid it out)]
+    21516031 E boot: static-info vbios* = valid, subsystem 0x1458:0x4011, revision 0x90063d00, oem 0x76 [card (config space, VBIOS BIT)]
+    21516033 E boot: static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+    21516034 E boot: static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+    21516035 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 0 result 0x0 length 1688
+    24533151 E boot: doorbell 12: libos args PA 0x612a000 (mapped), wpr meta PA 0x16602000
+    24533153 E boot: rx seq 3 UNLOADING_GUEST_DRIVER (47) sequence 0 length 40 checksum ok: 8 bytes: 0000000000000000
+    24533155 E boot: unloading guest driver: bInPMTransition 0 bGc6Entering 0 newLevel 0; MAILBOX0 0x612a000 -> 0x8612a000 (processor suspended) [guest]
+    24533156 E boot: tx seq 3 reply UNLOADING_GUEST_DRIVER sequence 0 result 0x0 length 40
+    24545951 E boot: gsp start 9: halted
+    24904195 E boot: sec2 start 6: booter unload done (argument 0xff000000ff), WPR2 down, gsp riscv stopped
+    28303983 E boot: gsp start 10: halted
+    28303984 E boot: fwsec: data buffer PA 0x2fbc200, command 0x15 (FRTS), DMEMMAPPER at +0x20, frtsOffset 0x3fe00000 (from the FWSEC command in guest RAM), WPR2 lo 0x3fe000 hi 0x3feff0
+    28305568 E boot: gsp start 11: halted
+    29042090 E boot: sec2 start 7: booter done, wpr meta PA 0x4bbf000 (mapped), gsp riscv active
+    29042092 E boot: queues: the previous boot's link dropped (new Booter Load); the next doorbell links again
+    29042094 E boot: wpr meta: fbSize 0x40000000 gspFwRsvdStart 0x37700000 nonWprHeap 0x37700000+0x100000 wprStart 0x37800000 frtsOffset 0x3fe00000 wprEnd 0x3ff00000 vgaWorkspace 0x3ff00000
+    29042897 E boot: doorbell 13: libos args PA 0x4aee000 (mapped), wpr meta PA 0x4bbf000
+    29042900 E boot: libos arg 0: "LOGINIT" pa 0x17880000 size 0x10000
+    29042901 E boot: libos arg 1: "LOGINTR" pa 0x60c0000 size 0x10000
+    29042903 E boot: libos arg 2: "LOGRM" pa 0x179d0000 size 0x10000
+    29042904 E boot: libos arg 3: "RMARGS" pa 0x4b5a000 size 0x1000
+    29042906 E boot: rmargs: sharedMemPhysAddr 0x17b00000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+    29042907 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+    29042910 E boot: tx seq 0 event GSP_RUN_CPU_SEQUENCER (40 bytes)
+    29042911 E boot: tx seq 1 event GSP_INIT_DONE (4 bytes)
+    29042913 E boot: rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 960 checksum ok: gpuPhysAddr=0xe6000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x20 pciConfigMirror=0x88000+0x1000 PCIDeviceID=0x1f0210de PCISubDeviceID=0x40111458 rev=0xa1 maxUserVa=0x7ffffffff000 host
+    29043017 E boot: doorbell 14: libos args PA 0x4aee000 (mapped), wpr meta PA 0x4bbf000
+    29043018 E boot: rx seq 1 SET_REGISTRY (73) sequence 0 length 149 checksum ok: size=117 entries=3
+    29043152 E boot: doorbell 15: libos args PA 0x4aee000 (mapped), wpr meta PA 0x4bbf000
+    29043153 E boot: rx seq 2 GET_GSP_STATIC_INFO (65) sequence 0 length 1688 checksum ok: 1656 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+    29043155 E boot: static-info gidInfo.data[0..16] = 7fc490a1b1e981e2363d50dc8f183234 [synthesized (E4: per-VM UUID)]
+    29043161 E boot: static-info fbRegionInfoParams = 2 regions: usable [0x0, 0x37700000), reserved [0x37700000, 0x40000000) [guest (WPR meta gspFwRsvdStart)]
+    29043163 E boot: static-info bIsMigSupported = false [chip (the mig family and its [mig] table, families/mig.rs)]
+    29043164 E boot: static-info engineCaps = 0x80bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0, NVENC0, SW, SEC2, HOST) [synthesized (TU106 child list; E4: host GET_ENGINES_V2)]
+    29043166 E boot: static-info fb_length = 0x40000000 [profile]
+    29043167 E boot: static-info gpuNameString = Leandro VFIO RTX 2070-1G [profile (guest_card_name)]
+    29043169 E boot: static-info gpuShortNameString = TU106 [card]
+    29043170 E boot: static-info bar1PdeBase/bar2PdeBase = 0x37701000/0x37700000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+    29043172 E boot: static-info fwWprLayoutOffset = nonWprHeapOffset 0x37700000 frtsOffset 0x3fe00000 [guest (WPR meta; on GB20x as the FSP model laid it out)]
+    29043173 E boot: static-info vbios* = valid, subsystem 0x1458:0x4011, revision 0x90063d00, oem 0x76 [card (config space, VBIOS BIT)]
+    29043174 E boot: static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+    29043176 E boot: static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+    29043177 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 0 result 0x0 length 1688
+    32068551 E boot: doorbell 16: libos args PA 0x4aee000 (mapped), wpr meta PA 0x4bbf000
+    32068553 E boot: rx seq 3 UNLOADING_GUEST_DRIVER (47) sequence 0 length 40 checksum ok: 8 bytes: 0000000000000000
+    32068555 E boot: unloading guest driver: bInPMTransition 0 bGc6Entering 0 newLevel 0; MAILBOX0 0x4aee000 -> 0x84aee000 (processor suspended) [guest]
+    32068556 E boot: tx seq 3 reply UNLOADING_GUEST_DRIVER sequence 0 result 0x0 length 40
+    32074496 E boot: gsp start 12: halted
+    32408939 E boot: sec2 start 8: booter unload done (argument 0xff000000ff), WPR2 down, gsp riscv stopped
+    33719012 E boot: gsp start 13: halted
+    33719013 E boot: fwsec: data buffer PA 0x2fbc200, command 0x15 (FRTS), DMEMMAPPER at +0x20, frtsOffset 0x3fe00000 (from the FWSEC command in guest RAM), WPR2 lo 0x3fe000 hi 0x3feff0
+    33719709 E boot: gsp start 14: halted
+    34231348 E boot: sec2 start 9: booter done, wpr meta PA 0x16569000 (mapped), gsp riscv active
+    34231350 E boot: queues: the previous boot's link dropped (new Booter Load); the next doorbell links again
+    34231352 E boot: wpr meta: fbSize 0x40000000 gspFwRsvdStart 0x37700000 nonWprHeap 0x37700000+0x100000 wprStart 0x37800000 frtsOffset 0x3fe00000 wprEnd 0x3ff00000 vgaWorkspace 0x3ff00000
+    34231678 E boot: doorbell 17: libos args PA 0x1656d000 (mapped), wpr meta PA 0x16569000
+    34231680 E boot: libos arg 0: "LOGINIT" pa 0x179d0000 size 0x10000
+    34231682 E boot: libos arg 1: "LOGINTR" pa 0x17850000 size 0x10000
+    34231683 E boot: libos arg 2: "LOGRM" pa 0x17860000 size 0x10000
+    34231684 E boot: libos arg 3: "RMARGS" pa 0x167be000 size 0x1000
+    34231685 E boot: rmargs: sharedMemPhysAddr 0x17a00000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+    34231687 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+    34231689 E boot: tx seq 0 event GSP_RUN_CPU_SEQUENCER (40 bytes)
+    34231690 E boot: tx seq 1 event GSP_INIT_DONE (4 bytes)
+    34231691 E boot: rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 960 checksum ok: gpuPhysAddr=0xe6000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x20 pciConfigMirror=0x88000+0x1000 PCIDeviceID=0x1f0210de PCISubDeviceID=0x40111458 rev=0xa1 maxUserVa=0x7ffffffff000 host
+    34231742 E boot: doorbell 18: libos args PA 0x1656d000 (mapped), wpr meta PA 0x16569000
+    34231743 E boot: rx seq 1 SET_REGISTRY (73) sequence 0 length 149 checksum ok: size=117 entries=3
+    34231824 E boot: doorbell 19: libos args PA 0x1656d000 (mapped), wpr meta PA 0x16569000
+    34231825 E boot: rx seq 2 GET_GSP_STATIC_INFO (65) sequence 0 length 1688 checksum ok: 1656 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+    34231826 E boot: static-info gidInfo.data[0..16] = 7fc490a1b1e981e2363d50dc8f183234 [synthesized (E4: per-VM UUID)]
+    34231828 E boot: static-info fbRegionInfoParams = 2 regions: usable [0x0, 0x37700000), reserved [0x37700000, 0x40000000) [guest (WPR meta gspFwRsvdStart)]
+    34231829 E boot: static-info bIsMigSupported = false [chip (the mig family and its [mig] table, families/mig.rs)]
+    34231830 E boot: static-info engineCaps = 0x80bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0, NVENC0, SW, SEC2, HOST) [synthesized (TU106 child list; E4: host GET_ENGINES_V2)]
+    34231831 E boot: static-info fb_length = 0x40000000 [profile]
+    34231833 E boot: static-info gpuNameString = Leandro VFIO RTX 2070-1G [profile (guest_card_name)]
+    34231834 E boot: static-info gpuShortNameString = TU106 [card]
+    34231835 E boot: static-info bar1PdeBase/bar2PdeBase = 0x37701000/0x37700000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+    34231836 E boot: static-info fwWprLayoutOffset = nonWprHeapOffset 0x37700000 frtsOffset 0x3fe00000 [guest (WPR meta; on GB20x as the FSP model laid it out)]
+    34231837 E boot: static-info vbios* = valid, subsystem 0x1458:0x4011, revision 0x90063d00, oem 0x76 [card (config space, VBIOS BIT)]
+    34231838 E boot: static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+    34231843 E boot: static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+    34231844 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 0 result 0x0 length 1688

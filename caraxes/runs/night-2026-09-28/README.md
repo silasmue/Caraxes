@@ -220,3 +220,16 @@ What happened, in order (`timeline.txt`, `host-shots/`, `guest-shots/`, `guest-m
   - The same detector lines were already in Linux B on 2026-09-28 at 20:48 with cb4974fc, without the kick page and without the device CE (reported by the Windows agent in P22). So this is a pre-existing detector condition; it is listed separately.
   - The entries the host channel fetched were written before the guest's invalidate, so they need none of the pending plan's mappings. The detector cannot tell that apart.
 - **dev 4dde63e1:** the display kick page is on by default with the display page (`CARAXES_DISPLAY_KICK_PAGE=0` turns it off), after LAUNCH_FAST=2 (ca2559f5) and the host boost (78d4b0fd).
+
+## Gate of win-2026-09-29 (8e621e0a) and its merge into dev (fast-forward to b2e0d749)
+
+Contents: the device CE, the private-pages security fix (the device's own tables and rings, top 512 KiB of the reservation, are no longer reachable through the software CE, the shadow, trapped BAR1/BAR2, the BAR2 memfd or PRAMIN), and the async guest-RAM registration (DMA_MAP answered at once, pinning off the loop).
+
+| Guest | Result | Evidence |
+|---|---|---|
+| nova (570 detected) | 5 probes, 9 unloads, 0 refused, 0 private-page refusals | `nova-8e621e0a/` |
+| Linux B smoke + scrub (1 GiB, slot 4, compression, display, kick default) | ALL PASS, NVENC 164 / NVDEC 148 fps, scrub 30 × 300 MiB in 12.4 s, device CE 611 pushes / 10040 MiB / 351 ms, 4879 kicks, 0 inconsistencies, 0 private-page refusals, 0 Xid | `smoke-8e621e0a/` |
+| Linux compute (lean VM, 4 GiB, defaults) | short kernel 11-13 µs; llama 1B 8037 / 282 (1.05 / 0.93 of native); transformer 109579 (1.02); ResNet-18 549 / 531 / 525 (0.99-1.03); NVENC 151-153 (~0.9); NVDEC 129-133 (~0.93); 0 Xid | `series-8e621e0a/` |
+| Windows 11 (P36, the Windows agent) | smoke ALL PASS, 0 TDR, 0 ERROR, 0 private-page refusals, registrar "the shadow waited 0 times", device CE all NV_OK, teardown clean | the Windows run dirs, windows-findings.md |
+
+dev after the fast-forward: 706 tests pass.

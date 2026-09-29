@@ -1,0 +1,30 @@
+=== short
+MSPERLAUNCH=0.011
+MSPERLAUNCH=0.013
+MSPERLAUNCH=0.011
+--- xid: 0
+=== llama1b
+| llama 1B Q4_K - Medium         | 762.81 MiB |     1.24 B | CUDA       |  99 |           pp512 |    8037.40 ± 1130.66 |
+| llama 1B Q4_K - Medium         | 762.81 MiB |     1.24 B | CUDA       |  99 |           tg128 |       282.37 ± 19.27 |
+--- xid: 0
+=== transformer
+# TRANSFORMER steps_per_s=13.376 step_med_ms=74.558 step_p10_ms=73.112 step_p90_ms=76.457 tokens_per_s=109579 steps=803 first_step_ms=696.9 loss_first=8.3697 loss_last=0.0192 amp=0 batch=32 seq=256 la
+--- xid: 0
+=== convnet 1
+# CONVNET images_per_s=548.99 step_med_ms=58.281 step_p10_ms=56.205 step_p90_ms=60.170 steps=1030 first_step_ms=2746.8 loss_first=7.0050 loss_last=0.0030 amp=0 channels_last=0 batch=32 size=224 mem_pe
+--- xid: 0
+=== convnet 2
+# CONVNET images_per_s=531.32 step_med_ms=60.283 step_p10_ms=59.279 step_p90_ms=61.032 steps=997 first_step_ms=2502.5 loss_first=7.0050 loss_last=0.0030 amp=0 channels_last=0 batch=32 size=224 mem_pea
+--- xid: 0
+=== convnet 3
+# CONVNET images_per_s=524.52 step_med_ms=60.898 step_p10_ms=60.199 step_p90_ms=61.856 steps=984 first_step_ms=2354.9 loss_first=7.0050 loss_last=0.0030 amp=0 channels_last=0 batch=32 size=224 mem_pea
+--- xid: 0
+=== venc
+ENC frames=300 bytes=5274082 seconds=1.956 fps=153.4 fill_ms_total=1129 lat_us_med=2809 lat_us_p99=3692 lat_us_max=4691 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=2.253 fps=133.1 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+ENC frames=300 bytes=5274082 seconds=1.988 fps=150.9 fill_ms_total=1130 lat_us_med=2823 lat_us_p99=3520 lat_us_max=3676 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=2.319 fps=129.4 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+--- xid: 0
+=== guest xid lines
