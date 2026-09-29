@@ -920,3 +920,28 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   suspect is the first frame's latency (lazy context setup; P37: NVENC init 4.8 -> 0.6 s with
   the memfd). Software x264 until C56 shows it.
 - Memory model: none (display); the BAR2 memfd changes where BAR2-written pages live.
+
+## Cloud Hypervisor, step 8: FINISHED needs the display clock; pool and memfd stall (2026-09-29, C56-C58)
+
+- **C56 (ch12 + BAR2 memfd, dev c67ef78e):** start-up faster (DWM at 91.6 s, C55 134 s), a
+  30 fps burst of 11 flips, then no update and a TDR 2.5 s later (nvlddmkm 153 12:31:57).
+- **C57 (ch12 + BAR1 pool 32 MiB):** DWM at 47 s; its first flip latched at 47.08 s, the head
+  stayed blanked, TDR at 49.19 s.
+- **Cause (both):** a flip's FINISHED is written at the tick after its latch, but without the
+  display page the engine advanced only on the guest's display register reads or a ticker
+  raise that started its handler; the KMD waits for FINISHED in memory and reads nothing, a
+  raise coalescing with a pending vector starts no handler. C55 got its ticks by timing.
+  Fix 44c7c9a4 (ch14): the display clock runs the engine at every tick in every mode, an
+  owed FINISHED keeps the head's clock ticking.
+- **C58 (ch14 + pool):** the post-modeset unblank works (48.14 s), 106 flips (60 fps lock
+  screen animation, then DWM's 500 ms cadence); at 76.52 s a flip kick with nothing after,
+  TDR 78.75 s. In those 2.2 s the KMD's paging channel (chid 15, software executor) ran 6594
+  GPFIFO entries (227 CE memsets, 17 MB; 96 memcopies; 183 TLB invalidates); C55 without the
+  pool ran ~1000 entries/s on it and 0 TDR in 25 min. Open: what DWM's frame waits for with
+  the pool (and the memfd); both change how CPU writes reach VRAM.
+- **Auto-logon for the unlock:** not set up (my permission system treats stored credentials
+  as persistence that needs the user's own consent); the unlock needs the user or a working
+  Moonlight stream (Sunshine's capture setup 24 s without pool/memfd, Moonlight gives up
+  after ~10 s).
+- Memory model: the pool (BAR1 pages mapped to host BAR1) and the memfd (BAR2 pages in a
+  memfd) are memory-model paths; the display fix is independent of the VRAM layout.
