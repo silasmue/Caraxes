@@ -718,7 +718,7 @@ fn channel_pages_read_back_assembly_and_armed_state() {
     put32(&mut p, d::PUSHBUFFER_HCLASS, d::NVC57E_WINDOW_CHANNEL_DMA);
     p[d::PUSHBUFFER_VALID] = 1;
     disp.control(d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER, &p);
-    disp.alloc(d::NVC57E_WINDOW_CHANNEL_DMA, &vec![0; d::CHANNELDMA_ALLOC_SIZE])
+    disp.alloc(d::NVC57E_WINDOW_CHANNEL_DMA, &[0; d::CHANNELDMA_ALLOC_SIZE])
         .unwrap();
     let mut fb = crate::fb::FakeFb::new(1 << 20);
     let w0 = WIN_USERD;
