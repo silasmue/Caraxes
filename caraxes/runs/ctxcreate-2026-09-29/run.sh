@@ -11,6 +11,10 @@
 #       census-cu init x3, ctx 5 and ops 10 with the NV_PBUS_SW_SCRATCH(30) markers, then bench-cu
 #       init x5 and churn 20 x3; afterwards census-table.py, rpc-cost.py and profile-rank.py on the
 #       records (census-table.md, census-rpc-cost.md, profile-*.md).
+#   census-user BIN LABEL [VAR=VALUE ...]  the census as the guest's user instead of root: the
+#       marker resource is made world-writable (sudo chmod) and census-cu runs unprivileged, so
+#       libcuda's channels are a user process's (a root process's copy channels carry
+#       PRIVILEGED_CHANNEL, docs/research/ctxcreate-2026-09-29.md).
 #   bench BIN LABEL [VAR=VALUE ...]   device trace off, CARAXES_PROFILE=1: the clean times. bench-cu
 #       init x10 and churn 20 x3, census-cu ctx 5 and ops 10 without markers.
 #   native LABEL                      the same programs on the host (a CUDA client of the host RM):
@@ -22,7 +26,7 @@
 # records, GLIBC 2.34 at most) and copied into the guest's ~/ctx; the guest's own ~/bench/bench-cu
 # and ~/bench/kernels.ptx are used as they are.
 set -uo pipefail
-MODE=${1:?usage: run.sh census|bench BIN LABEL [VAR=VALUE ...] | native LABEL}
+MODE=${1:?usage: run.sh census|census-user|bench BIN LABEL [VAR=VALUE ...] | native LABEL}
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
 TOOLS=$(cd "$HERE/../../tools" && pwd -P)
 MAIN=/home/silas/git/Caraxes
@@ -64,9 +68,9 @@ V2_NODES='sudo modprobe nvidia-uvm
     sudo mknod -m 666 /dev/nvidia-uvm c $u 0; sudo mknod -m 666 /dev/nvidia-uvm-tools c $u 1'
 export CARAXES_SERVER=$BIN CARAXES_LAUNCH_TIMING=1 CARAXES_PROFILE=1 CARAXES_PROFILE_OUT=$C/profile
 case $MODE in
-    census) export CARAXES_TRACE=1; unset CARAXES_TRACE_ACCESSES CARAXES_TRACE_FLUSH ;;
+    census|census-user) export CARAXES_TRACE=1; unset CARAXES_TRACE_ACCESSES CARAXES_TRACE_FLUSH ;;
     bench) export CARAXES_TRACE=0 ;;
-    *) echo "ERROR: mode census|bench|native" >&2; exit 2 ;;
+    *) echo "ERROR: mode census|census-user|bench|native" >&2; exit 2 ;;
 esac
 for kv in "$@"; do export "${kv?}"; done
 mx_free || exit 2
@@ -84,10 +88,13 @@ echo "# census-cu $(sha256sum census-cu | cut -c1-16), bench-cu $(sha256sum ~/be
 x() { echo "--- xid: $(sudo dmesg | grep -c 'NVRM: Xid')"; }
 EOF
   case $MODE in
-  census) cat <<'EOF'
+  census|census-user)
+    if [[ $MODE == census ]]; then echo 'E0="sudo timeout 240 env"'; else echo 'E0="timeout 240 env"'; fi
+    cat <<'EOF'
 R0=$(for d in /sys/bus/pci/devices/*; do [ "$(cat $d/vendor)" = 0x10de ] && echo $d/resource0; done | head -1)
-echo "# marker resource $R0"
-E="sudo timeout 240 env CENSUS_PTX=$PWD/kernels.ptx CENSUS_CUBIN=$PWD/census.cubin CENSUS_MARK=$R0"
+echo "# marker resource $R0 ($E0)"
+[ "$E0" = "timeout 240 env" ] && sudo chmod 666 "$R0"
+E="$E0 CENSUS_PTX=$PWD/kernels.ptx CENSUS_CUBIN=$PWD/census.cubin CENSUS_MARK=$R0"
 echo "=== census-cu init"; for i in 1 2 3; do $E ./census-cu init; sleep 1; done
 echo "=== census-cu ctx"; $E ./census-cu ctx 5
 echo "=== census-cu ops"; $E ./census-cu ops 10; x
@@ -112,16 +119,16 @@ mx_setup "$C"
 sha256sum "$CBIN/census-cu" >> "$C/setup.txt"
 # The launcher's probe (the guest's DMA table, a reset and the module load) wants a trace file;
 # with the trace off it gets an empty one.
-if mx_up "$C" && { [[ $MODE == census ]] || : > "$MX_W/gpu-trace.log"; } && "$LEA_TOOLS/caraxes-vm.sh" probe "ctx-$LABEL" | tail -n 2 >> "$C/up.txt" &&
+if mx_up "$C" && { [[ $MODE == census* ]] || : > "$MX_W/gpu-trace.log"; } && "$LEA_TOOLS/caraxes-vm.sh" probe "ctx-$LABEL" | tail -n 2 >> "$C/up.txt" &&
     "$LEA_TOOLS/caraxes-vm.sh" ssh "$V2_NODES" >> "$C/up.txt" 2>&1; then
-    L0=0; [[ $MODE == census ]] && L0=$(wc -l < "$MX_W/gpu-trace.log")
+    L0=0; [[ $MODE == census* ]] && L0=$(wc -l < "$MX_W/gpu-trace.log")
     G0=$(wc -l < "$MX_W/gpu.log")
     "$LEA_TOOLS/caraxes-vm.sh" ssh 'bash -s' < "$GS" > "$C/guest.txt" 2>&1
     echo "guest rc=$? $(grep -c '^OP' "$C/guest.txt") OP, $(grep -c '^INIT' "$C/guest.txt") INIT, $(grep -c '^CHURN' "$C/guest.txt") CHURN lines"
     # the profile of the device lifetime up to here (the exit dump follows at the down)
     kill -USR2 "$(cat "$MX_W/gpu.pid")" 2>/dev/null; sleep 2
     tail -n +"$((G0 + 1))" "$MX_W/gpu.log" > "$C/gpu-during.log"
-    [[ $MODE == census ]] && tail -n +"$((L0 + 1))" "$MX_W/gpu-trace.log" > "$C/census-trace.txt"
+    [[ $MODE == census* ]] && tail -n +"$((L0 + 1))" "$MX_W/gpu-trace.log" > "$C/census-trace.txt"
 else
     echo "up failed" | tee -a "$C/guest.txt"
 fi
