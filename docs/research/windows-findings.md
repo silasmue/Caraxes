@@ -1292,3 +1292,26 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - Moonlight: 54.8 FPS incoming/decoded/rendered over the 3.5 min (29 s of it static), host
     latency 11.9 ms, network latency 41 ms (C86: 2 ms; guest CPU load under x264).
 - Memory model: BAR1 pool 32 MiB (C83-C87); the rest is the unified model.
+
+## Cloud Hypervisor, step 21: 3D benchmarks (2026-09-29, C87-C91)
+
+- **Superposition black (C87, C90):** Windows PowerShell 5.1's Start-Process joins
+  -ArgumentList with spaces and quotes nothing. The console command
+  `config_readonly 1 && world_load superposition/superposition` was split, so the engine ran
+  only `config_readonly` and loaded no world: an empty scene with the overlay at 500-870 fps.
+  The bench pack's run-windows.ps1 has the same line. Fixed in tools/windows/superposition.ps1
+  (10987a97): the command is passed quoted.
+- **Heaven and Superposition reset the GPU (C87-C90):** 9-30 s after the world load began, the
+  KMD's paging channel ran a CE remap with a NO_WRITE component. The software CE refused it
+  ("remap component 2 selects 6"), raised RC Xid 45 to the guest, and the KMD reset (FLR).
+  The device agent's d02dc84d models SET_REMAP_COMPONENTS in full (lf23-remap).
+- **D3D11 stages (tools/windows/d3d11-stages.ps1):** C88/C90 pass all 12 checks: raster, clear,
+  D32_FLOAT depth, texture Load, constant buffer, compute UAV, 4x MSAA resolve, event query
+  (8 ms), occlusion query (18,432 samples, exact), tessellation.
+- **C91** (lf23-remap, BAR1 pool 32 MiB, 8 vCPUs, profile on), no stream:
+  - Heaven 4.0 DX11 1920x1080 windowed, High, tessellation Normal (PHORONIX): 115.6 fps
+    (30,114 frames in 260.6 s). 210 remaps ran, no RC, no FLR, no host Xid.
+  - Superposition 1.1 1080p Medium DirectX windowed (render 1920x1061): score 8758, fps
+    65.5 / min 31.1 / max 116.1. A desktop RTX 2070 scores about 12-13k natively.
+- Memory model: the BAR1 pool (32 MiB); compression off (the kind-0x9 leaves still refused,
+  the device agent's D16 A/B is next).
