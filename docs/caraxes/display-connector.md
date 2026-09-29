@@ -277,11 +277,14 @@ One periodic timer per active head.
      last latch; and any `SET_UPDATE_TIMESTAMP` time has arrived. An eligible flip latches:
      - the device releases the **previous** flip's release semaphore (hardware releases on
        flip-away; the displayless HAL copies this rule, `nvkms-displayless.c:262-276`);
-     - it writes the window notifier: status BEGUN in word 0, the device's PTIMER value
-       in words 2-3 (`NV_DISP_NOTIFIER__2/3_TIMESTAMP`, `clc67d.h:45-54`). BEGUN, not
-       FINISHED: "when EVO performs the flip, it changes the notifier to BEGUN"
-       (`nvkms-headsurface.c:1896-1922`); FINISHED is the core notifier's completion.
-       Until 2026-09-29 the device wrote FINISHED, which nvidia-drm never reads;
+     - it writes the window notifier: the device's PTIMER value in words 2-3
+       (`NV_DISP_NOTIFIER__2/3_TIMESTAMP`, `clc67d.h:45-54`), status BEGUN in word 0,
+       and FINISHED at the next tick, when the first frame from the new surface has been
+       scanned out. The class lists the states without timing; both drivers fix it: NVKMS
+       tests the newest flip for BEGUN at the following vblank (`nvkms-headsurface.c:
+       1896-1922`), the Windows KMD waits for FINISHED after a modeset's single flip
+       before it unblanks (windows-findings.md, C49-C54). A flip on an inactive head is
+       FINISHED at once. nvidia-drm reads neither (it waits for AWAKEN);
      - it sets the window's `AWAKEN_WIN` bit if the notifier mode is `WRITE_AWAKEN`.
   2. **Advance the raster.** Increment the `RG_DPCA` frame count and the LOADV counter.
   3. **Raise vblank.** Set `LAST_DATA` if the RM enabled it.

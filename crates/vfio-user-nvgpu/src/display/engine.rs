@@ -75,12 +75,17 @@ pub const HEAD_STATE_AWAKE: u32 = 2 << 8;
 // nvkms-api-types.h:174-177): payload in word 0 (nvkms-sync.c:190-193).
 //
 // A core notifier completes FINISHED (NVKMS waits for it, nvkms-evo3.c:6330-6344). A
-// window notifier is BEGUN once the flip is scanned out: NVKMS resets it NOT_BEGUN and
-// "when EVO performs the flip, it changes the notifier to BEGUN" (nvkms-headsurface.c:
-// 1896-1922, which tests for BEGUN), and its emulation of a client notifier writes BEGUN
-// and the timestamp "to emulate what the client would observe if their notifier was used
-// in hardware" (nvkms-headsurface.c:1996-2013, nvkms-sync.c:77-91). PRESENT_COUNT and
-// FIELD stay 0 there (progressive scanout).
+// window flip's notifier goes BEGUN when the flip latches and FINISHED when the first
+// frame from the new surface has been scanned out (the next vblank). The class gives the
+// states, not their timing; both drivers fix it:
+// - NVKMS resets the notifier NOT_BEGUN and "when EVO performs the flip, it changes the
+//   notifier to BEGUN", and tests the newest flip for BEGUN at the following vblank
+//   callback (nvkms-headsurface.c:1896-1922); its client-notifier emulation writes BEGUN
+//   with the timestamp (1996-2013, nvkms-sync.c:77-91);
+// - the Windows 617 KMD pre-sets its records FINISHED, resets one to 0 before a flip and
+//   waits for FINISHED: after a modeset's single flip it unblanks the head once FINISHED is
+//   written (C49-C52), and never with BEGUN alone (C53, C54: TDR).
+// PRESENT_COUNT and FIELD stay 0 (progressive scanout, as NVKMS's emulation writes).
 const NOTIFIER_BEGUN: u32 = 1 << 30;
 const NOTIFIER_FINISHED: u32 = 2 << 30;
 const NOTIFIER_FLIP_TYPE_IMMEDIATE: u32 = 1 << 9;
@@ -680,6 +685,9 @@ pub struct Window {
     pub pending: VecDeque<Flip>,
     pub last_latch_tick: Option<u64>,
     pub prev_release: Option<(MemRef, u32)>,
+    /// The latched flip's notifier and word 0, BEGUN until its first frame has been
+    /// scanned out: FINISHED at the next tick.
+    pub begun: Option<(MemRef, u32)>,
     pub latched: Surface,
     pub updates: u64,
     pub flips: u64,
@@ -1024,6 +1032,7 @@ impl Engine {
                 }
                 for w in 0..self.windows.len() {
                     if self.windows[w].head == Some(h) {
+                        self.finish(w, fb, mem);
                         self.try_latch(w, tick, tick_ns, false, fb, mem);
                     }
                 }
@@ -1134,10 +1143,17 @@ impl Engine {
                 } else {
                     0
                 };
+            // A flip still BEGUN (two latches before a tick: immediate flips) is finished
+            // now; this one finishes at the next tick, or at once without scanout.
+            self.finish(w, fb, mem);
             // Timestamp first, status last: a reader that sees BEGUN finds the timestamp
             // (NVKMS polls for it after the status, nvkms-sync.c:55-58).
             m.write(fb, mem, 8, &stamp);
             m.write(fb, mem, 0, &w0.to_le_bytes());
+            self.windows[w].begun = Some((m, w0));
+            if !live {
+                self.finish(w, fb, mem);
+            }
         }
         // AWAKEN follows the rule nvidia-drm models the hardware by
         // (`__will_generate_flip_event`, nvidia-drm-modeset.c:96-140): a flip event only
@@ -1179,6 +1195,14 @@ impl Engine {
             self.note(line);
         }
         true
+    }
+
+    /// The flip window `w` latched last has had its first frame: its notifier FINISHED.
+    fn finish(&mut self, w: usize, fb: &mut FakeFb, mem: &GuestMemory) {
+        if let Some((m, w0)) = self.windows[w].begun.take() {
+            let w0 = (w0 & !(3 << 30)) | NOTIFIER_FINISHED;
+            m.write(fb, mem, 0, &w0.to_le_bytes());
+        }
     }
 
     fn resolve_at(
@@ -1282,6 +1306,7 @@ impl Engine {
         for w in 0..self.windows.len() {
             let live = self.windows[w].head.is_some_and(|h| self.heads[h].active);
             if !live {
+                self.finish(w, fb, mem);
                 while self.try_latch(w, 0, now, true, fb, mem) {}
             }
         }
@@ -1621,8 +1646,8 @@ mod tests {
         fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
         e.catch_up(t0 + 2 * p + 5, &mut fb, &mem);
         assert!(!e.window_busy(0));
-        // The window notifier: BEGUN (not FINISHED, the core's completion), non-tearing,
-        // PRESENT_COUNT 0, and the PTIMER time of the tick.
+        // The window notifier: BEGUN at the latch, non-tearing, PRESENT_COUNT 0, and the
+        // PTIMER time of the tick; FINISHED at the next tick, the timestamp kept.
         let mut b = [0u8; 4];
         fb.read(0x50_0000 + 16, &mut b);
         assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
@@ -1630,6 +1655,14 @@ mod tests {
         fb.read(0x50_0000 + 24, &mut ts);
         assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 2 * p));
         assert_eq!(u64::from_le_bytes(ts) & 0x1F, 0);
+        e.catch_up(t0 + 3 * p - 1, &mut fb, &mem);
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
+        e.catch_up(t0 + 3 * p, &mut fb, &mem);
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
+        fb.read(0x50_0000 + 24, &mut ts);
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 2 * p));
         // The window was off before: the notifier is written, but no AWAKEN (the
         // nvidia-drm model of the hardware).
         assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(0));
@@ -1637,14 +1670,16 @@ mod tests {
         // Release is written at flip-away, not at latch.
         fb.read(0x60_0000 + 32, &mut b);
         assert_eq!(u32::from_le_bytes(b), 7);
-        e.window_update(0, t0 + 2 * p + 10, &mut fb, &mem);
+        e.window_update(0, t0 + 3 * p + 10, &mut fb, &mem);
         fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
-        e.catch_up(t0 + 3 * p, &mut fb, &mem);
+        e.catch_up(t0 + 4 * p, &mut fb, &mem);
         fb.read(0x60_0000 + 32, &mut b);
         assert_eq!(u32::from_le_bytes(b), 8);
-        // The release record carries the flip-away time.
+        // The release record carries the flip-away time; the new flip's notifier is BEGUN.
         fb.read(0x60_0000 + 40, &mut ts);
-        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 3 * p));
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 4 * p));
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
         // Flipping away from a scanned-out surface raises AWAKEN.
         assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(1));
         assert_eq!(
@@ -1654,8 +1689,8 @@ mod tests {
         // The guest clears AWAKEN; RG_DPCA counts frames.
         e.write32(FE_EVT_STAT_AWAKEN_WIN, 1);
         assert_eq!(e.read32(FE_RM_INTR_STAT_CTRL_DISP, 0), Some(0));
-        assert_eq!(e.read32(RG_DPCA, 0).unwrap() >> 16, 3);
-        assert_eq!(e.read32(POSTCOMP_HEAD_LOADV_COUNTER, 0), Some(3));
+        assert_eq!(e.read32(RG_DPCA, 0).unwrap() >> 16, 4);
+        assert_eq!(e.read32(POSTCOMP_HEAD_LOADV_COUNTER, 0), Some(4));
     }
 
     /// `TIMESTAMP_MODE` ENABLE holds a flip until PTIMER reaches `SET_UPDATE_TIMESTAMP`
@@ -1750,7 +1785,7 @@ mod tests {
         assert!(!e.window_busy(3));
         let mut b = [0u8; 4];
         fb.read(0x50_0000, &mut b);
-        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN, "notifier written");
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED, "no scanout: finished at once");
         assert_eq!(
             e.read32(FE_EVT_STAT_AWAKEN_WIN, 0),
             Some(0),
