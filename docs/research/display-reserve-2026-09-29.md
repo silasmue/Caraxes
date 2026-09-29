@@ -333,6 +333,23 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
 - **A take-back is `LEVEL_INFO`:** "took back a freed scanout allocation of N KiB, holds X of Y KiB".
 - **Tests turn the state lines on with NVIDIA's RmMsg filter**, not with a code change: `NVreg_RmMsg=display_reserve.c` [K nvidia/nv-reg.h `RmMsg`; T src/kernel/diagnostics/nvlog_printf.c:953-974]. `load.sh` passes extra `nvidia` parameters.
 
+## Smoke results (v3; 2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
+
+Evidence: `B/drsv3-smoke/smoke-1.txt` (`-1`), `smoke-2-mib0.txt` (`0`); the build is `B/drsv3-build/prepare.txt` (patch sha256 2d9c13e5…, version line "… Tue Sep 29 09:12:12 UTC 2026"). The filler keeps grabbing freed VRAM every 10 ms.
+
+| | `display_reserve_mib=-1` | `0` (same build) |
+|---|---|---|
+| 1920x1080 | declared 44224 KiB for 8640 KiB, 6 runs, 52224 KiB in PMA; used 60 MiB | used 9 MiB |
+| 1280x720 | re-cut: 20224 KiB declared, 21504 KiB in PMA; used 34 MiB | used 13 MiB |
+| Off | 0 runs; used 13 MiB | used 13 MiB |
+| GNOME (+30 s) | declared 52224 KiB for 10240 KiB surfaces (the bound framebuffers are larger than the formula's 8640 KiB), 52224 KiB in PMA; used 199 MiB | used 148 MiB |
+| 1920x1152 dumb buffer (run shape) | served ("released 10240 KiB … holds 41984 of 52224"); refills refused (0x51, the filler); on the free, "took back … holds 52224 of 52224 KiB" | ENOMEM |
+| Two at once | two serves, then two take-backs, full again without a refill | ENOMEM ×2 |
+| 1920x1080 dumb buffer (8192 KiB) | served; not taken back (smaller than a run); the filler took the pages; full again at 214 s, after the filler exited | ENOMEM |
+
+- **Take-back wins where v2's refill lost:** every refill in this smoke failed with 0x51, and the reserve still came back to full at each free of a run-shaped buffer.
+- **The limit shows as documented:** a surface smaller than a run returns its pages to PMA.
+
 ## Smoke results (v2; 2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
 
 Evidence: `B/drsv2-smoke/smoke-2.txt` (`-1`), `smoke-3-mib0.txt` (`0`); the build is `B/drsv2-build/prepare.txt` (MANIFEST version line "… (root@caraxes-desktop-b) Tue Sep 29 08:27:07 UTC 2026").
@@ -376,6 +393,7 @@ Evidence: `B/drsv-smoke3/`; the build is `B/drsv-build2/prepare.txt`.
      - two such buffers at once: two releases, two take-backs;
      - 1920x1080 (8192 KiB) is served and not taken back (limit), so its run waits for the filler to exit.
    - `MIB=0` refuses every dumb buffer.
+   - Passed on 2026-09-29 (see "Smoke results (v3)").
 2. **SotTR 1080p at 4 GiB**, `-1` and a control with 0. Pass: no NVKMS failure, no Xid, a results file. The lowest "holds X" of the take-back lines gives the concurrent peak (is 5·S enough).
 3. **Not yet exercised:** suspend/resume with a held reserve, GC6/RTD3, unload under load, several GPUs, MIG. These are for the bare-metal test pack.
 

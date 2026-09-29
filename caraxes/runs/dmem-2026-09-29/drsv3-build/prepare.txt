@@ -1,0 +1,23 @@
+11:11:29 source 615.71.09 (61dcc93722ecb418bb5f2e00923f05b4b8051dd1) sha256 7fe0cf935d294628e88f32afbb18246d587ac582ef0ddc18c1ae14a12aa6c4a0
+patch 2d9c13e5c7de4316132f0f9288d29e62f6c8bfb6d05061e481ed02f7a0769dc4  /mnt/vmstore/caraxes/wt-dmem/patches/nvidia/0001-nvidia-nvidia-modeset-hold-a-video-memory-reserve-fo.patch
+guest: 6.8.0-136-generic /usr/src/nvidia-615.71.09 
+== modules for 6.8.0-136-generic, gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+kernel 6.8.0-136-generic
+driver 615.71.09 (installed /lib/modules/6.8.0-136-generic/updates/dkms/nvidia.ko.zst)
+source source.tar.gz sha256 7fe0cf935d294628e88f32afbb18246d587ac582ef0ddc18c1ae14a12aa6c4a0
+patch 2d9c13e5c7de4316132f0f9288d29e62f6c8bfb6d05061e481ed02f7a0769dc4  display-reserve.patch
+compiler gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+nvidia.ko de14ae1e748c76b8438d3f6447d7fc6ab20855668d971dd3e047c632458a1bcd
+nvidia-modeset.ko a3367f4c9353f02e7d452b618189ad8ff881a8de85bd180d8d4b3d13f7d79695
+version NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 09:12:12 UTC 2026
+built 2026-09-29T09:12:56Z
+-rwxr-xr-x 1 root root 3275 Sep 29 09:12 /opt/caraxes/display-reserve-v2/load.sh
+
+/opt/caraxes/display-reserve-v2/6.8.0-136-generic/:
+total 38088
+drwxr-xr-x 2 root root     4096 Sep 29 09:12 .
+drwxr-xr-x 3 root root     4096 Sep 29 09:12 ..
+-rw-r--r-- 1 root root      669 Sep 29 09:12 MANIFEST
+-rw-r--r-- 1 root root  3008184 Sep 29 09:12 nvidia-modeset.ko
+-rw-r--r-- 1 root root 35978872 Sep 29 09:12 nvidia.ko
+11:12:58 done
