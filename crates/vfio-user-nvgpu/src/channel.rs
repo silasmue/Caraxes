@@ -3876,9 +3876,20 @@ const MAX_INVALIDATE_ROUNDS: usize = 256;
 fn ce_fill(mem: &mut GpuMem, pieces: &[(Target, usize)], elem: &[u8]) -> Result<(), String> {
     let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
     let e = elem.len().max(1);
-    // One chunk of whole elements plus one element of slack for the phase at a piece start.
-    let reps = CE_FILL_CHUNK.div_ceil(e) + 1;
-    let pattern: Vec<u8> = elem.iter().copied().cycle().take(reps * e).collect();
+    // One chunk of whole elements plus one element of slack for the phase at a piece start;
+    // never longer than the fill itself (Windows C83: every memset, 8 bytes or not, built a
+    // 1 MiB pattern first, about a millisecond each).
+    let total: usize = pieces.iter().map(|&(_, n)| n).sum();
+    let reps = total.min(CE_FILL_CHUNK).div_ceil(e) + 1;
+    let mut pattern: Vec<u8> = Vec::with_capacity(reps * e);
+    pattern.extend_from_slice(&elem[..elem.len().min(e)]);
+    if pattern.is_empty() {
+        pattern.push(0);
+    }
+    while pattern.len() < reps * e {
+        let n = pattern.len().min(reps * e - pattern.len());
+        pattern.extend_from_within(..n);
+    }
     let mut row_off = 0usize;
     for &(target, n) in pieces {
         let mut done = 0usize;
