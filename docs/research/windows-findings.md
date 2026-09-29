@@ -1158,28 +1158,3 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   tick; an UPDATE armed after it waits for the next frame. Test:
   the_latch_is_at_the_blank_start_line.
 - Memory model: none.
-
-## Cloud Hypervisor, step 16: the latch at the blank's end (2026-09-29, C74, C75)
-
-- **C74 (lf14, with the time-read catch-up):** VSync TDR again; afterwards no FLR and a hang.
-  An MSI storm (16.26M re-arm MSIs, 60k watchdog) from the host channels' non-stall
-  notifiers (60,597 events) after the KMD's display teardown.
-- **C75 (lf13, latch and LAST_DATA at the blank's start):** VSync TDR for the flip armed
-  0.4 ms before the latch (scan line 1095, blank from 1120). The FLR recovered the guest.
-- **The rule over C71-C75:** the flip fails when the latch lands in the ~0.6 ms after its
-  UPDATE in which the KMD spins on PTIMER, then polls GET/PUT for 2 s.
-  - Flips latched later are fine, including those programmed at scan lines 1039-1074 with
-    the latch 0.75-1.3 ms away.
-  - The KMD programs flips as late as line 1119 and then spins, so it does not expect a latch
-    within about 40 lines of the blank's start.
-  - Where the card's frame begins its scanout, at the blank's end (RASTER_BLANK_END, line 40),
-    the latch is 45 lines (0.67 ms) after the blank's start.
-- **Model since 2026-09-29:**
-  - LAST_DATA at the blank's start (the tick).
-  - The latch at the blank's end, `latch_off` later: a flip armed before it latches there,
-    one armed after waits a frame.
-  - The display clock fires at both.
-  - Engine::next_event_ns gives the next event for lock-free time reads.
-  - Test: the_latch_is_at_the_blank_end_line.
-- C70 (lf9) does not fit the rule. It ran with the old notifier timing.
-- Memory model: none.
