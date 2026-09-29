@@ -736,3 +736,16 @@ clock's per-tick work takes the display engine's lock and never D.
   the work key "rings of the poller".
 - Test: `the_userd_poller_harvests_and_finds_unforwarded_entries_off_the_lock`.
 
+### 9.12 The deferred context's preparation off the lock (2026-09-29, Windows line)
+
+- The Windows KMD prepares every GR context through its management channel (deferred API
+  Initialize). The preparation built the target's host mirror with `submit` false and waited
+  for the build under D (`wait_build`): C83, 57 preparations of 390-432 ms each, about 23 s of D.
+- Now `Mirror::start_deferred_context` hands the build to the worker as a doorbell's build is
+  (§9.2) and answers whether it is ready (finished and committed). Until then the deferred method
+  stays pending, the management channel is held (rc.rs `held`), and the slice clock replays it
+  (`channel::request_ce_slice`); the method completes when the build is committed, as the
+  synchronous preparation completed after its wait. A context built before is prepared as before.
+- The management channel still waits for the build, as it would wait for the card; D is free for
+  the executor, the display and the guest's other accesses meanwhile.
+

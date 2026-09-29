@@ -370,7 +370,17 @@ impl Dispatcher {
                             && entry.owner_generation == owner.generation
                             && entry.target.live(&self.channels) =>
                     {
-                        self.execute_deferred(gm, entry, &mut notes)
+                        match self.execute_deferred(gm, entry, &mut notes) {
+                            // Not ready yet (a context's build on the worker): the method
+                            // stays pending and its channel held; the slice clock retries.
+                            Ok(false) => {
+                                self.deferred_context.requests.insert(key, entry);
+                                self.dstate.rc.held.insert(owner_chid);
+                                crate::channel::request_ce_slice();
+                                continue;
+                            }
+                            r => r.map(|_| ()),
+                        }
                     }
                     _ => Err("unregistered or stale deferred API".into()),
                 };
@@ -393,12 +403,13 @@ impl Dispatcher {
         notes
     }
 
+    /// Run a deferred request; `Ok(false)` when it is not ready yet (ask again).
     fn execute_deferred(
         &mut self,
         gm: &mut GpuMem,
         entry: Registered,
         notes: &mut Vec<String>,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let state = &mut self.deferred_context;
         let mirror = self.mirror.as_mut().ok_or("host mirror is unavailable")?;
         match entry.request {
@@ -406,11 +417,14 @@ impl Dispatcher {
                 if state.contexts.contains_key(&entry.target) {
                     return Err("context is already initialized".into());
                 }
-                notes.extend(mirror.prepare_deferred_context(
-                    &self.channels,
-                    gm,
-                    entry.target.chid,
-                )?);
+                // The target's build goes to the worker (execution.md §9.12); the method
+                // completes once the context is ready, not under the lock while it builds.
+                let (ready, n) =
+                    mirror.start_deferred_context(&self.channels, gm, entry.target.chid)?;
+                notes.extend(n);
+                if !ready {
+                    return Ok(false);
+                }
                 state.contexts.insert(
                     entry.target,
                     Context {
@@ -452,7 +466,7 @@ impl Dispatcher {
                 state.contexts.remove(&entry.target);
             }
         }
-        Ok(())
+        Ok(true)
     }
 }
 

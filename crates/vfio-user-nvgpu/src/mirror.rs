@@ -1923,6 +1923,9 @@ pub struct Mirror {
     /// TSG cells their jobs share, the counters, and the channels committed since the
     /// dispatcher last pinned their tokens ([`Mirror::take_committed`]).
     builds: BTreeMap<u32, PendingBuild>,
+    /// A deferred context's preparation hands its build to the worker instead of waiting
+    /// for it under the device lock ([`Self::start_deferred_context`]).
+    prepare_async: bool,
     tsg_cells: BTreeMap<TsgKey, Arc<Mutex<crate::mbuild::TsgCell>>>,
     build_stats: crate::mbuild::BuildStats,
     next_build: u64,
@@ -2110,6 +2113,7 @@ impl Mirror {
             held_rings: BTreeMap::new(),
             ring_stats: Default::default(),
             builds: BTreeMap::new(),
+            prepare_async: false,
             tsg_cells: BTreeMap::new(),
             build_stats: Default::default(),
             next_build: 0,
@@ -3524,7 +3528,7 @@ impl Mirror {
         );
         self.build_stats.started += 1;
         self.update_waiting();
-        if !submit || self.build_finished(chid) {
+        if (!submit && !self.prepare_async) || self.build_finished(chid) {
             if !self.build_finished(chid) {
                 self.wait_build(chid);
             } else {
@@ -4180,6 +4184,52 @@ impl Mirror {
             return Err("host context preparation lacks private USERD or GR object".into());
         }
         Ok(notes)
+    }
+
+    /// [`Self::prepare_deferred_context`] without waiting under the device lock
+    /// (docs/caraxes/execution.md §9.12): the target's first mirror build goes to the
+    /// worker, and each call answers whether the context is ready: its build finished and
+    /// committed. `Ok((false, _))`: ask again later (the deferred method stays
+    /// pending, its management channel held). A context built before is prepared as before.
+    pub fn start_deferred_context(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        chid: u32,
+    ) -> Result<(bool, Vec<String>), String> {
+        let ch = reg.channel(chid).ok_or("deferred target channel is gone")?;
+        let mut notes = Vec::new();
+        if self.builds.contains_key(&chid) {
+            if !self.build_finished(chid) {
+                return Ok((false, notes));
+            }
+            notes.extend(self.commit_build(reg, gm, chid));
+        } else if !self.channels.contains_key(&chid) {
+            if !self.is_shadow(reg, chid) || !matches!(ch.userd, Some(Target::Sys(_)))
+                || std::env::var("CARAXES_SHADOW_USERD").as_deref() != Ok("1") {
+                return Err("deferred context requires a shadow GR channel and private sysmem USERD".into());
+            }
+            if !ch.engine_objects.iter().any(|(class, _)| *class == self.chip.channel.compute) {
+                return Err("deferred target has no GR compute object".into());
+            }
+            self.prepare_async = true;
+            notes.extend(self.shadow_channel(reg, gm, chid, false));
+            self.prepare_async = false;
+            if self.builds.contains_key(&chid) {
+                return Ok((false, notes));
+            }
+        } else {
+            return self.prepare_deferred_context(reg, gm, chid).map(|n| (true, n));
+        }
+        let hc = self.channels.get(&chid).filter(|hc| hc.generation == ch.generation)
+            .ok_or_else(|| format!("host context preparation failed: {}", notes.join("; ")))?;
+        if hc.userd.is_none() || !hc.objects.iter().any(|(class, _)| *class == self.chip.channel.compute) {
+            return Err("host context preparation lacks private USERD or GR object".into());
+        }
+        // Committed: the worker ran the build after the root's plans before it, as the
+        // synchronous preparation's wait for the build did.
+        gm.fb.flush();
+        Ok((true, notes))
     }
 
     pub fn promote_deferred_context(&mut self, reg: &Registry, chid: u32) -> Result<(), String> {

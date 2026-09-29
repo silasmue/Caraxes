@@ -216,6 +216,11 @@ enum CeOutcome {
 static CE_SLICES_PENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Whether a software CE transfer waits for its next slice (cleared by the check).
+/// Ask the slice clock for a pass (a deferred method waiting for its context's build).
+pub fn request_ce_slice() {
+    CE_SLICES_PENDING.store(true, std::sync::atomic::Ordering::Release);
+}
+
 pub fn ce_slices_pending() -> bool {
     CE_SLICES_PENDING.swap(false, std::sync::atomic::Ordering::AcqRel)
 }
