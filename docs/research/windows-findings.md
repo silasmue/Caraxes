@@ -594,6 +594,12 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - Smoke all PASS; CUDA short kernel 59.4 us median; transformer 78755 tokens/s, first step
     12.7 s; device CE 217 pushes, 2019 MiB, 104 ms.
 
+## P36 (2026-09-29 03:28-03:31, P36-gate on 8e621e0a, profile on; Linux B on slot 4)
+
+- Gate passed: smoke all PASS, no TDR, no host Xid, 0 ERROR lines, no guest access refused at
+  the private pages, the shadow never waited for the registrar; device CE 114 pushes, 268 MiB.
+- The CUDA probe's trap census (profile dumps around it): windows-traps-exit-2026-09-29.md.
+
 ## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
 
 - **Before (all builds up to 70614b41's parent):** the top of the reservation holds device-owned
