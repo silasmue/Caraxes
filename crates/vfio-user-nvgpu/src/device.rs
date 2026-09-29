@@ -18,7 +18,7 @@ use std::fs::File;
 use std::mem::size_of;
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex};
 
 use vfio_bindings::bindings::vfio::{
     vfio_region_info, VFIO_IRQ_INFO_EVENTFD, VFIO_IRQ_INFO_NORESIZE, VFIO_IRQ_SET_ACTION_TRIGGER,
@@ -233,7 +233,7 @@ pub fn spawn_token_reader_hooked(
     reactor.spawn_hooked(
         readers,
         move |rings, seen, st| {
-            let mut d = lock(&device);
+            let mut d = crate::dlock::lock(&device, "doorbell/re-arm/rpc eventfds");
             st.lock_wait.record(seen.elapsed());
             crate::launch::mark(crate::launch::Step::Lock);
             if rearm_at.is_none() && rpc_at.is_none() {
@@ -256,8 +256,9 @@ pub fn spawn_token_reader_hooked(
     )
 }
 
-fn lock(device: &Mutex<Device>) -> MutexGuard<'_, Device> {
-    device.lock().unwrap_or_else(PoisonError::into_inner)
+#[cfg(test)]
+fn lock(device: &Mutex<Device>) -> std::sync::MutexGuard<'_, Device> {
+    device.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Read the doorbell eventfd (the token-less one) and ring the device for as long as
@@ -282,7 +283,7 @@ pub fn spawn_doorbell_reader_hooked(
     reactor.spawn_hooked(
         vec![eventfd],
         move |rings, seen, st| {
-            let mut d = lock(&device);
+            let mut d = crate::dlock::lock(&device, "doorbell eventfd");
             st.lock_wait.record(seen.elapsed());
             crate::launch::mark(crate::launch::Step::Lock);
             for &(_, writes) in rings {
@@ -298,15 +299,42 @@ pub fn spawn_doorbell_reader_hooked(
 /// shares it.
 pub struct SharedDevice(pub Arc<Mutex<Device>>);
 
+/// The device-lock label of a trapped access (dlock.rs).
+fn access_label(region: u32, write: bool) -> &'static str {
+    match (region, write) {
+        (VFIO_PCI_BAR0_REGION_INDEX, false) => "trapped BAR0 read",
+        (VFIO_PCI_BAR0_REGION_INDEX, true) => "trapped BAR0 write",
+        (1, false) => "trapped BAR1 read",
+        (1, true) => "trapped BAR1 write",
+        (3, false) => "trapped BAR3 read",
+        (3, true) => "trapped BAR3 write",
+        (_, false) => "trapped read (other region)",
+        (_, true) => "trapped write (other region)",
+    }
+}
+
+/// The device lock for a trapped access at `offset` of `region`; a long hold keeps the
+/// register (dlock.rs).
+fn lock_access<'a>(
+    device: &'a Mutex<Device>,
+    region: u32,
+    offset: u64,
+    write: bool,
+) -> crate::dlock::Held<'a, Device> {
+    let mut d = crate::dlock::lock(device, access_label(region, write));
+    d.detail(move || format!("region {region} {} {offset:#x}", if write { "W" } else { "R" }));
+    d
+}
+
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
         if !crate::profile::on() {
-            return lock(&self.0).region_read(region, offset, data);
+            return lock_access(&self.0, region, offset, false).region_read(region, offset, data);
         }
         // The profile's trapped access: from the message to the answer, the lock wait
         // included (profile.rs).
         let t0 = std::time::Instant::now();
-        let mut d = lock(&self.0);
+        let mut d = lock_access(&self.0, region, offset, false);
         let r = d.region_read(region, offset, data);
         let name = d.register_name(region, offset);
         drop(d);
@@ -317,10 +345,10 @@ impl ServerBackend for SharedDevice {
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
         let timing = crate::launch::on() && region == VFIO_PCI_BAR0_REGION_INDEX;
         if !crate::profile::on() && !timing {
-            return lock(&self.0).region_write(region, offset, data);
+            return lock_access(&self.0, region, offset, true).region_write(region, offset, data);
         }
         let t0 = std::time::Instant::now();
-        let mut d = lock(&self.0);
+        let mut d = lock_access(&self.0, region, offset, true);
         // A trapped doorbell is a ring of the launch chain too (launch.rs `begin_trapped`).
         let ring = timing && d.is_usermode_doorbell(offset);
         if ring {
@@ -347,15 +375,15 @@ impl ServerBackend for SharedDevice {
         size: u64,
         fd: Option<File>,
     ) -> std::io::Result<()> {
-        lock(&self.0).dma_map(flags, offset, address, size, fd)
+        crate::dlock::lock(&self.0, "dma map").dma_map(flags, offset, address, size, fd)
     }
 
     fn dma_unmap(&mut self, flags: DmaUnmapFlags, address: u64, size: u64) -> std::io::Result<()> {
-        lock(&self.0).dma_unmap(flags, address, size)
+        crate::dlock::lock(&self.0, "dma unmap").dma_unmap(flags, address, size)
     }
 
     fn reset(&mut self) -> std::io::Result<()> {
-        lock(&self.0).reset()
+        crate::dlock::lock(&self.0, "reset").reset()
     }
 
     fn set_irqs(
@@ -366,7 +394,7 @@ impl ServerBackend for SharedDevice {
         count: u32,
         fds: Vec<File>,
     ) -> std::io::Result<()> {
-        lock(&self.0).set_irqs(index, flags, start, count, fds)
+        crate::dlock::lock(&self.0, "set irqs").set_irqs(index, flags, start, count, fds)
     }
 }
 
@@ -1264,6 +1292,19 @@ impl Device {
     pub fn settle_bar2_flush(&mut self) {
         if let Some(b) = self.bar0.boot_mut() {
             b.settle_deferred_flush(&self.mem, crate::bar2area::Settle::Clock);
+        }
+    }
+
+    /// The completer thread (main.rs, ringgate.rs): forward the held rings that are ready,
+    /// under the device lock briefly, and trace them.
+    pub fn complete_held_rings(&mut self) {
+        let mem = &self.mem;
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.complete_held_rings(mem),
+            None => return,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
         }
     }
 

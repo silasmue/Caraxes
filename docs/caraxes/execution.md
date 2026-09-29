@@ -443,3 +443,26 @@ bounded is a bug; the D hold histogram in the exit summary names the holder of e
 §9.1-9.4 are the steps (branch lockfree-2026-09-29): the held ring, the build off D, bounded walks,
 the RPC worker. The pool's barrier becomes a held ring as well (the pool rework); the display
 clock's per-tick work takes the display engine's lock and never D.
+
+### 9.1 The held ring (2026-09-29)
+
+- A doorbell of a built shadow channel plans its root as before, then checks its target (the
+  root's last job, `invgate::Target`) and the ring gate (`ringgate.rs`). Applied and not held: it
+  rings at once. Otherwise it records a held ring for the channel (one per channel; later doorbells
+  join it with the newer target) and returns.
+- The shadow worker pokes the gate after every job. The completer thread (main.rs,
+  `ring-completer`) waits on the gate without D while rings are held and takes D briefly to
+  forward the ready ones (`Mirror::complete_held_rings`: FB flush, shadow USERD publish, the
+  forwarded GPPut, the host doorbell, the harvest).
+- Holds for other users (the BAR1 pool): `Mirror::hold_rings(roots) -> token`,
+  `Mirror::release_rings(token)`, `Mirror::submit_call(root, call, Some(token))` runs a host RM
+  call on the worker in order with the root's plans and releases the token after it. The gate is
+  process-wide (`ringgate::global`), so a model rebuilt at a reset keeps it.
+- A freed channel's held ring is dropped; a reset drops them all.
+- Counters: the mirror line's `held rings: ...` part; the device-lock holds by holder
+  (`dlock.rs`) at exit: count, total, p50/p99 bounds, max per holder, and the longest holds.
+- Still waiting under D: the preparation path (`submit` false), the trapped GPPut store's barrier
+  (`gp_put_barrier`), the software MEM_OP hold, the pool's barriers (pool rework), the first
+  doorbell's build (§9.2).
+- Tests: `ringgate::tests` (a ring waits for its root's jobs and holds only; the completer wakes
+  on a poke while rings are held), `dlock::tests`.

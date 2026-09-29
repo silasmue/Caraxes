@@ -1426,6 +1426,10 @@ pub struct Mirror {
     /// The shadow worker (docs/caraxes/mapping.md §4): applies the plans (the RM map and
     /// unmap calls) and the teardowns off the server thread, in order.
     worker: ShadowWorker,
+    /// Held rings (ringgate.rs, execution.md §9.1): shared with the worker and the completer.
+    ring_gate: Arc<crate::ringgate::RingGate>,
+    held_rings: BTreeMap<u32, crate::ringgate::HeldRing>,
+    ring_stats: crate::ringgate::RingStats,
     /// `CARAXES_ALLOC_LAZY=1` (lazy.rs, docs/caraxes/alloc-path.md): a guest MMU invalidate
     /// defers its plan to the next shadow doorbell or channel creation.
     lazy: crate::lazy::LazyPlans,
@@ -1552,7 +1556,8 @@ impl Mirror {
             }
             None => None,
         };
-        let worker = ShadowWorker::new(hm.clone(), intr.clone());
+        let ring_gate = crate::ringgate::global();
+        let worker = ShadowWorker::new(hm.clone(), intr.clone(), ring_gate.clone());
         // Owned GFXP (gfxpslot.rs): the layout's slots, with the host's buffer geometry.
         let slots = layout.gfxp_range().and_then(|range| {
             match crate::gfxpslot::host_geometry(&hm.lock().unwrap()) {
@@ -1603,6 +1608,9 @@ impl Mirror {
             shadows: BTreeMap::new(),
             map_budget: crate::shadow::MapBudget::from_env(),
             worker,
+            ring_gate,
+            held_rings: BTreeMap::new(),
+            ring_stats: Default::default(),
             lazy: match crate::lazy::LazyPlans::from_env() {
                 Ok(l) => {
                     if l.enabled() {
@@ -2054,7 +2062,7 @@ impl Mirror {
     /// The untrapped-GPPut counters (untrapped.rs), for the pool's per-context line.
     pub fn hold_summary(&self) -> String {
         format!(
-            "{}; held invalidates {} (trigger read busy {} time(s), {} waited past {} ms) [{}], by scope: {} of one root, {} ALL_PDB holding {} untrapped root(s) in total; {}",
+            "{}; held invalidates {} (trigger read busy {} time(s), {} waited past {} ms) [{}], by scope: {} of one root, {} ALL_PDB holding {} untrapped root(s) in total; {}; {}",
             self.hold.summary(self.hold_on),
             if self.inv_async { "complete through the trigger's busy bit" } else { "wait under the device lock" },
             self.inv_gate.busy_reads,
@@ -2064,7 +2072,8 @@ impl Mirror {
             self.held_scope.0,
             self.held_scope.1,
             self.held_scope.2,
-            self.worker.summary()
+            self.worker.summary(),
+            self.ring_summary()
         )
     }
 
@@ -2375,21 +2384,134 @@ impl Mirror {
             // guest freed comes back to it.
             notes.extend(self.shadow_resync(reg, gm, root));
             mark(Step::Plan);
-            // Ordering: the doorbell is forwarded only after the worker applied every plan
-            // submitted so far for this root (the mirror is consistent for it). A held
-            // invalidate of this root still in flight is among them (invgate.rs); another
-            // root's plans are not waited for.
-            match root {
-                Some(r) => self.worker.wait_root(r),
-                None => self.worker.wait_all(),
-            }
-            mark(Step::Wait);
-            gm.fb.flush();
-            mark(Step::Flush);
             if !submit {
+                match root {
+                    Some(r) => self.worker.wait_root(r),
+                    None => self.worker.wait_all(),
+                }
+                gm.fb.flush();
                 notes.push(format!("shadow: chid {chid} context already prepared; no submission"));
                 return notes;
             }
+            // Ordering: the doorbell is forwarded only after the worker applied every plan
+            // submitted so far for this root (the mirror is consistent for it; a held
+            // invalidate of this root still in flight is among them, invgate.rs) and no hold
+            // names the root. Not waited for under the device lock (execution.md §9.1): the
+            // ring is held and the completer forwards it (ringgate.rs).
+            let ring = crate::ringgate::HeldRing {
+                root,
+                target: match root {
+                    Some(r) => crate::invgate::Target::Roots(vec![(r, self.worker.seqs.last_of(r))]),
+                    None => crate::invgate::Target::All(self.worker.seqs.submitted()),
+                },
+                since: Instant::now(),
+                doorbells: 1,
+            };
+            if !crate::ringgate::ready(&ring, &self.worker.progress, &self.ring_gate) {
+                self.ring_stats.held += 1;
+                match self.held_rings.get_mut(&chid) {
+                    Some(h) => {
+                        h.target = ring.target;
+                        h.doorbells += 1;
+                        self.ring_stats.coalesced += 1;
+                    }
+                    None => {
+                        self.held_rings.insert(chid, ring);
+                    }
+                }
+                self.ring_gate.set_waiting(self.held_rings.len());
+                notes.push(format!(
+                    "shadow: chid {chid} ring held until root {:#x}'s jobs are applied [host]",
+                    root.unwrap_or(0)
+                ));
+                return notes;
+            }
+            if let Some(h) = self.held_rings.remove(&chid) {
+                // A ring held before is covered by this one (its jobs are older).
+                self.note_ring_completed(&h);
+                self.ring_gate.set_waiting(self.held_rings.len());
+            } else {
+                self.ring_stats.direct += 1;
+            }
+            notes.extend(self.ring_now(reg, gm, chid));
+            return notes;
+        }
+        let Some(ch) = reg.channel(chid).cloned() else {
+            return vec![format!("shadow: chid {chid} not recorded")];
+        };
+        drop(ahead_line);
+        self.shadow_build(reg, gm, chid, ch, submit, lazy_notes)
+    }
+
+    /// A held ring left the gate (`complete_held_rings`, or a later doorbell covered it).
+    fn note_ring_completed(&mut self, h: &crate::ringgate::HeldRing) {
+        let ns = h.since.elapsed().as_nanos() as u64;
+        self.ring_stats.completed += 1;
+        self.ring_stats.held_ns += ns;
+        self.ring_stats.held_max_ns = self.ring_stats.held_max_ns.max(ns);
+    }
+
+    /// Forward the held rings whose root's jobs are applied and whose root no hold names
+    /// (the completer thread, under the device lock briefly; ringgate.rs).
+    pub fn complete_held_rings(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
+        let ready: Vec<u32> = self
+            .held_rings
+            .iter()
+            .filter(|(_, r)| crate::ringgate::ready(r, &self.worker.progress, &self.ring_gate))
+            .map(|(c, _)| *c)
+            .collect();
+        let mut notes = Vec::new();
+        for chid in ready {
+            let Some(h) = self.held_rings.remove(&chid) else { continue };
+            if !self.channels.contains_key(&chid) {
+                self.ring_stats.dropped += 1;
+                continue;
+            }
+            self.note_ring_completed(&h);
+            notes.push(format!(
+                "shadow: chid {chid} held ring forwarded after {} us ({} doorbell(s)) [host]",
+                h.since.elapsed().as_micros(),
+                h.doorbells
+            ));
+            notes.extend(self.ring_now(reg, gm, chid));
+        }
+        self.ring_gate.set_waiting(self.held_rings.len());
+        notes
+    }
+
+    /// The ring gate, for the completer thread (main.rs).
+    pub fn ring_gate(&self) -> Arc<crate::ringgate::RingGate> {
+        self.ring_gate.clone()
+    }
+
+    /// Hold the rings of `roots` until [`Self::release_rings`] or a [`Job::Call`] releases the
+    /// token (the BAR1 pool, ringgate.rs).
+    pub fn hold_rings(&self, roots: Vec<u64>) -> u64 {
+        self.ring_gate.hold(roots)
+    }
+
+    pub fn release_rings(&self, token: u64) {
+        self.ring_gate.release(token);
+    }
+
+    /// Run `call` on the worker in order with `root`'s plans, then release `release`.
+    pub fn submit_call(&mut self, root: u64, call: HostCall, release: Option<u64>) {
+        self.worker.submit(Job::Call(root, call, release));
+    }
+
+    /// The held-ring line of the exit summary.
+    pub fn ring_summary(&self) -> String {
+        self.ring_stats.line(self.held_rings.len())
+    }
+
+    /// Forward the doorbell of built channel `chid` now: flush the FB store, publish a
+    /// shadowed USERD, record the forwarded GPPut, ring the host doorbell, harvest.
+    fn ring_now(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
+        use crate::launch::{mark, Step};
+        let mut notes = Vec::new();
+        gm.fb.flush();
+        mark(Step::Flush);
+        {
             if let Some(u) = self
                 .channels
                 .get_mut(&chid)
@@ -2424,11 +2546,21 @@ impl Mirror {
             {
                 u.harvest(gm);
             }
-            return notes;
         }
-        let Some(ch) = reg.channel(chid).cloned() else {
-            return vec![format!("shadow: chid {chid} not recorded")];
-        };
+        notes
+    }
+
+    /// The first doorbell of channel `chid` (or its preparation, `submit` false): build its
+    /// mirror on the host (VAS, TSG, channel, USERD, engine objects, scheduling).
+    fn shadow_build(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        chid: u32,
+        ch: crate::channel::Channel,
+        submit: bool,
+        lazy_notes: Vec<String>,
+    ) -> Vec<String> {
         let Some(vas_key) = reg.vas_key_of(&ch) else {
             return vec![format!("shadow: chid {chid} has no VA space")];
         };
@@ -4932,6 +5064,10 @@ impl Mirror {
         }
         self.exhausted.remove(&chid);
         self.exhausted_raised.remove(&chid);
+        if self.held_rings.remove(&chid).is_some() {
+            self.ring_stats.dropped += 1;
+            self.ring_gate.set_waiting(self.held_rings.len());
+        }
         if let Some(mut hc) = self.channels.remove(&chid) {
             let r = {
                 let mut h = self.hm.lock().unwrap();
@@ -5321,6 +5457,9 @@ impl Mirror {
             return notes;
         }
         self.inv_gate.clear(&self.worker.progress);
+        self.ring_stats.dropped += self.held_rings.len() as u64;
+        self.held_rings.clear();
+        self.ring_gate.set_waiting(0);
         if let Some(inv) = self.invalidator.take() {
             let mut h = self.hm.lock().unwrap();
             notes.push(inv.free(&mut h));
@@ -5396,13 +5535,19 @@ enum Job {
     Free(u64),
     /// Return exact post-apply mapping coverage to a diagnostic caller.
     Coverage(u64, u64, u64, std::sync::mpsc::Sender<String>),
+    /// A host RM call in order with root's plans, then the release of a ring hold
+    /// (ringgate.rs `RingGate::hold`).
+    Call(u64, HostCall, Option<u64>),
 }
+
+/// A host RM call the worker runs ([`Job::Call`]): its trace lines.
+pub type HostCall = Box<dyn FnOnce(&Mutex<HostMemory>) -> Vec<String> + Send>;
 
 impl Job {
     /// The shadow root the job belongs to.
     fn root(&self) -> u64 {
         match self {
-            Job::Create(r, _) | Job::Free(r) | Job::Coverage(r, _, _, _) => *r,
+            Job::Create(r, _) | Job::Free(r) | Job::Coverage(r, _, _, _) | Job::Call(r, _, _) => *r,
             Job::Apply(plan, _) => plan.root,
         }
     }
@@ -5493,13 +5638,14 @@ struct ShadowWorker {
 }
 
 impl ShadowWorker {
-    fn new(hm: Arc<Mutex<HostMemory>>, intr: Arc<IntrShared>) -> Self {
+    fn new(hm: Arc<Mutex<HostMemory>>, intr: Arc<IntrShared>, gate: Arc<crate::ringgate::RingGate>) -> Self {
         let (tx, rx) = std::sync::mpsc::channel::<(u64, Job)>();
         let progress = Arc::new(crate::invgate::Progress::default());
         let notes = Arc::new(Mutex::new(Vec::new()));
         let (progress2, notes2) = (progress.clone(), notes.clone());
         let stats = Arc::new(WorkerStats::default());
         let worker_stats2 = stats.clone();
+        let gate2 = gate;
         let idle = Arc::new((Mutex::new(true), std::sync::Condvar::new()));
         let idle2 = idle.clone();
         let thread = std::thread::Builder::new()
@@ -5612,6 +5758,15 @@ impl ShadowWorker {
                             }
                             Vec::new()
                         }
+                        Job::Call(_, call, release) => {
+                            // A host RM call in order with the root's plans (the pool's
+                            // preempt, ringgate.rs); then the rings it held may go.
+                            let lines = call(&hm);
+                            if let Some(t) = release {
+                                gate2.release(t);
+                            }
+                            lines
+                        }
                         Job::Coverage(root, start, end, reply) => {
                             let answer = spaces.get(&root).map_or_else(
                                 || format!("unknown shadow root {root:#x}"),
@@ -5625,6 +5780,8 @@ impl ShadowWorker {
                         intr.note(l);
                     }
                     progress2.finish(seq);
+                    // A held ring of this root may be ready now (ringgate.rs).
+                    gate2.poke();
                 }
             })
             .ok();

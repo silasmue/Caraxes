@@ -1092,6 +1092,20 @@ impl BootModel {
         self
     }
 
+    /// Forward the held rings that are ready (ringgate.rs; the completer thread).
+    pub fn complete_held_rings(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.complete_held_rings(&mut gm)
+    }
+
+    /// The mirror's ring gate, when there is a mirror.
+    pub fn ring_gate(&self) -> Option<std::sync::Arc<crate::ringgate::RingGate>> {
+        self.ctrl.ring_gate()
+    }
+
     /// A ring of pool token `token` through its ioeventfd (device.rs `doorbell_tokens`).
     pub fn doorbell_token(&mut self, mem: &GuestMemory, token: u32) -> Vec<String> {
         self.bar2_before_ring(mem, Some(token));

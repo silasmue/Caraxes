@@ -1582,6 +1582,20 @@ impl Dispatcher {
     }
 
     /// The guest kernel's TLB invalidate for `pdb`: forwarded to the mirror VA spaces.
+    /// Forward the held rings that are ready (ringgate.rs; the completer thread).
+    pub fn complete_held_rings(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        let reg = &self.channels;
+        self.mirror
+            .as_mut()
+            .map(|m| m.complete_held_rings(reg, gm))
+            .unwrap_or_default()
+    }
+
+    /// The mirror's ring gate, when there is a mirror.
+    pub fn ring_gate(&self) -> Option<std::sync::Arc<crate::ringgate::RingGate>> {
+        self.mirror.as_ref().map(|m| m.ring_gate())
+    }
+
     pub fn mirror_invalidate(&mut self, fb: &mut crate::fb::FakeFb, pdb: Option<u64>) -> usize {
         self.mirror
             .as_mut()
