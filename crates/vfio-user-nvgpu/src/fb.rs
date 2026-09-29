@@ -679,10 +679,11 @@ pub struct VramStore {
     stats: RefCell<VramStats>,
     /// A store went through a window since the last flush (launch.rs `flush_needed`).
     dirty: Cell<bool>,
-    /// The BAR2 memfd's own windows ([`BAR2_WINDOWS`] of [`BAR2_WINDOW`], LRU among
-    /// themselves): its write-backs, page loads and drift samples map here, so the few
-    /// pages behind BAR2 neither evict the data windows nor wait for a 32 MiB map. Every
-    /// access looks here first.
+    /// The side windows ([`BAR2_WINDOWS`] of [`BAR2_WINDOW`], LRU among themselves): the
+    /// BAR2 memfd's write-backs, page loads and drift samples and the walks' page-table
+    /// reads map here, so the few scattered pages they touch neither evict the data windows
+    /// nor wait for a 32 MiB map (Windows C81: 21698 of 42854 data-window remaps were
+    /// page-table reads). Every access looks here first.
     bar2: RefCell<Vec<Slot>>,
     bar2_max: usize,
     /// No BAR2 window is mapped before this instant (the host BAR1 floor refused one): the
@@ -691,9 +692,9 @@ pub struct VramStore {
     bar2_last_line: Cell<Option<std::time::Instant>>,
 }
 
-/// The BAR2 memfd's own windows ([`VramStore`]): 2 of 2 MiB, 4 MiB of host BAR1 beside the
-/// data windows, admitted by the host BAR1 floor like every window.
-pub const BAR2_WINDOWS: usize = 2;
+/// The side windows ([`VramStore`]): 4 of 2 MiB, 8 MiB of host BAR1 beside the data
+/// windows, admitted by the host BAR1 floor like every window.
+pub const BAR2_WINDOWS: usize = 4;
 pub const BAR2_WINDOW: usize = 2 << 20;
 /// After the floor refused a BAR2 window, the BAR2 accesses use the data windows for this
 /// long before a BAR2 window is asked for again.
@@ -874,13 +875,14 @@ impl VramStore {
         }
     }
 
-    /// Whether this thread's access is the BAR2 memfd's ([`ReadWhy`]): a write-back, a
-    /// page load or a drift sample.
+    /// Whether this thread's access maps a side window ([`ReadWhy`]): the BAR2 memfd's
+    /// write-back, page load or drift sample, or a walk's page-table read.
     fn bar2_access() -> bool {
         let why = READ_WHY.with(|w| w.get());
         why == ReadWhy::Bar2WriteBack as usize
             || why == ReadWhy::Bar2Load as usize
             || why == ReadWhy::Bar2Drift as usize
+            || why == ReadWhy::Tables as usize
     }
 
     /// The BAR2 window holding reservation offset `off`, if one does.
@@ -4659,13 +4661,20 @@ mod tests {
         assert_eq!(b, [0xCD]);
         let st = s.stats();
         assert_eq!((st.maps, st.bar2_maps, st.bar2_held), (1, 1, 1));
-        // Three BAR2 regions with a budget of two: LRU among the BAR2 windows only.
-        for mib in [104, 108, 100] {
+        // Five side regions with a budget of four: LRU among the side windows only. A
+        // page-table read maps a side window too.
+        for mib in [104, 108, 112, 116, 100] {
             let _why = ReadWhy::Bar2WriteBack.scope();
             s.write(at(mib), &[1]);
         }
         let st = s.stats();
-        assert_eq!((st.maps, st.bar2_maps, st.bar2_evictions, st.bar2_held, st.held), (1, 4, 2, 2, 1));
+        assert_eq!((st.maps, st.bar2_maps, st.bar2_evictions, st.bar2_held, st.held), (1, 6, 2, 4, 1));
+        {
+            let _why = ReadWhy::Tables.scope();
+            s.read(at(200), &mut b);
+        }
+        let st = s.stats();
+        assert_eq!((st.maps, st.bar2_maps, st.bar2_held, st.held), (1, 7, 4, 1), "a table read: a side window");
     }
 
     /// The host BAR1 floor refuses a BAR2 window: the BAR2 access takes the data window as
