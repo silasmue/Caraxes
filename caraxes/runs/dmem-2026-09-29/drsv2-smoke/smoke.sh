@@ -14,7 +14,7 @@ sudo systemctl stop gdm3 2>/dev/null; sleep 3
 for m in nvidia_drm nvidia_modeset nvidia_uvm nvidia; do [ -d /sys/module/$m ] && sudo rmmod $m; done
 [ -d /sys/module/ecc ] && sudo rmmod ecc && t "ecc unloaded (dependency test)"
 sudo dmesg -C
-t "== load"; sudo /opt/caraxes/display-reserve-v2/load.sh ${MIB:--1} NVreg_RmMsg=display_reserve.c; echo "load rc=$?"
+t "== load"; sudo /opt/caraxes/display-reserve-v2/load.sh ${MIB:--1} NVreg_RmMsg=display_reserve.c || { echo "load failed: stopping"; exit 1; }
 sudo modprobe nvidia_drm modeset=1 && sudo modprobe nvidia_uvm && echo drm-uvm-ok
 bash ~/caraxes-guest/display-up.sh >/dev/null 2>&1
 t "no mode: $(used)"; log

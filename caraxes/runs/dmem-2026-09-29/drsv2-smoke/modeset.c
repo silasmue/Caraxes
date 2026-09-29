@@ -22,8 +22,8 @@ static void run(const char *cmd, const char *what)
 {
     printf("== %s\n", what);
     fflush(stdout);
-    if (cmd)
-        system(cmd);
+    if (cmd && system(cmd) != 0)
+        fprintf(stderr, "command failed\n");
 }
 
 int main(int argc, char **argv)

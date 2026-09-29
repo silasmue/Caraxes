@@ -220,7 +220,7 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
   - It installs only `nvidia.ko` and `nvidia-modeset.ko` to `/opt/caraxes/display-reserve-v2/<kernel>/`, with a MANIFEST of sources, sha256s and `nvidia.ko`'s version line.
   - The first design's build under `/opt/caraxes/display-reserve/` stays for the runs made with it.
 - **Load** (`load.sh DISPLAY_RESERVE_MIB [NVreg_…]`).
-  - It unloads the NVIDIA modules and loads `nvidia.ko`'s dependencies.
+  - It unloads the NVIDIA modules and loads the dependencies of both modules (`ecc`, `video`), since `insmod` does not.
   - It `insmod`s both modules with their `modprobe.d` options, the extra `nvidia` parameters and `display_reserve_mib`.
   - It fails unless `/proc/driver/nvidia/version` shows the build's version line and `nvidia_modeset` has the value asked for.
   - The installed `nvidia-drm` and `nvidia-uvm` bind on top; the kernel's modversion check refuses them if an exported symbol differed.
@@ -237,6 +237,24 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
 - **Levels follow RM's convention for state.** State messages (enabled, cut, holds, next try) are `NV_PRINTF(LEVEL_INFO)`, as memacct's [T src/kernel/mem_mgr/memacct.c]. A release build does not print them: the runtime threshold is warnings [K nvidia/os-interface.c:843-862].
 - **A served refusal is `LEVEL_WARNING`** and is printed; failures are `LEVEL_ERROR`.
 - **Tests turn the state lines on with NVIDIA's RmMsg filter**, not with a code change: `NVreg_RmMsg=display_reserve.c` [K nvidia/nv-reg.h `RmMsg`; T src/kernel/diagnostics/nvlog_printf.c:953-974]. `load.sh` passes extra `nvidia` parameters.
+
+## Smoke results (v2; 2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
+
+Evidence: `B/drsv2-smoke/smoke-2.txt` (`-1`), `smoke-3-mib0.txt` (`0`); the build is `B/drsv2-build/prepare.txt` (MANIFEST version line "… (root@caraxes-desktop-b) Tue Sep 29 08:27:07 UTC 2026").
+
+| | `display_reserve_mib=-1` | `display_reserve_mib=0` (same build) |
+|---|---|---|
+| 1920x1080 (DRM master) | declared 44224 KiB (5 × 8640 + 1024), 6 runs, 52224 KiB in PMA; used 60 MiB | nothing declared; used 9 MiB |
+| 1280x720 | re-cut to 20224 KiB declared, 21504 KiB in PMA; used 34 MiB | used 13 MiB |
+| Head off | declared 0, 0 runs; used 13 MiB | used 13 MiB |
+| GNOME up (+30 s) | 1080p size again (52224 KiB); used 199 MiB | used 148 MiB |
+| CUDA fills free VRAM (4-5 MiB left), then a 1920x1080 dumb buffer (8100 KiB, 8192 KiB in 2 MiB pages) | granted twice: "released 10240 KiB for a refused scanout allocation of 8192 KiB, holds 41984 of 52224 KiB"; refill refused at +1 s and +2 s (0x51, backoff), full again 4 s after the release, once the buffer was freed | refused twice, ENOMEM |
+| Filler gone | used 199 MiB | used 148 MiB |
+
+- **The numbers match the expected sizes** under "Build and use", within 1 MiB of v1's display balloon (51 MiB).
+- **The backoff timer ran** (1 s, then 2 s) while the dumb buffer held the released run.
+- **`load.sh` fix found in the first v2 smoke (`smoke-1.txt`):** `nvidia-modeset.ko` depends on `video` (`acpi_video_register_backlight`), which `insmod` does not load. The stock `nvidia_modeset` then came up, nothing was declared and the dumb buffers were refused (the same numbers as the `0` column). `load.sh` now loads the dependencies of both modules, and `smoke.sh` stops when `load.sh` fails.
+- **Not yet exercised:** suspend/resume, GC6/RTD3, unload with a held reserve under load, several GPUs.
 
 ## Smoke results of the first design (history; 2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
 
@@ -260,6 +278,7 @@ Evidence: `B/drsv-smoke3/`; the build is `B/drsv-build2/prepare.txt`.
    - The reserve holds the declared size at 1080p, re-cuts to the 720p size, and is released when the head goes off.
    - GNOME gives the 1080p size again.
    - With VRAM filled, the dumb buffer is granted with one run released and refilled 1 s later; `display_reserve_mib=0` refuses it.
+   - Passed on 2026-09-29 (see "Smoke results (v2)").
 2. **SotTR 1080p at 4 GiB** with `display_reserve_mib=-1`, and a control with 0: `SOTTR_FB_MIB=4096 DMEM_CAP=off SOTTR_DISPLAY_RESERVE_MIB=-1 sottr-bench-6g.sh OUT BINARY`.
 
 ## Test plan (first design, history)

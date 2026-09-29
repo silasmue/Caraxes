@@ -11,8 +11,8 @@
 # default) reach the kernel log through NVIDIA's RmMsg filter (kernel-open/nvidia/nv-reg.h,
 # nvlog_printf.c nvDbgRmMsgCheck).
 #
-# Unloads the NVIDIA modules if loaded (they must not be in use), loads the modules nvidia.ko
-# depends on (insmod does not), then loads the build's nvidia.ko with the options modprobe.d gives
+# Unloads the NVIDIA modules if loaded (they must not be in use), loads the modules both modules
+# depend on (insmod does not), then loads the build's nvidia.ko with the options modprobe.d gives
 # nvidia plus NVIDIA_PARAM=VALUE, and its nvidia-modeset.ko with the options modprobe.d gives
 # nvidia_modeset plus display_reserve_mib. Fails unless /proc/driver/nvidia/version reports the
 # build's version line (MANIFEST) and nvidia_modeset has the display_reserve_mib asked for.
@@ -43,9 +43,13 @@ modprobe_opts() {
         for (i = 3; i <= NF; i++) print $i }'
 }
 
-IFS=, read -r -a deps <<< "$(modinfo -F depends "$dir/nvidia.ko")"
-for d in "${deps[@]}"; do
-    [[ -n $d ]] && { modprobe "$d" || die "cannot load $d, which nvidia.ko depends on"; }
+# The modules nvidia.ko and nvidia-modeset.ko depend on (ecc, video), except nvidia itself.
+for ko in nvidia.ko nvidia-modeset.ko; do
+    IFS=, read -r -a deps <<< "$(modinfo -F depends "$dir/$ko")"
+    for d in "${deps[@]}"; do
+        [[ -z $d || $d == nvidia ]] && continue
+        modprobe "$d" || die "cannot load $d, which $ko depends on"
+    done
 done
 
 mapfile -t opts < <(modprobe_opts nvidia)
