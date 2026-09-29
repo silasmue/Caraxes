@@ -546,3 +546,26 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   | ResNet-18 images/s | 532.5 | crashed | 341.7 (first step 98 s) |
 
 - Teardown exit 3 at stop: P17 diagnostic only (owned GFXP), as noted.
+
+## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
+
+- **Before (all builds up to 70614b41's parent):** the top of the reservation holds device-owned
+  pages: the invalidator's page tables, GPFIFO, pushbuffer and USERD (an ADMIN host channel, the
+  top 256 KiB) and, since the device CE, its tables and ring (the 256 KiB below).
+  - The software CE accepted any piece inside the reservation (`software_fb_range` = the whole
+    reservation), so a guest push on a software channel could write those pages, physical or
+    through a guest VA.
+  - The shadow accepted any guest leaf inside the reservation (`resolve_leaf` up to its end), so
+    a guest mapping of those pages ended up in a host channel's VA space.
+  - With the invalidator's tables writable, a guest could redirect an ADMIN host channel's
+    PTEs to any host VRAM address: an escape from the VM's reservation.
+- **After (8dbce31a):** the top 512 KiB (devce.rs `PRIVATE_AT`) is no guest memory.
+  - `software_fb_range` ends below it (ctrl.rs), so a software CE piece there is refused as
+    outside VM backing;
+  - the shadow's leaves end below it (mirror.rs `leaf_end`), so a guest leaf there is refused;
+  - the device CE's window maps only the usable FB below the whole 2 MiB carve-out.
+- **Still open:** guest BAR1/BAR2 accesses that the device traps and serves through its BAR page
+  walk (boot.rs `bar_root`, fb.rs BAR TLB) are not yet checked against the private range; the
+  guest RM builds those BAR tables itself and could point one at the private pages. Next: refuse
+  a BAR PTE target inside `PRIVATE_AT` in the BAR walk.
+- Depends on: R (the reservation and its carve-out).
