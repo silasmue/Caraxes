@@ -350,6 +350,25 @@ Evidence: `B/drsv3-smoke/smoke-1.txt` (`-1`), `smoke-2-mib0.txt` (`0`); the buil
 - **Take-back wins where v2's refill lost:** every refill in this smoke failed with 0x51, and the reserve still came back to full at each free of a run-shaped buffer.
 - **The limit shows as documented:** a surface smaller than a run returns its pages to PMA.
 
+## Test pack dry run (2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, no desktop)
+
+Evidence: `B/drsv3-testpack/` (the result tarball's logs; sha256 6f0524b0…). This was a VM run of `patches/nvidia/display-reserve/testpack.sh run` with the default steps: every step passed, in about 7 min including the build.
+
+| Step | Result |
+|---|---|
+| stock (installed 615.71.09) | `scanout-oom`: all 6 GBM-style buffers (8640 KiB, 1080p) refused, 6 × "Failed to allocate NVKMS memory for GEM object" |
+| repro (patched, `-1`) | all 6 granted; each round 2 × "released 10240 KiB …", then 2 × "took back … holds 52224 of 52224 KiB"; CUDA got none of the freed pages |
+| modes | 1920x1080: 44224 KiB; 640x480: 7424 KiB; off: 0 |
+| control (`0`) | all 6 refused |
+| unload | clean |
+
+- **Found and fixed in the pack:**
+  - the compositor check's pgrep pattern matched nothing (longer than 15 characters);
+  - the installed modules were not reloaded after the unload step;
+  - the result tar read the directory it was being written to;
+  - the `.sha256` held the full path, which includes the user name.
+- **What unload does not show:** NVKMS declared 0 when the display went off (no fbdev here), so RM unloaded with no runs. RM's own unload path (`memmgrDestroyInternalChannels`, then PreUnload) frees runs only when RM unloads while a declaration is still active.
+
 ## Smoke results (v2; 2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
 
 Evidence: `B/drsv2-smoke/smoke-2.txt` (`-1`), `smoke-3-mib0.txt` (`0`); the build is `B/drsv2-build/prepare.txt` (MANIFEST version line "… (root@caraxes-desktop-b) Tue Sep 29 08:27:07 UTC 2026").

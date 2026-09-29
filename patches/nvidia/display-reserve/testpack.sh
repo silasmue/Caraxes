@@ -179,7 +179,8 @@ step_check() {
     if systemctl is-active --quiet display-manager 2>/dev/null; then
         die "stop the display manager first (systemctl stop display-manager) and run from a text console"
     fi
-    if pgrep -x 'Xorg|Xwayland|gnome-shell|kwin_wayland|sway|weston|Hyprland|mutter|cosmic-comp' >/dev/null; then
+    # pgrep patterns match the 15-character process name, so compare the names instead
+    if ps -eo comm= | grep -qxE 'Xorg|Xwayland|gnome-shell|kwin_wayland|sway|weston|Hyprland|mutter|cosmic-comp'; then
         die "a display server or compositor is running; stop it and run from a text console"
     fi
     if pgrep -x nvidia-persistenced >/dev/null; then
@@ -294,6 +295,8 @@ step_hotplug() {
     dmesg | grep -E "display reserve: declared" | tail -n 6
 }
 
+# NVKMS declares 0 when its display goes off or it unloads, so RM normally holds no runs when
+# it unloads; the step checks that everything unloads cleanly after a take-back.
 step_unload() {
     local card
     for card in $(nvidia_cards); do "$WORK/scanout-oom" -d "$card" -r 1 -b 1; done
@@ -309,8 +312,11 @@ step_unload() {
 }
 
 finish() {
-    local host user f result
-    [ "$PATCHED" = 1 ] && { echo "loading the installed modules again"; load_stock; }
+    local host user f result tmp
+    if [ "$PATCHED" = 1 ] || [ ! -d /sys/module/nvidia_drm ]; then
+        echo "loading the installed modules again"
+        load_stock
+    fi
     dmesg | grep -E "NVRM|nvidia|nvkms|drm|display reserve|display-reserve-testpack|Xid|PM: |BUG|WARNING|Oops|Call Trace|RIP:" \
         > "$OUT/kernel.log"
     host=$(hostname 2>/dev/null) user=${SUDO_USER:-}
@@ -319,8 +325,10 @@ finish() {
         [ -n "$user" ] && [ "$user" != root ] && sed -i "s/\b$user\b/USER/g" "$f"
     done
     result=$OUT/display-reserve-testpack-$(date +%Y%m%d-%H%M%S).tar.gz
-    tar -C "$OUT" -czf "$result" --exclude=work --exclude='*.tar.gz' --exclude='*.sha256' .
-    sha256sum "$result" > "$result.sha256"
+    tmp=$(mktemp -p "$(dirname "$OUT")") || return
+    tar -C "$OUT" -czf "$tmp" --exclude=./work --exclude='*.tar.gz' --exclude='*.sha256' . &&
+        mv "$tmp" "$result"
+    (cd "$OUT" && sha256sum "$(basename "$result")" > "$(basename "$result").sha256")
     echo "result: $result"
 }
 

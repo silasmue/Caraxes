@@ -47,6 +47,7 @@ For the patch [../0001-nvidia-nvidia-modeset-hold-a-video-memory-reserve-fo.patc
   3. `tar xzf display-reserve-testpack-615.71.09.tar.gz && cd display-reserve-testpack`
   4. `sudo ./testpack.sh run ~/testpack-out`, or `--steps all` to add suspend, runtime D3 and hotplug.
   5. Reboot afterwards. The script loads the installed modules again at the end, but a reboot is the clean state.
+- **Dry run:** all default steps passed in a Linux VM with a virtual Turing GPU (1 GiB). The stock driver refused all six buffers; the patched one granted all six and took each back on free (see the research note).
 - **Steps** (`--steps`, comma-separated):
 
 | Step | What | Expected |
@@ -61,7 +62,7 @@ For the patch [../0001-nvidia-nvidia-modeset-hold-a-video-memory-reserve-fo.patc
 | `suspend` (opt-in) | suspend to RAM for about 30 s with the display lit, then `scanout-oom -r 1` | resume clean, granted |
 | `rtd3` (opt-in) | on a GPU with runtime D3 and no display lit: wait for D3, then light it | granted |
 | `hotplug` (opt-in) | unplug and replug the display when asked | `declared 0`, then the size again |
-| `unload` | leave a taken-back run in the reserve, unload the patched modules | no scrubber, assertion or reserve errors |
+| `unload` | a take-back, then unload the patched modules | clean: no scrubber, assertion or reserve errors (NVKMS declares 0 before RM unloads, so RM normally frees no runs itself) |
 
 - **Result:** `~/testpack-out/display-reserve-testpack-<stamp>.tar.gz` and `.sha256`. It holds `run.log`, one log per step, `build.log` and `kernel.log` (the kernel lines of the NVIDIA modules, power management and warnings).
   - The host name and the user name are replaced.
