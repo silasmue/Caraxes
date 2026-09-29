@@ -835,6 +835,42 @@ impl BootModel {
         let Some(cmd) = crate::display::engine::ticker().take_command() else {
             return;
         };
+        // `channels`: every channel whose USERD shows GPGet behind GPPut, for a stall seen
+        // from outside (what the guest's work waits on); the guest is not involved.
+        if cmd.trim() == "channels" {
+            let gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            let mut lines = Vec::new();
+            for c in self.ctrl.channels.channels() {
+                let Some(u) = c.userd else { continue };
+                let at = |o: u64| match u {
+                    crate::fb::Target::Fb(pa) => Some(crate::fb::Target::Fb(pa + o)),
+                    crate::fb::Target::Sys(pa) => Some(crate::fb::Target::Sys(pa + o)),
+                    _ => None,
+                };
+                let get = at(0x88).and_then(|t| gm.read_u32(t));
+                let put = at(0x8C).and_then(|t| gm.read_u32(t));
+                if get != put {
+                    lines.push(format!(
+                        "chid {} engine {:#x} {}: GPGet {} GPPut {}",
+                        c.chid,
+                        c.engine_type,
+                        if c.mirrored { "mirrored" } else { "software" },
+                        get.map_or("?".into(), |v| v.to_string()),
+                        put.map_or("?".into(), |v| v.to_string())
+                    ));
+                }
+            }
+            self.ctrl.display.notes.push(format!(
+                "channels: {} with GPGet behind GPPut (USERD 0x88/0x8C){}{}",
+                lines.len(),
+                if lines.is_empty() { "" } else { ": " },
+                lines.join("; ")
+            ));
+            return;
+        }
         // `dump [path]`: window 0's scanout as a PNG (display/dump.rs), no event; `dump auto`
         // and `dump off`: after new latches, at most one per 3 s (display/mod.rs).
         if let Some(rest) = cmd.trim().strip_prefix("dump") {

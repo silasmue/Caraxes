@@ -694,6 +694,8 @@ pub struct Window {
     pub acquire_waits: u64,
     /// Ticks a flip waited for its `SET_UPDATE_TIMESTAMP`.
     pub timestamp_waits: u64,
+    /// The tick the front flip's acquire first failed at (the trace names long waits).
+    pub acquire_since: Option<u64>,
 }
 
 /// The display engine's method and timing state.
@@ -1104,13 +1106,28 @@ impl Engine {
                 return false;
             }
         }
-        if let Some((m, want)) = f.acquire {
+        let (queued_ns, acquire) = (f.queued_ns, f.acquire);
+        if let Some((m, want)) = acquire {
             let have = m.read32(fb, mem);
             if have != Some(want) {
-                self.windows[w].acquire_waits += 1;
+                let win = &mut self.windows[w];
+                win.acquire_waits += 1;
+                let since = *win.acquire_since.get_or_insert(tick);
+                // Half a second, then every 2 s: the trace names a flip stuck on its acquire.
+                let waited = tick.saturating_sub(since);
+                if !force && (waited == 30 || (waited > 0 && waited % 120 == 0)) {
+                    let line = format!(
+                        "display: window {w}: flip queued {} ms ago waits {waited} ticks for its acquire semaphore {} == {want:#x}, reads {} [guest]",
+                        tick_ns.saturating_sub(queued_ns) / 1_000_000,
+                        m.describe(),
+                        have.map_or("nothing".into(), |v| format!("{v:#x}"))
+                    );
+                    self.note(line);
+                }
                 return false;
             }
         }
+        self.windows[w].acquire_since = None;
         let f = self.windows[w].pending.pop_front().unwrap();
         let stamp = ptimer_stamp(tick_ns).to_le_bytes();
         // What the guest left in the records before the device writes them (the trace of
