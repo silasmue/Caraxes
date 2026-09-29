@@ -8,11 +8,12 @@
 # the rungs R1 probe, R2 kernel channels, R3 NVK device, R4 clear+copy, R5 triangle, then
 # unbinds and powers off. Usage:
 #   openrender-boot.sh <record dir> [launcher environment as NAME=value ...]
-# The settings are production's (night-2026-09-28/desktop-b-night.sh) without the display,
-# the games disk and the fast paths that are shaped by the 615 kernel's layout of BAR1,
-# BAR2, the interrupt leaves and the doorbell (BAR1 pool, BAR2 memfd, interrupt page,
-# doorbell tokens and polling, MSI re-arm ioeventfd, lazy allocations); any of them can be
-# added back as NAME=value arguments. Compression per VM slice is required: nouveau keeps
+# The settings are production's without the display and the games disk: the device's
+# host-execution configuration (flags-2026-09-30: shadow VA spaces, GPA DMA, the interrupt
+# page, the hybrid doorbell reactor, the 32 MiB BAR1 pool). The open switches the gate adds
+# as NAME=value arguments: CARAXES_DOORBELL_TOKENS=64 CARAXES_BAR2_MEMFD=1
+# CARAXES_MSI_REARM_IOEVENTFD=1 (vm10-gate, 2026-09-29). Compression per VM slice is
+# required: nouveau keeps
 # only FB regions that report supportCompressed and supportISO (Linux 7.2.7
 # nvkm/subdev/gsp/rm/r535/gsp.c:191-199), and D16 reports none.
 # Keeps serial.log and gpu.log (ignored as *.log), the committed extracts guest.txt and
@@ -21,7 +22,8 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
 R=$(cd "$HERE/../../.." && pwd -P)
 out=${1:?usage: openrender-boot.sh <record dir> [NAME=value ...]}; shift
-# The production flags a caller's shell may export and this run leaves out (header).
+# The production flags a caller's shell may export and this run leaves out (header), and
+# variables the device no longer reads.
 unset CARAXES_GUEST_ABI CARAXES_DISPLAY CARAXES_DISPLAY_PAGE CARAXES_DISPLAY_PAGE_READONLY \
     CARAXES_INTR_PAGE CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB CARAXES_DOORBELL_TOKENS \
     CARAXES_DOORBELL_POLL CARAXES_BAR2_MEMFD CARAXES_MSI_REARM_IOEVENTFD CARAXES_ALLOC_LAZY \
@@ -41,13 +43,9 @@ export CARAXES_SERVER=${CARAXES_SERVER:-}
 [[ -x $CARAXES_SERVER ]] || { echo "ERROR: CARAXES_SERVER (the openrender device binary) missing: '$CARAXES_SERVER'" >&2; exit 2; }
 export CARAXES_BOOT_MODEL=${CARAXES_BOOT_MODEL:-1}
 export CARAXES_HOST_RM=${CARAXES_HOST_RM:-1} CARAXES_RESERVE_VRAM=${CARAXES_RESERVE_VRAM:-1} \
-    CARAXES_HOST_EXEC=${CARAXES_HOST_EXEC:-1} CARAXES_DMA=${CARAXES_DMA:-register} \
-    CARAXES_GUEST_DMA_GPA=${CARAXES_GUEST_DMA_GPA:-1}
-export CARAXES_MIRROR_CHANNELS=${CARAXES_MIRROR_CHANNELS:-1} CARAXES_MIRROR_GR_SHADOW=${CARAXES_MIRROR_GR_SHADOW:-1} \
-    CARAXES_CE_SHADOW=${CARAXES_CE_SHADOW:-1} CARAXES_MIRROR_BARE_CE=${CARAXES_MIRROR_BARE_CE:-1}
+    CARAXES_HOST_EXEC=${CARAXES_HOST_EXEC:-1} CARAXES_DMA=${CARAXES_DMA:-register}
 export CARAXES_COMPRESSION=${CARAXES_COMPRESSION:-slice}
-export CARAXES_BAR1_WINDOWS=${CARAXES_BAR1_WINDOWS:-2} CARAXES_BAR1_WINDOW_MIB=${CARAXES_BAR1_WINDOW_MIB:-16}
-export CARAXES_HOST_VRAM_FLOOR_MIB=${CARAXES_HOST_VRAM_FLOOR_MIB:-1024} CARAXES_HOST_BAR1_FLOOR_MIB=${CARAXES_HOST_BAR1_FLOOR_MIB:-64}
+export CARAXES_HOST_BAR1_FLOOR_MIB=${CARAXES_HOST_BAR1_FLOOR_MIB:-64}
 for f in "$CARAXES_KERNEL" "$CARAXES_VBIOS"; do
     [[ -f $f ]] || { echo "ERROR: $f missing" >&2; exit 2; }
 done

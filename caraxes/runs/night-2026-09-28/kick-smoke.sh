@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-# Night 2026-09-29: Linux B with CARAXES_DISPLAY_KICK_PAGE=1 (the default candidate): the smoke
-# suite, then a Moonlight stream on the host for ~45 s with three grim shots of its window and
+# Night 2026-09-29: Linux B with the display kick page (the default with the display page since
+# 4dde63e1, without a switch since 2026-09-30): the smoke suite, then a Moonlight stream on the host for ~45 s with three grim shots of its window and
 # their RMSE (the picture must change and must not be black). Usage: kick-smoke.sh OUT BINARY
 set -uo pipefail
 OUT=$1 BIN=$2; N=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
 W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh
 mkdir -p "$OUT"
-NIGHT_SERVER=$BIN CARAXES_DISPLAY_KICK_PAGE=1 timeout 400 "$W" up > "$OUT/up.txt" 2>&1 || { tail -3 "$OUT/up.txt"; exit 1; }
+NIGHT_SERVER=$BIN timeout 400 "$W" up > "$OUT/up.txt" 2>&1 || { tail -3 "$OUT/up.txt"; exit 1; }
 timeout 240 "$W" wait 200 >> "$OUT/up.txt" 2>&1
 sed '/=== vkmark/,$d' "$N/guest-smoke-graphics.sh" | timeout 900 "$W" ssh 'bash -s' 2>&1 | grep -v "unable to resolve" > "$OUT/smoke.txt"
 # keep the desktop busy for the stream: vkcube on X11 for 60 s
