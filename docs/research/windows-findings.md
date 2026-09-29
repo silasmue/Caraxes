@@ -1315,3 +1315,34 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     65.5 / min 31.1 / max 116.1. A desktop RTX 2070 scores about 12-13k natively.
 - Memory model: the BAR1 pool (32 MiB); compression off (the kind-0x9 leaves still refused,
   the device agent's D16 A/B is next).
+
+## Cloud Hypervisor, step 22: the full disk and the guest's repair (2026-09-29/30, C92-C99)
+
+- **Cause:** /mnt/vmstore (guest qcow2, traces, VM state) filled up during the user's session
+  (C92, 22:47-22:52). CH logged one failed virtio-blk write at 22:47:49
+  ("_disk0_q0 … Request failed: request_type: Out", 491,520 bytes from byte 78,885,019,648,
+  C: clusters 19203486-19203605).
+  - qemu-img check of that top layer: 6965 leaked clusters and one error, cluster 650549
+    referenced with refcount 0, not yet reused.
+  - The layer is frozen as win11-pre-repair-2026-09-29.qcow2 (0444) with a fresh overlay on
+    top.
+- **Symptom:** every boot after it had no user session (w1, C93, C95-C98): Ntfs 55, Volsnap 23,
+  and CoreMessagingRegistrar crashing at boot (7031, recovery action "restart the computer").
+- **Repair:**
+  - chkdsk /scan could not snapshot the volume; sfc could not run; Repair-Volume
+    -OfflineScanAndFix failed. They left the dirty bit set.
+  - Autochk at the next boot (C98) fixed the $I30 indexes of six directories. Some of their
+    index blocks held foreign data (an XML header, a path "…ository\", a Python 3.12 site-packages
+    entry). A hypothesis, not a finding: that data came from the ENOSPC write sequence itself.
+  - sfc /scannow then "found corrupt files and successfully repaired them" (C99), and the
+    session is back. No DISM, no fallback to the 27 Sep chain.
+- **Guards since:**
+  - run44 refuses a start below 30 GiB free.
+  - The trace stops below 10 GiB free (c1fe2c28).
+  - The kit prefers a raw image (win11.raw, image_type=raw, num_queues=4) once the chain is
+    flattened.
+- **Open (fix after the merge):** a guest reboot in early boot (C97, 38 s after the start:
+  CoreMessagingRegistrar's recovery restart) killed the VM. The device exits on the vfio-user
+  client's disconnect and removes its socket, and CH's reboot path then fails with "Failed to
+  create vfio-user client: No such file". Reboots from a running Windows worked (C93, C96).
+- Memory model: none.
