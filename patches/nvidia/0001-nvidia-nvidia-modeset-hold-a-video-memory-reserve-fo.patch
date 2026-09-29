@@ -1,4 +1,4 @@
-From c14f81c330d2e601a5d2a6bc020530d61febe3c6 Mon Sep 17 00:00:00 2001
+From b00029abd9930b601bef1dd50d0dcdf907147a34 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Silas=20M=C3=BCller?= <github@silasmueller.de>
 Date: Tue, 29 Sep 2026 09:47:47 +0200
 Subject: [PATCH] nvidia, nvidia-modeset: hold a video memory reserve for
@@ -11,63 +11,79 @@ A scanout surface is physically contiguous video memory with no fallback:
 nvidia-drm falls back to system memory only for NO_SCANOUT buffers.  A
 process that sizes its pools to the free video memory, such as a game
 sizing them to the Vulkan memory budget, can leave no room for the next
-surface.  The refused allocation leaves Xwayland or the compositor without
-a buffer and the display stops updating.
+scanout surface.  The refused allocation leaves the client that asked for
+it, such as Xwayland allocating through nvidia-drm, without a buffer, and
+the display stops updating.
 
-Let the display driver declare a reserve.  NVKMS knows the committed modes:
-after every successful modeset it computes, per active head, five XRGB8888
-surfaces of the head's ViewPortIn and four cursors of the maximum cursor
-size, and sends the sum and the largest surface size to RM with the new
-kernel-privileged control NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE.  It
-declares zero when it tears down its displays.  The nvidia-modeset
-parameter display_reserve_mib selects this (-1), a fixed size in MiB, or
-nothing (0, the default).
+Let the display driver declare a reserve.  NVKMS knows what it scans out:
+per active head it counts five scanout surfaces, each the larger of an
+XRGB8888 surface of the head's ViewPortIn and the largest surface bound to
+one of its layers, and four cursors of the maximum cursor size.  It sends
+the sum and the largest surface size to RM with the new kernel-privileged
+control NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE after every modeset,
+grows the reserve after a flip that binds a larger surface, and declares
+zero when it tears down its displays.  The nvidia-modeset parameter
+display_reserve_mib selects this (-1), a fixed size in MiB, or nothing (0,
+the default).
 
 RM holds the reserve as runs of PMA pages, one per surface with the page
 size RM gives such a surface, plus one run for the remainder.  The runs
 leave PMA's free count, so processes see less free video memory; they are
-not RM objects and are not charged to any cgroup.  When PMA refuses a
-scanout allocation of a kernel client (kernel privilege, ISO, physically
-contiguous, not NO_SCANOUT) in _vidmemPmaAllocate, runs that cover it are
-freed and the allocation is retried.  Allocations through the RM API hold
-the API lock for writing unless RmRoApiLock enables read-only allocations,
-so no other such allocation can take the freed pages first; UVM allocates
-from PMA directly and may, and then the next run is released.
+not RM objects and are not charged to any cgroup.
 
-A release schedules a refill one second later, and a refill that falls
-short retries on a backoff of one to thirty seconds.  A new declaration
-re-cuts the reserve by allocating the new runs before freeing the old ones.
-Refills run as a work item with the API lock and without the GPU lock, and
-only at full GPU power with PMA initialized and MIG disabled.  The runs are
-freed in memmgrStatePreUnload, before unload, suspend and GC6/RTD3 entry,
-and refilled from memmgrStatePostLoad.  They are never mapped or written,
-so they are freed without scrubbing.
+The reserve serves the scanout allocations of kernel clients (kernel
+privilege, ISO, physically contiguous, not NO_SCANOUT): NVKMS's own, and
+those nvidia-drm makes for its GEM objects, including dumb buffers, for any
+client of its render node.  A compositor's framebuffers allocated by a
+user-mode driver are not served.  When PMA refuses such an allocation in
+_vidmemPmaAllocate, the smallest held run that covers it is freed and the
+allocation is retried.  Allocations through the RM API hold the API lock
+for writing unless RmRoApiLock enables read-only allocations, so no other
+such allocation can take the freed pages first; UVM allocates from PMA
+directly and may, and then the next covering run is freed.  When such an
+allocation is freed while the reserve lacks a run of its exact shape,
+vidmemPmaFree hands its pages to the reserve instead of to PMA, so they
+never become free in between.
+
+A served allocation schedules a refill one second later, and a refill that
+falls short retries on a backoff of one to thirty seconds.  A new
+declaration re-cuts the reserve: held runs of a new run's shape move over,
+and the others stay as old runs, which still serve, until the new runs hold
+enough without them.  Refills run as a work item with the API lock and
+without the GPU lock, only at full GPU power with PMA initialized; with MIG
+enabled the reserve holds nothing.  The runs stay held over suspend and
+GC6/RTD3 and are freed at unload, before the scrubber is destroyed.  Runs
+the reserve allocated are never mapped or written and are freed without
+scrubbing; runs taken back from a freed allocation are scrubbed when they
+are freed, as the original free would have scrubbed them.
 
 Signed-off-by: Silas Müller <github@silasmueller.de>
 ---
- .../nvidia-modeset/nvidia-modeset-linux.c     |  10 +
- .../nvidia-modeset-os-interface.h             |   1 +
- .../nvidia/inc/ctrl/ctrl0073/ctrl0073system.h |  41 ++
- src/nvidia-modeset/include/nvkms-rm.h         |   1 +
- src/nvidia-modeset/include/nvkms-types.h      |   6 +
- .../include/nvidia-modeset-os-interface.h     |   1 +
- src/nvidia-modeset/src/nvkms-modeset.c        |   2 +
- src/nvidia-modeset/src/nvkms-rm.c             | 115 +++
- src/nvidia/generated/g_disp_objs_nvoc.c       | 263 +++----
- src/nvidia/generated/g_disp_objs_nvoc.h       |  12 +
- src/nvidia/generated/g_mem_mgr_nvoc.h         |   1 +
- .../inc/kernel/gpu/mem_mgr/display_reserve.h  |  47 ++
- .../gpu/disp/disp_common_kern_ctrl_minimal.c  |  31 +
- .../src/kernel/gpu/mem_mgr/display_reserve.c  | 679 ++++++++++++++++++
- src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c   |  12 +
- src/nvidia/src/kernel/mem_mgr/video_mem.c     |  13 +
- src/nvidia/srcs.mk                            |   1 +
- 17 files changed, 1115 insertions(+), 121 deletions(-)
+ .../nvidia-modeset/nvidia-modeset-linux.c     |   17 +
+ .../nvidia-modeset-os-interface.h             |    1 +
+ .../nvidia/inc/ctrl/ctrl0073/ctrl0073system.h |   43 +
+ src/nvidia-modeset/include/nvkms-rm.h         |    1 +
+ src/nvidia-modeset/include/nvkms-types.h      |    6 +
+ .../include/nvidia-modeset-os-interface.h     |    1 +
+ src/nvidia-modeset/src/nvkms-flip.c           |    2 +
+ src/nvidia-modeset/src/nvkms-modeset.c        |    2 +
+ src/nvidia-modeset/src/nvkms-rm.c             |  161 +++
+ src/nvidia/generated/g_disp_objs_nvoc.c       |  263 ++--
+ src/nvidia/generated/g_disp_objs_nvoc.h       |   12 +
+ src/nvidia/generated/g_mem_mgr_nvoc.h         |    1 +
+ .../inc/kernel/gpu/mem_mgr/display_reserve.h  |   55 +
+ src/nvidia/inc/kernel/gpu/mem_mgr/heap_base.h |    2 +
+ .../gpu/disp/disp_common_kern_ctrl_minimal.c  |   31 +
+ .../src/kernel/gpu/mem_mgr/display_reserve.c  | 1072 +++++++++++++++++
+ src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c   |   16 +
+ src/nvidia/src/kernel/mem_mgr/video_mem.c     |   24 +
+ src/nvidia/srcs.mk                            |    1 +
+ 19 files changed, 1590 insertions(+), 121 deletions(-)
  create mode 100644 src/nvidia/inc/kernel/gpu/mem_mgr/display_reserve.h
  create mode 100644 src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c
 
 diff --git a/kernel-open/nvidia-modeset/nvidia-modeset-linux.c b/kernel-open/nvidia-modeset/nvidia-modeset-linux.c
-index 62986c4..d348071 100644
+index 62986c4..95d709a 100644
 --- a/kernel-open/nvidia-modeset/nvidia-modeset-linux.c
 +++ b/kernel-open/nvidia-modeset/nvidia-modeset-linux.c
 @@ -104,6 +104,11 @@ module_param_named(debug_force_color_space, debug_force_color_space, uint, 0444)
@@ -75,7 +91,7 @@ index 62986c4..d348071 100644
  module_param_named(enable_overlay_layers, enable_overlay_layers, bool, 0444);
  
 +MODULE_PARM_DESC(display_reserve_mib,
-+                 "Video memory RM holds in reserve for scanout surfaces (0 = none, -1 = five surfaces and four cursors per active head, N = N MiB)");
++                 "Video memory RM holds in reserve for scanout surfaces (0 = none, -1 = five of each active head's largest scanout surface and four cursors, N = N MiB)");
 +static int display_reserve_mib = 0;
 +module_param_named(display_reserve_mib, display_reserve_mib, int, 0444);
 +
@@ -94,6 +110,20 @@ index 62986c4..d348071 100644
  NvBool nvkms_debug_logging(void)
  {
      return debug != 0;
+@@ -2155,6 +2165,13 @@ static int __init nvkms_init(void)
+ 
+     atomic_set(&nvkms_alloc_called_count, 0);
+ 
++    if (display_reserve_mib < -1) {
++        printk(KERN_WARNING NVKMS_LOG_PREFIX
++               "Invalid display_reserve_mib %d: no display memory reserve\n",
++               display_reserve_mib);
++        display_reserve_mib = 0;
++    }
++
+ #if defined(NVKMS_NVHOST_SYNCPT_SUPPORTED)
+     /*
+      * nvhost_get_default_device() might return NULL; don't check it
 diff --git a/kernel-open/nvidia-modeset/nvidia-modeset-os-interface.h b/kernel-open/nvidia-modeset/nvidia-modeset-os-interface.h
 index dc33314..771510f 100644
 --- a/kernel-open/nvidia-modeset/nvidia-modeset-os-interface.h
@@ -107,10 +137,10 @@ index dc33314..771510f 100644
  void nvkms_extcon_report_hdmi(NvBool state);
  void nvkms_extcon_report_hdmi_audio(NvBool state);
 diff --git a/src/common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h b/src/common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h
-index 2573f54..2b219b0 100644
+index 2573f54..3ab951e 100644
 --- a/src/common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h
 +++ b/src/common/sdk/nvidia/inc/ctrl/ctrl0073/ctrl0073system.h
-@@ -2710,5 +2710,46 @@ typedef struct NV0073_CTRL_SYSTEM_QUERY_UEFI_DISPLAY_BANDWIDTH_PARAMS {
+@@ -2710,5 +2710,48 @@ typedef struct NV0073_CTRL_SYSTEM_QUERY_UEFI_DISPLAY_BANDWIDTH_PARAMS {
      NvU32 floorBandwidthKBPS;
  } NV0073_CTRL_SYSTEM_QUERY_UEFI_DISPLAY_BANDWIDTH_PARAMS;
  
@@ -121,23 +151,25 @@ index 2573f54..2b219b0 100644
 + * scanout surfaces of the display.  A scanout surface is physically
 + * contiguous video memory with no fallback, so an allocation for it that
 + * fails because processes took all free video memory leaves the display
-+ * without a surface.  RM holds the reserve as free video memory taken out of
-+ * its allocator, and gives it back to a kernel client's scanout allocation
-+ * that fails for lack of video memory.  The reserve is cut into pieces of
-+ * surfaceSize, so each piece given back has the shape such an allocation
-+ * needs.  A new declaration replaces the previous one; RM re-cuts the reserve
-+ * and refills it in the background.  This command is only allowed for kernel
-+ * clients.
++ * without a surface.  RM holds the reserve as video memory taken out of its
++ * allocator in pieces of surfaceSize, so each piece has the shape such an
++ * allocation needs.  When a kernel client's scanout allocation fails for
++ * lack of video memory, RM gives it a piece; when such an allocation is
++ * freed while the reserve lacks a piece of its shape, RM takes its memory
++ * back into the reserve.  A new declaration replaces the previous one; RM
++ * re-cuts the reserve and refills it in the background.  This command is
++ * only allowed for kernel clients.
 + *
 + *   subDeviceInstance
 + *     This parameter specifies the subdevice instance within the
 + *     NV04_DISPLAY_COMMON parent device to which the operation should be
 + *     directed.
 + *   reserveSize
-+ *     The size of the reserve in bytes.  0 releases the reserve.
++ *     The size of the reserve in bytes.  0 releases the reserve and is
++ *     always accepted.  Otherwise it must be at least surfaceSize and at
++ *     most the size of the video memory.
 + *   surfaceSize
-+ *     The size in bytes of the largest scanout surface of the display.  It
-+ *     must not be 0 when reserveSize is not 0.
++ *     The size in bytes of the largest scanout surface of the display.
 + *
 + * Possible status values returned are:
 + *   NV_OK
@@ -158,26 +190,26 @@ index 2573f54..2b219b0 100644
  /* _ctrl0073system_h_ */
  
 diff --git a/src/nvidia-modeset/include/nvkms-rm.h b/src/nvidia-modeset/include/nvkms-rm.h
-index 0385bf3..5e9cfe5 100644
+index 0385bf3..2ced3c0 100644
 --- a/src/nvidia-modeset/include/nvkms-rm.h
 +++ b/src/nvidia-modeset/include/nvkms-rm.h
 @@ -118,6 +118,7 @@ void nvRmFreeEvoDma(NVDevEvoPtr pDevEvo, NVEvoDmaPtr pDma);
  NvBool nvRmQueryDpAuxLog(NVDispEvoRec *pDispEvo, NvS64 *pValue);
  NvU64 nvRmGetGpuTime(NVDevEvoPtr pDevEvo);
  NvBool nvRmSetGc6Allowed(NVDevEvoPtr pDevEvo, NvBool allowed);
-+void nvRmUpdateDisplayReserve(NVDevEvoPtr pDevEvo);
++void nvRmUpdateDisplayReserve(NVDevEvoPtr pDevEvo, NvBool growOnly);
  NVRgLine1CallbackPtr
  nvRmAddRgLine1Callback(NVDispEvoRec *pDispEvo,
                         NvU32 head,
 diff --git a/src/nvidia-modeset/include/nvkms-types.h b/src/nvidia-modeset/include/nvkms-types.h
-index f0e917d..2dbbb46 100644
+index f0e917d..52c758c 100644
 --- a/src/nvidia-modeset/include/nvkms-types.h
 +++ b/src/nvidia-modeset/include/nvkms-types.h
 @@ -2082,6 +2082,12 @@ typedef struct _NVDispEvoRec {
      NvU32             isoBandwidthKBPS;
      NvU32             dramFloorKBPS;
  
-+    /* The video memory reserve last declared to RM for scanout surfaces. */
++    /* The video memory reserve for scanout surfaces last requested from RM. */
 +    struct {
 +        NvU64 reserveSize;
 +        NvU64 surfaceSize;
@@ -198,24 +230,45 @@ index dc33314..771510f 100644
  NvBool nvkms_debug_logging(void);
  void nvkms_extcon_report_hdmi(NvBool state);
  void nvkms_extcon_report_hdmi_audio(NvBool state);
+diff --git a/src/nvidia-modeset/src/nvkms-flip.c b/src/nvidia-modeset/src/nvkms-flip.c
+index 4f1a7a7..e6f3a96 100644
+--- a/src/nvidia-modeset/src/nvkms-flip.c
++++ b/src/nvidia-modeset/src/nvkms-flip.c
+@@ -735,6 +735,8 @@ NvBool nvFlipEvo(NVDevEvoPtr pDevEvo,
+ 
+     nvPostFlip(pDevEvo, pWorkArea, skipUpdate, applyAllowVrrApiHeadMask);
+ 
++    nvRmUpdateDisplayReserve(pDevEvo, TRUE);
++
+     replyApplyVrr = (applyAllowVrrApiHeadMask != 0);
+ 
+     FillNvKmsFlipReply(pDevEvo, pWorkArea, replyApplyVrr, pFlipHead,
 diff --git a/src/nvidia-modeset/src/nvkms-modeset.c b/src/nvidia-modeset/src/nvkms-modeset.c
-index f51f97b..ebc60cb 100644
+index f51f97b..c7316da 100644
 --- a/src/nvidia-modeset/src/nvkms-modeset.c
 +++ b/src/nvidia-modeset/src/nvkms-modeset.c
 @@ -4361,6 +4361,8 @@ NvBool nvSetDispModeEvo(NVDevEvoPtr pDevEvo,
          }
      }
  
-+    nvRmUpdateDisplayReserve(pDevEvo);
++    nvRmUpdateDisplayReserve(pDevEvo, FALSE);
 +
      committed = TRUE;
  
      /* fall through */
 diff --git a/src/nvidia-modeset/src/nvkms-rm.c b/src/nvidia-modeset/src/nvkms-rm.c
-index 7ad713b..cef2ad2 100644
+index 7ad713b..49fc049 100644
 --- a/src/nvidia-modeset/src/nvkms-rm.c
 +++ b/src/nvidia-modeset/src/nvkms-rm.c
-@@ -104,6 +104,9 @@
+@@ -38,6 +38,7 @@
+ #include "nvkms-private.h"
+ #include "nvkms-modeset.h"
+ #include "nvkms-surface.h"
++#include "nvkms-flip.h"
+ #include "nvkms-vrr.h"
+ 
+ #include "nvkms-push.h"
+@@ -104,6 +105,9 @@
  static NvU32 GetLegacyConnectorType(NVDispEvoPtr pDispEvo, NVDpyId dpyId);
  
  static void RmFreeEvoChannel(NVDevEvoPtr pDevEvo, NVEvoChannelPtr pChannel);
@@ -225,7 +278,7 @@ index 7ad713b..cef2ad2 100644
  
  static NvBool EngineListCheckOneSubdevice(const NVEvoSubDeviceRec *pSubDevice,
                                            NvU32 engineType)
-@@ -2200,6 +2203,10 @@ void nvRmDestroyDisplays(NVDevEvoPtr pDevEvo)
+@@ -2200,6 +2204,10 @@ void nvRmDestroyDisplays(NVDevEvoPtr pDevEvo)
  
      FOR_ALL_EVO_DISPLAYS(pDispEvo, dispIndex, pDevEvo) {
          const NvU32 subDevice = pDevEvo->pSubDevices[pDispEvo->displayOwner]->handle;
@@ -236,15 +289,17 @@ index 7ad713b..cef2ad2 100644
          // Before freeing anything, dump anything left in the RM's DisplayPort
          // AUX channel log.
          if (pDispEvo->dpAuxLoggingEnabled) {
-@@ -5143,6 +5150,114 @@ NvBool nvRmSetGc6Allowed(NVDevEvoPtr pDevEvo, NvBool allowed)
- 
+@@ -5144,6 +5152,159 @@ NvBool nvRmSetGc6Allowed(NVDevEvoPtr pDevEvo, NvBool allowed)
      return TRUE;
  }
+ 
 +/*
 + * Tell RM how much video memory to hold in reserve for the scanout surfaces
 + * of pDispEvo (NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE), when that changed
-+ * since the last declaration.  RM gives the reserve back to a scanout
-+ * allocation of NVKMS that fails for lack of video memory.
++ * since the last request.  RM gives the reserve to a kernel client's scanout
++ * allocation that fails for lack of video memory, and takes such an
++ * allocation back into the reserve when it is freed.  If RM refuses the
++ * request, the reserve is released, and the same request is not repeated.
 + */
 +static void SetDisplayReserve(NVDispEvoPtr pDispEvo,
 +                              NvU64 reserveSize,
@@ -260,6 +315,9 @@ index 7ad713b..cef2ad2 100644
 +        return;
 +    }
 +
++    pDispEvo->displayReserve.reserveSize = reserveSize;
++    pDispEvo->displayReserve.surfaceSize = surfaceSize;
++
 +    params.subDeviceInstance = pDispEvo->displayOwner;
 +    params.reserveSize = reserveSize;
 +    params.surfaceSize = surfaceSize;
@@ -272,11 +330,15 @@ index 7ad713b..cef2ad2 100644
 +        nvEvoLogDisp(pDispEvo, EVO_LOG_WARN,
 +                     "Failed to set the display memory reserve to %llu KiB (0x%x)",
 +                     reserveSize >> 10, ret);
-+        return;
-+    }
 +
-+    pDispEvo->displayReserve.reserveSize = reserveSize;
-+    pDispEvo->displayReserve.surfaceSize = surfaceSize;
++        /* RM accepts a request of 0 whenever it takes the control. */
++        nvkms_memset(&params, 0, sizeof(params));
++        params.subDeviceInstance = pDispEvo->displayOwner;
++        nvRmApiControl(nvEvoGlobal.clientHandle,
++                       pDevEvo->displayCommonHandle,
++                       NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE,
++                       &params, sizeof(params));
++    }
 +}
 +
 +/*
@@ -293,16 +355,52 @@ index 7ad713b..cef2ad2 100644
 +}
 +
 +/*
-+ * Declare the video memory reserve for the scanout surfaces of the committed
-+ * configuration, as the display_reserve_mib module parameter asks: per
-+ * active head five surfaces of its ViewPortIn and four cursors of the
-+ * maximum cursor size, or a fixed size while any head is active.  The five
-+ * surfaces cover the largest peak of display allocations above an idle
-+ * desktop measured with GNOME 46 on one head (4.67 surfaces), and a
-+ * compositor may hold four cursor images.  Called after every successful
-+ * modeset.
++ * The size of the largest RM memory object bound to a layer of apiHead.
 + */
-+void nvRmUpdateDisplayReserve(NVDevEvoPtr pDevEvo)
++static NvU64 BoundSurfaceSize(const NVDispEvoRec *pDispEvo, NvU32 apiHead)
++{
++    const NVDevEvoRec *pDevEvo = pDispEvo->pDevEvo;
++    NvU64 size = 0;
++    NvU32 layer;
++
++    for (layer = 0; layer < pDevEvo->apiHead[apiHead].numLayers; layer++) {
++        NVSurfaceEvoPtr pSurfaceEvos[NVKMS_MAX_EYES];
++        NvU8 eye;
++
++        nvApiHeadGetLayerSurfaceArray(pDispEvo, apiHead, layer, pSurfaceEvos);
++
++        FOR_ALL_EYES(eye) {
++            const NVSurfaceEvoRec *pSurfaceEvo = pSurfaceEvos[eye];
++            NvU8 plane;
++
++            if (pSurfaceEvo == NULL) {
++                continue;
++            }
++
++            FOR_ALL_VALID_PLANES(plane, pSurfaceEvo) {
++                size = NV_MAX(size, pSurfaceEvo->planes[plane].rmObjectSizeInBytes);
++            }
++        }
++    }
++
++    return size;
++}
++
++/*
++ * Request the video memory reserve for the scanout surfaces of the committed
++ * configuration, as the display_reserve_mib module parameter asks: per
++ * active head five scanout surfaces and four cursors of the maximum cursor
++ * size, or a fixed size while any head is active.  A head's scanout surface
++ * is the larger of an XRGB8888 surface of its ViewPortIn and the largest
++ * surface bound to one of its layers.  The five surfaces cover the largest
++ * peak of display allocations above an idle desktop measured with GNOME 46
++ * on one head (4.67 surfaces), and a compositor may hold four cursor images.
++ *
++ * Called after every successful modeset, and with growOnly after every
++ * flip: a flip that binds a larger surface grows the reserve, which shrinks
++ * again only at the next modeset.
++ */
++void nvRmUpdateDisplayReserve(NVDevEvoPtr pDevEvo, NvBool growOnly)
 +{
 +    const NvS32 reserveMib = nvkms_display_reserve_mib();
 +    const NvU64 cursorSize = (NvU64)pDevEvo->cursorHal->caps.maxSize *
@@ -311,13 +409,6 @@ index 7ad713b..cef2ad2 100644
 +    NvU32 dispIndex;
 +
 +    if (reserveMib == 0) {
-+        return;
-+    }
-+
-+    if (reserveMib < -1) {
-+        nvEvoLogDev(pDevEvo, EVO_LOG_WARN,
-+                    "Invalid display_reserve_mib %d: no display memory reserve",
-+                    reserveMib);
 +        return;
 +    }
 +
@@ -335,7 +426,8 @@ index 7ad713b..cef2ad2 100644
 +            }
 +
 +            pViewPort = &pDispEvo->apiHeadState[apiHead].timings.viewPort;
-+            size = ScanoutSurfaceSize(pViewPort->in.width, pViewPort->in.height);
++            size = NV_MAX(ScanoutSurfaceSize(pViewPort->in.width, pViewPort->in.height),
++                          BoundSurfaceSize(pDispEvo, apiHead));
 +
 +            surfaceSize = NV_MAX(surfaceSize, size);
 +            reserveSize += 5 * size + 4 * cursorSize;
@@ -345,12 +437,18 @@ index 7ad713b..cef2ad2 100644
 +            reserveSize = (NvU64)reserveMib << 20;
 +        }
 +
++        if (growOnly) {
++            reserveSize = NV_MAX(reserveSize, pDispEvo->displayReserve.reserveSize);
++            surfaceSize = NV_MAX(surfaceSize, pDispEvo->displayReserve.surfaceSize);
++        }
++
 +        SetDisplayReserve(pDispEvo, reserveSize, surfaceSize);
 +    }
 +}
- 
++
  typedef struct _NVRmRgLine1CallbackRec {
      NVRgLine1CallbackRec base;
+     struct nvkms_ref_ptr *ref_ptr;
 diff --git a/src/nvidia/generated/g_disp_objs_nvoc.c b/src/nvidia/generated/g_disp_objs_nvoc.c
 index 620693e..41f1826 100644
 --- a/src/nvidia/generated/g_disp_objs_nvoc.c
@@ -1523,10 +1621,10 @@ index 8000641..9676b1e 100644
  
 diff --git a/src/nvidia/inc/kernel/gpu/mem_mgr/display_reserve.h b/src/nvidia/inc/kernel/gpu/mem_mgr/display_reserve.h
 new file mode 100644
-index 0000000..0f4b064
+index 0000000..5d3d7de
 --- /dev/null
 +++ b/src/nvidia/inc/kernel/gpu/mem_mgr/display_reserve.h
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,55 @@
 +/*
 + * SPDX-FileCopyrightText: Copyright (c) 2026 Silas Müller <github@silasmueller.de>
 + * SPDX-License-Identifier: MIT
@@ -1554,8 +1652,10 @@ index 0000000..0f4b064
 +
 +#include "core/core.h"
 +#include "nvos.h"
++#include "gpu/mem_mgr/phys_mem_allocator/phys_mem_allocator.h"
 +
 +struct MemoryManager;
++struct PMA_ALLOC_INFO;
 +
 +//
 +// Video memory held in reserve for the display's scanout surfaces, as the
@@ -1566,14 +1666,33 @@ index 0000000..0f4b064
 +NV_STATUS displayReserveInit(OBJGPU *pGpu, struct MemoryManager *pMemoryManager);
 +void      displayReserveDestroy(OBJGPU *pGpu, struct MemoryManager *pMemoryManager);
 +void      displayReserveStart(OBJGPU *pGpu, struct MemoryManager *pMemoryManager);
-+void      displayReserveStop(OBJGPU *pGpu, struct MemoryManager *pMemoryManager);
++void      displayReserveStop(OBJGPU *pGpu, struct MemoryManager *pMemoryManager, NvBool bFree);
 +
 +NV_STATUS displayReserveSetNeed(OBJGPU *pGpu, struct MemoryManager *pMemoryManager,
 +                                NvU64 reserveSize, NvU64 surfaceSize);
-+NvBool    displayReserveRelease(OBJGPU *pGpu, struct MemoryManager *pMemoryManager,
-+                                const NV_MEMORY_ALLOCATION_PARAMS *pAllocData, NvU64 size);
++
++NvBool    displayReserveIsScanoutAllocation(const NV_MEMORY_ALLOCATION_PARAMS *pAllocData);
++NV_STATUS displayReserveServe(OBJGPU *pGpu, struct MemoryManager *pMemoryManager,
++                              const NV_MEMORY_ALLOCATION_PARAMS *pAllocData, PMA *pPma,
++                              NvU64 pageCount, NvU64 pageSize,
++                              PMA_ALLOCATION_OPTIONS *pAllocOptions, NvU64 *pPages);
++NvBool    displayReserveTake(OBJGPU *pGpu, struct MemoryManager *pMemoryManager, PMA *pPma,
++                             const struct PMA_ALLOC_INFO *pPmaAllocInfo);
 +
 +#endif // DISPLAY_RESERVE_H
+diff --git a/src/nvidia/inc/kernel/gpu/mem_mgr/heap_base.h b/src/nvidia/inc/kernel/gpu/mem_mgr/heap_base.h
+index c17ca47..bd0c7b0 100644
+--- a/src/nvidia/inc/kernel/gpu/mem_mgr/heap_base.h
++++ b/src/nvidia/inc/kernel/gpu/mem_mgr/heap_base.h
+@@ -125,6 +125,8 @@ typedef struct PMA_ALLOC_INFO
+     NvU32  refCount;
+     NvU64  allocSize;
+     NvU32  flags;
++    // A kernel client's scanout allocation (displayReserveIsScanoutAllocation).
++    NvBool bScanout;
+     //
+     // If bContig is TRUE, this array consists of one element.
+     // If bContig is FALSE, this array is actually larger and
 diff --git a/src/nvidia/src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c b/src/nvidia/src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c
 index 7242baa..ffa6191 100644
 --- a/src/nvidia/src/kernel/gpu/disp/disp_common_kern_ctrl_minimal.c
@@ -1625,10 +1744,10 @@ index 7242baa..ffa6191 100644
   */
 diff --git a/src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c b/src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c
 new file mode 100644
-index 0000000..0878762
+index 0000000..f1a4324
 --- /dev/null
 +++ b/src/nvidia/src/kernel/gpu/mem_mgr/display_reserve.c
-@@ -0,0 +1,679 @@
+@@ -0,0 +1,1072 @@
 +/*
 + * SPDX-FileCopyrightText: Copyright (c) 2026 Silas Müller <github@silasmueller.de>
 + * SPDX-License-Identifier: MIT
@@ -1652,6 +1771,7 @@ index 0000000..0878762
 + * DEALINGS IN THE SOFTWARE.
 + */
 +
++
 +//
 +// Display reserve.
 +//
@@ -1662,44 +1782,59 @@ index 0000000..0878762
 +//
 +// The display driver declares how much video memory to hold in reserve for
 +// its scanout surfaces, and the size of its largest surface, with
-+// NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE; NVKMS derives both from the
-+// committed modes of its heads.  RM holds the reserve as runs of PMA pages:
-+// each full run covers one surface with the page size RM gives such a
-+// surface, and one rest run holds the remainder.  The runs leave PMA's free
-+// count, so the reserve counts as used video memory.
++// NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE.  RM holds the reserve as runs
++// of PMA pages: each full run covers one surface with the page size RM gives
++// such a surface, and one rest run holds the remainder.  The runs leave
++// PMA's free count, so the reserve counts as used video memory.
 +//
-+// When PMA refuses a scanout allocation of a kernel client (kernel privilege,
-+// ISO, physically contiguous, not NO_SCANOUT) for lack of memory,
-+// _vidmemPmaAllocate calls displayReserveRelease() to free runs that cover
-+// it and retries.  Allocations through the RM API hold the API lock for
-+// writing unless RmRoApiLock enables read-only allocations, so no other such
-+// allocation takes the freed pages before the retry; UVM allocates from PMA
-+// directly and may, and then the next run is released.
++// Serve.  When PMA refuses a scanout allocation of a kernel client
++// (displayReserveIsScanoutAllocation()) for lack of memory,
++// _vidmemPmaAllocate() calls displayReserveServe().  It frees the smallest
++// held run that covers the allocation and retries.  Allocations through the
++// RM API hold the API lock for writing unless RmRoApiLock enables read-only
++// allocations, so no other such allocation takes the freed pages before the
++// retry; UVM allocates from PMA directly and may, and then the next covering
++// run is freed.  An allocation that no single run covers is not served.
 +//
-+// A release schedules a refill one second later.  A refill that cannot fill
-+// the reserve retries on a backoff of one second, doubling up to thirty.  A
-+// new declaration re-cuts the reserve: the refill allocates the new runs
-+// before it frees the old ones.
++// Take back.  When such a scanout allocation is freed while the reserve
++// lacks a run of exactly its shape (page size and page count),
++// vidmemPmaFree() hands its pages to the reserve instead of to PMA.  The
++// pages never become free in between, so no other allocation can take them.
 +//
-+// Runs are never mapped or written.  PMA hands out zeroed pages when it
-+// scrubs on free, so the runs are freed with PMA_FREE_SKIP_SCRUB; this also
-+// keeps the scrubber, which is destroyed before memmgrStatePreUnload at
-+// unload, out of the free.
++// Refill.  A served allocation schedules a refill one second later.  The
++// refill allocates the runs not held; one that falls short retries on a
++// backoff of one second, doubling up to thirty.
 +//
-+// Locking: pMutex guards the fields below it in DisplayReserve and is never
++// Re-cut.  A new declaration cuts new runs.  Held runs with the page size
++// and page count of a new run move over.  The others become old runs, which
++// serve like runs and are freed once the new runs hold enough without them.
++//
++// Scrubbing.  PMA scrubs pages when they are freed and reports allocations
++// as zeroed (PMA_ALLOCATE_RESULT_IS_ZERO).  A run the reserve allocated is
++// never mapped or written, so it is freed with PMA_FREE_SKIP_SCRUB.  A run
++// taken back holds the freed surface's contents and is freed without that
++// flag, so PMA scrubs it as it would have at the original free.
++//
++// Lifecycle.  displayReserveStart() runs from memmgrStatePostLoad().
++// displayReserveStop() runs from memmgrStatePreUnload(), which keeps the
++// runs over suspend and GC6/RTD3 and frees them at unload, and from
++// memmgrDestroyInternalChannels(), which frees them at unload before the
++// scrubber is destroyed.
++//
++// Locking.  pMutex guards the fields below it in DisplayReserve and is never
 +// held across a PMA call.  The refill runs as a work item with the API lock
-+// held for writing and without the GPU lock, as PMA must not be entered
-+// under the GPU lock.  displayReserveStop() runs with the GPU lock, possibly
-+// without the API lock (GC6/RTD3 entry), and clears bStarted; the refill
-+// checks bStarted after each PMA allocation and frees what it got once it is
-+// clear.
++// held for writing and without the GPU lock, as PMA must not be entered for
++// an allocation under the GPU lock; refills therefore never run
++// concurrently, and only the refill re-cuts.  displayReserveStop() may run
++// without the API lock (GC6/RTD3 entry): it advances the generation, and the
++// refill commits nothing and frees what it allocated once the generation
++// changed.
 +//
 +
 +#include "gpu/mem_mgr/display_reserve.h"
 +#include "gpu/gpu.h"
 +#include "gpu/mem_mgr/mem_mgr.h"
 +#include "gpu/mem_mgr/heap.h"
-+#include "gpu/mem_mgr/phys_mem_allocator/phys_mem_allocator.h"
 +#include "gpu/timer/objtmr.h"
 +#include "kernel/gpu/mig_mgr/kernel_mig_manager.h"
 +#include "core/locks.h"
@@ -1713,12 +1848,25 @@ index 0000000..0878762
 +#define DISPLAY_RESERVE_REFILL_NS           (1ULL * 1000 * 1000 * 1000)
 +#define DISPLAY_RESERVE_BACKOFF_MAX_NS      (30ULL * 1000 * 1000 * 1000)
 +
++//
++// The PMA allocation flags of pages the reserve takes back: pinned,
++// contiguous pages of the default regions that PMA scrubs when they are
++// freed, as the reserve's own runs.
++//
++#define DISPLAY_RESERVE_TAKE_FLAGS          (PMA_ALLOCATE_PINNED |                \
++                                             PMA_ALLOCATE_CONTIGUOUS |            \
++                                             PMA_ALLOCATE_FORCE_ALIGNMENT |       \
++                                             PMA_ALLOCATE_SPECIFY_ADDRESS_RANGE | \
++                                             PMA_ALLOCATE_REVERSE_ALLOC)
++
 +typedef struct
 +{
-+    NvU64 size;         // bytes the run covers
-+    NvU64 pageSize;
-+    NvU64 pageCount;
-+    NvU64 base;         // physical address of the first page; 0 while not held
++    NvU64  size;        // bytes of surface the run covers
++    NvU64  pageSize;
++    NvU64  pageCount;
++    NvU64  base;        // physical address of the first page, while held
++    NvBool bHeld;
++    NvBool bTaken;      // taken back from a freed allocation: scrub when freed
 +} DisplayReserveRun;
 +
 +struct DisplayReserve
@@ -1730,16 +1878,22 @@ index 0000000..0878762
 +    NvU64               reserveSize;
 +    NvU64               surfaceSize;
 +
-+    // The runs, cut for cutReserveSize and cutSurfaceSize.  The last one is
-+    // the rest run when its size is below the others'.
++    // The runs, cut for cutReserveSize and cutSurfaceSize: the full runs,
++    // then the rest run if there is a remainder.
 +    NvU64               cutReserveSize;
 +    NvU64               cutSurfaceSize;
++    DisplayReserveRun  *pRuns;
 +    NvU32               numRuns;
-+    DisplayReserveRun   runs[DISPLAY_RESERVE_MAX_RUNS + 1];
 +    NvU64               heldBytes;      // PMA bytes of the runs held
 +    NvU64               targetBytes;    // PMA bytes of all runs
 +
++    // Held runs of earlier cuts.
++    DisplayReserveRun  *pOldRuns;
++    NvU32               numOldRuns;
++    NvU64               oldBytes;       // PMA bytes of the old runs
++
 +    NvU64               backoffNs;
++    NvU32               generation;     // advanced by displayReserveStop()
 +    NvBool              bStarted;
 +};
 +
@@ -1778,8 +1932,9 @@ index 0000000..0878762
 +
 +//
 +// Cut runs for a reserve of reserveSize bytes and surfaces of surfaceSize
-+// bytes: full runs of one surface each, or of more when that would take more
-+// than DISPLAY_RESERVE_MAX_RUNS of them, and one rest run for the remainder.
++// bytes into pRuns (DISPLAY_RESERVE_MAX_RUNS + 1 entries): full runs of one
++// surface each, or of more when that would take more than
++// DISPLAY_RESERVE_MAX_RUNS of them, and one rest run for the remainder.
 +// Returns the number of runs.
 +//
 +static NvU32
@@ -1810,10 +1965,10 @@ index 0000000..0878762
 +    {
 +        NvU64 size = (i < numFull) ? runSize : restSize;
 +
++        portMemSet(&pRuns[numRuns], 0, sizeof(pRuns[numRuns]));
 +        pRuns[numRuns].size      = size;
 +        pRuns[numRuns].pageSize  = _displayReserveRunPageSize(pMemoryManager, size);
 +        pRuns[numRuns].pageCount = NV_DIV_AND_CEIL(size, pRuns[numRuns].pageSize);
-+        pRuns[numRuns].base      = 0;
 +        numRuns++;
 +    }
 +
@@ -1830,32 +1985,128 @@ index 0000000..0878762
 +_displayReserveAllocRun(PMA *pPma, DisplayReserveRun *pRun)
 +{
 +    PMA_ALLOCATION_OPTIONS allocOptions = {0};
++    NV_STATUS              status;
 +
 +    allocOptions.flags     = PMA_ALLOCATE_PINNED |
 +                             PMA_ALLOCATE_CONTIGUOUS |
 +                             PMA_ALLOCATE_FORCE_ALIGNMENT;
 +    allocOptions.alignment = pRun->pageSize;
 +
-+    return pmaAllocatePages(pPma, pRun->pageCount, pRun->pageSize, &allocOptions, &pRun->base);
++    status = pmaAllocatePages(pPma, pRun->pageCount, pRun->pageSize, &allocOptions, &pRun->base);
++    pRun->bHeld  = (status == NV_OK);
++    pRun->bTaken = NV_FALSE;
++
++    return status;
 +}
 +
 +static void
 +_displayReserveFreeRun(PMA *pPma, DisplayReserveRun *pRun)
 +{
-+    pmaFreePages(pPma, &pRun->base, 1, _displayReserveRunBytes(pRun), PMA_FREE_SKIP_SCRUB);
-+    pRun->base = 0;
++    pmaFreePages(pPma, &pRun->base, 1, _displayReserveRunBytes(pRun),
++                 pRun->bTaken ? 0 : PMA_FREE_SKIP_SCRUB);
++    pRun->bHeld = NV_FALSE;
 +}
 +
-+static void
-+_displayReserveFreeRuns(PMA *pPma, DisplayReserveRun *pRuns, NvU32 numRuns)
++//
++// Detach an old run to free: any when the runs are all held, else one the
++// runs hold enough without.  Called with pMutex held.
++//
++static NvBool
++_displayReserveDetachOldRun(DisplayReserve *pReserve, DisplayReserveRun *pRun)
 +{
 +    NvU32 i;
 +
-+    for (i = 0; i < numRuns; i++)
++    for (i = pReserve->numOldRuns; i > 0; i--)
 +    {
-+        if (pRuns[i].base != 0)
-+            _displayReserveFreeRun(pPma, &pRuns[i]);
++        NvU64 bytes = _displayReserveRunBytes(&pReserve->pOldRuns[i - 1]);
++
++        if (pReserve->heldBytes + pReserve->oldBytes - bytes >= pReserve->targetBytes)
++        {
++            *pRun = pReserve->pOldRuns[i - 1];
++            pReserve->pOldRuns[i - 1] = pReserve->pOldRuns[pReserve->numOldRuns - 1];
++            pReserve->numOldRuns--;
++            pReserve->oldBytes -= bytes;
++            return NV_TRUE;
++        }
 +    }
++
++    return NV_FALSE;
++}
++
++//
++// Detach the smallest held run, old or new, whose pages can hold pageCount
++// pages of pageSize with pAllocOptions' alignment and range.  Of equal ones
++// it prefers a run not taken back, which needs no scrubbing, then an old
++// run.  Called with pMutex held.
++//
++static NvBool
++_displayReserveDetachCoveringRun
++(
++    DisplayReserve               *pReserve,
++    NvU64                         pageCount,
++    NvU64                         pageSize,
++    const PMA_ALLOCATION_OPTIONS *pAllocOptions,
++    DisplayReserveRun            *pRun
++)
++{
++    const NvU64 size      = pageCount * pageSize;
++    const NvU64 alignment = (pAllocOptions->flags & PMA_ALLOCATE_FORCE_ALIGNMENT) ?
++                            NV_MAX(pAllocOptions->alignment, pageSize) : pageSize;
++    NvU32       numAll    = pReserve->numOldRuns + pReserve->numRuns;
++    NvU32       pick      = numAll;
++    NvU32       i;
++
++    for (i = 0; i < numAll; i++)
++    {
++        const DisplayReserveRun *pCand = (i < pReserve->numOldRuns) ?
++                                         &pReserve->pOldRuns[i] :
++                                         &pReserve->pRuns[i - pReserve->numOldRuns];
++        const DisplayReserveRun *pPick;
++        NvU64                    start = NV_ALIGN_UP64(pCand->base, alignment);
++        NvU64                    bytes = _displayReserveRunBytes(pCand);
++
++        if (!pCand->bHeld || (start + size > pCand->base + bytes))
++            continue;
++
++        if ((pAllocOptions->flags & PMA_ALLOCATE_SPECIFY_ADDRESS_RANGE) &&
++            ((start < pAllocOptions->physBegin) || (start + size - 1 > pAllocOptions->physEnd)))
++        {
++            continue;
++        }
++
++        if (pick == numAll)
++        {
++            pick = i;
++            continue;
++        }
++
++        pPick = (pick < pReserve->numOldRuns) ? &pReserve->pOldRuns[pick] :
++                                                &pReserve->pRuns[pick - pReserve->numOldRuns];
++        if ((bytes < _displayReserveRunBytes(pPick)) ||
++            ((bytes == _displayReserveRunBytes(pPick)) && pPick->bTaken && !pCand->bTaken))
++        {
++            pick = i;
++        }
++    }
++
++    if (pick == numAll)
++        return NV_FALSE;
++
++    if (pick < pReserve->numOldRuns)
++    {
++        *pRun = pReserve->pOldRuns[pick];
++        pReserve->pOldRuns[pick] = pReserve->pOldRuns[pReserve->numOldRuns - 1];
++        pReserve->numOldRuns--;
++        pReserve->oldBytes -= _displayReserveRunBytes(pRun);
++    }
++    else
++    {
++        *pRun = pReserve->pRuns[pick - pReserve->numOldRuns];
++        pReserve->pRuns[pick - pReserve->numOldRuns].bHeld = NV_FALSE;
++        pReserve->heldBytes -= _displayReserveRunBytes(pRun);
++    }
++
++    return NV_TRUE;
 +}
 +
 +//
@@ -1912,26 +2163,203 @@ index 0000000..0878762
 +}
 +
 +//
-+// Bring the runs to the declared cut and allocate the runs not held.
++// Cut the runs for reserveSize and surfaceSize.  Held runs with a new run's
++// page size and page count move over; the other held runs become old runs.
++//
++static NV_STATUS
++_displayReserveRecut
++(
++    MemoryManager  *pMemoryManager,
++    DisplayReserve *pReserve,
++    NvU32           generation,
++    NvU64           reserveSize,
++    NvU64           surfaceSize
++)
++{
++    DisplayReserveRun *pRuns;
++    DisplayReserveRun *pOldRuns = NULL;
++    DisplayReserveRun *pPrevRuns;
++    DisplayReserveRun *pPrevOldRuns;
++    NvU32              numRuns;
++    NvU32              numOldRuns = 0;
++    NvU32              numPrev;
++    NvU32              i;
++    NvU32              j;
++
++    pRuns = portMemAllocNonPaged(sizeof(*pRuns) * (DISPLAY_RESERVE_MAX_RUNS + 1));
++    if (pRuns == NULL)
++        return NV_ERR_NO_MEMORY;
++    numRuns = _displayReserveCut(pMemoryManager, reserveSize, surfaceSize, pRuns);
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    if (!pReserve->bStarted || (pReserve->generation != generation))
++    {
++        portSyncMutexRelease(pReserve->pMutex);
++        portMemFree(pRuns);
++        return NV_ERR_INVALID_STATE;
++    }
++
++    numPrev = pReserve->numOldRuns + pReserve->numRuns;
++    if (numPrev != 0)
++    {
++        pOldRuns = portMemAllocNonPaged(sizeof(*pOldRuns) * numPrev);
++        if (pOldRuns == NULL)
++        {
++            portSyncMutexRelease(pReserve->pMutex);
++            portMemFree(pRuns);
++            return NV_ERR_NO_MEMORY;
++        }
++    }
++
++    for (i = 0; i < numPrev; i++)
++    {
++        const DisplayReserveRun *pPrev = (i < pReserve->numOldRuns) ?
++                                         &pReserve->pOldRuns[i] :
++                                         &pReserve->pRuns[i - pReserve->numOldRuns];
++
++        if (!pPrev->bHeld)
++            continue;
++
++        for (j = 0; j < numRuns; j++)
++        {
++            if (!pRuns[j].bHeld &&
++                (pRuns[j].pageSize == pPrev->pageSize) &&
++                (pRuns[j].pageCount == pPrev->pageCount))
++            {
++                pRuns[j].base   = pPrev->base;
++                pRuns[j].bHeld  = NV_TRUE;
++                pRuns[j].bTaken = pPrev->bTaken;
++                break;
++            }
++        }
++
++        if (j == numRuns)
++            pOldRuns[numOldRuns++] = *pPrev;
++    }
++
++    pPrevRuns    = pReserve->pRuns;
++    pPrevOldRuns = pReserve->pOldRuns;
++
++    pReserve->pRuns          = pRuns;
++    pReserve->numRuns        = numRuns;
++    pReserve->cutReserveSize = reserveSize;
++    pReserve->cutSurfaceSize = surfaceSize;
++    pReserve->pOldRuns       = pOldRuns;
++    pReserve->numOldRuns     = numOldRuns;
++    pReserve->heldBytes      = 0;
++    pReserve->targetBytes    = 0;
++    pReserve->oldBytes       = 0;
++    for (i = 0; i < numRuns; i++)
++    {
++        pReserve->targetBytes += _displayReserveRunBytes(&pRuns[i]);
++        if (pRuns[i].bHeld)
++            pReserve->heldBytes += _displayReserveRunBytes(&pRuns[i]);
++    }
++    for (i = 0; i < numOldRuns; i++)
++        pReserve->oldBytes += _displayReserveRunBytes(&pOldRuns[i]);
++    portSyncMutexRelease(pReserve->pMutex);
++
++    portMemFree(pPrevRuns);
++    portMemFree(pPrevOldRuns);
++
++    NV_PRINTF(LEVEL_INFO,
++              "display reserve: %llu KiB for %llu KiB scanout surfaces, %u runs, %llu KiB in PMA\n",
++              reserveSize >> 10, surfaceSize >> 10, numRuns, pReserve->targetBytes >> 10);
++
++    return NV_OK;
++}
++
++//
++// Allocate the runs not held, one at a time, and free the old runs the runs
++// hold enough without.  Returns the status of the last allocation.
++//
++static NV_STATUS
++_displayReserveFill(DisplayReserve *pReserve, PMA *pPma, NvU32 generation)
++{
++    NV_STATUS status = NV_OK;
++
++    for (;;)
++    {
++        DisplayReserveRun run;
++        NvBool            bCurrent;
++        NvBool            bOld = NV_FALSE;
++        NvBool            bMissing = NV_FALSE;
++        NvBool            bCommitted = NV_FALSE;
++        NvU32             i;
++
++        portSyncMutexAcquire(pReserve->pMutex);
++        bCurrent = pReserve->bStarted && (pReserve->generation == generation);
++        if (bCurrent)
++            bOld = _displayReserveDetachOldRun(pReserve, &run);
++        for (i = 0; bCurrent && !bOld && (i < pReserve->numRuns); i++)
++        {
++            if (!pReserve->pRuns[i].bHeld)
++            {
++                run = pReserve->pRuns[i];
++                bMissing = NV_TRUE;
++                break;
++            }
++        }
++        portSyncMutexRelease(pReserve->pMutex);
++
++        if (bOld)
++        {
++            _displayReserveFreeRun(pPma, &run);
++            continue;
++        }
++
++        if (!bCurrent)
++            return NV_ERR_INVALID_STATE;
++
++        if (!bMissing)
++            return status;
++
++        status = _displayReserveAllocRun(pPma, &run);
++        if (status != NV_OK)
++            return status;
++
++        portSyncMutexAcquire(pReserve->pMutex);
++        bCurrent = pReserve->bStarted && (pReserve->generation == generation);
++        if (bCurrent && !pReserve->pRuns[i].bHeld)
++        {
++            pReserve->pRuns[i] = run;
++            pReserve->heldBytes += _displayReserveRunBytes(&run);
++            bCommitted = NV_TRUE;
++        }
++        portSyncMutexRelease(pReserve->pMutex);
++
++        // Stopped meanwhile, or the run was taken back meanwhile.
++        if (!bCommitted)
++        {
++            _displayReserveFreeRun(pPma, &run);
++            if (!bCurrent)
++                return NV_ERR_INVALID_STATE;
++        }
++    }
++}
++
++//
++// Bring the runs to the declared cut, allocate the runs not held and free
++// the old runs no longer needed.
 +//
 +static void
 +_displayReserveRefillWorkItem(NvU32 gpuInstance, void *pArgs)
 +{
-+    OBJGPU            *pGpu = gpumgrGetGpu(gpuInstance);
-+    MemoryManager     *pMemoryManager;
-+    DisplayReserve    *pReserve;
-+    PMA               *pPma;
-+    DisplayReserveRun  runs[DISPLAY_RESERVE_MAX_RUNS + 1];
-+    NvU64              reserveSize;
-+    NvU64              surfaceSize;
-+    NvU64              heldBytes;
-+    NvU64              targetBytes;
-+    NvU32              numRuns;
-+    NvU32              i;
-+    NvBool             bStopped = NV_FALSE;
-+    NV_STATUS          status = NV_OK;
++    OBJGPU         *pGpu = gpumgrGetGpu(gpuInstance);
++    MemoryManager  *pMemoryManager;
++    DisplayReserve *pReserve;
++    NvU64           reserveSize;
++    NvU64           surfaceSize;
++    NvU64           heldBytes;
++    NvU64           targetBytes;
++    NvU64           oldBytes;
++    NvU64           backoffNs;
++    NvU32           generation;
++    NvBool          bRecut;
++    NvBool          bCurrent;
++    NV_STATUS       status = NV_OK;
 +
-+    if ((pGpu == NULL) || !gpuIsGpuFullPower(pGpu) || IS_MIG_ENABLED(pGpu))
++    if ((pGpu == NULL) || !gpuIsGpuFullPower(pGpu))
 +        return;
 +
 +    pMemoryManager = GPU_GET_MEMORY_MANAGER(pGpu);
@@ -1939,112 +2367,55 @@ index 0000000..0878762
 +    if ((pReserve == NULL) || !memmgrIsPmaInitialized(pMemoryManager))
 +        return;
 +
-+    pPma = _displayReserveGetPma(pMemoryManager);
-+
 +    portSyncMutexAcquire(pReserve->pMutex);
-+    bStopped    = !pReserve->bStarted;
-+    reserveSize = pReserve->reserveSize;
-+    surfaceSize = pReserve->surfaceSize;
++    bCurrent    = pReserve->bStarted;
++    generation  = pReserve->generation;
++    // With MIG enabled the reserve holds nothing.
++    reserveSize = IS_MIG_ENABLED(pGpu) ? 0 : pReserve->reserveSize;
++    surfaceSize = IS_MIG_ENABLED(pGpu) ? 0 : pReserve->surfaceSize;
++    bRecut      = (reserveSize != pReserve->cutReserveSize) ||
++                  (surfaceSize != pReserve->cutSurfaceSize);
 +    portSyncMutexRelease(pReserve->pMutex);
 +
-+    if (bStopped)
++    if (!bCurrent)
 +        return;
 +
-+    //
-+    // A new declaration: allocate the new runs first, then swap them in and
-+    // free the old ones, so the reserve is never empty in between.
-+    //
-+    if ((reserveSize != pReserve->cutReserveSize) || (surfaceSize != pReserve->cutSurfaceSize))
++    if (bRecut)
 +    {
-+        DisplayReserveRun oldRuns[DISPLAY_RESERVE_MAX_RUNS + 1];
-+        NvU32             numOldRuns;
-+
-+        numRuns = _displayReserveCut(pMemoryManager, reserveSize, surfaceSize, runs);
-+        for (i = 0; (i < numRuns) && (status == NV_OK); i++)
-+            status = _displayReserveAllocRun(pPma, &runs[i]);
-+
-+        portSyncMutexAcquire(pReserve->pMutex);
-+        bStopped = !pReserve->bStarted;
-+        if (!bStopped)
-+        {
-+            portMemCopy(oldRuns, sizeof(oldRuns), pReserve->runs, sizeof(pReserve->runs));
-+            numOldRuns = pReserve->numRuns;
-+
-+            portMemCopy(pReserve->runs, sizeof(pReserve->runs), runs, sizeof(runs));
-+            pReserve->numRuns        = numRuns;
-+            pReserve->cutReserveSize = reserveSize;
-+            pReserve->cutSurfaceSize = surfaceSize;
-+            pReserve->heldBytes      = 0;
-+            pReserve->targetBytes    = 0;
-+            for (i = 0; i < numRuns; i++)
-+            {
-+                pReserve->targetBytes += _displayReserveRunBytes(&runs[i]);
-+                if (runs[i].base != 0)
-+                    pReserve->heldBytes += _displayReserveRunBytes(&runs[i]);
-+            }
-+        }
-+        portSyncMutexRelease(pReserve->pMutex);
-+
-+        if (bStopped)
-+        {
-+            _displayReserveFreeRuns(pPma, runs, numRuns);
++        status = _displayReserveRecut(pMemoryManager, pReserve, generation,
++                                      reserveSize, surfaceSize);
++        if (status == NV_ERR_INVALID_STATE)
 +            return;
-+        }
-+        _displayReserveFreeRuns(pPma, oldRuns, numOldRuns);
-+
-+        NV_PRINTF(LEVEL_INFO,
-+                  "display reserve: %llu KiB for %llu KiB scanout surfaces, %u runs, %llu KiB in PMA\n",
-+                  reserveSize >> 10, surfaceSize >> 10, numRuns, pReserve->targetBytes >> 10);
-+    }
-+
-+    // Allocate the runs not held.
-+    status = NV_OK;
-+    for (i = 0; (i < pReserve->numRuns) && (status == NV_OK) && !bStopped; i++)
-+    {
-+        DisplayReserveRun run;
-+
-+        if (pReserve->runs[i].base != 0)
-+            continue;
-+
-+        run = pReserve->runs[i];
-+        status = _displayReserveAllocRun(pPma, &run);
 +        if (status != NV_OK)
-+            break;
-+
-+        portSyncMutexAcquire(pReserve->pMutex);
-+        bStopped = !pReserve->bStarted;
-+        if (!bStopped)
-+        {
-+            pReserve->runs[i].base = run.base;
-+            pReserve->heldBytes += _displayReserveRunBytes(&run);
-+        }
-+        portSyncMutexRelease(pReserve->pMutex);
-+
-+        if (bStopped)
-+            _displayReserveFreeRun(pPma, &run);
++            NV_PRINTF(LEVEL_ERROR, "display reserve: cannot re-cut (0x%x)\n", status);
 +    }
 +
-+    if (bStopped)
++    status = _displayReserveFill(pReserve, _displayReserveGetPma(pMemoryManager), generation);
++    if (status == NV_ERR_INVALID_STATE)
 +        return;
 +
 +    portSyncMutexAcquire(pReserve->pMutex);
 +    heldBytes   = pReserve->heldBytes;
 +    targetBytes = pReserve->targetBytes;
++    oldBytes    = pReserve->oldBytes;
++    backoffNs   = pReserve->backoffNs;
++    pReserve->backoffNs = (heldBytes == targetBytes) ? DISPLAY_RESERVE_REFILL_NS :
++                          NV_MIN(backoffNs * 2, DISPLAY_RESERVE_BACKOFF_MAX_NS);
 +    portSyncMutexRelease(pReserve->pMutex);
 +
 +    if (heldBytes == targetBytes)
 +    {
 +        NV_PRINTF(LEVEL_INFO, "display reserve: holds %llu KiB\n", heldBytes >> 10);
-+        pReserve->backoffNs = DISPLAY_RESERVE_REFILL_NS;
 +        return;
 +    }
 +
-+    NV_PRINTF(LEVEL_INFO, "display reserve: holds %llu of %llu KiB (0x%x), next try in %llu s\n",
-+              heldBytes >> 10, targetBytes >> 10, status,
-+              pReserve->backoffNs / DISPLAY_RESERVE_REFILL_NS);
++    NV_PRINTF(LEVEL_INFO,
++              "display reserve: holds %llu of %llu KiB and %llu KiB of old runs (0x%x), "
++              "next try in %llu s\n",
++              heldBytes >> 10, targetBytes >> 10, oldBytes >> 10, status,
++              backoffNs / DISPLAY_RESERVE_REFILL_NS);
 +
-+    _displayReserveScheduleRefill(pGpu, pReserve, pReserve->backoffNs);
-+    pReserve->backoffNs = NV_MIN(pReserve->backoffNs * 2, DISPLAY_RESERVE_BACKOFF_MAX_NS);
++    _displayReserveScheduleRefill(pGpu, pReserve, backoffNs);
 +}
 +
 +/*!
@@ -2093,8 +2464,8 @@ index 0000000..0878762
 +}
 +
 +/*!
-+ * Remove the display reserve of pGpu.  Called from memmgrStateDestroy, after
-+ * displayReserveStop() freed the runs.
++ * Remove the display reserve of pGpu.  Called from memmgrStateDestroy; the
++ * runs were freed by displayReserveStop() at unload.
 + */
 +void
 +displayReserveDestroy
@@ -2108,10 +2479,14 @@ index 0000000..0878762
 +    if (pReserve == NULL)
 +        return;
 +
++    NV_ASSERT((pReserve->heldBytes == 0) && (pReserve->numOldRuns == 0));
++
 +    pMemoryManager->pDisplayReserve = NULL;
 +
 +    tmrEventDestroy(GPU_GET_TIMER(pGpu), pReserve->pRefillEvent);
 +    portSyncMutexDestroy(pReserve->pMutex);
++    portMemFree(pReserve->pRuns);
++    portMemFree(pReserve->pOldRuns);
 +    portMemFree(pReserve);
 +}
 +
@@ -2135,7 +2510,8 @@ index 0000000..0878762
 +    portSyncMutexAcquire(pReserve->pMutex);
 +    pReserve->bStarted  = NV_TRUE;
 +    pReserve->backoffNs = DISPLAY_RESERVE_REFILL_NS;
-+    bDeclared = (pReserve->reserveSize != 0);
++    bDeclared = (pReserve->reserveSize != 0) || (pReserve->numRuns != 0) ||
++                (pReserve->numOldRuns != 0);
 +    portSyncMutexRelease(pReserve->pMutex);
 +
 +    if (bDeclared)
@@ -2143,20 +2519,24 @@ index 0000000..0878762
 +}
 +
 +/*!
-+ * Free every run and stop refilling.  Called from memmgrStatePreUnload with
-+ * the GPU lock: at unload, before suspend and at GC6/RTD3 entry.  The
-+ * declaration is kept for displayReserveStart().
++ * Stop refilling and taking back, and with bFree free every run.  Called
++ * with the GPU lock from memmgrStatePreUnload, freeing only at unload (the
++ * runs stay held over suspend and GC6/RTD3), and from
++ * memmgrDestroyInternalChannels at unload, before the scrubber that taken
++ * runs need is destroyed.  The declaration is kept for displayReserveStart().
 + */
 +void
 +displayReserveStop
 +(
 +    OBJGPU        *pGpu,
-+    MemoryManager *pMemoryManager
++    MemoryManager *pMemoryManager,
++    NvBool         bFree
 +)
 +{
 +    DisplayReserve    *pReserve = pMemoryManager->pDisplayReserve;
-+    DisplayReserveRun  runs[DISPLAY_RESERVE_MAX_RUNS + 1];
-+    NvU32              numRuns;
++    DisplayReserveRun *pRuns;
++    DisplayReserveRun *pOldRuns;
++    PMA               *pPma;
 +
 +    if (pReserve == NULL)
 +        return;
@@ -2165,22 +2545,65 @@ index 0000000..0878762
 +
 +    portSyncMutexAcquire(pReserve->pMutex);
 +    pReserve->bStarted = NV_FALSE;
-+    portMemCopy(runs, sizeof(runs), pReserve->runs, sizeof(pReserve->runs));
-+    numRuns = pReserve->numRuns;
-+    portMemSet(pReserve->runs, 0, sizeof(pReserve->runs));
++    pReserve->generation++;
++    portSyncMutexRelease(pReserve->pMutex);
++
++    if (!bFree)
++        return;
++
++    pPma = _displayReserveGetPma(pMemoryManager);
++
++    // One run at a time, so the mutex is never held across pmaFreePages().
++    for (;;)
++    {
++        DisplayReserveRun run;
++        NvBool            bPicked = NV_FALSE;
++        NvU32             i;
++
++        portSyncMutexAcquire(pReserve->pMutex);
++        if (pReserve->numOldRuns != 0)
++        {
++            run = pReserve->pOldRuns[--pReserve->numOldRuns];
++            pReserve->oldBytes -= _displayReserveRunBytes(&run);
++            bPicked = NV_TRUE;
++        }
++        for (i = 0; !bPicked && (i < pReserve->numRuns); i++)
++        {
++            if (pReserve->pRuns[i].bHeld)
++            {
++                run = pReserve->pRuns[i];
++                pReserve->pRuns[i].bHeld = NV_FALSE;
++                pReserve->heldBytes -= _displayReserveRunBytes(&run);
++                bPicked = NV_TRUE;
++            }
++        }
++        portSyncMutexRelease(pReserve->pMutex);
++
++        if (!bPicked)
++            break;
++
++        _displayReserveFreeRun(pPma, &run);
++    }
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    pRuns    = pReserve->pRuns;
++    pOldRuns = pReserve->pOldRuns;
++    pReserve->pRuns          = NULL;
 +    pReserve->numRuns        = 0;
++    pReserve->pOldRuns       = NULL;
 +    pReserve->cutReserveSize = 0;
 +    pReserve->cutSurfaceSize = 0;
-+    pReserve->heldBytes      = 0;
 +    pReserve->targetBytes    = 0;
 +    portSyncMutexRelease(pReserve->pMutex);
 +
-+    _displayReserveFreeRuns(_displayReserveGetPma(pMemoryManager), runs, numRuns);
++    portMemFree(pRuns);
++    portMemFree(pOldRuns);
 +}
 +
 +/*!
 + * Record the display driver's declaration and re-cut the reserve in the
-+ * background.  Called for NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE.
++ * background.  Called for NV0073_CTRL_CMD_SYSTEM_SET_DISPLAY_RESERVE.  A
++ * declaration of 0 is always accepted.
 + */
 +NV_STATUS
 +displayReserveSetNeed
@@ -2194,11 +2617,21 @@ index 0000000..0878762
 +    DisplayReserve *pReserve = pMemoryManager->pDisplayReserve;
 +    NvBool          bStarted;
 +
-+    if ((pReserve == NULL) || IS_MIG_ENABLED(pGpu))
-+        return NV_ERR_NOT_SUPPORTED;
++    if (reserveSize != 0)
++    {
++        NvU64 totalBytes;
 +
-+    if ((reserveSize != 0) && (surfaceSize == 0))
-+        return NV_ERR_INVALID_ARGUMENT;
++        if ((pReserve == NULL) || IS_MIG_ENABLED(pGpu))
++            return NV_ERR_NOT_SUPPORTED;
++
++        pmaGetTotalMemory(_displayReserveGetPma(pMemoryManager), &totalBytes);
++        if ((surfaceSize == 0) || (surfaceSize > reserveSize) || (reserveSize > totalBytes))
++            return NV_ERR_INVALID_ARGUMENT;
++    }
++    else if (pReserve == NULL)
++    {
++        return NV_OK;
++    }
 +
 +    portSyncMutexAcquire(pReserve->pMutex);
 +    pReserve->reserveSize = reserveSize;
@@ -2217,99 +2650,178 @@ index 0000000..0878762
 +}
 +
 +/*!
-+ * Called by _vidmemPmaAllocate() when PMA refused an allocation of size
-+ * bytes for lack of memory.  For a scanout allocation of a kernel client
-+ * (kernel privilege, ISO, physically contiguous, not NO_SCANOUT), free runs
-+ * that together cover it, the rest run first when it does alone, and
-+ * schedule a refill.  Returns NV_TRUE if runs were freed and the caller
-+ * should retry.
++ * Whether an allocation is a scanout allocation of a kernel client: kernel
++ * privilege, ISO, physically contiguous, not NO_SCANOUT.  The reserve serves
++ * these and takes them back when they are freed.
 + */
 +NvBool
-+displayReserveRelease
++displayReserveIsScanoutAllocation
++(
++    const NV_MEMORY_ALLOCATION_PARAMS *pAllocData
++)
++{
++    CALL_CONTEXT *pCallContext = resservGetTlsCallContext();
++
++    return (pCallContext != NULL) &&
++           (pCallContext->secInfo.privLevel >= RS_PRIV_LEVEL_KERNEL) &&
++           FLD_TEST_DRF(OS32, _ATTR2, _ISO, _YES, pAllocData->attr2) &&
++           FLD_TEST_DRF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS, pAllocData->attr) &&
++           ((pAllocData->flags & NVOS32_ALLOC_FLAGS_NO_SCANOUT) == 0);
++}
++
++/*!
++ * Called by _vidmemPmaAllocate() when PMA refused a contiguous allocation
++ * of pageCount pages of pageSize for lack of memory.  For a scanout
++ * allocation of a kernel client, free the smallest held run that covers it
++ * and retry, until the retry succeeds or no held run covers it, and
++ * schedule a refill.  Returns the status of the last attempt.
++ */
++NV_STATUS
++displayReserveServe
 +(
 +    OBJGPU                            *pGpu,
 +    MemoryManager                     *pMemoryManager,
 +    const NV_MEMORY_ALLOCATION_PARAMS *pAllocData,
-+    NvU64                              size
++    PMA                               *pPma,
++    NvU64                              pageCount,
++    NvU64                              pageSize,
++    PMA_ALLOCATION_OPTIONS            *pAllocOptions,
++    NvU64                             *pPages
 +)
 +{
-+    DisplayReserve    *pReserve = pMemoryManager->pDisplayReserve;
-+    CALL_CONTEXT      *pCallContext = resservGetTlsCallContext();
-+    DisplayReserveRun  runs[DISPLAY_RESERVE_MAX_RUNS + 1];
-+    NvU64              released = 0;
-+    NvU64              heldBytes;
-+    NvU64              targetBytes;
-+    NvU32              numRuns = 0;
-+    NvU32              i;
++    DisplayReserve *pReserve = pMemoryManager->pDisplayReserve;
++    const NvU64     size = pageCount * pageSize;
++    NvU64           released = 0;
++    NvU64           holdBytes;
++    NvU64           targetBytes;
++    NV_STATUS       status = NV_ERR_NO_MEMORY;
 +
-+    if ((pReserve == NULL) ||
-+        (pCallContext == NULL) ||
-+        (pCallContext->secInfo.privLevel < RS_PRIV_LEVEL_KERNEL) ||
-+        !FLD_TEST_DRF(OS32, _ATTR2, _ISO, _YES, pAllocData->attr2) ||
-+        !FLD_TEST_DRF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS, pAllocData->attr) ||
-+        ((pAllocData->flags & NVOS32_ALLOC_FLAGS_NO_SCANOUT) != 0))
++    if ((pReserve == NULL) || (pPma != _displayReserveGetPma(pMemoryManager)) ||
++        !displayReserveIsScanoutAllocation(pAllocData))
++    {
++        return NV_ERR_NO_MEMORY;
++    }
++
++    do
++    {
++        DisplayReserveRun run;
++        NvBool            bPicked;
++
++        portSyncMutexAcquire(pReserve->pMutex);
++        bPicked = _displayReserveDetachCoveringRun(pReserve, pageCount, pageSize, pAllocOptions,
++                                                   &run);
++        portSyncMutexRelease(pReserve->pMutex);
++
++        if (!bPicked)
++            break;
++
++        _displayReserveFreeRun(pPma, &run);
++        released += _displayReserveRunBytes(&run);
++
++        status = pmaAllocatePages(pPma, pageCount, pageSize, pAllocOptions, pPages);
++    } while (status == NV_ERR_NO_MEMORY);
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    holdBytes   = pReserve->heldBytes + pReserve->oldBytes;
++    targetBytes = pReserve->targetBytes;
++    if (released != 0)
++        pReserve->backoffNs = DISPLAY_RESERVE_REFILL_NS;
++    portSyncMutexRelease(pReserve->pMutex);
++
++    if (released == 0)
++    {
++        if (targetBytes != 0)
++        {
++            NV_PRINTF(LEVEL_WARNING,
++                      "display reserve: no held run covers a refused scanout allocation of %llu KiB, "
++                      "holds %llu of %llu KiB\n",
++                      size >> 10, holdBytes >> 10, targetBytes >> 10);
++        }
++        return NV_ERR_NO_MEMORY;
++    }
++
++    if (status == NV_OK)
++    {
++        NV_PRINTF(LEVEL_WARNING,
++                  "display reserve: released %llu KiB for a refused scanout allocation of %llu KiB, "
++                  "holds %llu of %llu KiB\n",
++                  released >> 10, size >> 10, holdBytes >> 10, targetBytes >> 10);
++    }
++    else
++    {
++        NV_PRINTF(LEVEL_WARNING,
++                  "display reserve: released %llu KiB for a refused scanout allocation of %llu KiB, "
++                  "which still failed (0x%x), holds %llu of %llu KiB\n",
++                  released >> 10, size >> 10, status, holdBytes >> 10, targetBytes >> 10);
++    }
++
++    _displayReserveScheduleRefill(pGpu, pReserve, DISPLAY_RESERVE_REFILL_NS);
++
++    return status;
++}
++
++/*!
++ * Called by vidmemPmaFree() for a freed allocation that
++ * displayReserveIsScanoutAllocation() matched.  If the reserve is started
++ * and lacks a run of the allocation's page size and page count, the run
++ * takes the allocation's pages, and the caller must not free them.
++ */
++NvBool
++displayReserveTake
++(
++    OBJGPU                      *pGpu,
++    MemoryManager               *pMemoryManager,
++    PMA                         *pPma,
++    const struct PMA_ALLOC_INFO *pPmaAllocInfo
++)
++{
++    DisplayReserve *pReserve = pMemoryManager->pDisplayReserve;
++    NvBool          bTaken = NV_FALSE;
++    NvU64           holdBytes;
++    NvU64           targetBytes;
++    NvU32           i;
++
++    if ((pReserve == NULL) || (pPma != _displayReserveGetPma(pMemoryManager)) ||
++        !pPmaAllocInfo->bContig ||
++        ((pPmaAllocInfo->flags & ~DISPLAY_RESERVE_TAKE_FLAGS) != 0))
 +    {
 +        return NV_FALSE;
 +    }
 +
 +    portSyncMutexAcquire(pReserve->pMutex);
-+    while ((released < size) && (pReserve->numRuns != 0))
++    for (i = 0; pReserve->bStarted && (i < pReserve->numRuns); i++)
 +    {
-+        // The rest run is the last one when it is smaller than the others.
-+        NvU32  rest     = pReserve->numRuns - 1;
-+        NvBool bHasRest = (pReserve->numRuns > 1) &&
-+                          (pReserve->runs[rest].size < pReserve->runs[0].size);
-+        NvBool bRestHeld = bHasRest && (pReserve->runs[rest].base != 0);
-+        NvU32  pick     = pReserve->numRuns;
++        DisplayReserveRun *pRun = &pReserve->pRuns[i];
 +
-+        if (bRestHeld &&
-+            (_displayReserveRunBytes(&pReserve->runs[rest]) >= size - released))
++        if (!pRun->bHeld &&
++            (pRun->pageSize == pPmaAllocInfo->pageSize) &&
++            (pRun->pageCount == pPmaAllocInfo->pageCount))
 +        {
-+            pick = rest;
-+        }
-+        else
-+        {
-+            for (i = bHasRest ? rest : pReserve->numRuns; i > 0; i--)
-+            {
-+                if (pReserve->runs[i - 1].base != 0)
-+                {
-+                    pick = i - 1;
-+                    break;
-+                }
-+            }
-+            if ((pick == pReserve->numRuns) && bRestHeld)
-+                pick = rest;
-+        }
-+
-+        if (pick == pReserve->numRuns)
++            pRun->base   = pPmaAllocInfo->pageArray[0];
++            pRun->bHeld  = NV_TRUE;
++            pRun->bTaken = NV_TRUE;
++            pReserve->heldBytes += _displayReserveRunBytes(pRun);
++            bTaken = NV_TRUE;
 +            break;
-+
-+        runs[numRuns] = pReserve->runs[pick];
-+        pReserve->runs[pick].base = 0;
-+        pReserve->heldBytes -= _displayReserveRunBytes(&runs[numRuns]);
-+        released += _displayReserveRunBytes(&runs[numRuns]);
-+        numRuns++;
++        }
 +    }
-+    heldBytes   = pReserve->heldBytes;
++    holdBytes   = pReserve->heldBytes + pReserve->oldBytes;
 +    targetBytes = pReserve->targetBytes;
 +    portSyncMutexRelease(pReserve->pMutex);
 +
-+    if (numRuns == 0)
-+        return NV_FALSE;
++    if (bTaken)
++    {
++        NV_PRINTF(LEVEL_INFO,
++                  "display reserve: took back a freed scanout allocation of %llu KiB, "
++                  "holds %llu of %llu KiB\n",
++                  (pPmaAllocInfo->pageCount * pPmaAllocInfo->pageSize) >> 10,
++                  holdBytes >> 10, targetBytes >> 10);
++    }
 +
-+    _displayReserveFreeRuns(_displayReserveGetPma(pMemoryManager), runs, numRuns);
-+
-+    NV_PRINTF(LEVEL_WARNING,
-+              "display reserve: released %llu KiB for a refused scanout allocation of %llu KiB, "
-+              "holds %llu of %llu KiB\n",
-+              released >> 10, size >> 10, heldBytes >> 10, targetBytes >> 10);
-+
-+    _displayReserveScheduleRefill(pGpu, pReserve, DISPLAY_RESERVE_REFILL_NS);
-+
-+    return NV_TRUE;
++    return bTaken;
 +}
 diff --git a/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c b/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c
-index 73bebf9..6337ea8 100644
+index 73bebf9..9772511 100644
 --- a/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c
 +++ b/src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c
 @@ -53,6 +53,7 @@
@@ -2320,7 +2832,17 @@ index 73bebf9..6337ea8 100644
  #include "platform/sli/sli.h"
  #include "virtualization/hypervisor/hypervisor.h"
  #include "gpu/device/device.h"
-@@ -825,6 +826,12 @@ failed:
+@@ -532,6 +533,9 @@ memmgrDestroyInternalChannels_IMPL
+     MemoryManager *pMemoryManager
+ )
+ {
++    // Free the display reserve while the scrubber its taken runs need exists.
++    displayReserveStop(pGpu, pMemoryManager, NV_TRUE);
++
+     NV_PRINTF(LEVEL_INFO, "Destroying global CeUtils instance\n");
+ 
+     memmgrDestroyCeUtils(pMemoryManager);
+@@ -825,6 +829,12 @@ failed:
  
      memacctInitGpuInfo(pGpu);
  
@@ -2333,16 +2855,17 @@ index 73bebf9..6337ea8 100644
      return NV_OK;
  }
  
-@@ -943,6 +950,8 @@ memmgrStatePreUnload_IMPL
+@@ -943,6 +953,9 @@ memmgrStatePreUnload_IMPL
      KernelMemorySystem *pKernelMemorySystem = GPU_GET_KERNEL_MEMORY_SYSTEM(pGpu);
      NV_ASSERT((flags & GPU_STATE_FLAGS_PRESERVING) || !_memmgrIsZbcSurfaceReferenced(pGpu, pMemoryManager));
  
-+    displayReserveStop(pGpu, pMemoryManager);
++    // Keep the reserve over suspend and GC6/RTD3; free it at unload.
++    displayReserveStop(pGpu, pMemoryManager, !(flags & GPU_STATE_FLAGS_PRESERVING));
 +
      if ((flags & GPU_STATE_FLAGS_PRESERVING))
      {
          //
-@@ -987,6 +996,7 @@ memmgrStateDestroy_IMPL
+@@ -987,6 +1000,7 @@ memmgrStateDestroy_IMPL
      NvU32 i;
  
      memacctRemoveGpu(pGpu);
@@ -2350,7 +2873,7 @@ index 73bebf9..6337ea8 100644
  
      _memmgrFreeInternalClientObjects(pMemoryManager);
  
-@@ -4042,6 +4052,8 @@ memmgrStatePostLoad_IMPL
+@@ -4042,6 +4056,8 @@ memmgrStatePostLoad_IMPL
              return NV_ERR_INVALID_ARGUMENT;
          }
      }
@@ -2360,7 +2883,7 @@ index 73bebf9..6337ea8 100644
  }
  
 diff --git a/src/nvidia/src/kernel/mem_mgr/video_mem.c b/src/nvidia/src/kernel/mem_mgr/video_mem.c
-index c55c2ff..ce79bce 100644
+index c55c2ff..e8ceea6 100644
 --- a/src/nvidia/src/kernel/mem_mgr/video_mem.c
 +++ b/src/nvidia/src/kernel/mem_mgr/video_mem.c
 @@ -23,6 +23,7 @@
@@ -2377,19 +2900,44 @@ index c55c2ff..ce79bce 100644
                                pAllocRequest->pPmaAllocInfo[subdevInst]->pageArray);
 +
 +    //
-+    // A scanout allocation of a kernel client has no fallback: take its room
-+    // from the display reserve and retry.
++    // A scanout allocation of a kernel client has no fallback: serve it from
++    // the display reserve.
 +    //
-+    while ((status == NV_ERR_NO_MEMORY) && bContig &&
-+           displayReserveRelease(pGpu, pMemoryManager, pAllocData, ((NvU64)pageCount) * pageSize))
++    if ((status == NV_ERR_NO_MEMORY) && bContig)
 +    {
-+        status = pmaAllocatePages(pPma, pageCount, pageSize, &allocOptions,
-+                                  pAllocRequest->pPmaAllocInfo[subdevInst]->pageArray);
++        status = displayReserveServe(pGpu, pMemoryManager, pAllocData, pPma, pageCount, pageSize,
++                                     &allocOptions,
++                                     pAllocRequest->pPmaAllocInfo[subdevInst]->pageArray);
 +    }
 +
      if (NV_OK != status)
      {
          portMemFree(pAllocRequest->pPmaAllocInfo[subdevInst]);
+@@ -342,6 +355,9 @@ retry_alloc:
+     }
+     else
+     {
++        pAllocRequest->pPmaAllocInfo[subdevInst]->bScanout =
++            bContig && displayReserveIsScanoutAllocation(pAllocData);
++
+         pAllocData->attr = (bContig ?
+             FLD_SET_DRF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS,    pAllocData->attr) :
+             FLD_SET_DRF(OS32, _ATTR, _PHYSICALITY, _NONCONTIGUOUS, pAllocData->attr));
+@@ -384,6 +400,14 @@ vidmemPmaFree
+         return;
+     }
+ 
++    // A scanout allocation of a kernel client may go back to the display reserve.
++    if (pPmaAllocInfo->bScanout &&
++        displayReserveTake(pGpu, GPU_GET_MEMORY_MANAGER(pGpu), pPma, pPmaAllocInfo))
++    {
++        portMemFree(pPmaAllocInfo);
++        return;
++    }
++
+     //
+     // Skip the scrubber if the memory is allocated with scrubber skipped.
+     // The only use case is scrubber internal allocations.
 diff --git a/src/nvidia/srcs.mk b/src/nvidia/srcs.mk
 index af8dacd..11e82ec 100644
 --- a/src/nvidia/srcs.mk
