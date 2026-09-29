@@ -21,8 +21,9 @@
 # DISPLAY_RESERVE_MIB=<n> in the guest's /etc/caraxes/dmem-cap.conf for this run (a tagged line,
 # removed at the end). SOTTR_DISPLAY_RESERVE=<RegistryDwords> (for example RmDisplayReserve=1, or
 # RmDisplayReserve=0 as the control) loads the display reserve build of nvidia.ko
-# (display-reserve-prepare.sh) with those registry keys instead of the installed one; unset keeps
-# the stock modules (docs/research/display-reserve-2026-09-29.md).
+# (display-reserve-prepare.sh) with those registry keys and NVreg_RmMsg=display_reserve.c (its
+# state lines in the kernel log) instead of the installed one, and stops if that build is not
+# the loaded one; unset keeps the stock modules (docs/research/display-reserve-2026-09-29.md).
 # Usage: sottr-bench-6g.sh OUT BINARY   (SOTTR_RES, SOTTR_MAX_S as in sottr-bench.sh)
 set -uo pipefail
 OUT=$1 BIN=$2
@@ -41,7 +42,7 @@ timeout 240 "$W" wait 200 >> "$OUT/up.txt" 2>&1
 log "vm up"
 T=200 gssh "DMEM_CAP=$CAP DMEM_R=${SOTTR_DMEM_RESERVE_MIB:-} DRSV=${SOTTR_DISPLAY_RESERVE:-} bash -s" > "$OUT/guest-prep.txt" <<'G'
 sudo ip route replace default via 192.168.106.1 dev eth0 && sudo resolvectl dns eth0 192.168.188.1 && sudo resolvectl domain eth0 "~."
-if [ -n "$DRSV" ]; then sudo /opt/caraxes/display-reserve/load.sh "$DRSV" || exit 1; fi
+if [ -n "$DRSV" ]; then sudo /opt/caraxes/display-reserve/load.sh "$DRSV" NVreg_RmMsg=display_reserve.c || exit 1; fi
 sudo modprobe nvidia && sudo modprobe nvidia_modeset && sudo modprobe nvidia_drm modeset=1 && echo modules-ok
 bash ~/caraxes-guest/display-up.sh >/dev/null 2>&1; sudo systemctl start gdm3; sleep 12
 export XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
@@ -81,6 +82,9 @@ sed -i -e 's|<value name="ExtraCommandLine" type="string">[^<]*</value>|<value n
 grep -E '"(ExtraCommandLine|ExtraCommandLineEnabled|GameOptionsDialogShouldShow|FullscreenWidth|FullscreenHeight|ScreenW|ScreenH)"' "\$P" | sed -E 's/^ +//' | sort | uniq -c
 PREFS
 cat "$OUT/guest-prep.txt" >> "$OUT/timeline.txt"
+if [[ -n ${SOTTR_DISPLAY_RESERVE:-} ]] && ! grep -q "^loaded /opt/caraxes/display-reserve/" "$OUT/guest-prep.txt"; then
+    log "the display reserve build of nvidia.ko is not loaded (guest-prep.txt): stopping"; exit 1
+fi
 
 # The host client.
 setsid nohup env WAYLAND_DISPLAY=wayland-1 DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 LANG=C.UTF-8 /usr/bin/moonlight stream 192.168.106.26 Desktop --resolution 1920x1080 --fps 60 --bitrate 20000 --display-mode windowed --absolute-mouse --video-decoder auto > "$OUT/moonlight.log" 2>&1 < /dev/null &

@@ -1,4 +1,4 @@
-From a7b4e7b5bd70b5c20b489a43e94849c873be57f3 Mon Sep 17 00:00:00 2001
+From f1f5c5d43030c7795662621c22d4f9b048d32cd7 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Silas=20M=C3=BCller?= <github@silasmueller.de>
 Date: Tue, 29 Sep 2026 08:52:25 +0200
 Subject: [PATCH] nvidia: add a display reserve for kernel display allocations
@@ -21,16 +21,18 @@ surface (NVOS32_TYPE_PRIMARY, physically contiguous, ISO), so it counts as
 used video memory and each freed chunk leaves room of the shape a scanout
 surface needs.
 
-The reserve is sized from the display allocations that exist: RM tracks the
-kernel-privileged, ISO, physically contiguous allocations without
-NO_SCANOUT, and the largest of them is one scanout surface of the largest
-mode in use.  The reserve holds five such surfaces and four 256x256
-cursors (RmDisplayReserveSizeMB sets another size), cut into chunks of one
-surface, and nothing while no display allocation exists.  It follows mode
-changes and hotplug by re-cutting when the largest display allocation
-changes.
+The reserve is sized from the display surfaces that exist: RM tracks the
+video memory allocated with ISO bandwidth guarantees and without
+NO_SCANOUT, by any client, and the largest of these is one scanout surface
+of the largest mode in use.  The reserve holds five such surfaces and four
+256x256 cursors (RmDisplayReserveSizeMB sets another size), cut into chunks
+of one surface, and nothing while no display surface exists.  Each refill
+cuts it for the largest surface at that time; a surface larger than the
+current cut starts a refill at once, so the reserve follows mode changes
+and hotplug.
 
-When such a display allocation fails in vidmemConstruct with
+When a scanout allocation of a kernel client (kernel privilege, ISO,
+physically contiguous, not NO_SCANOUT) fails in vidmemConstruct with
 NV_ERR_NO_MEMORY, free chunks that cover it and retry the allocation in the
 same call.  Allocations hold the API lock for writing unless RmRoApiLock
 enables read-only allocations, so no other allocation can take the freed
@@ -42,18 +44,18 @@ refilled from memmgrStatePostLoad, after load and resume.
 Signed-off-by: Silas Müller <github@silasmueller.de>
 ---
  .../inc/kernel/mem_mgr/display_reserve.h      |  48 ++
- src/nvidia/interface/nvrm_registry.h          |  26 +
+ src/nvidia/interface/nvrm_registry.h          |  27 +
  src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c   |   7 +
- .../src/kernel/mem_mgr/display_reserve.c      | 641 ++++++++++++++++++
- src/nvidia/src/kernel/mem_mgr/video_mem.c     |  19 +
+ .../src/kernel/mem_mgr/display_reserve.c      | 633 ++++++++++++++++++
+ src/nvidia/src/kernel/mem_mgr/video_mem.c     |  18 +
  src/nvidia/srcs.mk                            |   1 +
- 6 files changed, 742 insertions(+)
+ 6 files changed, 734 insertions(+)
  create mode 100644 src/nvidia/inc/kernel/mem_mgr/display_reserve.h
  create mode 100644 src/nvidia/src/kernel/mem_mgr/display_reserve.c
 
 diff --git a/src/nvidia/inc/kernel/mem_mgr/display_reserve.h b/src/nvidia/inc/kernel/mem_mgr/display_reserve.h
 new file mode 100644
-index 0000000..d1cccf6
+index 0000000..7086d1d
 --- /dev/null
 +++ b/src/nvidia/inc/kernel/mem_mgr/display_reserve.h
 @@ -0,0 +1,48 @@
@@ -99,17 +101,17 @@ index 0000000..d1cccf6
 +
 +NvBool displayReserveRelease(OBJGPU *pGpu, NvHandle hClient, RS_PRIV_LEVEL privLevel,
 +                             const NV_MEMORY_ALLOCATION_PARAMS *pAllocData);
-+void   displayReserveNoteAlloc(OBJGPU *pGpu, NvHandle hClient, RS_PRIV_LEVEL privLevel,
++void   displayReserveNoteAlloc(OBJGPU *pGpu, NvHandle hClient,
 +                               const NV_MEMORY_ALLOCATION_PARAMS *pAllocData,
 +                               Memory *pMemory, NvBool bServed);
 +void   displayReserveNoteFree(OBJGPU *pGpu, NvHandle hClient, Memory *pMemory);
 +
 +#endif // DISPLAY_RESERVE_H
 diff --git a/src/nvidia/interface/nvrm_registry.h b/src/nvidia/interface/nvrm_registry.h
-index d6f4d93..445b467 100644
+index d6f4d93..f405326 100644
 --- a/src/nvidia/interface/nvrm_registry.h
 +++ b/src/nvidia/interface/nvrm_registry.h
-@@ -3560,6 +3560,32 @@
+@@ -3560,6 +3560,33 @@
  #define NV_REG_STR_MEMACCT_MODE_NO_OVERRIDE (0x00000003)
  #define NV_REG_STR_MEMACCT_FALLBACK_DEFAULT NV_REG_STR_MEMACCT_MODE_NO_OVERRIDE
  
@@ -120,8 +122,9 @@ index d6f4d93..445b467 100644
 +// frees reserved memory and retries it, so a process that fills the video
 +// memory cannot leave the display without a surface. The reserve counts as
 +// used video memory and refills once the memory is free again. It is cut into
-+// chunks of the largest display allocation, one scanout surface of the largest
-+// mode in use, and follows it through mode changes and hotplug.
++// chunks of the largest display surface (ISO video memory without NO_SCANOUT),
++// one scanout surface of the largest mode in use, and follows it through mode
++// changes and hotplug.
 +// 0 - No reserve (default)
 +// 1 - Reserve
 +//
@@ -190,10 +193,10 @@ index 73bebf9..aaca7d1 100644
  
 diff --git a/src/nvidia/src/kernel/mem_mgr/display_reserve.c b/src/nvidia/src/kernel/mem_mgr/display_reserve.c
 new file mode 100644
-index 0000000..78b68e9
+index 0000000..d52ed66
 --- /dev/null
 +++ b/src/nvidia/src/kernel/mem_mgr/display_reserve.c
-@@ -0,0 +1,641 @@
+@@ -0,0 +1,633 @@
 +/*
 + * SPDX-FileCopyrightText: Copyright (c) 2026 Silas Müller <github@silasmueller.de>
 + * SPDX-License-Identifier: MIT
@@ -235,23 +238,27 @@ index 0000000..78b68e9
 +// RmRoApiLock enables read-only allocations, so no other allocation can take
 +// the freed memory between the free and the retry.
 +//
-+// The reserve is sized and cut from the display allocations that exist: the
-+// largest of them is one scanout surface of the largest mode in use, so the
-+// reserve follows mode changes and hotplug without knowing the modes.  It
-+// holds five such surfaces and four 256x256 cursors, or RmDisplayReserveSizeMB
-+// cut into such surfaces, and nothing while no display allocation exists.
++// The reserve is sized and cut from the display surfaces that exist: video
++// memory allocated with ISO bandwidth guarantees and without NO_SCANOUT, by
++// any client.  The largest of them is one scanout surface of the largest mode
++// in use (a compositor allocates its framebuffers itself, NVKMS allocates the
++// buffers of GEM objects), so the reserve follows mode changes and hotplug
++// without knowing the modes.  It holds five such surfaces and four 256x256
++// cursors, or RmDisplayReserveSizeMB cut into such surfaces, and nothing
++// while no display surface exists.
 +//
 +// The reserve refills when a surface it made room for is freed, and otherwise
-+// retries on a backoff while it holds less than its size.  A change of the
-+// largest display allocation re-cuts it.
++// retries on a backoff while it holds less than its size.  Each refill cuts it
++// for the largest display surface at that time; a surface larger than the
++// current cut starts a refill at once, a smaller one waits for the next.
 +//
 +// Locking: g_pDisplayReserve[] entries change only in StateInitLocked and
 +// StateDestroy.  Fill runs as a work item with the API lock held for writing,
 +// and displayReserveStart()/displayReserveStop() run from the GPU state
 +// transitions, so both exclude every other user of a reserve.  pMutex orders
-+// the tracking of display allocations, which runs from allocation and free,
-+// and the release of chunks when RmRoApiLock enables read-only allocations;
-+// no other lock is acquired while it is held.
++// the tracking of display surfaces, which runs from allocation and free, and
++// the release of chunks when RmRoApiLock enables read-only allocations; no
++// other lock is acquired while it is held.
 +//
 +
 +#include "mem_mgr/display_reserve.h"
@@ -287,14 +294,14 @@ index 0000000..78b68e9
 +// NVKMS's surface alignment (NV_EVO_SURFACE_ALIGNMENT)
 +#define DISPLAY_RESERVE_SURFACE_ALIGNMENT   0x1000
 +
-+typedef struct DisplayAllocation
++typedef struct DisplaySurface
 +{
 +    NvU64   size;
 +    NvBool  bServed;    // the reserve made room for it
-+} DisplayAllocation;
++} DisplaySurface;
 +
-+// Live display allocations of kernel clients, keyed by their Memory object.
-+MAKE_MAP(DisplayAllocationMap, DisplayAllocation);
++// Live display surfaces, keyed by their Memory object.
++MAKE_MAP(DisplaySurfaceMap, DisplaySurface);
 +
 +typedef struct DisplayReserve
 +{
@@ -303,10 +310,10 @@ index 0000000..78b68e9
 +
 +    NvU64                   sizeOverride;   // RmDisplayReserveSizeMB, 0: automatic
 +
-+    DisplayAllocationMap    allocations;
-+    NvU64                   scanoutSize;    // the largest of allocations
++    DisplaySurfaceMap       surfaces;
 +
-+    // The current cut: numFullChunks x chunkSize + restSize bytes.
++    // The current cut, for scanoutSize: numFullChunks x chunkSize + restSize bytes.
++    NvU64                   scanoutSize;
 +    NvU64                   size;
 +    NvU64                   chunkSize;
 +    NvU32                   numFullChunks;
@@ -335,25 +342,22 @@ index 0000000..78b68e9
 +}
 +
 +//
-+// A display allocation is one NVKMS makes for a scanout surface: kernel
-+// privilege, ISO, physically contiguous and not NO_SCANOUT.  The reserve's
-+// own chunks, allocated on the MemoryManager's internal client, are not.
++// A display surface is video memory with ISO bandwidth guarantees and without
++// NO_SCANOUT.  The reserve's own chunks, allocated on the MemoryManager's
++// internal client, are not.
 +//
 +static NvBool
-+_displayReserveIsDisplayAllocation
++_displayReserveIsDisplaySurface
 +(
 +    OBJGPU                            *pGpu,
 +    NvHandle                           hClient,
-+    RS_PRIV_LEVEL                      privLevel,
 +    const NV_MEMORY_ALLOCATION_PARAMS *pAllocData
 +)
 +{
 +    MemoryManager *pMemoryManager = GPU_GET_MEMORY_MANAGER(pGpu);
 +
-+    return (privLevel >= RS_PRIV_LEVEL_KERNEL) &&
-+           (hClient != pMemoryManager->hClient) &&
++    return (hClient != pMemoryManager->hClient) &&
 +           FLD_TEST_DRF(OS32, _ATTR2, _ISO, _YES, pAllocData->attr2) &&
-+           FLD_TEST_DRF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS, pAllocData->attr) &&
 +           ((pAllocData->flags & NVOS32_ALLOC_FLAGS_NO_SCANOUT) == 0);
 +}
 +
@@ -409,7 +413,7 @@ index 0000000..78b68e9
 +}
 +
 +//
-+// Cut the reserve for the largest display allocation, then allocate the
++// Cut the reserve for the largest display surface, then allocate the
 +// chunks not held, in order, until all are held or one is refused.  Runs with
 +// the API lock held for writing and without the GPU lock, which
 +// vidmemConstruct acquires only after PMA has allocated.
@@ -423,7 +427,8 @@ index 0000000..78b68e9
 +    RM_API         *pRmApi = rmapiGetInterface(RMAPI_API_LOCK_INTERNAL);
 +    OBJTMR         *pTmr;
 +    NV_STATUS       status = NV_OK;
-+    NvU64           scanoutSize;
++    DisplaySurfaceMapIter it;
++    NvU64           scanoutSize = 0;
 +    NvU64           size;
 +    NvU64           chunkSize;
 +    NvU64           heldBefore;
@@ -441,7 +446,9 @@ index 0000000..78b68e9
 +    pTmr = GPU_GET_TIMER(pGpu);
 +
 +    portSyncMutexAcquire(pReserve->pMutex);
-+    scanoutSize = pReserve->scanoutSize;
++    it = mapIterAll(&pReserve->surfaces);
++    while (mapIterNext(&it))
++        scanoutSize = NV_MAX(scanoutSize, it.pValue->size);
 +    portSyncMutexRelease(pReserve->pMutex);
 +
 +    if (scanoutSize == 0)
@@ -455,6 +462,10 @@ index 0000000..78b68e9
 +    chunkSize = NV_MAX(scanoutSize,
 +                       NV_ALIGN_UP64(NV_DIV_AND_CEIL(size, DISPLAY_RESERVE_MAX_CHUNKS),
 +                                     DISPLAY_RESERVE_CHUNK_ALIGN));
++
++    portSyncMutexAcquire(pReserve->pMutex);
++    pReserve->scanoutSize = scanoutSize;
++    portSyncMutexRelease(pReserve->pMutex);
 +
 +    if ((size != pReserve->size) || (chunkSize != pReserve->chunkSize))
 +    {
@@ -583,7 +594,7 @@ index 0000000..78b68e9
 +        return;
 +    }
 +
-+    mapInit(&pReserve->allocations, portMemAllocatorGetGlobalNonPaged());
++    mapInit(&pReserve->surfaces, portMemAllocatorGetGlobalNonPaged());
 +    g_pDisplayReserve[pGpu->gpuInstance] = pReserve;
 +
 +    NV_PRINTF(LEVEL_INFO, "display reserve: enabled, size %s\n",
@@ -608,7 +619,7 @@ index 0000000..78b68e9
 +    g_pDisplayReserve[pGpu->gpuInstance] = NULL;
 +
 +    tmrEventDestroy(GPU_GET_TIMER(pGpu), pReserve->pRefillEvent);
-+    mapDestroy(&pReserve->allocations);
++    mapDestroy(&pReserve->surfaces);
 +    portSyncMutexDestroy(pReserve->pMutex);
 +    portMemFree(pReserve);
 +}
@@ -652,6 +663,9 @@ index 0000000..78b68e9
 +    tmrEventCancel(GPU_GET_TIMER(pGpu), pReserve->pRefillEvent);
 +
 +    _displayReserveFreeChunks(pGpu, pReserve, rmapiGetInterface(RMAPI_GPU_LOCK_INTERNAL));
++    portSyncMutexAcquire(pReserve->pMutex);
++    pReserve->scanoutSize = 0;
++    portSyncMutexRelease(pReserve->pMutex);
 +    pReserve->size = 0;
 +    pReserve->chunkSize = 0;
 +    pReserve->numFullChunks = 0;
@@ -660,10 +674,11 @@ index 0000000..78b68e9
 +
 +/*!
 + * Called by vidmemConstruct when an allocation failed with NV_ERR_NO_MEMORY.
-+ * For a display allocation of a kernel client, free chunks that together
-+ * cover the request: the rest chunk if it does alone, else one full chunk,
-+ * else the rest chunk.  Returns NV_TRUE if memory was freed and the caller
-+ * should retry the allocation.
++ * For a scanout surface of a kernel client (NVKMS: kernel privilege, ISO,
++ * physically contiguous, not NO_SCANOUT), free chunks that together cover the
++ * request: the rest chunk if it does alone, else one full chunk, else the rest
++ * chunk.  Returns NV_TRUE if memory was freed and the caller should retry the
++ * allocation.
 + */
 +NvBool
 +displayReserveRelease
@@ -680,7 +695,9 @@ index 0000000..78b68e9
 +    NvU64           released = 0;
 +
 +    if ((pReserve == NULL) ||
-+        !_displayReserveIsDisplayAllocation(pGpu, hClient, privLevel, pAllocData))
++        (privLevel < RS_PRIV_LEVEL_KERNEL) ||
++        !FLD_TEST_DRF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS, pAllocData->attr) ||
++        !_displayReserveIsDisplaySurface(pGpu, hClient, pAllocData))
 +    {
 +        return NV_FALSE;
 +    }
@@ -743,42 +760,37 @@ index 0000000..78b68e9
 +
 +/*!
 + * Called by vidmemConstruct after an allocation succeeded.  Track display
-+ * allocations of kernel clients; a new largest one re-cuts the reserve.
-+ * bServed: displayReserveRelease() made room for it, so its free refills
-+ * the reserve.
++ * surfaces; one larger than the current cut starts a refill, which re-cuts
++ * the reserve.  bServed: displayReserveRelease() made room for it, so its
++ * free refills the reserve.
 + */
 +void
 +displayReserveNoteAlloc
 +(
 +    OBJGPU                            *pGpu,
 +    NvHandle                           hClient,
-+    RS_PRIV_LEVEL                      privLevel,
 +    const NV_MEMORY_ALLOCATION_PARAMS *pAllocData,
 +    Memory                            *pMemory,
 +    NvBool                             bServed
 +)
 +{
-+    DisplayReserve    *pReserve = _displayReserveGet(pGpu);
-+    DisplayAllocation *pAllocation;
-+    NvBool             bLarger = NV_FALSE;
++    DisplayReserve *pReserve = _displayReserveGet(pGpu);
++    DisplaySurface *pSurface;
++    NvBool          bLarger = NV_FALSE;
 +
 +    if ((pReserve == NULL) ||
-+        !_displayReserveIsDisplayAllocation(pGpu, hClient, privLevel, pAllocData))
++        !_displayReserveIsDisplaySurface(pGpu, hClient, pAllocData))
 +    {
 +        return;
 +    }
 +
 +    portSyncMutexAcquire(pReserve->pMutex);
-+    pAllocation = mapInsertNew(&pReserve->allocations, (NvU64)(NvUPtr)pMemory);
-+    if (pAllocation != NULL)
++    pSurface = mapInsertNew(&pReserve->surfaces, (NvU64)(NvUPtr)pMemory);
++    if (pSurface != NULL)
 +    {
-+        pAllocation->size = pAllocData->size;
-+        pAllocation->bServed = bServed;
-+        if (pAllocData->size > pReserve->scanoutSize)
-+        {
-+            pReserve->scanoutSize = pAllocData->size;
-+            bLarger = NV_TRUE;
-+        }
++        pSurface->size = pAllocData->size;
++        pSurface->bServed = bServed;
++        bLarger = (pAllocData->size > pReserve->scanoutSize);
 +    }
 +    portSyncMutexRelease(pReserve->pMutex);
 +
@@ -788,9 +800,7 @@ index 0000000..78b68e9
 +
 +/*!
 + * Called by vidmemDestruct.  Stop tracking pMemory if it is a display
-+ * allocation.  The reserve refills if it made room for pMemory, and is
-+ * re-cut if pMemory was the largest display allocation and the largest one
-+ * left is smaller.
++ * surface, and refill the reserve if it made room for pMemory.
 + */
 +void
 +displayReserveNoteFree
@@ -800,43 +810,28 @@ index 0000000..78b68e9
 +    Memory   *pMemory
 +)
 +{
-+    DisplayReserve         *pReserve = _displayReserveGet(pGpu);
-+    MemoryManager          *pMemoryManager = GPU_GET_MEMORY_MANAGER(pGpu);
-+    DisplayAllocation      *pAllocation;
-+    DisplayAllocationMapIter it;
-+    NvBool                  bRefill = NV_FALSE;
++    DisplayReserve *pReserve = _displayReserveGet(pGpu);
++    MemoryManager  *pMemoryManager = GPU_GET_MEMORY_MANAGER(pGpu);
++    DisplaySurface *pSurface;
++    NvBool          bServed = NV_FALSE;
 +
 +    if ((pReserve == NULL) || (hClient == pMemoryManager->hClient))
 +        return;
 +
 +    portSyncMutexAcquire(pReserve->pMutex);
-+    pAllocation = mapFind(&pReserve->allocations, (NvU64)(NvUPtr)pMemory);
-+    if (pAllocation != NULL)
++    pSurface = mapFind(&pReserve->surfaces, (NvU64)(NvUPtr)pMemory);
++    if (pSurface != NULL)
 +    {
-+        NvU64 size = pAllocation->size;
-+
-+        bRefill = pAllocation->bServed;
-+        mapRemove(&pReserve->allocations, pAllocation);
-+
-+        if (size == pReserve->scanoutSize)
-+        {
-+            NvU64 largest = 0;
-+
-+            it = mapIterAll(&pReserve->allocations);
-+            while (mapIterNext(&it))
-+                largest = NV_MAX(largest, it.pValue->size);
-+
-+            bRefill = bRefill || (largest != pReserve->scanoutSize);
-+            pReserve->scanoutSize = largest;
-+        }
++        bServed = pSurface->bServed;
++        mapRemove(&pReserve->surfaces, pSurface);
 +    }
 +    portSyncMutexRelease(pReserve->pMutex);
 +
-+    if (bRefill && pReserve->bStarted)
++    if (bServed && pReserve->bStarted)
 +        _displayReserveQueueFill(pGpu);
 +}
 diff --git a/src/nvidia/src/kernel/mem_mgr/video_mem.c b/src/nvidia/src/kernel/mem_mgr/video_mem.c
-index c55c2ff..dc16e7f 100644
+index c55c2ff..41748e8 100644
 --- a/src/nvidia/src/kernel/mem_mgr/video_mem.c
 +++ b/src/nvidia/src/kernel/mem_mgr/video_mem.c
 @@ -22,6 +22,7 @@
@@ -875,17 +870,16 @@ index c55c2ff..dc16e7f 100644
          if (NV_OK != rmStatus)
              SLI_LOOP_GOTO(done);
          SLI_LOOP_END;
-@@ -1110,6 +1125,9 @@ vidmemConstruct_IMPL
+@@ -1110,6 +1125,8 @@ vidmemConstruct_IMPL
  
      stdmemDumpOutputAllocParams(pAllocData);
  
-+    displayReserveNoteAlloc(pGpu, hClient, pCallContext->secInfo.privLevel, pAllocData,
-+                            pMemory, bDisplayReserveServed);
++    displayReserveNoteAlloc(pGpu, hClient, pAllocData, pMemory, bDisplayReserveServed);
 +
  done:
      if (pMemory->pCharge != NULL && rmStatus != NV_OK)
          memacctReleaseCharge(pMemory->pCharge);
-@@ -1155,6 +1173,7 @@ vidmemDestruct_IMPL
+@@ -1155,6 +1172,7 @@ vidmemDestruct_IMPL
      CliUnregisterMemoryFromThirdPartyP2P(pMemory);
  
      memacctReleaseCharge(pMemory->pCharge);

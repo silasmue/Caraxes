@@ -37,11 +37,16 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
   - Kernel RM routes it to the physical RM (flags `0x48` = `RMCTRL_FLAGS_ROUTE_TO_PHYSICAL | RMCTRL_FLAGS_NON_PRIVILEGED`) and keeps nothing [T generated/g_disp_objs_nvoc.c:850-860; inc/kernel/rmapi/control.h:205, 230].
 - **Display bandwidth (`NV0073_CTRL_CMD_SYSTEM_ALLOCATE_DISPLAY_BANDWIDTH`).** Not usable: NVKMS calls it only for SOC display and returns before the call on a discrete GPU [M src/nvkms-evo.c:7575-7600].
 - **Kernel RM head state.** Not usable: `KernelHead` holds vblank and RG-line interrupt state only, no raster [T generated/g_kernel_head_nvoc.h:137-174].
-- **The display allocations themselves.** Chosen.
-  - Every scanout surface of every head is a kernel-privileged ISO contiguous allocation of its committed size, and `vidmemConstruct` sees each one (the identification above).
-  - The largest live one is one scanout surface of the largest mode in use. It grows when a larger mode or display appears and shrinks when the last larger surface is freed.
-  - No new interface is needed, and no display means no reserve.
+- **The display surfaces themselves.** Chosen.
+  - A display surface here is video memory allocated with ATTR2_ISO_YES and without NO_SCANOUT, by any client. `vidmemConstruct` sees every one.
+  - The largest live one is one scanout surface of the largest mode in use. It grows when a larger mode or display appears. No new interface is needed, and no display means no reserve.
   - It does not see the head count: 5 × S covers one head's measured peak [v1 nvrm_vram.c:65-95]. Concurrent transitions on several heads are not covered beyond that; v1 measured one head, and `RmDisplayReserveSizeMB` sets a larger size.
+  - **Any client, measured.** Tracing every allocation during a GNOME start (RmMsg `stdmemDumpInputAllocParams`, `B/drsv-debug/trace-journal.txt`) showed:
+    - Mutter allocates its four 1080p framebuffers itself: GL owner 0x474C0000, user privilege, 0x870000, ISO, physicality default.
+    - NVKMS (owner 0xDCBA) allocates only small ISO surfaces at idle, 0x4200 and 0x2100, 64 KiB after rounding. It allocates and frees the 0x4200 one every 5 ms during its start.
+    - A kernel-only source therefore sized the first build for 64 KiB (2 MiB; the operator's smoke: +2 MiB). NVKMS's own 0x870000 SCANOUT buffers (Xwayland's GBM buffers, the refused one [display-balloon-2026-09-29.md]) appear only once an X client runs.
+  - **Size in PMA.** The tracked size is the one `vidmemConstruct` returns, rounded to the page: 0x870000 becomes 10 MiB (five 2 MiB pages). A chunk of it frees exactly the pages a refused 1080p buffer needs. R at 1080p is 5 × 10 MiB + 1 MiB = 51 MiB (v1: 44 MiB of requested bytes).
+  - **Any client can raise the size.** A process can make the automatic reserve larger with a large ISO allocation. The memory then sits in the reserve instead of in that process; `RmDisplayReserveSizeMB` pins the size. Open for upstream review.
 
 ## Design
 
@@ -50,10 +55,13 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
   - The owner is `HEAP_OWNER_RM_CLIENT_GENERIC`, as other RM-internal LOCAL_USER allocations use [T src/kernel/gpu/mem_mgr/ce_utils.c:186].
   - A freed chunk leaves the hole the refused buffer fits: same PMA page size, 2 MiB at ≥ 2 MiB [mem_mgr.c:1781-1786], and contiguous.
   - The internal client's own allocations are neither served nor tracked.
+  - Only a kernel client's scanout request is served (kernel privilege, ISO, CONTIGUOUS, not NO_SCANOUT), as in v1, where "a process never" takes room [v1 nvrm_vram.c:152-160]. A process's display surfaces (mutter's) size the reserve but are not served.
 - **Size and shape (v1).**
-  - S is the largest live display allocation. R is 5 × S plus four 256×256×4 cursors, rounded up to MiB (v1's measured 4.67 × S peak, rounded to five [v1 nvrm_vram.c:65-95]), or `RmDisplayReserveSizeMB`.
+  - S is the largest live display surface. R is 5 × S plus four 256×256×4 cursors, rounded up to MiB (v1's measured 4.67 × S peak, rounded to five [v1 nvrm_vram.c:65-95]), or `RmDisplayReserveSizeMB`.
   - Full chunks are one S each, one rest chunk takes the remainder, and there are at most 64 chunks; a larger R grows the chunk [v1 nvrm_vram.c:115-132].
-  - A change of S re-cuts the reserve at the next fill, as v1 applied changed display dimensions at refill [v1 virtio_nvrm.c:176, 6209-6225].
+  - Each fill cuts the reserve for the largest display surface at that time, as v1 applied changed display dimensions at refill [v1 virtio_nvrm.c:176, 6209-6225].
+    - A surface larger than the current cut starts a fill at once. A smaller largest surface applies at the next fill: start, served free or backoff.
+    - The churn of small surfaces therefore cannot re-cut the reserve in a loop, which the first build did (64 KiB ↔ 0 every 5 ms during NVKMS's start).
   - The fill work item holds the API lock for writing, so freeing and re-allocating is atomic against other allocations.
 - **Release (v1).** On a refusal the rest chunk goes first when it covers the request alone, else a full chunk; this repeats until the request is granted or nothing is held [v1 nvrm_vram.c:134-149; virtio_nvrm.c:6170-6193, 6300-6318].
 - **Refill (v1).**
@@ -93,11 +101,34 @@ The reserve has to follow the modes of all heads through mode changes and hotplu
 - **Build** (`crates/vfio-user-nvgpu/guest/display-reserve/build.sh`, in the guest).
   - It checks the source tarball's sha256, applies the patch to the full 615.71.09 source and builds the RM core (`src/nvidia`) with the guest's gcc.
   - It puts the RM core into a copy of the DKMS source (`/usr/src/nvidia-615.71.09`, whose `nvidia/nv-kernel.o_binary` is the prebuilt RM core) and builds there against the running kernel.
-  - It checks that `nvidia-modeset.ko` records the same `nvidia.ko` symbol versions as the installed one, then installs only `nvidia.ko` to `/opt/caraxes/display-reserve/<kernel>/`.
+  - It installs only `nvidia.ko` to `/opt/caraxes/display-reserve/<kernel>/`, with a MANIFEST of sources, sha256s and the version line.
   - The patch touches only the RM core, so `nvidia-modeset`, `nvidia-drm` and `nvidia-uvm` stay the installed modules.
-- **Load** (`load.sh RmDisplayReserve=1`).
-  - It unloads the NVIDIA modules, then `insmod`s the patched `nvidia.ko` with the options `modprobe.d` gives `nvidia`, adding the value to `NVreg_RegistryDwords`.
+- **Load** (`load.sh RmDisplayReserve=1 [NVreg_…]`).
+  - It unloads the NVIDIA modules, loads the modules `nvidia.ko` depends on, then `insmod`s the patched `nvidia.ko` with the options `modprobe.d` gives `nvidia`, adding the value to `NVreg_RegistryDwords` and appending the extra parameters.
+  - It fails unless the loaded module reports the build's version line.
   - The bench's own `modprobe` of the other modules then finds `nvidia` loaded. The next boot is stock again.
+
+## Logging
+
+- **Levels follow RM's convention for state.** State messages (enabled, cut, holds, next try) are `NV_PRINTF(LEVEL_INFO)`, as memacct's [T src/kernel/mem_mgr/memacct.c]. A release build does not print them: the runtime threshold is warnings [K nvidia/os-interface.c:843-862].
+- **A served refusal is `LEVEL_WARNING`** and is printed; failures are `LEVEL_ERROR`.
+- **Tests turn the state lines on with NVIDIA's RmMsg filter**, not with a code change: `NVreg_RmMsg=display_reserve.c` [K nvidia/nv-reg.h `RmMsg`; T src/kernel/diagnostics/nvlog_printf.c:953-974]. `load.sh` passes extra parameters and the bench sets this one.
+
+## Smoke results (2026-09-29, desktop-b-dmem, 1 GiB, stock 6.8.0-136, GNOME)
+
+Evidence: `B/drsv-smoke3/`; the build is `B/drsv-build2/prepare.txt`.
+
+| | `RmDisplayReserve=1` | `RmDisplayReserve=0` (same build) | stock (operator's smoke) |
+|---|---|---|---|
+| VRAM used, GNOME up | 199 MiB | 148 MiB | 148 MiB |
+| Reserve | 51 MiB for a 10240 KiB surface (5 × 10240 + 1024 KiB), held within 4 s of the first framebuffer | — | — |
+| CUDA fills free VRAM (3-5 MiB left), then a 1920×1080 dumb buffer (NVKMS SCANOUT, 8100 KiB) | granted twice: "released 10240 KiB for a refused display allocation of 8100 KiB", refilled to 51 MiB 3 s after each buffer was freed | refused twice, ENOMEM | — |
+
+- **`load.sh` fixes found in the operator's first smoke:**
+  - It now loads the modules `nvidia.ko` depends on (`ecc`), since `insmod` does not.
+  - It fails unless `/proc/driver/nvidia/version` shows the build's version line from the MANIFEST (build host and time). In the first smoke the failed `insmod` let the following `modprobe` load the stock module unnoticed.
+- **`build.sh` dropped its modversion comparison.** `modprobe --dump-modversions` fails on these modules, so it compared two empty lists. The patch changes no exported symbol, and the kernel refuses a mismatch at load.
+- **Not yet exercised:** suspend/resume, the backoff timer (every fill so far succeeded at once), several GPUs.
 
 ## Test plan
 
@@ -108,7 +139,7 @@ Linux B's disposable copy `desktop-b-dmem` on the stock 6.8.0-136 kernel (`DMEM_
    - 0 NVKMS failures (`nvkms_fail=0`) and 0 Xids;
    - a results file;
    - the Moonlight picture changing until the end.
-   - Before the game, `vram` is higher by the reserve (44 MiB at 1080p).
+   - Before the game, `vram` is higher by the reserve (51 MiB at 1080p).
    - A refusal the reserve absorbed shows as `display reserve: released …` in `guest-monitor.txt`.
 3. **Control, `RmDisplayReserve=0`** (the same build, reserve off): the refusal must reproduce, as with the stock driver in `cap-on-1` and on 2026-09-28.
 4. **Record** FPS against the stock driver's runs.

@@ -1,0 +1,23 @@
+09:04:31 source 615.71.09 (61dcc93722ecb418bb5f2e00923f05b4b8051dd1) sha256 7fe0cf935d294628e88f32afbb18246d587ac582ef0ddc18c1ae14a12aa6c4a0
+patch d5e3dc78744ce14090f4cba0d94a97982bf1ab1e02a608bbedb5892923f0f792  /mnt/vmstore/caraxes/wt-dmem/patches/nvidia/0001-nvidia-add-a-display-reserve-for-kernel-display-allo.patch
+guest: 6.8.0-136-generic /usr/src/nvidia-615.71.09 
+== RM core (src/nvidia), gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+== modules for 6.8.0-136-generic from /usr/src/nvidia-615.71.09
+kernel 6.8.0-136-generic
+driver 615.71.09 (DKMS source /usr/src/nvidia-615.71.09, installed /lib/modules/6.8.0-136-generic/updates/dkms/nvidia.ko.zst)
+source source.tar.gz sha256 7fe0cf935d294628e88f32afbb18246d587ac582ef0ddc18c1ae14a12aa6c4a0
+patch d5e3dc78744ce14090f4cba0d94a97982bf1ab1e02a608bbedb5892923f0f792  display-reserve.patch
+compiler gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+nvidia.ko e69efdef570ea7c96adc27c7ea1f4ac1693000c6e921c594b124f44286dba615
+built 2026-09-29T07:05:43Z
+modprobe: FATAL: could not get modversions of /var/tmp/caraxes-display-reserve/dkms/nvidia-modeset.ko: Invalid argument
+modprobe: FATAL: could not get modversions of /lib/modules/6.8.0-136-generic/updates/dkms/nvidia-modeset.ko.zst: Invalid argument
+-rwxr-xr-x 1 root root 1713 Sep 29 07:05 /opt/caraxes/display-reserve/load.sh
+
+/opt/caraxes/display-reserve/6.8.0-136-generic/:
+total 35136
+drwxr-xr-x 2 root root     4096 Sep 29 07:05 .
+drwxr-xr-x 3 root root     4096 Sep 29 07:05 ..
+-rw-r--r-- 1 root root      493 Sep 29 07:05 MANIFEST
+-rw-r--r-- 1 root root 35965728 Sep 29 07:05 nvidia.ko
+09:05:44 done

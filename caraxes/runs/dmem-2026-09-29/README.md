@@ -72,7 +72,7 @@ B=/mnt/vmstore/caraxes/wt-dmem/caraxes/runs/dmem-2026-09-29
 BIN=<device binary>
 export DMEM_KERNEL=stock                       # 6.8.0-136; the build is per kernel
 
-# 1. Build the patched nvidia.ko in the guest (once per kernel; about 5 min)
+# 1. Build the patched nvidia.ko in the guest (once per kernel; about 2 min)
 NIGHT_SERVER=$BIN NIGHT_FB_MIB=4096 NIGHT_SLOT=0 CARAXES_NO_TRACE=1 $B/desktop-b-dmem-6g.sh up
 $B/desktop-b-dmem-6g.sh wait 200
 $B/display-reserve-prepare.sh $B/drsv-build
@@ -87,6 +87,12 @@ Pass for the reserve run:
 - `guest-monitor.txt` ends with `nvkms_fail=0 xid=0`;
 - `benchmark-result.txt` is written;
 - `timeline.txt` shows `host-rmse` non-zero until the result;
-- `guest-prep.txt` shows `RegistryDwords` with `RmDisplayReserve=1`.
+- `guest-prep.txt` shows `loaded /opt/caraxes/display-reserve/…` with `RmDisplayReserve=1`; the bench stops if that build is not the loaded one.
+- `guest-monitor.txt` shows the reserve's state lines ("display reserve: 51 MiB for a 10240 KiB scanout surface"; "released …" when it served a refusal).
 
 The control must reproduce the NVKMS refusal.
+
+Smoke 2026-09-29 (`drsv-smoke3/`, 1 GiB, GNOME):
+- reserve on: 199 MiB used against 148 MiB off; 51 MiB held.
+- VRAM filled by CUDA: a 1080p dumb buffer was granted twice with the reserve (one 10 MiB chunk released, refilled after the free) and refused twice without it (ENOMEM).
+- Analysis: [display-reserve-2026-09-29.md](../../../docs/research/display-reserve-2026-09-29.md) "Smoke results".

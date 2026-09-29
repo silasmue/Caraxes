@@ -1,0 +1,61 @@
+0
+insmod-ok
+modeset-drm-ok
+1 MiB, 823 MiB
+150 MiB, 675 MiB
+[  423.897504] NVRM: GPU0 displayReserveInitGpu: display reserve: enabled, size automatic
+[  424.467181] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.467714] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.471291] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.472002] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.472530] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.475920] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.475975] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.476445] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.480957] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.481015] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.481483] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.485241] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.485288] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.485827] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.491499] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.491545] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.492031] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.495257] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.495311] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.495790] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.499067] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.499109] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.499623] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.502902] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.502943] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.503434] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.506736] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.506784] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.507239] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.510483] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.510515] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.510979] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.514244] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.514286] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.514780] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.518045] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.518086] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.518575] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.521850] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+== all NVRM lines
+[  424.506736] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.506784] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.507239] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.510483] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.510515] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.510979] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.514244] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.514286] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.514780] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.518045] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  424.518086] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  424.518575] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB
+[  424.521850] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 0 MiB for a 0 KiB scanout surface (0 x 0 KiB + 0 KiB)
+[  428.576355] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: 2 MiB for a 64 KiB scanout surface (32 x 64 KiB + 0 KiB)
+[  428.576931] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 2 MiB

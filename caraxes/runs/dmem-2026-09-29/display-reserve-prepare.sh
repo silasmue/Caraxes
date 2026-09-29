@@ -19,7 +19,9 @@ mkdir -p "$OUT"
 exec > >(tee -a "$OUT/prepare.txt") 2>&1
 gssh() { timeout "${T:-120}" "$V" ssh "$@" 2> >(grep -v "unable to resolve" >&2); }
 
-tarball=$OUT/open-gpu-kernel-modules-$TAG.tar.gz
+# The source tarball (about 120 MB) stays outside the repository.
+tarball=${DRSV_WORK:-/mnt/vmstore/caraxes/dmem-2026-09-29}/open-gpu-kernel-modules-$TAG.tar.gz
+mkdir -p "$(dirname "$tarball")"
 git -C "$SRC_GIT" archive --format=tar.gz --prefix="open-gpu-kernel-modules-$TAG/" "$TAG" > "$tarball" || exit 1
 sha=$(sha256sum "$tarball" | cut -d' ' -f1)
 patch=$(ls "$REPO"/patches/nvidia/0001-*.patch)

@@ -11,10 +11,13 @@
 # (/usr/src/nvidia-<version>); the patch changes only the RM core (src/nvidia), which that DKMS
 # source carries prebuilt as nvidia/nv-kernel.o_binary. The script applies the patch to SOURCE,
 # builds the RM core, puts it into a copy of the DKMS source, builds the modules there with the
-# kernel's own build tree, checks that nvidia-modeset.ko sees the same nvidia.ko symbol versions
-# as the installed one (so the stock nvidia-modeset, nvidia-drm and nvidia-uvm load on top of it),
-# and installs nvidia.ko and load.sh to /opt/caraxes/display-reserve/<kernel>/. That is neither
-# updates/ nor dkms/, and depmod is not run: a normal boot never loads it. load.sh loads it.
+# kernel's own build tree, and installs nvidia.ko and load.sh to
+# /opt/caraxes/display-reserve/<kernel>/. That is neither updates/ nor dkms/, and depmod is not
+# run: a normal boot never loads it. load.sh loads it. The installed nvidia-modeset, nvidia-drm
+# and nvidia-uvm load on top of it: the patch changes no exported symbol, and the kernel's
+# modversion check refuses them at load if one differed. The MANIFEST records the version line
+# the module reports in /proc/driver/nvidia/version (it names the build host and time), which
+# load.sh checks after loading.
 set -euo pipefail
 
 src_tar=${1:?usage: build.sh SOURCE.tar.gz SOURCE_SHA256 PATCH}
@@ -51,12 +54,6 @@ cp "$tree/src/nvidia/_out/Linux_x86_64/nv-kernel.o" "$work/dkms/nvidia/nv-kernel
 make -C "$work/dkms" -j"$(nproc)" modules SYSSRC="/lib/modules/$kver/build" > "$work/modules.log" 2>&1 \
     || { tail -n 30 "$work/modules.log"; die "module build failed"; }
 
-# nvidia-modeset.ko records the CRC of every nvidia.ko symbol it uses. Equal lists for the new
-# build and the installed one mean the installed modules load on top of the new nvidia.ko.
-cmp -s <(modprobe --dump-modversions "$(modinfo -n nvidia-modeset)" | sort) \
-       <(modprobe --dump-modversions "$work/dkms/nvidia-modeset.ko" | sort) \
-    || die "symbol versions differ from the installed modules"
-
 install -D -m 0644 "$work/dkms/nvidia.ko" "$prefix/nvidia.ko"
 install -D -m 0755 "$here/load.sh" /opt/caraxes/display-reserve/load.sh
 {
@@ -66,6 +63,7 @@ install -D -m 0755 "$here/load.sh" /opt/caraxes/display-reserve/load.sh
     echo "patch $(sha256sum "$patch_file")"
     echo "compiler $(gcc --version | head -n 1)"
     echo "nvidia.ko $(sha256sum "$prefix/nvidia.ko" | cut -d' ' -f1)"
+    echo "version $(strings "$prefix/nvidia.ko" | sed -n 's/^nvidia id: *//p' | head -n 1)"
     echo "built $(date -u +%FT%TZ)"
 } > "$prefix/MANIFEST"
 cat "$prefix/MANIFEST"

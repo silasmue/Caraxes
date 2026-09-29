@@ -1,0 +1,46 @@
+set -euo pipefail
+
+regs=${1:?usage: load.sh REGISTRY_DWORDS}
+ko=/opt/caraxes/display-reserve/$(uname -r)/nvidia.ko
+
+die() { echo "load.sh: $*" >&2; exit 1; }
+(( EUID == 0 )) || die "run as root"
+[[ -f $ko ]] || die "$ko missing (build.sh)"
+
+for m in nvidia_drm nvidia_modeset nvidia_uvm nvidia; do
+    if [[ -d /sys/module/$m ]]; then
+        rmmod "$m" || die "cannot unload $m (in use?)"
+    fi
+done
+
+opts=() found=0
+while read -r opt; do
+    if [[ $opt == NVreg_RegistryDwords=* ]]; then
+        val=${opt#NVreg_RegistryDwords=}
+        val=${val#\"}
+        val=${val%\"}
+        opts+=("NVreg_RegistryDwords=${val:+$val;}$regs")
+        found=1
+    else
+        opts+=("$opt")
+    fi
+done < <(modprobe -c | awk '$1 == "options" && $2 == "nvidia" { for (i = 3; i <= NF; i++) print $i }')
+(( found )) || opts+=("NVreg_RegistryDwords=$regs")
+
+insmod "$ko" "${opts[@]}"
+== load
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+insmod: ERROR: could not insert module /opt/caraxes/display-reserve/6.8.0-136-generic/nvidia.ko: Unknown symbol in module
+load rc=1
+cat: /proc/driver/nvidia/params: No such file or directory
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+modeset-drm-ok
+1 MiB, 823 MiB
+== display
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+148 MiB, 677 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+[  147.938199] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[  149.815130] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:33:33 UTC 2026
+[  149.830106] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:15:27 UTC 2026
