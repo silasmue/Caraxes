@@ -711,3 +711,40 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - The first refusal leaves one line in gpu.log; the exit summary counts them all.
   - BAR1 passthrough and the BAR1 pool already stop below the 2 MiB carve-out.
 - Depends on: R (the reservation and its carve-out).
+
+## Cloud Hypervisor, step 1: guest tooling (2026-09-29, M44-tooling, QEMU maintenance boot)
+
+- **Why:** CH has no VGA, no GOP and no virtio-serial port, so no guest agent. The run kits reach
+  the guest over SSH on a tap instead (kit: `windows-plain/CH-build`, `run44.py`).
+- **Done in the guest** (tools/windows/ssh-setup.ps1, run once from the maintenance boot):
+  - OpenSSH server (capability OpenSSH.Server, installed from Windows Update over QEMU's user
+    network), service automatic, key authentication only, PowerShell as the login shell.
+  - A SYSTEM task at every boot puts 192.168.107.2/24 on the adapter with MAC 02:00:00:00:00:47;
+    the NIC is a new device instance under each hypervisor, so the MAC is the key.
+  - Firewall: SSH and ping from 192.168.107.0/24 only, every profile. No gateway, no NAT: the
+    guest has no internet under CH (no Windows Update, no driver updates); downloads go host,
+    sha256, scp.
+  - Sunshine v2026.914.233613 (MSI sha256 1d7fed8b..., GitHub API digest), service automatic,
+    web credentials in the kit. Power: display and standby never, hibernation (and with it fast
+    startup) off.
+- **Found in the guest:** Windows 11 Pro 25H2 26200.8037, BitLocker off, Secure Boot off under
+  OVMF, no auto-logon (the user's account has a password; Sunshine captures the logon screen as
+  SYSTEM, so none is set).
+- **The device instance:** Windows keeps the NVIDIA card as `PCI\VEN_10DE&DEV_1F02&...\3&11583659&0&30`
+  (bus 0, device 6, parent `ACPI\PNP0A08\0`), driver key `{4d36e968-...}\0007`, the only one with
+  `EnableGpuFirmware`/`RMEnableGpuFirmware` = 1 (the GSP-RM switch). CH's root complex is also
+  `PNP0A08` with `_UID` 0 (pci_segment.rs), so run-ch-gpu.sh puts the GPU at `pci_device_id=6`:
+  the same instance, the same driver key, no new GSP switch needed.
+- **The doorbell fast path does not follow from CH alone** (code reading; to be measured):
+  - The token pool hands a pool token out through the channel's work-submit-token notifier entry
+    (ctrl.rs `hand_out_token`), which libcuda re-reads on Linux. The Windows KMD computes its
+    tokens in its own RM and caches them; its channels have no error notifier (P36: 1 of 53
+    channels, P37-arm2: "1355 without notifier"). So under CH nearly every Windows ring still traps.
+  - The token-less wildcard ioeventfd (`CARAXES_DOORBELL_IOEVENTFD=1`, every ring one eventfd, the
+    device scans GPPut) is refused with the zero-based FB (main.rs, mirror.rs `Mirror::new`), and
+    KVM refuses a wildcard next to datamatch entries at one address.
+  - Options: (a) the wildcard ioeventfd for the zero-based FB, with the scan reading Windows'
+    sysmem USERD (chid 26 in P43: `userd Some(Sys(..))`); (b) datamatch sub-regions for the
+    guest's own tokens (`runlist << 16 | chid`, P43: runlists 0, 1, 2, 8, 9, 10, chids up to 51),
+    at most 253 per region. A decision for the user.
+- Memory model: none (tooling and doorbells are independent of the VRAM layout).

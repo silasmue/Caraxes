@@ -41,6 +41,14 @@ gpu=("${port[@]}" -device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"
 if [[ ${WIN_GPU:-1} == 0 ]]; then gpu=(); echo "WIN_GPU=0: memfd RAM, no device (isolation run)"; else
     [[ -S $W/gpu.sock ]] || die "no device socket $W/gpu.sock: run gpu-up.sh first"
 fi
+# WIN_TAP=<tap>: a second virtio-net on that host tap (created beforehand, owned by this user),
+# MAC WIN_TAP_MAC (default 02:00:00:00:00:47): the NIC the Cloud Hypervisor runs use, so the
+# guest's SSH and address setup (tools/windows/ssh-setup.ps1) can be checked under QEMU too.
+tap=()
+if [[ -n ${WIN_TAP:-} ]]; then
+    ip link show "$WIN_TAP" >/dev/null 2>&1 || die "no tap $WIN_TAP"
+    tap=(-device "virtio-net-pci,netdev=n1,mac=${WIN_TAP_MAC:-02:00:00:00:00:47}" -netdev "tap,id=n1,ifname=$WIN_TAP,script=no,downscript=no")
+fi
 [[ -s $W/win11.qcow2 ]] || die "no $W/win11.qcow2: run install-qemu.sh first"
 [[ -f $VARS ]] || die "no $VARS (install-qemu.sh creates it)"
 mkdir -p "$W/swtpm"
@@ -59,6 +67,7 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -drive "file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap" \
     -drive "file=$VIRTIO,media=cdrom,readonly=on" \
     -device virtio-net-pci,netdev=n0 -netdev user,id=n0,hostfwd=tcp:127.0.0.1:3389-:3389 \
+    "${tap[@]}" \
     -qmp "unix:$W/qmp.sock,server=on,wait=off" \
     -device virtio-serial-pci -chardev "socket,id=qga0,path=$W/qga.sock,server=on,wait=off" \
     -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0 \
