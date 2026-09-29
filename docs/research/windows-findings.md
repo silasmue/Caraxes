@@ -600,6 +600,38 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   the private pages, the shadow never waited for the registrar; device CE 114 pushes, 268 MiB.
 - The CUDA probe's trap census (profile dumps around it): windows-traps-exit-2026-09-29.md.
 
+## P37 (2026-09-29 03:47-04:26, the memory-window A/B under QEMU; slot 0, 4 GiB, Linux B off)
+
+- Binary c6e651b1 (dev 8644a81c plus the launch-timing fix); each arm: smoke, cuda-probe,
+  transformer and ResNet-18 60 s, NVENC vram; stopped cleanly, no host Xid in any arm.
+
+  | | arm 0: as now | arm 1: BAR2 memfd | arm 2: + interrupt page |
+  |---|---|---|---|
+  | smoke | PASS (73 s) | PASS (36 s) | FAIL: 3 TDRs, Basic Display |
+  | short kernel median | 75.6 us | 208.1 us | hung |
+  | transformer first step / rate | 12.9 s / 82336 tok/s | 4.8 s / 50668 | - |
+  | ResNet-18 first step / rate | 63.4 s / 371.8 img/s | 30.3 s / 207.1 | - |
+  | NVENC open / init | 6.0 / 4.8 s | 1.3 / 0.6 s | - |
+  | NVENC h264 / hevc | 119.8 / 138.4 fps | 61.5 / 68.2 | - |
+
+- The launch-timing split works on Windows now (arm 0): a trapped doorbell to its host doorbell
+  p50 11.9 us, 9.6 us of it the shadow USERD harvest (six uncached reads of the host USERD in
+  vidmem through BAR1; fixed off the submission path in 3d5dd954); host doorbell to the next
+  host event p50 78 us.
+- Arm 1: 7450 syncs (476 ms in all), 67 KiB written back; the guest's time from a host doorbell
+  to its next submission went from p50 7 to 50 us. Two explanations, tested in P38: the deferred
+  flush (a submission waits for a sync owed until the next hand-over or 1 ms), or GPU writes to
+  VRAM the KMD reads through BAR2, which the memfd shows stale (sampled drift check, 6d7db985).
+- Arm 2 (the interrupt page needs the token pool and a polling reactor): nvlddmkm event 153
+  three times, the KMD reset the GSP each time, Windows fell back to the Basic Display Adapter;
+  the page's retrigger watchdog sent 3898 MSIs besides 5705 for raises.
+- Open: the interrupt page on Windows. Hypothesis: the page shows `TAG` (bit 31) in every leaf
+  and in `TOP_EN_SET` so the reactor can see guest stores (intr_page.rs); the Linux RM masks
+  leaves with its enabled vectors, the 617 KMD may take bit 31 for a pending vector it can never
+  clear (the watchdog MSIs fit). Isolation owed: arm 1 plus the token pool and the hybrid
+  reactor without the page, and a trace of the leaf values and acks.
+- Memory model: independent of the VRAM layout.
+
 ## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
 
 - **Before (all builds up to 70614b41's parent):** the top of the reservation holds device-owned
