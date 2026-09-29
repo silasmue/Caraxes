@@ -368,3 +368,45 @@ Code: `D/invgate.rs`, `D/mirror.rs` `shadow_invalidated`, `invalidate_busy`, `Sh
 - **GPU run must confirm.** Kick rate while streaming (cursor test 25-60 kicks/s instead of
   8-25), Sunshine frame latency, reactor lock-wait p99 back near the 13.6 ms of no stream, the
   busy-read and fallback counters, and no Xid 31 over five Moonlight connect cycles.
+
+### 8.1 The invalidate's scope and an urgent-first worker (2026-09-29)
+
+Evidence: `/mnt/vmstore/caraxes/runs-2026-09-29/sottr-stall/` (SotTR stuck on its loading screen
+for 20+ minutes, P43, 4 GiB).
+
+- **What the guest did.** 90 % of the game's samples in `osDevReadReg032` polling TRIGGER under
+  `gvaspaceAlloc_IMPL` and `dmaUpdateVASpace_GF100`; VRAM allocations and DMA maps took 250-570 ms
+  each, 3-4 per second (guest perf and bpftrace, `guest-perf-1228.txt`, `guest-ioctl-hist-1227.txt`).
+- **What the device counted** (`gpu-exit.log`): 54213 held invalidates, 1850 s held in total
+  (34 ms mean, 794 ms longest), 3.47 M busy trigger reads (64 per hold); 42066 invalidates of other
+  roots deferred (lazy) and planned in 15762 batches. The per-shadow lines left at exit show only
+  seconds of apply time, and those roots were created and freed many times (131 channels; the
+  lines of those freed earlier went to the trace, which was off). The holds were most likely
+  waiting, behind other roots' jobs in the FIFO worker (the lazy batches a hold
+  flushed first, doorbell batches, new VASes' full syncs) and behind the device lock (pool polls
+  over 2 ms: 5924; the BAR2 memfd's full scans: 134277 syncs, 55 s).
+- **The card's rule.** An invalidate completes when the TLB holds no stale translation for its
+  target. So TRIGGER reads busy until the worker applied the jobs of the invalidate's scope only:
+  - the named root, or for `ALL_PDB` the roots whose GPPut store does not trap
+    (`untrapped::held_roots`); every other root's channel runs after a doorbell whose barrier
+    plans and waits for its root, so those follow the lazy rule (planned without a wait, or
+    deferred);
+  - the hold no longer flushes the other roots' deferred invalidates first.
+- **Urgent first.** The worker keeps one queue per root (`JobQueues`); a root someone waits for
+  (an armed gate, a doorbell or GPPut barrier, `Progress::wait`) has its jobs applied before older
+  jobs of other roots. A root's jobs never pass each other (Create, Apply, Free, Coverage). Progress
+  is per job (`Progress::begin`/`finish`), so `wait_all` (`Target::All`) still means every job up to
+  a number, and `wait_root` (`Target::Roots`) exactly the root's jobs.
+- **Kept.** Maps are applied before TRIGGER clears: a host channel whose GPPut store does not trap
+  may fetch the next work at once, and a missing leaf there is an MMU fault (Xid 31), so the
+  plan's unmaps and maps both belong to the hold. The MEM_OP hold (`memop_holds`) and the pool's
+  `shadow_barrier` are unchanged. Not done: coalescing queued plans of one root (a later plan
+  covers only its changed units) and parallel workers (the host RM serialises the calls anyway).
+- **Counters.** The mirror line ends with `shadow worker: N plan(s) applied in X ms, queued Y ms in
+  total (Z us max), P job(s) of a waited-for root applied before older ones`. With
+  `CARAXES_PROFILE=1` the rows `held invalidate: armed to TRIGGER read done` and
+  `shadow worker: plan queued before apply` give the distributions; the host RM rows give the
+  worker's call times.
+- **Tests.** `invgate::tests` (out-of-order finish, urgency while waiting and while a gate is
+  armed, a gate with nothing in flight), `untrapped::tests::a_held_invalidate_waits_for_its_scope_only`,
+  `mirror::tests::the_worker_takes_a_waited_for_root_first_and_keeps_each_roots_order`.

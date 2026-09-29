@@ -64,6 +64,18 @@ pub fn must_hold(pdb: Option<u64>, untrapped: &BTreeSet<u64>) -> bool {
     }
 }
 
+/// The roots a held invalidate of `pdb` (`None`: `ALL_PDB`) waits for, when it holds
+/// ([`must_hold`]): the root it names, or for `ALL_PDB` every root whose GPPut store does not
+/// trap. Only those host channels can fetch the guest's next work without a doorbell; every
+/// other root's channel runs after a doorbell barrier that plans and waits for its root
+/// (mirror.rs `gr_shadow_doorbell`), so the invalidate's completion does not wait for it.
+pub fn held_roots(pdb: Option<u64>, untrapped: &BTreeSet<u64>) -> Vec<u64> {
+    match pdb {
+        Some(r) => vec![r],
+        None => untrapped.iter().copied().collect(),
+    }
+}
+
 /// Whether a `MEM_OP` TLB invalidate of page directory `pdb` (`None`: every one) that the
 /// software executor runs must stop its push until the shadow is applied: it names one of
 /// the shadow `roots`. nvidia-uvm updates the page tables of a CUDA VA space from its own
@@ -180,6 +192,19 @@ pub fn wall() -> String {
 
 #[cfg(test)]
 mod tests {
+    /// A held invalidate waits for its own root, or for ALL_PDB for the untrapped roots
+    /// only (not every shadow root).
+    #[test]
+    fn a_held_invalidate_waits_for_its_scope_only() {
+        let untrapped: BTreeSet<u64> = [0xA000, 0xB000].into_iter().collect();
+        assert!(must_hold(Some(0xA000), &untrapped));
+        assert_eq!(held_roots(Some(0xA000), &untrapped), vec![0xA000]);
+        assert!(must_hold(None, &untrapped));
+        assert_eq!(held_roots(None, &untrapped), vec![0xA000, 0xB000]);
+        assert!(!must_hold(Some(0xC000), &untrapped), "a trapped root is not held");
+        assert!(!must_hold(None, &BTreeSet::new()));
+    }
+
     use super::*;
 
     #[test]

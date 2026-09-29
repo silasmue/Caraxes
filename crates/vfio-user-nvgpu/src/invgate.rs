@@ -47,46 +47,164 @@ pub fn parse_switch(v: Option<&str>) -> Result<bool, String> {
     }
 }
 
-/// The worker's side: the sequence number of the last job it finished. Jobs finish in
-/// submission order, so `done() >= s` means every job up to `s` is applied.
+/// What a waiter waits for: every job up to a sequence number, or the jobs of one shadow
+/// root up to a sequence number (that root's last job when the wait began).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Target {
+    All(u64),
+    Roots(Vec<(u64, u64)>),
+}
+
+/// The jobs in flight (submitted, not finished), by sequence number and by shadow root,
+/// and the roots someone waits for.
+#[derive(Default, Debug)]
+struct Inflight {
+    jobs: BTreeMap<u64, u64>,
+    by_root: BTreeMap<u64, std::collections::BTreeSet<u64>>,
+    /// Roots with a waiter (a doorbell barrier, a held invalidate's gate), and how many:
+    /// the worker applies their jobs before other roots' (`ShadowWorker`'s pick).
+    urgent: BTreeMap<u64, usize>,
+    /// The highest sequence number begun.
+    submitted: u64,
+}
+
+impl Inflight {
+    fn done(&self, t: &Target) -> bool {
+        match t {
+            Target::All(seq) => self.jobs.range(..=seq).next().is_none(),
+            Target::Roots(rs) => rs.iter().all(|(root, seq)| {
+                self.by_root
+                    .get(root)
+                    .is_none_or(|s| s.range(..=seq).next().is_none())
+            }),
+        }
+    }
+
+    fn roots(t: &Target) -> Vec<u64> {
+        match t {
+            Target::All(_) => Vec::new(),
+            Target::Roots(rs) => rs.iter().map(|(r, _)| *r).collect(),
+        }
+    }
+}
+
+/// The worker's side and the waiters' (docs/caraxes/execution.md §8): which jobs are in
+/// flight. A job is begun when it is submitted (the server thread) and finished when the
+/// worker applied it; the worker may apply another root's job before an older one (an
+/// urgent root first), so "done" is per job, not a single counter.
 #[derive(Default)]
 pub struct Progress {
-    done: Mutex<u64>,
+    st: Mutex<Inflight>,
     cv: Condvar,
 }
 
 impl Progress {
-    /// The worker finished job `seq` (and with it every earlier one).
+    /// Job `seq` of shadow root `root` was submitted.
+    pub fn begin(&self, seq: u64, root: u64) {
+        let mut st = self.st.lock().unwrap();
+        st.jobs.insert(seq, root);
+        st.by_root.entry(root).or_default().insert(seq);
+        st.submitted = st.submitted.max(seq);
+    }
+
+    /// The worker finished job `seq`.
     pub fn finish(&self, seq: u64) {
-        let mut d = self.done.lock().unwrap();
-        *d = (*d).max(seq);
+        let mut st = self.st.lock().unwrap();
+        if let Some(root) = st.jobs.remove(&seq) {
+            if let Some(s) = st.by_root.get_mut(&root) {
+                s.remove(&seq);
+                if s.is_empty() {
+                    st.by_root.remove(&root);
+                }
+            }
+        }
         self.cv.notify_all();
     }
 
+    /// Every job below this sequence number is finished (the oldest job in flight, less
+    /// one; the last one begun when none is in flight).
     pub fn done(&self) -> u64 {
-        *self.done.lock().unwrap()
-    }
-
-    /// Block until job `seq` is finished.
-    pub fn wait_for(&self, seq: u64) {
-        let mut d = self.done.lock().unwrap();
-        while *d < seq {
-            d = self.cv.wait(d).unwrap();
+        let st = self.st.lock().unwrap();
+        match st.jobs.keys().next() {
+            Some(first) => first - 1,
+            None => st.submitted,
         }
     }
 
-    /// Block until job `seq` is finished or `max` passed; whether it is finished.
+    /// No job in flight.
+    pub fn idle(&self) -> bool {
+        self.st.lock().unwrap().jobs.is_empty()
+    }
+
+    /// Whether what `t` names is finished.
+    pub fn is_done(&self, t: &Target) -> bool {
+        self.st.lock().unwrap().done(t)
+    }
+
+    /// Block until job `seq` and every job before it is finished.
+    pub fn wait_for(&self, seq: u64) {
+        self.wait(&Target::All(seq));
+    }
+
+    /// Block until what `t` names is finished; its roots are urgent meanwhile.
+    pub fn wait(&self, t: &Target) {
+        let mut st = self.st.lock().unwrap();
+        if st.done(t) {
+            return;
+        }
+        let roots = Inflight::roots(t);
+        for r in &roots {
+            *st.urgent.entry(*r).or_default() += 1;
+        }
+        while !st.done(t) {
+            st = self.cv.wait(st).unwrap();
+        }
+        for r in &roots {
+            unmark(&mut st, *r);
+        }
+    }
+
+    /// Block until job `seq` (and every earlier one) is finished or `max` passed.
     pub fn wait_for_at_most(&self, seq: u64, max: Duration) -> bool {
+        self.wait_at_most(&Target::All(seq), max)
+    }
+
+    /// Block until what `t` names is finished or `max` passed; whether it is finished.
+    pub fn wait_at_most(&self, t: &Target, max: Duration) -> bool {
         let end = Instant::now() + max;
-        let mut d = self.done.lock().unwrap();
-        while *d < seq {
+        let mut st = self.st.lock().unwrap();
+        while !st.done(t) {
             let now = Instant::now();
             if now >= end {
                 return false;
             }
-            d = self.cv.wait_timeout(d, end - now).unwrap().0;
+            st = self.cv.wait_timeout(st, end - now).unwrap().0;
         }
         true
+    }
+
+    /// Root `root` has a waiter that does not block here (a held invalidate's gate, which
+    /// the guest polls): its jobs go first until [`Self::unmark_urgent`].
+    pub fn mark_urgent(&self, root: u64) {
+        *self.st.lock().unwrap().urgent.entry(root).or_default() += 1;
+    }
+
+    pub fn unmark_urgent(&self, root: u64) {
+        unmark(&mut self.st.lock().unwrap(), root);
+    }
+
+    /// The roots with a waiter now.
+    pub fn urgent_roots(&self) -> Vec<u64> {
+        self.st.lock().unwrap().urgent.keys().copied().collect()
+    }
+}
+
+fn unmark(st: &mut Inflight, root: u64) {
+    if let Some(n) = st.urgent.get_mut(&root) {
+        *n -= 1;
+        if *n == 0 {
+            st.urgent.remove(&root);
+        }
     }
 }
 
@@ -131,10 +249,12 @@ pub enum Trigger {
     Done(Option<Duration>),
 }
 
-/// The invalidate in flight: TRIGGER reads busy until the worker reached `until`.
+/// The invalidate in flight: TRIGGER reads busy until the worker applied the jobs of the
+/// roots it names (the invalidated scope, not every root: the card's invalidate completes
+/// when the TLB holds no stale translation for its target).
 #[derive(Default, Debug)]
 pub struct InvalidateGate {
-    pending: Option<(u64, Instant)>,
+    pending: Option<(Vec<(u64, u64)>, Instant)>,
     /// Trigger reads that reported busy.
     pub busy_reads: u64,
     /// Reads that fell back to waiting for the worker to the end ([`FALLBACK`]).
@@ -142,13 +262,20 @@ pub struct InvalidateGate {
 }
 
 impl InvalidateGate {
-    /// A held invalidate submitted its plans up to job `until` at `now`. A second one while
-    /// the first is pending extends the gate (the guest polls before it writes the next,
-    /// so this is the defensive case).
-    pub fn arm(&mut self, until: u64, now: Instant) {
-        self.pending = Some(match self.pending {
-            Some((u, t)) => (u.max(until), t),
-            None => (until, now),
+    /// A held invalidate submitted the jobs `targets` (root, its last job) at `now`; its
+    /// roots are urgent for the worker until the gate opens. A second one while the first
+    /// is pending extends the gate (the guest polls before it writes the next, so this is
+    /// the defensive case).
+    pub fn arm(&mut self, targets: Vec<(u64, u64)>, now: Instant, progress: &Progress) {
+        for (r, _) in &targets {
+            progress.mark_urgent(*r);
+        }
+        self.pending = Some(match self.pending.take() {
+            Some((mut t, since)) => {
+                t.extend(targets);
+                (t, since)
+            }
+            None => (targets, now),
         });
     }
 
@@ -159,18 +286,22 @@ impl InvalidateGate {
     /// A read of the trigger: wait at most [`POLL_WAIT`] (to the end past [`FALLBACK`]) for
     /// the worker, then report.
     pub fn read(&mut self, progress: &Progress) -> Trigger {
-        let Some((until, since)) = self.pending else {
+        let Some((targets, since)) = self.pending.as_ref() else {
             return Trigger::Done(None);
         };
+        let t = Target::Roots(targets.clone());
         let done = if since.elapsed() >= FALLBACK {
             self.fallbacks += 1;
-            progress.wait_for(until);
+            progress.wait(&t);
             true
         } else {
-            progress.wait_for_at_most(until, POLL_WAIT)
+            progress.wait_at_most(&t, POLL_WAIT)
         };
         if done {
-            self.pending = None;
+            let (targets, since) = self.pending.take().expect("checked");
+            for (r, _) in targets {
+                progress.unmark_urgent(r);
+            }
             Trigger::Done(Some(since.elapsed()))
         } else {
             self.busy_reads += 1;
@@ -179,8 +310,12 @@ impl InvalidateGate {
     }
 
     /// A device reset: the worker was drained, nothing is in flight.
-    pub fn clear(&mut self) {
-        self.pending = None;
+    pub fn clear(&mut self, progress: &Progress) {
+        if let Some((targets, _)) = self.pending.take() {
+            for (r, _) in targets {
+                progress.unmark_urgent(r);
+            }
+        }
     }
 }
 
@@ -221,6 +356,7 @@ mod tests {
         {
             let mut d = dev.lock().unwrap();
             let s = d.0.next(B);
+            progress.begin(s, B);
             progress.finish(s);
         }
         // The trigger write: plan A, submit, arm, return.
@@ -228,11 +364,13 @@ mod tests {
         let worker = {
             let mut d = dev.lock().unwrap();
             let s = d.0.next(A);
-            let until = d.0.submitted();
-            d.1.arm(until, Instant::now());
+            progress.begin(s, A);
+            let targets = vec![(A, d.0.last_of(A))];
+            d.1.arm(targets, Instant::now(), &progress);
             slow_worker(&progress, s, Duration::from_millis(300))
         };
         assert!(t0.elapsed() < Duration::from_millis(50), "the write returned at once");
+        assert_eq!(progress.urgent_roots(), vec![A], "the gate makes A urgent");
 
         // The display tick on another thread gets the device lock while the walk runs.
         let tick = {
@@ -242,8 +380,7 @@ mod tests {
                 let t = Instant::now();
                 let d = dev.lock().unwrap();
                 let waited = t.elapsed();
-                // The walk is still running when the tick has the lock.
-                let walk_pending = progress.done() < d.0.last_of(A);
+                let walk_pending = !progress.is_done(&Target::Roots(vec![(A, d.0.last_of(A))]));
                 (waited, walk_pending)
             })
         };
@@ -255,7 +392,7 @@ mod tests {
         let t = Instant::now();
         {
             let d = dev.lock().unwrap();
-            progress.wait_for(d.0.last_of(B));
+            progress.wait(&Target::Roots(vec![(B, d.0.last_of(B))]));
         }
         assert!(t.elapsed() < Duration::from_millis(50));
 
@@ -275,30 +412,69 @@ mod tests {
             }
         };
         assert!(busy > 0, "the trigger read busy while the walk ran");
-        assert!(progress.done() >= 2, "done only after the worker finished");
+        assert!(progress.idle(), "done only after the worker finished");
         assert!(held.unwrap() >= Duration::from_millis(250));
         assert!(longest < Duration::from_millis(50), "a read held the lock {longest:?}");
         assert_eq!(dev.lock().unwrap().1.busy_reads, busy);
+        assert!(progress.urgent_roots().is_empty(), "the open gate unmarks A");
         // The next read with nothing armed is simply done.
         assert_eq!(dev.lock().unwrap().1.read(&progress), Trigger::Done(None));
         worker.join().unwrap();
     }
 
-    /// A doorbell on the gated root waits for the walk (the per-root barrier).
+    /// A doorbell on the gated root waits for the walk (the per-root barrier), and its
+    /// root is urgent while it waits.
     #[test]
     fn a_doorbell_on_the_gated_root_waits_for_the_walk() {
         const A: u64 = 0x1_2980_0000;
         let progress = Arc::new(Progress::default());
         let mut seqs = Seqs::default();
         let s = seqs.next(A);
+        progress.begin(s, A);
         let t0 = Instant::now();
-        let w = slow_worker(&progress, s, Duration::from_millis(150));
-        progress.wait_for(seqs.last_of(A));
+        let p2 = progress.clone();
+        let w = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            let urgent = p2.urgent_roots();
+            std::thread::sleep(Duration::from_millis(100));
+            p2.finish(s);
+            urgent
+        });
+        progress.wait(&Target::Roots(vec![(A, seqs.last_of(A))]));
         assert!(t0.elapsed() >= Duration::from_millis(140));
-        assert!(progress.done() >= s);
-        w.join().unwrap();
+        assert_eq!(w.join().unwrap(), vec![A], "urgent while the doorbell waits");
+        assert!(progress.urgent_roots().is_empty());
+        assert_eq!(progress.done(), s);
         seqs.forget_done(progress.done());
         assert_eq!(seqs.last_of(A), 0);
+    }
+
+    /// Jobs finish out of order (an urgent root first): a root's wait is satisfied by its
+    /// own jobs; a wait for everything up to a number, and `done`, only when every job up to
+    /// it is finished.
+    #[test]
+    fn jobs_of_another_root_may_finish_first() {
+        const A: u64 = 0xA000;
+        const B: u64 = 0xB000;
+        let p = Progress::default();
+        p.begin(1, A);
+        p.begin(2, B);
+        p.begin(3, A);
+        p.finish(2);
+        assert!(p.is_done(&Target::Roots(vec![(B, 2)])));
+        assert!(!p.is_done(&Target::Roots(vec![(A, 1)])));
+        assert!(!p.is_done(&Target::All(2)));
+        assert_eq!(p.done(), 0);
+        p.finish(1);
+        assert!(p.is_done(&Target::All(2)));
+        assert!(p.is_done(&Target::Roots(vec![(A, 1)])));
+        assert!(!p.is_done(&Target::Roots(vec![(A, 3)])));
+        assert_eq!(p.done(), 2);
+        assert!(!p.idle());
+        p.finish(3);
+        assert!(p.idle());
+        assert_eq!(p.done(), 3);
+        assert!(p.is_done(&Target::Roots(vec![(0xC000, 9)])), "a root with nothing in flight");
     }
 
     /// Past [`FALLBACK`] a read waits for the worker to the end: the guest never sees
@@ -306,26 +482,41 @@ mod tests {
     #[test]
     fn a_read_past_the_fallback_waits_to_the_end() {
         let progress = Arc::new(Progress::default());
+        progress.begin(1, 0xA000);
         let mut g = InvalidateGate::default();
-        g.arm(1, Instant::now() - FALLBACK);
+        g.arm(vec![(0xA000, 1)], Instant::now() - FALLBACK, &progress);
         let w = slow_worker(&progress, 1, Duration::from_millis(100));
         assert!(matches!(g.read(&progress), Trigger::Done(Some(_))));
-        assert_eq!(progress.done(), 1);
+        assert!(progress.idle());
         assert_eq!(g.fallbacks, 1);
         w.join().unwrap();
     }
 
+    /// A second held invalidate extends the gate by its roots.
     #[test]
     fn a_second_invalidate_extends_the_gate() {
         let progress = Progress::default();
+        progress.begin(3, 0xA000);
+        progress.begin(5, 0xB000);
         let mut g = InvalidateGate::default();
         let t = Instant::now();
-        g.arm(3, t);
-        g.arm(5, t + Duration::from_millis(1));
+        g.arm(vec![(0xA000, 3)], t, &progress);
+        g.arm(vec![(0xB000, 5)], t + Duration::from_millis(1), &progress);
         progress.finish(3);
         assert_eq!(g.read(&progress), Trigger::Busy);
         progress.finish(5);
         assert!(matches!(g.read(&progress), Trigger::Done(Some(_))));
         assert!(!g.armed());
+        assert!(progress.urgent_roots().is_empty());
+    }
+
+    /// A gate whose invalidate submitted nothing (the shadow was already current) opens at
+    /// the first read.
+    #[test]
+    fn a_gate_with_nothing_in_flight_opens_at_once() {
+        let progress = Progress::default();
+        let mut g = InvalidateGate::default();
+        g.arm(vec![(0xA000, 0)], Instant::now(), &progress);
+        assert!(matches!(g.read(&progress), Trigger::Done(Some(_))));
     }
 }

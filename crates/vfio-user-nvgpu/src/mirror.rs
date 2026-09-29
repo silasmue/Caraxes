@@ -1895,26 +1895,57 @@ impl Mirror {
         gm: &mut GpuMem,
         pdb: Option<u64>,
     ) -> Vec<String> {
-        use crate::lazy::OnInvalidate;
         // A root whose channel's GPPut store does not trap (untrapped.rs): the invalidate is
         // the last point before the host channel may run the guest's next work, so the plan
         // is made and applied before the guest continues, with everything deferred so far.
-        if self.hold_on && crate::untrapped::must_hold(pdb, &self.untrapped_roots(reg, gm.fb)) {
+        let untrapped = if self.hold_on {
+            self.untrapped_roots(reg, gm.fb)
+        } else {
+            Default::default()
+        };
+        if self.hold_on && crate::untrapped::must_hold(pdb, &untrapped) {
+            // The invalidate's scope (docs/caraxes/execution.md §8): the card completes it
+            // when the TLB holds no stale translation for its target. The target root, or
+            // for ALL_PDB every root whose host channel may fetch without a trapped
+            // doorbell, is planned now and TRIGGER reads busy until the worker applied
+            // those roots' jobs, which it takes before other roots' (invgate.rs). Other
+            // roots are not in the hold: their host channels run only after a doorbell,
+            // whose barrier plans and waits for them, so they follow the lazy rule below.
             let t0 = Instant::now();
-            let mut notes = self.flush_lazy(reg, gm);
-            notes.extend(self.shadow_resync(reg, gm, pdb));
+            let held = crate::untrapped::held_roots(pdb, &untrapped);
+            let mut notes = Vec::new();
+            for r in &held {
+                notes.extend(self.shadow_resync(reg, gm, Some(*r)));
+            }
+            let targets = self.worker.targets(&held);
             if self.inv_async {
                 // The guest polls TRIGGER until it reads FALSE before its map call returns
-                // (`kgmmuCommitTlbInvalidate_TU102`); it reads TRUE until the worker applied
-                // every job submitted up to here ([`Mirror::invalidate_busy`], invgate.rs).
-                // The device lock is free meanwhile.
-                self.inv_gate.arm(self.worker.submitted(), t0);
+                // (`kgmmuCommitTlbInvalidate_TU102`) ([`Mirror::invalidate_busy`]). The
+                // device lock is free meanwhile.
+                self.inv_gate.arm(targets, t0, &self.worker.progress);
             } else {
-                self.worker.wait_all();
+                self.worker
+                    .progress
+                    .wait(&crate::invgate::Target::Roots(targets));
                 self.hold.note_held(t0.elapsed());
+            }
+            if pdb.is_none() {
+                notes.extend(self.invalidate_unheld(reg, gm, None));
             }
             return notes;
         }
+        self.invalidate_unheld(reg, gm, pdb)
+    }
+
+    /// An invalidate outside the hold (`shadow_invalidated`): planned now without a wait,
+    /// or deferred (lazy.rs).
+    fn invalidate_unheld(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        pdb: Option<u64>,
+    ) -> Vec<String> {
+        use crate::lazy::OnInvalidate;
         // A plan submitted here is not waited for before the guest continues (the evidence
         // counter of `note_ran_ahead`).
         match self.lazy.on_invalidate(pdb, Instant::now()) {
@@ -2012,13 +2043,14 @@ impl Mirror {
     /// The untrapped-GPPut counters (untrapped.rs), for the pool's per-context line.
     pub fn hold_summary(&self) -> String {
         format!(
-            "{}; held invalidates {} (trigger read busy {} time(s), {} waited past {} ms) [{}]",
+            "{}; held invalidates {} (trigger read busy {} time(s), {} waited past {} ms) [{}]; {}",
             self.hold.summary(self.hold_on),
             if self.inv_async { "complete through the trigger's busy bit" } else { "wait under the device lock" },
             self.inv_gate.busy_reads,
             self.inv_gate.fallbacks,
             crate::invgate::FALLBACK.as_millis(),
-            crate::invgate::ENV
+            crate::invgate::ENV,
+            self.worker.summary()
         )
     }
 
@@ -2030,6 +2062,13 @@ impl Mirror {
             crate::invgate::Trigger::Busy => true,
             crate::invgate::Trigger::Done(Some(d)) => {
                 self.hold.note_held(d);
+                crate::profile::record(
+                    crate::profile::Key::Window("held invalidate: armed to TRIGGER read done"),
+                    d,
+                    1,
+                    None,
+                    "",
+                );
                 false
             }
             crate::invgate::Trigger::Done(None) => false,
@@ -5260,7 +5299,7 @@ impl Mirror {
             notes.push("mirror reset retained shared infrastructure because host objects remain after a teardown refusal".into());
             return notes;
         }
-        self.inv_gate.clear();
+        self.inv_gate.clear(&self.worker.progress);
         if let Some(inv) = self.invalidator.take() {
             let mut h = self.hm.lock().unwrap();
             notes.push(inv.free(&mut h));
@@ -5338,6 +5377,78 @@ enum Job {
     Coverage(u64, u64, u64, std::sync::mpsc::Sender<String>),
 }
 
+impl Job {
+    /// The shadow root the job belongs to.
+    fn root(&self) -> u64 {
+        match self {
+            Job::Create(r, _) | Job::Free(r) | Job::Coverage(r, _, _, _) => *r,
+            Job::Apply(plan, _) => plan.root,
+        }
+    }
+}
+
+/// The worker's queues: jobs per shadow root in submission order.
+#[derive(Default)]
+struct JobQueues {
+    roots: BTreeMap<u64, std::collections::VecDeque<(u64, Job)>>,
+    len: usize,
+}
+
+impl JobQueues {
+    fn push(&mut self, seq: u64, job: Job) {
+        self.roots.entry(job.root()).or_default().push_back((seq, job));
+        self.len += 1;
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// The next job: the oldest job of a root in `urgent` that has one queued, else the
+    /// oldest job of all. Jobs of one root never pass each other.
+    fn pop(&mut self, urgent: &[u64], stats: &WorkerStats) -> Option<(u64, Job)> {
+        let front = |r: &u64, q: &std::collections::VecDeque<(u64, Job)>| q.front().map(|(s, _)| (*s, *r));
+        let oldest = self.roots.iter().filter_map(|(r, q)| front(r, q)).min()?;
+        let pick = urgent
+            .iter()
+            .filter_map(|r| self.roots.get(r).and_then(|q| front(r, q)))
+            .min()
+            .unwrap_or(oldest);
+        if pick != oldest {
+            stats.promoted.fetch_add(1, Ordering::Relaxed);
+        }
+        let q = self.roots.get_mut(&pick.1).expect("picked");
+        let job = q.pop_front();
+        if q.is_empty() {
+            self.roots.remove(&pick.1);
+        }
+        self.len -= 1;
+        job
+    }
+}
+
+/// Adds the time since its start to the worker's busy time when dropped.
+struct BusyTimer<'a>(&'a WorkerStats, Instant);
+
+impl Drop for BusyTimer<'_> {
+    fn drop(&mut self) {
+        self.0
+            .busy_us
+            .fetch_add(self.1.elapsed().as_micros() as u64, Ordering::Relaxed);
+    }
+}
+
+/// The worker's counters for the exit summary: time applying plans, the time plans
+/// waited in the queue, and the jobs of a waited-for root applied before older ones.
+#[derive(Default)]
+struct WorkerStats {
+    busy_us: std::sync::atomic::AtomicU64,
+    queued_us: std::sync::atomic::AtomicU64,
+    queued_max_us: std::sync::atomic::AtomicU64,
+    applies: std::sync::atomic::AtomicU64,
+    promoted: std::sync::atomic::AtomicU64,
+}
+
 /// The shadow worker (docs/caraxes/mapping.md §4): one thread that owns the host side of
 /// every shadow VA space and applies the server thread's plans, so a guest MMU invalidate
 /// returns after the walk (tens of microseconds) instead of after the RM calls, and a
@@ -5348,6 +5459,7 @@ enum Job {
 /// submission (the synchronous reference).
 struct ShadowWorker {
     tx: Option<std::sync::mpsc::Sender<(u64, Job)>>,
+    stats: Arc<WorkerStats>,
     /// The last job finished (invgate.rs), shared with the worker thread.
     progress: Arc<crate::invgate::Progress>,
     /// Submitted jobs and the last one per shadow root.
@@ -5365,6 +5477,8 @@ impl ShadowWorker {
         let progress = Arc::new(crate::invgate::Progress::default());
         let notes = Arc::new(Mutex::new(Vec::new()));
         let (progress2, notes2) = (progress.clone(), notes.clone());
+        let stats = Arc::new(WorkerStats::default());
+        let worker_stats2 = stats.clone();
         let idle = Arc::new((Mutex::new(true), std::sync::Condvar::new()));
         let idle2 = idle.clone();
         let thread = std::thread::Builder::new()
@@ -5376,28 +5490,41 @@ impl ShadowWorker {
                 // for plans), and never holds the host RM lock for more than one step.
                 let mut graveyard: std::collections::VecDeque<(u64, crate::shadow::ShadowVas, Instant, usize, String)> =
                     std::collections::VecDeque::new();
+                // Jobs received and not yet applied, per shadow root in submission order: a
+                // root's jobs stay in order, and a root someone waits for (a doorbell
+                // barrier, a held invalidate) goes before the others (`pick_job`).
+                let mut queues = JobQueues::default();
                 loop {
-                    let next = if graveyard.is_empty() {
-                        match rx.recv() {
-                            Ok(j) => Some(j),
-                            Err(_) => break,
-                        }
-                    } else {
-                        match rx.recv_timeout(crate::shadow::TEARDOWN_PAUSE) {
-                            Ok(j) => Some(j),
-                            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
-                            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                                // Shutting down: finish every teardown.
-                                while let Some((root, mut sv, t0, mut steps, summary)) = graveyard.pop_front() {
-                                    while !sv.teardown_step(&hm) {
-                                        steps += 1;
-                                    }
-                                    intr.note(format!("shadow: VAS of guest root {root:#x} freed: {summary}; {} [host]", sv.teardown_line(steps + 1, t0.elapsed().as_millis())));
-                                }
-                                break;
+                    if queues.is_empty() {
+                        let first = if graveyard.is_empty() {
+                            match rx.recv() {
+                                Ok(j) => Some(j),
+                                Err(_) => break,
                             }
+                        } else {
+                            match rx.recv_timeout(crate::shadow::TEARDOWN_PAUSE) {
+                                Ok(j) => Some(j),
+                                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
+                                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                                    // Shutting down: finish every teardown.
+                                    while let Some((root, mut sv, t0, mut steps, summary)) = graveyard.pop_front() {
+                                        while !sv.teardown_step(&hm) {
+                                            steps += 1;
+                                        }
+                                        intr.note(format!("shadow: VAS of guest root {root:#x} freed: {summary}; {} [host]", sv.teardown_line(steps + 1, t0.elapsed().as_millis())));
+                                    }
+                                    break;
+                                }
+                            }
+                        };
+                        if let Some((seq, job)) = first {
+                            queues.push(seq, job);
                         }
-                    };
+                    }
+                    while let Ok((seq, job)) = rx.try_recv() {
+                        queues.push(seq, job);
+                    }
+                    let next = queues.pop(&progress2.urgent_roots(), &worker_stats2);
                     let Some((seq, job)) = next else {
                         if let Some(g) = graveyard.front_mut() {
                             g.3 += 1;
@@ -5425,6 +5552,19 @@ impl ShadowWorker {
                         }
                         Job::Apply(mut plan, queued) => {
                             plan.queued_us = queued.elapsed().as_micros();
+                            let q = plan.queued_us as u64;
+                            worker_stats2.queued_us.fetch_add(q, Ordering::Relaxed);
+                            worker_stats2.queued_max_us.fetch_max(q, Ordering::Relaxed);
+                            worker_stats2.applies.fetch_add(1, Ordering::Relaxed);
+                            crate::profile::record(
+                                crate::profile::Key::Window("shadow worker: plan queued before apply"),
+                                std::time::Duration::from_micros(q),
+                                1,
+                                None,
+                                "",
+                            );
+                            let busy0 = Instant::now();
+                            let _busy = BusyTimer(&worker_stats2, busy0);
                             let descs: Vec<(u32, u64, u64)> = hm
                                 .lock()
                                 .unwrap()
@@ -5469,6 +5609,7 @@ impl ShadowWorker {
             .ok();
         ShadowWorker {
             tx: Some(tx),
+            stats,
             progress,
             idle,
             seqs: Default::default(),
@@ -5479,14 +5620,14 @@ impl ShadowWorker {
     }
 
     fn submit(&mut self, job: Job) {
-        let root = match &job {
-            Job::Create(r, _) | Job::Free(r) | Job::Coverage(r, _, _, _) => *r,
-            Job::Apply(plan, _) => plan.root,
-        };
+        let root = job.root();
         if self.thread.is_some() {
             self.seqs.forget_done(self.progress.done());
         }
         let seq = self.seqs.next(root);
+        if self.thread.is_some() {
+            self.progress.begin(seq, root);
+        }
         if let Some(tx) = &self.tx {
             let _ = tx.send((seq, job));
         }
@@ -5506,7 +5647,21 @@ impl ShadowWorker {
 
     /// Jobs submitted and not yet done.
     fn pending(&self) -> bool {
-        self.thread.is_some() && self.progress.done() < self.seqs.submitted()
+        self.thread.is_some() && !self.progress.idle()
+    }
+
+    /// The exit summary's worker part.
+    fn summary(&self) -> String {
+        let s = &self.stats;
+        let n = s.applies.load(Ordering::Relaxed);
+        format!(
+            "shadow worker: {} plan(s) applied in {} ms, queued {} ms in total ({} us max), {} job(s) of a waited-for root applied before older ones",
+            n,
+            s.busy_us.load(Ordering::Relaxed) / 1000,
+            s.queued_us.load(Ordering::Relaxed) / 1000,
+            s.queued_max_us.load(Ordering::Relaxed),
+            s.promoted.load(Ordering::Relaxed),
+        )
     }
 
     /// Block until every job submitted so far is done.
@@ -5517,23 +5672,23 @@ impl ShadowWorker {
         self.progress.wait_for(self.seqs.submitted());
     }
 
-    /// Block until every job submitted so far for shadow root `root` is done. Jobs finish
-    /// in submission order, so the root's mirror is then what its last plan made it; jobs
-    /// of other roots queued after it are not waited for (invgate.rs).
+    /// Block until every job submitted so far for shadow root `root` is done: the root's
+    /// mirror is then what its last plan made it. The root is urgent meanwhile, so its jobs
+    /// go before other roots' queued jobs, which are not waited for (invgate.rs).
     fn wait_root(&self, root: u64) {
         if self.thread.is_none() {
             return;
         }
-        self.progress.wait_for(self.seqs.last_of(root));
+        self.progress
+            .wait(&crate::invgate::Target::Roots(vec![(root, self.seqs.last_of(root))]));
     }
 
-    /// The sequence number of the last job submitted (an invalidate gate's target), 0
-    /// without a worker thread (nothing is ever in flight then).
-    fn submitted(&self) -> u64 {
+    /// The gate targets of a held invalidate of `roots`: each root and its last job.
+    fn targets(&self, roots: &[u64]) -> Vec<(u64, u64)> {
         if self.thread.is_none() {
-            return 0;
+            return Vec::new();
         }
-        self.seqs.submitted()
+        roots.iter().map(|r| (*r, self.seqs.last_of(*r))).collect()
     }
 
     /// Block until every job is done and every teardown finished (before the host
@@ -5802,6 +5957,27 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
 
 #[cfg(test)]
 mod tests {
+    /// The worker's pick (docs/caraxes/execution.md §8): a root someone waits for goes first,
+    /// a root's jobs never pass each other, and without a waiter the oldest job goes.
+    #[test]
+    fn the_worker_takes_a_waited_for_root_first_and_keeps_each_roots_order() {
+        const A: u64 = 0xA000;
+        const B: u64 = 0xB000;
+        let stats = WorkerStats::default();
+        let mut q = JobQueues::default();
+        for (seq, root) in [(1, A), (2, B), (3, A), (4, B)] {
+            q.push(seq, Job::Free(root));
+        }
+        let seq = |j: Option<(u64, Job)>| j.map(|(s, _)| s);
+        assert_eq!(seq(q.pop(&[], &stats)), Some(1));
+        assert_eq!(seq(q.pop(&[B], &stats)), Some(2));
+        assert_eq!(seq(q.pop(&[B], &stats)), Some(4), "B's next, before A's older job");
+        assert_eq!(seq(q.pop(&[B], &stats)), Some(3), "B has nothing queued: the oldest");
+        assert!(q.is_empty());
+        assert_eq!(seq(q.pop(&[], &stats)), None);
+        assert_eq!(stats.promoted.load(Ordering::Relaxed), 1);
+    }
+
     use super::*;
     use std::cell::Cell;
 
