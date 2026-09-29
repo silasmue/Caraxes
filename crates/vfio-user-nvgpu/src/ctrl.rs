@@ -757,13 +757,23 @@ impl Dispatcher {
             .map(|(b, e)| (b, e.saturating_sub(crate::devce::PRIVATE_AT).max(b)));
         let software_runs = self.channels.software_runs;
         let t0 = std::time::Instant::now();
+        crate::dlock::take_spent();
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
         let spent = t0.elapsed();
+        let [translate, copy] = crate::dlock::take_spent();
         let software = self.channels.software_runs != software_runs;
-        // The device lock's tags and work table (dlock.rs): what a channel's doorbell cost.
+        // The device lock's tags and work table (dlock.rs): what a channel's doorbell cost,
+        // with a software run's translations and CPU copies apart.
         let kind = if software { "software" } else { "host" };
         if spent >= std::time::Duration::from_millis(1) {
-            crate::dlock::tag(|| format!("doorbell chid {chid} ({kind}) {} ms", spent.as_millis()));
+            crate::dlock::tag(|| {
+                format!(
+                    "doorbell chid {chid} ({kind}) {} ms (translate {} ms, CPU copy {} ms)",
+                    spent.as_millis(),
+                    translate.as_millis(),
+                    copy.as_millis()
+                )
+            });
         }
         crate::dlock::work("doorbell", kind.to_string(), spent);
         if !software {

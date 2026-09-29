@@ -52,6 +52,75 @@ pub fn tag(f: impl FnOnce() -> String) {
     });
 }
 
+/// The parts of a software channel's doorbell timed apart ([`Spend`]).
+#[derive(Clone, Copy, Debug)]
+pub enum Part {
+    /// Resolving guest VAs through the page tables (channel.rs `GpuMem::pieces`).
+    Translate = 0,
+    /// The software CE's CPU reads, writes and fills.
+    Copy = 1,
+}
+
+const PARTS: usize = 2;
+
+impl Part {
+    fn name(self) -> &'static str {
+        match self {
+            Part::Translate => "translate",
+            Part::Copy => "CPU copy",
+        }
+    }
+}
+
+thread_local! {
+    /// Time spent per part on this thread since the last [`take_spent`], and whether a
+    /// guard of the part is running (a nested one does not count twice).
+    static SPENT: RefCell<([u64; PARTS], [bool; PARTS])> = const { RefCell::new(([0; PARTS], [false; PARTS])) };
+}
+
+/// Times one [`Part`] until dropped: into this thread's per-doorbell sums
+/// ([`take_spent`]) and the work table (`software` / the part).
+pub struct Spend {
+    part: Part,
+    t0: Option<Instant>,
+}
+
+impl Spend {
+    pub fn new(part: Part) -> Self {
+        let outer = SPENT.with(|s| {
+            let mut s = s.borrow_mut();
+            !std::mem::replace(&mut s.1[part as usize], true)
+        });
+        Spend {
+            part,
+            t0: outer.then(Instant::now),
+        }
+    }
+}
+
+impl Drop for Spend {
+    fn drop(&mut self) {
+        let Some(t0) = self.t0 else {
+            return;
+        };
+        let d = t0.elapsed();
+        SPENT.with(|s| {
+            let mut s = s.borrow_mut();
+            s.0[self.part as usize] += d.as_nanos() as u64;
+            s.1[self.part as usize] = false;
+        });
+        work("software", self.part.name().to_string(), d);
+    }
+}
+
+/// This thread's time per [`Part`] since the last call, reset.
+pub fn take_spent() -> [Duration; PARTS] {
+    SPENT.with(|s| {
+        let v = std::mem::take(&mut s.borrow_mut().0);
+        v.map(Duration::from_nanos)
+    })
+}
+
 #[derive(Clone, Debug, Default)]
 struct WorkRow {
     count: u64,
@@ -301,6 +370,26 @@ mod tests {
         }
         assert_eq!(quantile(&r, 0.5), Duration::from_micros(4), "2 and 3 us are in [2, 4)");
         assert_eq!(quantile(&r, 0.99), Duration::from_micros(1024));
+    }
+
+    /// A part's time is summed per thread until taken, and a nested guard of the same part
+    /// does not count twice.
+    #[test]
+    fn a_doorbell_s_parts_are_summed_once_and_taken() {
+        take_spent();
+        {
+            let _outer = Spend::new(Part::Copy);
+            let _inner = Spend::new(Part::Copy);
+            std::thread::sleep(Duration::from_millis(3));
+        }
+        {
+            let _t = Spend::new(Part::Translate);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let [translate, copy] = take_spent();
+        assert!(copy >= Duration::from_millis(3) && copy < Duration::from_millis(6), "{copy:?}");
+        assert!(translate >= Duration::from_millis(1), "{translate:?}");
+        assert_eq!(take_spent(), [Duration::ZERO; 2]);
     }
 
     /// A long hold keeps what the work under it tagged; outside a hold a tag is dropped; the
