@@ -654,6 +654,21 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   stays off for Windows.
 - Memory model: independent of the VRAM layout.
 
+## P39 (2026-09-29 05:03-05:06, P39-plain: the production binary, no diagnostic patch)
+
+- Binary 888b17af (win-2026-09-29b on dev a48e54cf) built without diagnostic.patch: no P17 BIND
+  handling, no first-use gate, no pool acknowledgement. Every gate since P17 carried that patch.
+- Result: Windows does not start the driver: Device Manager Code 43, nvidia-smi exit 9, D3D11,
+  D3D12, Vulkan and CUDA (`CUDA_ERROR_NO_DEVICE`) fail; no TDR, no host Xid, clean teardown.
+- Cause in the trace: at 15.0 s the KMD asks `GR_GFX_POOL_QUERY_SIZE` (0x2080121f); dev refuses
+  it (ctrl.rs `control_inner`: "host GFXP pool is not implemented", NOT_SUPPORTED); 0.4 s later
+  the KMD unloads (GMCAPI `GSP_SUSPEND`, gsp reset 3). No host GR context was built, so the
+  preemption-mode log had nothing to read.
+- Consequence: the Windows path needs the pool bootstrap answered and the BIND handled (P17's
+  owned GFXP today; the productization proposal carves the buffers from the VM's slice).
+- Memory model: the GFXP buffers' placement depends on it (host vidmem today, the VM's slice
+  proposed).
+
 ## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
 
 - **Before (all builds up to 70614b41's parent):** the top of the reservation holds device-owned
