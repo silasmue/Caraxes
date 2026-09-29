@@ -364,10 +364,12 @@ fn config_block(c: &ConfigView) -> Vec<String> {
             "host execution (boot model, host RM, VRAM reservation slot {}, registered guest RAM)",
             a.reserve_slot
         )
-    } else if a.boot_model {
-        "pure emulation with the boot model".to_string()
     } else {
-        "pure emulation".to_string()
+        let mut parts = vec![if a.boot_model { "boot model" } else { "no boot model" }];
+        parts.extend(a.host_rm.then_some("host RM"));
+        parts.extend(a.reserve_vram.then_some("VRAM reservation"));
+        parts.extend(a.register_guest_ram.then_some("registered guest RAM"));
+        format!("emulation without host execution ({})", parts.join(", "))
     };
     let mut lines = vec![
         format!(
