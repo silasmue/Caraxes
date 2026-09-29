@@ -1457,10 +1457,17 @@ impl Engine {
     ) {
         self.core_updates += 1;
         let get = |m: u32| armed.get(&m).copied().unwrap_or(0);
-        // Window owners.
+        // Window owners. A window's present interval counts the vblanks of its head since
+        // its last latch (`SET_PRESENT_CONTROL` MIN_PRESENT_INTERVAL, clc57e.h); a window
+        // moved to another head (or to none) has no latch on the new one.
         for w in 0..self.windows.len() {
             let owner = get(C_WINDOW_SET_CONTROL + 0x80 * w as u32) & 0xF;
-            self.windows[w].head = ((owner as usize) < self.heads.len()).then_some(owner as usize);
+            let head = ((owner as usize) < self.heads.len()).then_some(owner as usize);
+            let win = &mut self.windows[w];
+            if win.head != head {
+                win.last_latch_tick = None;
+            }
+            win.head = head;
         }
         // Heads.
         let mut sor_heads = 0u32;
@@ -1520,6 +1527,13 @@ impl Engine {
                     format!("display: head {h} inactive (SOR owners {sor_heads:#x}, raster {raster:#x}, pclk {pclk:#x}) [guest]")
                 };
                 self.note(line);
+                // The head's tick count starts over, and with it the vblanks its windows
+                // count since their last latch: a latch tick of the old raster would hold
+                // every flip of the new mode until the count reached it again (C77: the
+                // desktop's flips at 1280x720 waited for tick 32934 of the 1920x1080 raster).
+                for win in self.windows.iter_mut().filter(|w| w.head == Some(h)) {
+                    win.last_latch_tick = None;
+                }
             }
         }
         // Presentations on windows without an active head complete at once.
@@ -1971,6 +1985,57 @@ mod tests {
         assert_eq!(notifier(&fb, 2), (NOTIFIER_BEGUN, ptimer_stamp(t0 + 2 * p)));
         assert_eq!(notifier(&fb, 1), (NOTIFIER_FINISHED, ptimer_stamp(t0 + p)), "displaced");
         assert_eq!(e.windows[0].flips, 2);
+    }
+
+    /// A modeset starts the head's tick count over, and the present interval of its window
+    /// counts from there: the first flip of the new mode latches at the new raster's first
+    /// tick (C77: 1920x1080 -> 1280x720 held the desktop's flips behind tick 32934 of the
+    /// old raster). The window is detached for the modeset (the Windows KMD's order) or
+    /// stays on the head.
+    #[test]
+    fn a_modeset_restarts_the_present_interval() {
+        let mem = GuestMemory::new();
+        for detach in [true, false] {
+            let mut fb = FakeFb::new(16 << 20);
+            let mut e = engine_with_head(&mut fb);
+            let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+            for (m, v) in [(W_SET_CONTEXT_DMA_ISO, 0x40), (W_SET_SIZE, 1920 | (1080 << 16)), (W_SET_PRESENT_CONTROL, 1)] {
+                e.window_method(0, m, v);
+            }
+            e.catch_up(t0 + 100 * p, &mut fb, &mem);
+            e.window_update(0, t0 + 100 * p + 1_000, &mut fb, &mem);
+            e.catch_up(t0 + 101 * p, &mut fb, &mem);
+            assert_eq!(e.windows[0].last_latch_tick, Some(101));
+            // Window off the head, head off, head on at 1280x720, window back.
+            let now = t0 + 101 * p + 1_000;
+            let mut armed = BTreeMap::new();
+            armed.insert(C_SOR_SET_CONTROL, 0x1 | (8 << 8));
+            armed.insert(C_WINDOW_SET_CONTROL, if detach { 0xF } else { 0 });
+            armed.insert(C_HEAD + C_HEAD_RASTER_SIZE, 2200 | (1125 << 16));
+            armed.insert(C_HEAD + C_HEAD_PIXEL_CLOCK, 148_500_000);
+            armed.insert(C_HEAD + C_HEAD_VIEWPORT_SIZE_IN, 1920 | (1080 << 16));
+            e.core_update(&armed, now, &mut fb, &mem);
+            armed.insert(C_SOR_SET_CONTROL, 0);
+            e.core_update(&armed, now + 1_000, &mut fb, &mem);
+            armed.insert(C_SOR_SET_CONTROL, 0x1 | (8 << 8));
+            armed.insert(C_HEAD + C_HEAD_RASTER_SIZE, 1650 | (750 << 16));
+            armed.insert(C_HEAD + C_HEAD_PIXEL_CLOCK, 74_250_000);
+            armed.insert(C_HEAD + C_HEAD_VIEWPORT_SIZE_IN, 1280 | (720 << 16));
+            e.core_update(&armed, now + 2_000, &mut fb, &mem);
+            armed.insert(C_WINDOW_SET_CONTROL, 0);
+            e.core_update(&armed, now + 3_000, &mut fb, &mem);
+            let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+            assert_eq!((e.heads[0].width, e.heads[0].ticks, e.windows[0].head), (1280, 0, Some(0)));
+            e.window_method(0, W_SET_SIZE, 1280 | (720 << 16));
+            e.window_update(0, t0 + 2_000, &mut fb, &mem);
+            e.catch_up(t0 + p, &mut fb, &mem);
+            assert_eq!(
+                (e.windows[0].flips, e.windows[0].last_latch_tick),
+                (2, Some(1)),
+                "detach {detach}: the first flip of the new mode at its first tick"
+            );
+            assert!(!e.window_busy(0));
+        }
     }
 
     /// The tick is the vertical blank's start: the scan line reads `BLANK_START` there, and a
