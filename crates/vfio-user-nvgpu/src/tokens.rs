@@ -70,6 +70,28 @@ pub fn token_entries(buf: &[u8], tokens: &[u32]) -> Vec<usize> {
         .collect()
 }
 
+/// A notifier page: in FB (true) or guest RAM, and the page number.
+pub type NotifierPage = (bool, u64);
+
+/// Whether a value that is `chid`'s token (the one it rang with, or its mirror's host
+/// token) is only `chid`'s where it stands on `chid`'s notifier page `page`: no other
+/// channel a ring of it rings (`targets`, ctrl.rs `doorbell_targets`) keeps its notifier on
+/// that page, so no other channel's token entry there can hold the same value (a guest
+/// token that is also a mirrored channel's host token, both channels on one notifier
+/// page). `page_of(c)` is channel `c`'s notifier page, `None` for a channel without one
+/// the guest announced.
+pub fn own_on_page(
+    chid: u32,
+    targets: &[u32],
+    page: NotifierPage,
+    page_of: impl Fn(u32) -> Option<NotifierPage>,
+) -> bool {
+    targets
+        .iter()
+        .filter(|&&c| c != chid)
+        .all(|&c| page_of(c) != Some(page))
+}
+
 /// The pool size `CARAXES_DOORBELL_TOKENS` asks for: `None` when unset, empty or 0.
 pub fn requested() -> Result<Option<usize>, String> {
     let Ok(v) = std::env::var(TOKENS_ENV) else {
@@ -277,6 +299,24 @@ mod tests {
         assert!(!is_pool_token(0x8003a, MAX_TOKENS));
         assert!(is_pool_token(TOKEN_BASE, 1));
         assert!(!is_pool_token(TOKEN_BASE + 1, 1));
+    }
+
+    /// A value of a channel is its own on its notifier page only if every other channel a
+    /// ring of it rings keeps its notifier elsewhere.
+    #[test]
+    fn a_shared_value_is_own_only_off_the_other_channels_page() {
+        let page = (false, 0x40080);
+        let pages = |c: u32| match c {
+            9 => Some(page),
+            10 => Some((false, 0x40081)),
+            11 => Some(page),
+            _ => None,
+        };
+        assert!(own_on_page(9, &[9], page, pages));
+        assert!(own_on_page(9, &[54], page, pages), "chid 54 has no notifier");
+        assert!(own_on_page(9, &[9, 10], page, pages), "chid 10's entries are on its own page");
+        assert!(!own_on_page(9, &[9, 11], page, pages), "chid 11 shares the page");
+        assert!(!own_on_page(9, &[11], page, pages));
     }
 
     #[test]

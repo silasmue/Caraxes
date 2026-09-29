@@ -321,7 +321,12 @@ client can usefully announce more. That bounds N at 253 for the one doorbell reg
      own token signature (`kchannelNotifyWorkSubmitToken`: info32 the token, info16 0, status
      0xFFFF), and the pool token is written there as well; counted as "written into the token
      entry at another notifier index" (SotTR run E: 43273 rings kept their own token because
-     entry 1 held 0, 57274 rang their own token after a hand-out to entry 1; each trapped);
+     entry 1 held 0, 57274 rang their own token after a hand-out to entry 1; each trapped).
+     The scan is exact: only the ringing channel's own notifier page (never past it), only
+     its own values (the token it rang, its mirror's host token), and a value only if no
+     other channel a ring of it rings keeps its notifier on the same page (a guest token that
+     is also another channel's host token could be that channel's entry; tokens.rs
+     `own_on_page`). The same values decide the default entry;
    - a non-zero `errorContextOffset` ((a));
    - a notifier the device cannot read or write.
 5. **Nothing depends on registration.** A pool token whose ioeventfd KVM or the client did not

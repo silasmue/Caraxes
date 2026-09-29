@@ -5360,9 +5360,15 @@ mod tests {
             e[14..16].copy_from_slice(&TOKEN_ENTRY_STATUS.to_le_bytes());
             assert!(sys.write(notifier + 16 * index, &e));
         };
-        // Channel 9: entry 1 holds 0, the token is at index 5.
+        // Channel 9: entry 1 holds 0, the token is at index 5. Index 6 holds its value
+        // without the RM's signature (info16 set), index 8 another channel's token and
+        // index 64 its token past the scanned entries: none of them is touched.
         let (t9, t10) = ((1u32 << 16) | 9, (1u32 << 16) | 10);
         entry(n9, 5, t9);
+        entry(n9, 6, t9);
+        assert!(sys.write(n9 + 16 * 6 + 12, &1u16.to_le_bytes()));
+        entry(n9, 8, t10);
+        entry(n9, 64, t9);
         fb.write(0x100000, &[0u8; 16]);
         let mut mem = GpuMem {
             fb: &mut fb,
@@ -5372,6 +5378,9 @@ mod tests {
         assert!(notes.iter().any(|n| n.contains("chid 9 gets pool token 0xca700000")), "{notes:#?}");
         assert_eq!(sys.read_u32(n9 + 16 * 5 + 8), Some(TOKEN_BASE));
         assert_eq!(sys.read_u32(n9 + NOTIFIER_TOKEN_OFFSET), Some(0), "entry 1 left alone");
+        assert_eq!(sys.read_u32(n9 + 16 * 6 + 8), Some(t9), "no signature, not the RM's entry");
+        assert_eq!(sys.read_u32(n9 + 16 * 8 + 8), Some(t10), "another channel's token");
+        assert_eq!(sys.read_u32(n9 + 16 * 64 + 8), Some(t9), "past the scanned entries");
         // Channel 10: the token at entries 1 and 7 (a client that moved its index after the
         // first GET): both get the pool token.
         entry(n10, 1, t10);

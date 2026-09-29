@@ -505,6 +505,25 @@ impl Dispatcher {
     ) -> Vec<String> {
         // The channel's error notifier: `None` for a channel the guest never announced.
         let notifier = self.channels.channel(chid).map(|c| c.error_notifier);
+        // The values that are this channel's own token on its notifier page: the rung one
+        // and the mirror's host token, each only if no other channel it rings keeps its
+        // notifier on the same page (tokens.rs `own_on_page`).
+        let page = |t: crate::fb::Target| match t {
+            crate::fb::Target::Fb(pa) => Some((true, pa >> 12)),
+            crate::fb::Target::Sys(pa) => Some((false, pa >> 12)),
+            _ => None,
+        };
+        let own: Vec<u32> = match notifier.flatten().and_then(page) {
+            Some(p) => std::iter::once(rung)
+                .chain(host)
+                .filter(|&v| {
+                    crate::tokens::own_on_page(chid, &self.doorbell_targets(v), p, |c| {
+                        self.channels.channel(c).and_then(|c| c.error_notifier).and_then(page)
+                    })
+                })
+                .collect(),
+            None => Vec::new(),
+        };
         let Some(pool) = self.channels.tokens.as_mut() else {
             return Vec::new();
         };
@@ -531,23 +550,23 @@ impl Dispatcher {
         // SET_WORK_SUBMIT_TOKEN_NOTIF_INDEX, which the guest RM handles without a GSP
         // call): found by the RM's signature. SotTR run E: 43273 rings kept their own token
         // because entry 1 held 0, and 57274 rang their own token after a hand-out to entry 1.
-        // The scan stays inside the notifier's first page.
+        // The scan stays inside the notifier's own page and matches only the channel's own
+        // token values with the full signature.
         let base = match notifier {
             Target::Fb(pa) | Target::Sys(pa) => pa,
             _ => 0,
         };
         let span = (16 * crate::tokens::TOKEN_SCAN_ENTRIES).min(0x1000 - (base & 0xFFF) as usize);
         let mut buf = vec![0u8; span];
-        let tokens: Vec<u32> = std::iter::once(rung).chain(host).collect();
-        let elsewhere: Vec<Target> = if gm.read(notifier, &mut buf) {
-            crate::tokens::token_entries(&buf, &tokens)
+        let elsewhere: Vec<Target> = if !own.is_empty() && gm.read(notifier, &mut buf) {
+            crate::tokens::token_entries(&buf, &own)
                 .into_iter()
                 .map(|i| at_off(16 * i as u64 + 8))
                 .collect()
         } else {
             Vec::new()
         };
-        let default_holds = current.is_some() && (current == Some(rung) || current == host);
+        let default_holds = current.is_some_and(|c| own.contains(&c));
         if held.is_some() && current == held && elsewhere.is_empty() {
             pool.stats.own_token_after_handout += 1;
             return Vec::new();
@@ -555,8 +574,13 @@ impl Dispatcher {
         if !default_holds && elsewhere.is_empty() {
             pool.stats.mismatch += 1;
             let why = format!(
-                "chid {chid}: work-submit-token entry at {at:?} holds {current:x?}, not the rung token {rung:#x}{}",
-                host.map_or(String::new(), |h| format!(" or the host token {h:#x}"))
+                "chid {chid}: work-submit-token entry at {at:?} holds {current:x?}, not the rung token {rung:#x}{}{}",
+                host.map_or(String::new(), |h| format!(" or the host token {h:#x}")),
+                if own.len() < 1 + usize::from(host.is_some()) {
+                    format!(" (own values {own:x?}: a value another channel on the notifier page rings is not the channel's)")
+                } else {
+                    String::new()
+                }
             );
             pool.note_refused(why.clone());
             return vec![format!(
