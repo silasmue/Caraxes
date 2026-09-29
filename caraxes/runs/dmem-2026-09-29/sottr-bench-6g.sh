@@ -19,7 +19,10 @@
 # free VRAM is logged and the run stops below 200 MiB, and the game is ended after the result to
 # log the VRAM that stays in use. SOTTR_DMEM_RESERVE_MIB=<n> (with DMEM_CAP=on) sets
 # DISPLAY_RESERVE_MIB=<n> in the guest's /etc/caraxes/dmem-cap.conf for this run (a tagged line,
-# removed at the end).
+# removed at the end). SOTTR_DISPLAY_RESERVE=<RegistryDwords> (for example RmDisplayReserve=1, or
+# RmDisplayReserve=0 as the control) loads the display reserve build of nvidia.ko
+# (display-reserve-prepare.sh) with those registry keys instead of the installed one; unset keeps
+# the stock modules (docs/research/display-reserve-2026-09-29.md).
 # Usage: sottr-bench-6g.sh OUT BINARY   (SOTTR_RES, SOTTR_MAX_S as in sottr-bench.sh)
 set -uo pipefail
 OUT=$1 BIN=$2
@@ -36,8 +39,9 @@ NIGHT_SERVER=$BIN NIGHT_FB_MIB=${SOTTR_FB_MIB:-6144} NIGHT_VRAM_FLOOR_MIB=${SOTT
     || { log "up failed"; tail -5 "$OUT/up.txt"; exit 1; }
 timeout 240 "$W" wait 200 >> "$OUT/up.txt" 2>&1
 log "vm up"
-T=200 gssh "DMEM_CAP=$CAP DMEM_R=${SOTTR_DMEM_RESERVE_MIB:-} bash -s" > "$OUT/guest-prep.txt" <<'G'
+T=200 gssh "DMEM_CAP=$CAP DMEM_R=${SOTTR_DMEM_RESERVE_MIB:-} DRSV=${SOTTR_DISPLAY_RESERVE:-} bash -s" > "$OUT/guest-prep.txt" <<'G'
 sudo ip route replace default via 192.168.106.1 dev eth0 && sudo resolvectl dns eth0 192.168.188.1 && sudo resolvectl domain eth0 "~."
+if [ -n "$DRSV" ]; then sudo /opt/caraxes/display-reserve/load.sh "$DRSV" || exit 1; fi
 sudo modprobe nvidia && sudo modprobe nvidia_modeset && sudo modprobe nvidia_drm modeset=1 && echo modules-ok
 bash ~/caraxes-guest/display-up.sh >/dev/null 2>&1; sudo systemctl start gdm3; sleep 12
 export XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
@@ -144,7 +148,7 @@ while (( $(date +%s) - t0 < MAX )); do
     sleep 30
 done
 T=60 gssh 'D=~/.local/share/feral-interactive/"Shadow of the Tomb Raider"/SaveData; f=$(ls -t "$D" | grep benchmarkresults | grep -v frametimes | grep -v feral_ | head -1); [ -n "$f" ] && head -60 "$D/$f"' > "$OUT/benchmark-result.txt"
-T=60 gssh 'cat /tmp/sottr-mon.log; echo ===; sudo dmesg | grep -E "NVKMS|NVRM: Xid|nvidia-modeset|drm" | tail -20' > "$OUT/guest-monitor.txt"
+T=60 gssh 'cat /tmp/sottr-mon.log; echo ===; sudo dmesg | grep -E "NVKMS|NVRM: Xid|nvidia-modeset|drm|display reserve" | tail -30' > "$OUT/guest-monitor.txt"
 T=60 gssh 'export XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; uname -r; journalctl -b -u user@1000.service --no-pager -o cat | grep caraxes-dmem-cap; journalctl --user -u caraxes-dmem-cap.service -b --no-pager -o cat; /usr/local/libexec/caraxes/caraxes-dmem-cap status' > "$OUT/guest-dmem.txt"
 log "dmem ($CAP): $(grep -c 'read back ok' "$OUT/guest-dmem.txt") cap line(s); nvkms_fail=$(grep -v '^===' "$OUT/guest-monitor.txt" | grep -o 'nvkms_fail=[0-9]*' | tail -1)"
 log "result: $(grep -m1 'Average FPS' "$OUT/benchmark-result.txt" | tr -s ' \t' ' ')"

@@ -62,3 +62,31 @@ DMEM_CAP=off $B/sottr-bench-dmem.sh $B/cap-off-1 $BIN; $B/desktop-b-dmem.sh down
   - Steam hung at its shader-cache prompt, so the game was started directly (`systemd-run --user --scope --slice=app.slice`, `SteamAppId=750920`).
   - Only the text evidence is committed (`.log` files are git-ignored); the shots stay in the run directory on the NAS.
 - **Parked:** the next step is a 6 GiB run without a cap (leak or reserve). Analysis: [dmem-cap-2026-09-29.md](../../../docs/research/dmem-cap-2026-09-29.md) "Status".
+
+## Display reserve (RM patch, 2026-09-29)
+
+Design and evidence: [docs/research/display-reserve-2026-09-29.md](../../../docs/research/display-reserve-2026-09-29.md). The patch is `patches/nvidia/0001`. The build is loaded only by the bench with `SOTTR_DISPLAY_RESERVE`; the stock modules stay the default.
+
+```bash
+B=/mnt/vmstore/caraxes/wt-dmem/caraxes/runs/dmem-2026-09-29
+BIN=<device binary>
+export DMEM_KERNEL=stock                       # 6.8.0-136; the build is per kernel
+
+# 1. Build the patched nvidia.ko in the guest (once per kernel; about 5 min)
+NIGHT_SERVER=$BIN NIGHT_FB_MIB=4096 NIGHT_SLOT=0 CARAXES_NO_TRACE=1 $B/desktop-b-dmem-6g.sh up
+$B/desktop-b-dmem-6g.sh wait 200
+$B/display-reserve-prepare.sh $B/drsv-build
+$B/desktop-b-dmem-6g.sh down
+
+# 2. SotTR 1080p with the reserve, then the control (each run starts and stops the VM)
+SOTTR_FB_MIB=4096 DMEM_CAP=off SOTTR_DISPLAY_RESERVE=RmDisplayReserve=1 $B/sottr-bench-6g.sh $B/drsv-on-1 $BIN; $B/desktop-b-dmem-6g.sh down
+SOTTR_FB_MIB=4096 DMEM_CAP=off SOTTR_DISPLAY_RESERVE=RmDisplayReserve=0 $B/sottr-bench-6g.sh $B/drsv-off-1 $BIN; $B/desktop-b-dmem-6g.sh down
+```
+
+Pass for the reserve run:
+- `guest-monitor.txt` ends with `nvkms_fail=0 xid=0`;
+- `benchmark-result.txt` is written;
+- `timeline.txt` shows `host-rmse` non-zero until the result;
+- `guest-prep.txt` shows `RegistryDwords` with `RmDisplayReserve=1`.
+
+The control must reproduce the NVKMS refusal.
