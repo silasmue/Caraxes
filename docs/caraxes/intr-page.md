@@ -1141,6 +1141,11 @@ than at the poll (the J/K A/B, §12.6).
   with a GPPut that is visible. A watchdog scan every 10 ms counts channels it finds pending
   without a doorbell seen. The token pool's ioeventfds are not offered with the page (they
   could never fire on a mapped page).
+- O(changed), 2026-09-29 (windows-traps-exit-2026-09-29.md): the reactor rings the channel the
+  taken value names at once, as a trapped write of that value (boot.rs `doorbell_from_page`),
+  and scans every channel's GPPut only 100 us later (`FOLLOW_UP`), for writes the value did
+  not name. The clock is published at most once per microsecond (`TIME_EVERY`), so a spinning
+  reactor does not store it every iteration.
 - Fail closed: TIME_0/1 must be one aligned qword in the doorbell's page, no other register
   model may answer in the page (`UmPage::check`), and the interrupt page and the boot model
   are required; a guest store to TIME is an inconsistency.

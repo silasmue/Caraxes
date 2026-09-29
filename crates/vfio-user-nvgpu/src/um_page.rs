@@ -9,23 +9,25 @@
 //! so with the switch the whole page is a sparse area of the interrupt page's memfd and the
 //! reactor owns it:
 //!
-//! - The clock: the reactor stores TIME_0 and TIME_1 as one aligned 64-bit store at every
-//!   iteration ([`UmPage::publish_time`]). The guest reads TIME_1, TIME_0, TIME_1 and
+//! - The clock: the reactor stores TIME_0 and TIME_1 as one aligned 64-bit store, at most
+//!   once per [`TIME_EVERY`] ([`UmPage::publish_bounded`]: a spinning reactor would otherwise
+//!   store every iteration and bounce the cache line with every guest reader). The guest reads TIME_1, TIME_0, TIME_1 and
 //!   retries while TIME_1 changed (`ptimerReadTimer`, the GPU's own protocol); two 32-bit
 //!   stores would let it see a torn pair at a TIME_0 wrap (4.3 s apart), the one 64-bit
 //!   store cannot. While the reactor blocks (at most its sleep bound, 1 ms) the clock
 //!   stands: a reader sees time that does not advance for up to that long, never time
 //!   that goes back.
 //! - The doorbell: a guest write lands in memory. The reactor takes the word
-//!   ([`UmPage::take_doorbell`]: compare-and-swap to [`SENTINEL`]) and then scans the
-//!   GPPut of every channel the device knows (ctrl.rs `doorbell_pending`), ringing each
-//!   whose GPPut advanced. The value is only a hint: several writes before the reactor
-//!   looks leave only the last, and the same value twice is one change, so the value never
-//!   decides which channel runs. The guest writes GPPut before the doorbell, and the scan
-//!   runs after the swap, so a channel is rung only with a GPPut that is visible. A
-//!   watchdog scan every [`WATCHDOG`] catches a doorbell whose write the swap could not
-//!   tell apart (the guest storing the sentinel itself) and counts each channel it finds
-//!   pending.
+//!   ([`UmPage::take_doorbell`]: compare-and-swap to [`SENTINEL`]) and rings the channel its
+//!   value names at once, as a trapped write of that value would (boot.rs
+//!   `doorbell_from_page`): O(1) on the critical path, not a read of every channel's GPPut.
+//!   The value is still only a hint: several writes before the reactor looks leave only the
+//!   last. So [`FOLLOW_UP`] later the reactor scans the GPPut of every channel the device
+//!   knows (ctrl.rs `doorbell_pending`) and rings each that advanced unrung; the guest writes
+//!   GPPut before the doorbell and the scan runs after the swap, so a channel is rung only
+//!   with a GPPut that is visible. A watchdog scan every [`WATCHDOG`] catches a doorbell
+//!   whose write the swap could not tell apart (the guest storing the sentinel itself). Both
+//!   scans count each channel they find pending.
 //!
 //! Fail closed: the three registers must share the page with TIME_0/TIME_1 as one aligned
 //! qword, no other register model may answer in the page ([`UmPage::check`]), and the
@@ -46,6 +48,10 @@ pub const USERMODE_PAGE_ENV: &str = "CARAXES_USERMODE_PAGE";
 pub const SENTINEL: u32 = u32::MAX;
 /// The watchdog scan's period.
 pub const WATCHDOG: Duration = Duration::from_millis(10);
+/// The scan after a doorbell, for the writes its hint did not name (coalesced).
+pub const FOLLOW_UP: Duration = Duration::from_micros(100);
+/// The clock is published at most this often: readers see the device clock within it.
+pub const TIME_EVERY: Duration = Duration::from_micros(1);
 
 /// `CARAXES_USERMODE_PAGE`: off, or on with the interrupt page and the boot model.
 pub fn requested(intr_page: bool, boot_model: bool) -> Result<bool, String> {
@@ -122,6 +128,10 @@ pub struct Stats {
     /// Watchdog scans, and channels they found pending (a doorbell nobody saw).
     pub watchdog_scans: AtomicU64,
     pub watchdog_rung: AtomicU64,
+    /// Follow-up scans after a doorbell, and channels they found pending (a doorbell write
+    /// the hint did not name).
+    pub follow_ups: AtomicU64,
+    pub follow_up_rung: AtomicU64,
     /// Guest stores to TIME_0/1 (overwritten) and of the sentinel to the doorbell.
     pub time_stores: AtomicU64,
     pub sentinel_stores: AtomicU64,
@@ -133,6 +143,10 @@ pub struct UmPage {
     start: Instant,
     pub stats: Stats,
     last_watchdog: std::sync::Mutex<Instant>,
+    /// When the follow-up scan of the last doorbell is due (`None`: none owed).
+    follow_up: std::sync::Mutex<Option<Instant>>,
+    /// Nanoseconds since `start` of the last clock publish (the bound's reference).
+    last_publish_ns: AtomicU64,
 }
 
 /// TIME_0 NSEC 31:5, TIME_1 NSEC 28:0 (uvm.rs `VfRegs::read32`), as the qword at TIME_0.
@@ -151,6 +165,8 @@ impl UmPage {
             start,
             stats: Stats::default(),
             last_watchdog: std::sync::Mutex::new(Instant::now()),
+            follow_up: std::sync::Mutex::new(None),
+            last_publish_ns: AtomicU64::new(0),
         };
         p.reset();
         Ok(Arc::new(p))
@@ -209,6 +225,19 @@ impl UmPage {
             self.stats.time_stores.fetch_add(1, Ordering::Relaxed);
         }
         self.stats.publishes.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// [`Self::publish_time`] unless the last publish is younger than [`TIME_EVERY`].
+    /// Returns whether it published.
+    pub fn publish_bounded(&self, now: Instant) -> bool {
+        let ns = now.saturating_duration_since(self.start).as_nanos() as u64;
+        let last = self.last_publish_ns.load(Ordering::Relaxed);
+        if last != 0 && ns.saturating_sub(last) < TIME_EVERY.as_nanos() as u64 {
+            return false;
+        }
+        self.last_publish_ns.store(ns.max(1), Ordering::Relaxed);
+        self.publish_time(now);
+        true
     }
 
     /// A trapped read (a client that did not map the page): the clock as of now.
@@ -286,7 +315,7 @@ impl UmPage {
         }
         let scans = l(&s.scans);
         format!(
-            "usermode page: BAR0 [{:#x}, {:#x}); {} clock publish(es); {} doorbell word(s) taken, {} scan(s) ringing {} channel(s), scan mean {} us, max {} us; watchdog: {} scan(s), {} channel(s) found pending without a doorbell seen; inconsistencies: {}\n",
+            "usermode page: BAR0 [{:#x}, {:#x}); {} clock publish(es); {} doorbell word(s) taken, {} ring(s) of the hinted channel ({} rung), ring mean {} us, max {} us; follow-up scans: {} ({} channel(s) a hint did not name); watchdog: {} scan(s), {} channel(s) found pending without a doorbell seen; inconsistencies: {}\n",
             self.layout.base,
             self.layout.base + PAGE,
             l(&s.publishes),
@@ -295,6 +324,8 @@ impl UmPage {
             l(&s.rung),
             l(&s.scan_us_sum).checked_div(scans).unwrap_or(0),
             l(&s.scan_us_max),
+            l(&s.follow_ups),
+            l(&s.follow_up_rung),
             l(&s.watchdog_scans),
             l(&s.watchdog_rung),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
@@ -312,15 +343,17 @@ pub fn pending_count(note: &str) -> usize {
         .unwrap_or(0)
 }
 
-/// What the reactor runs to scan the channels (main.rs: lock the device,
-/// `Device::doorbell_from_page`): the number of channels it rang.
+/// What the reactor runs (main.rs: lock the device, `Device::doorbell_from_page`):
+/// `Some(value)` rings the channel the doorbell value names, `None` scans every channel
+/// and rings those pending. Returns the number of channels it rang.
 pub type Driver = dyn Fn(Option<u32>) -> usize + Send + Sync;
 
-/// The reactor's side, every iteration: publish the clock, take a doorbell and scan for
-/// it, and the watchdog's scan. Returns whether a doorbell was served (work).
+/// The reactor's side, every iteration: publish the clock (bounded), take a doorbell and
+/// ring its hint, the follow-up scan when due, and the watchdog's scan. Returns whether a
+/// doorbell was served (work).
 pub fn poll(page: &UmPage, driver: &dyn Fn(Option<u32>) -> usize) -> bool {
     let now = Instant::now();
-    page.publish_time(now);
+    page.publish_bounded(now);
     if let Some(v) = page.take_doorbell() {
         let rung = driver(Some(v)) as u64;
         let us = now.elapsed().as_micros() as u64;
@@ -329,9 +362,28 @@ pub fn poll(page: &UmPage, driver: &dyn Fn(Option<u32>) -> usize) -> bool {
         s.rung.fetch_add(rung, Ordering::Relaxed);
         s.scan_us_sum.fetch_add(us, Ordering::Relaxed);
         s.scan_us_max.fetch_max(us, Ordering::Relaxed);
+        // The writes this hint did not name are found by the follow-up scan.
+        *page.follow_up.lock().unwrap_or_else(|p| p.into_inner()) =
+            Some(Instant::now() + FOLLOW_UP);
+        return true;
+    }
+    let follow = {
+        let mut f = page.follow_up.lock().unwrap_or_else(|p| p.into_inner());
+        match *f {
+            Some(at) if now >= at => {
+                *f = None;
+                true
+            }
+            _ => false,
+        }
+    };
+    if follow {
+        let rung = driver(None) as u64;
+        page.stats.follow_ups.fetch_add(1, Ordering::Relaxed);
+        page.stats.follow_up_rung.fetch_add(rung, Ordering::Relaxed);
         // Restart the watchdog: a scan just ran.
         *page.last_watchdog.lock().unwrap_or_else(|p| p.into_inner()) = Instant::now();
-        return true;
+        return rung > 0;
     }
     if page.watchdog_due(now) {
         let rung = driver(None) as u64;
@@ -432,10 +484,11 @@ mod tests {
     }
 
     /// The doorbell: any number of writes before a take is one take, the value is only
-    /// the last one, the same value twice after a take is a new doorbell, and the scan the
-    /// driver runs is told of each; a channel the watchdog finds pending is counted.
+    /// the last one and rings its channel at once, the same value twice after a take is a
+    /// new doorbell; the follow-up scan [`FOLLOW_UP`] later finds what the hint did not
+    /// name; a channel the watchdog finds pending is counted.
     #[test]
-    fn doorbells_coalesce_into_one_scan_of_every_channel() {
+    fn a_doorbell_rings_its_hint_and_the_follow_up_scan_finds_the_rest() {
         let p = UmPage::create(&intr(), layout(), Instant::now()).unwrap();
         let calls = std::sync::Mutex::new(Vec::new());
         let driver = |v: Option<u32>| {
@@ -454,6 +507,15 @@ mod tests {
         assert_eq!(calls.lock().unwrap().len(), 2);
         assert_eq!(p.stats.doorbells.load(Ordering::Relaxed), 2);
         assert_eq!(p.stats.rung.load(Ordering::Relaxed), 4);
+        // The follow-up scan: not before FOLLOW_UP, once after it.
+        poll(&p, &driver);
+        assert_eq!(calls.lock().unwrap().len(), 2);
+        std::thread::sleep(FOLLOW_UP + Duration::from_micros(50));
+        assert!(poll(&p, &driver));
+        assert_eq!(calls.lock().unwrap().as_slice(), &[Some(7), Some(7), None]);
+        assert_eq!(p.stats.follow_up_rung.load(Ordering::Relaxed), 2);
+        poll(&p, &driver);
+        assert_eq!(calls.lock().unwrap().len(), 3);
         // The watchdog: a scan after its period with nothing taken; a channel it finds
         // pending is a doorbell nobody saw.
         *p.last_watchdog.lock().unwrap() = Instant::now() - WATCHDOG;
@@ -463,5 +525,16 @@ mod tests {
         assert!(p
             .summary()
             .contains("1 doorbell(s) found only by the watchdog"));
+    }
+
+    /// The clock's bound: a publish younger than TIME_EVERY is skipped, an older one not.
+    #[test]
+    fn the_clock_is_published_at_most_once_per_bound() {
+        let p = UmPage::create(&intr(), layout(), Instant::now()).unwrap();
+        let t = Instant::now() + Duration::from_millis(1);
+        assert!(p.publish_bounded(t));
+        assert!(!p.publish_bounded(t + TIME_EVERY / 2));
+        assert!(p.publish_bounded(t + TIME_EVERY * 2));
+        assert!(p.summary().contains("inconsistencies: none"));
     }
 }

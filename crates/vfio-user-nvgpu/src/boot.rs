@@ -1611,13 +1611,24 @@ impl BootModel {
         }
     }
 
-    /// A doorbell the usermode page's reactor found (um_page.rs), or its watchdog
-    /// (`hint` None): every channel whose GPPut advanced is rung, as the token-less
-    /// ioeventfd path rings them. The watchdog first checks without the BAR2 sync that a
+    /// A doorbell the usermode page's reactor took (um_page.rs): the channel its value names
+    /// is rung, as a trapped write of the value would ring it. `hint` None is the reactor's
+    /// follow-up or watchdog scan: every channel whose GPPut advanced is rung, as the
+    /// token-less ioeventfd path rings them; it first checks without the BAR2 sync that a
     /// doorbell pays, and does nothing when no channel is pending. Returns the channels
     /// rung and the notes.
     pub fn doorbell_from_page(&mut self, mem: &GuestMemory, hint: Option<u32>) -> (usize, Vec<String>) {
-        if hint.is_none() {
+        if let Some(v) = hint {
+            self.bar2_doorbell_sync(mem);
+            let mut gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            let mut notes = self.ctrl.doorbell(&mut gm, v);
+            notes.extend(self.scan_channel_errors(mem, false));
+            return (1, notes);
+        }
+        {
             let gm = crate::channel::GpuMem {
                 fb: &mut self.fb,
                 sys: mem,

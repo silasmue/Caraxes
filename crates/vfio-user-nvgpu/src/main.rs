@@ -1458,9 +1458,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 h.with_usermode(
                     u.clone(),
                     Arc::new(move |hint| {
-                        d.lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .doorbell_from_page(hint)
+                        // A doorbell the page's reactor took is a ring of the launch chain
+                        // (launch.rs), from the take to the host doorbell.
+                        if hint.is_some() {
+                            vfio_user_nvgpu::launch::begin(std::time::Instant::now(), false);
+                        }
+                        let mut dev = d.lock().unwrap_or_else(PoisonError::into_inner);
+                        vfio_user_nvgpu::launch::mark(vfio_user_nvgpu::launch::Step::Lock);
+                        let rung = dev.doorbell_from_page(hint);
+                        drop(dev);
+                        vfio_user_nvgpu::launch::end();
+                        rung
                     }),
                 )
             }
