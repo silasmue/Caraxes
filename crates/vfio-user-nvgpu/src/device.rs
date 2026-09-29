@@ -2092,7 +2092,12 @@ mod tests {
     #[test]
     fn guest_token_eventfds_are_datamatch_entries_read_by_the_token_reactor() {
         use std::io::Write;
-        let values = crate::tokens::GuestTokens::parse("0,1:2").unwrap().unwrap().values();
+        let crate::tokens::GuestTokensRequest::Explicit(t) =
+            crate::tokens::GuestTokensRequest::parse("0,1:2").unwrap()
+        else {
+            panic!("an explicit set");
+        };
+        let values = t.values();
         assert_eq!(values, vec![0x0, 0x1, 0x10000, 0x10001]);
         let subs = doorbell_value_sub_regions(0xbb_0090, &values).unwrap();
         let mut fds = std::collections::BTreeSet::new();

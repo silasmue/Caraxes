@@ -129,12 +129,15 @@ Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register 
   notifier entry, every later ring ends in the token's eventfd (needs patch 0005 and a
   client announcing max_msg_fds; docs/caraxes/doorbell-token-pool.md). Excludes
   CARAXES_DOORBELL_IOEVENTFD=1; combines with CARAXES_BAR1_PASSTHROUGH=1.
-  CARAXES_DOORBELL_GUEST_TOKENS=<runlist>[,<runlist>...]:<chids> offers the guest's own
-  work-submit tokens (runlist << 16 | chid, chids 0..<chids>, runlist-major in the order
-  given) as datamatch ioeventfd sub-regions, one eventfd each; a write of one of them is rung
-  exactly as its trapped write. For guests that never read the notifier entry the pool uses
-  (the Windows KMD). Pool and guest tokens together take at most 253 eventfds; excludes
-  CARAXES_DOORBELL_IOEVENTFD=1 (docs/caraxes/doorbell-token-pool.md (g)).
+  CARAXES_DOORBELL_GUEST_TOKENS (default auto with --boot-model): the guest's own
+  work-submit tokens (runlist << 16 | chid) as datamatch ioeventfd sub-regions, one eventfd
+  each; a write of one of them is rung exactly as its trapped write. auto derives the set
+  from the device-info table (GR and the first async CE runlist interleaved per ChID, then
+  NVENC, the other CEs, NVDEC; 48 ChIDs; as many as fit 253 eventfds beside the pool's and
+  the re-arm and head eventfds); off disables; <hot>[,<runlist>...]:<chids> with the hot
+  runlists joined by + sets it for an A/B. For guests that never read the notifier entry the
+  pool uses (the Windows KMD). Not with CARAXES_DOORBELL_IOEVENTFD=1 (docs/caraxes/
+  doorbell-token-pool.md (g)).
   CARAXES_MSI_REARM_IOEVENTFD=1 offers the MSI re-arm register (NV_XVE_CYA_2 in the NV_PCFG
   mirror, BAR0 0x88704 on Turing, value ignored) as one more ioeventfd sub-region, no
   datamatch, read by the token pool's reactor, which does what the trapped write does
@@ -524,28 +527,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The datamatch token pool: one eventfd per pool token, so the eventfd names the
     // channel (docs/caraxes/doorbell-token-pool.md).
     let doorbell_tokens = tokens::requested().map_err(anyhow::Error::msg)?;
-    // The guest's own tokens as datamatch ioeventfds (docs/caraxes/doorbell-token-pool.md
-    // (g)): for guests that never read the notifier entry the pool hands tokens out through.
-    let guest_tokens = tokens::GuestTokens::requested().map_err(anyhow::Error::msg)?;
-    if guest_tokens.is_some() && doorbell_ioeventfd {
-        // KVM refuses a wildcard next to datamatch entries at one address (EEXIST).
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 and {} exclude each other: the token-less ioeventfd is a wildcard", tokens::GUEST_TOKENS_ENV);
-    }
-    if let (Some(n), Some(g)) = (doorbell_tokens, guest_tokens.as_ref()) {
-        if n + g.len() > tokens::MAX_TOKENS {
-            bail!(
-                "{}={n} and {} ({} values) need {} eventfds in one reply, at most {} (SCM_MAX_FD)",
-                tokens::TOKENS_ENV,
-                tokens::GUEST_TOKENS_ENV,
-                g.len(),
-                n + g.len(),
-                tokens::MAX_TOKENS
-            );
-        }
-    }
-    // The pool's reactor reads every datamatch doorbell eventfd, the pool's and the guest
-    // tokens'; the MSI re-arm and command-queue head eventfds ride on it.
-    let token_reactor_on = doorbell_tokens.is_some() || guest_tokens.is_some();
     if doorbell_tokens.is_some() && doorbell_ioeventfd {
         // Both would be ioeventfds of the one doorbell register: KVM refuses a wildcard
         // next to datamatch entries at the same address and length (EEXIST;
@@ -555,19 +536,73 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The MSI re-arm write as an ioeventfd, read by the token pool's reactor
     // (docs/caraxes/intr-page.md §4).
     let msi_rearm = msi_rearm_ioeventfd_requested();
+    // The command-queue head write as an ioeventfd, read by the token pool's reactor
+    // (docs/caraxes/gsp-transport-615.md §11).
+    let rpc_ioeventfd = rpc_ioeventfd_requested();
+    // The guest's own tokens as datamatch ioeventfds (docs/caraxes/doorbell-token-pool.md
+    // (g)): for guests that never read the notifier entry the pool hands tokens out through.
+    // By default the set comes from the engines this device offers, sized to the eventfds
+    // one reply can carry beside the pool's and the re-arm and head eventfds. They need the
+    // boot model (the channels live there); the token-less wildcard excludes them (KVM
+    // refuses a wildcard next to datamatch entries at one address: EEXIST).
+    let guest_tokens = {
+        use tokens::GuestTokensRequest as Q;
+        let budget = tokens::MAX_TOKENS
+            .saturating_sub(doorbell_tokens.unwrap_or(0))
+            .saturating_sub(msi_rearm as usize + rpc_ioeventfd as usize);
+        match Q::requested().map_err(anyhow::Error::msg)? {
+            Q::Off => None,
+            Q::Auto if doorbell_ioeventfd || !a.boot_model => None,
+            Q::Auto => {
+                let d = a.chip.data();
+                let engines: Vec<(&str, u32, bool)> = d
+                    .device_info
+                    .engines
+                    .iter()
+                    .map(|e| (e.name.as_str(), e.runlist, e.host_driven == 1))
+                    .collect();
+                tokens::GuestTokens::auto(&engines, d.fifo.num_channels.value, budget)
+            }
+            Q::Explicit(g) => {
+                if doorbell_ioeventfd {
+                    bail!("{DOORBELL_IOEVENTFD_ENV}=1 and {} exclude each other: the token-less ioeventfd is a wildcard", tokens::GUEST_TOKENS_ENV);
+                }
+                if g.len() > budget {
+                    bail!(
+                        "{}: {} values, but one reply carries {} eventfds beside the pool's and the re-arm and head eventfds (SCM_MAX_FD {})",
+                        tokens::GUEST_TOKENS_ENV,
+                        g.len(),
+                        budget,
+                        tokens::MAX_TOKENS
+                    );
+                }
+                let d = a.chip.data();
+                for r in g.runlists() {
+                    if !d.device_info.engines.iter().any(|e| e.runlist == r && e.host_driven == 1) {
+                        bail!("{}: runlist {r} carries no host-driven engine on {}", tokens::GUEST_TOKENS_ENV, d.name);
+                    }
+                }
+                if g.chids > d.fifo.num_channels.value {
+                    bail!("{}: {} chids, the guest is told {} channels per runlist", tokens::GUEST_TOKENS_ENV, g.chids, d.fifo.num_channels.value);
+                }
+                Some(g)
+            }
+        }
+    };
+    // The pool's reactor reads every datamatch doorbell eventfd, the pool's and the guest
+    // tokens'; the MSI re-arm and command-queue head eventfds ride on it.
+    let token_reactor_on = doorbell_tokens.is_some() || guest_tokens.is_some();
     if msi_rearm && !token_reactor_on {
         bail!(
-            "{MSI_REARM_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd: {}=N",
-            tokens::TOKENS_ENV
+            "{MSI_REARM_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd: {}=N or the guest tokens ({})",
+            tokens::TOKENS_ENV,
+            tokens::GUEST_TOKENS_ENV
         );
     }
-    // The command-queue head write as an ioeventfd, read by the token pool's reactor
-    // (docs/caraxes/gsp-transport-615.md §11). Fail closed: without the pool's reactor or
-    // the boot model the register stays trapped.
-    let rpc_ioeventfd = rpc_ioeventfd_requested();
+    // Fail closed: without the pool's reactor or the boot model the register stays trapped.
     if rpc_ioeventfd && (!token_reactor_on || !a.boot_model) {
         bail!(
-            "{RPC_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd ({}=N) and the boot model (--boot-model)",
+            "{RPC_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd ({}=N or the guest tokens) and the boot model (--boot-model)",
             tokens::TOKENS_ENV
         );
     }
@@ -1427,18 +1462,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         let mut guest = Vec::new();
         if let Some(g) = guest_tokens.as_ref() {
-            // Only runlists this chip's device-info table has, and ChIDs below the channel
-            // count each runlist reports (INTERNAL_FIFO_GET_NUM_CHANNELS): no other value is
-            // a token a guest can have.
-            let d = chip.data();
-            for r in &g.runlists {
-                if !d.device_info.engines.iter().any(|e| e.runlist == *r && e.host_driven == 1) {
-                    bail!("{}: runlist {r} carries no host-driven engine on {}", tokens::GUEST_TOKENS_ENV, d.name);
-                }
-            }
-            if g.chids > d.fifo.num_channels.value {
-                bail!("{}: {} chids, the guest is told {} channels per runlist", tokens::GUEST_TOKENS_ENV, g.chids, d.fifo.num_channels.value);
-            }
             let values = g.values();
             let subs = if um.is_some() {
                 Vec::new()
@@ -1452,9 +1475,10 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 guest.push((v, reader));
             }
             eprintln!(
-                "vfio-user-nvgpu: doorbell guest tokens: BAR0 {offset:#x}, 4 bytes, {} sub-region(s) with datamatch runlist << 16 | chid for runlists {:?} (in that order) and chids 0..{}, one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a write of one of them is rung as its trapped write ({}, docs/caraxes/doorbell-token-pool.md (g))",
+                "vfio-user-nvgpu: doorbell guest tokens: BAR0 {offset:#x}, 4 bytes, {} sub-region(s) with datamatch runlist << 16 | chid, runlists {:?} interleaved per ChID then {:?} one by one, ChIDs 0..{}, one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a write of one of them is rung as its trapped write ({}, docs/caraxes/doorbell-token-pool.md (g))",
                 g.len(),
-                g.runlists,
+                g.hot,
+                g.rest,
                 g.chids,
                 tokens::GUEST_TOKENS_ENV
             );

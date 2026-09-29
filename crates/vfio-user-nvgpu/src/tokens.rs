@@ -221,11 +221,12 @@ impl TokenPool {
     }
 }
 
-/// The switch for the guest-token ioeventfds (docs/caraxes/doorbell-token-pool.md (g)):
-/// `CARAXES_DOORBELL_GUEST_TOKENS=<runlist>[,<runlist>...]:<chids>` declares, at start, one
-/// datamatch sub-region of the doorbell register for every guest token `runlist << 16 |
-/// chid` with the runlists in the order given and chids `0..chids`, each with its own
-/// eventfd. A write of such a value then ends in its eventfd, and the device rings it
+/// The switch for the guest-token ioeventfds (docs/caraxes/doorbell-token-pool.md (g)).
+/// Unset or `auto`: the set is derived from the engines the device offers
+/// ([`GuestTokens::auto`]); `off` or `0`: none; for an A/B,
+/// `<hot>[,<runlist>...]:<chids>` with the hot runlists joined by `+` (e.g. `0+1,7,2,3:48`).
+/// Each value `runlist << 16 | chid` is one datamatch sub-region of the doorbell register
+/// with its own eventfd; a write of such a value ends in its eventfd, and the device rings it
 /// exactly as the trapped write of that value (ctrl.rs `doorbell`). For guests that ring
 /// their own tokens and never read the work-submit-token notifier entry: the Windows KMD
 /// computes its tokens itself (the pool's hand-out cannot reach it).
@@ -236,73 +237,149 @@ pub const TOKEN_VECTOR_BITS: u32 = 12;
 pub const TOKEN_RUNLIST_SHIFT: u32 = 16;
 pub const TOKEN_RUNLIST_MAX: u32 = 0x7F;
 
+/// ChIDs per runlist in the automatic set: the Windows KMD and its applications used ChIDs up
+/// to 37 (the ring census of doorbell-token-pool.md (g)); ChIDs are one space for all
+/// runlists on Turing, so a guest with more live channels than this has its higher ones trap.
+pub const AUTO_CHIDS: u32 = 48;
+
 /// The guest token of `chid` on `runlist` (kfifoGenerateWorkSubmitTokenHal_TU102,
 /// kernel_fifo_tu102.c:75-130).
 pub fn guest_token(runlist: u32, chid: u32) -> u32 {
     (runlist << TOKEN_RUNLIST_SHIFT) | chid
 }
 
-/// The guest tokens declared as ioeventfds: `runlists` in registration order (KVM passes
-/// the entries of one address in that order, about 25 ns each, so the busiest runlist
-/// goes first), chids `0..chids` within each.
+/// What the switch asks for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GuestTokensRequest {
+    Off,
+    Auto,
+    Explicit(GuestTokens),
+}
+
+/// The guest tokens declared as ioeventfds, in registration order: KVM passes the entries
+/// of one address in that order, about 25 ns each, so the busiest values go first. The
+/// `hot` runlists are interleaved per ChID (ChID 0 of each, then ChID 1, ...): the graphics
+/// runlist and the first async copy runlist, which carry most rings (the KMD's paging copies
+/// and the applications' GR channels); the `rest` follow runlist by runlist.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GuestTokens {
-    pub runlists: Vec<u32>,
+    pub hot: Vec<u32>,
+    pub rest: Vec<u32>,
     pub chids: u32,
 }
 
-impl GuestTokens {
-    /// `None` when `CARAXES_DOORBELL_GUEST_TOKENS` is unset, empty, 0 or off.
-    pub fn requested() -> Result<Option<Self>, String> {
+impl GuestTokensRequest {
+    pub fn requested() -> Result<Self, String> {
         match std::env::var(GUEST_TOKENS_ENV) {
             Ok(v) => Self::parse(&v),
-            Err(_) => Ok(None),
+            Err(_) => Ok(GuestTokensRequest::Auto),
         }
     }
 
-    pub fn parse(v: &str) -> Result<Option<Self>, String> {
+    pub fn parse(v: &str) -> Result<Self, String> {
         let v = v.trim();
-        if v.is_empty() || v == "0" || v == "off" {
-            return Ok(None);
+        match v {
+            "" | "auto" => return Ok(GuestTokensRequest::Auto),
+            "0" | "off" => return Ok(GuestTokensRequest::Off),
+            _ => {}
         }
-        let bad = || format!("{GUEST_TOKENS_ENV}={v:?}: <runlist>[,<runlist>...]:<chids>, e.g. 0,1,2,3,7:48");
+        let bad = || {
+            format!("{GUEST_TOKENS_ENV}={v:?}: auto, off, or <hot>[,<runlist>...]:<chids> with the hot runlists joined by + (e.g. 0+1,7,2,3:48)")
+        };
         let (rl, n) = v.split_once(':').ok_or_else(bad)?;
         let chids: u32 = n.trim().parse().map_err(|_| bad())?;
-        let mut runlists = Vec::new();
-        for r in rl.split(',') {
-            let r: u32 = r.trim().parse().map_err(|_| bad())?;
-            if r > TOKEN_RUNLIST_MAX || runlists.contains(&r) {
-                return Err(format!("{GUEST_TOKENS_ENV}={v:?}: runlist {r} repeated or beyond RUNLIST_ID 22:16"));
+        let num = |r: &str| r.trim().parse::<u32>().map_err(|_| bad());
+        let mut groups = rl.split(',');
+        let hot = groups.next().ok_or_else(bad)?.split('+').map(num).collect::<Result<Vec<_>, _>>()?;
+        let rest = groups.map(num).collect::<Result<Vec<_>, _>>()?;
+        let t = GuestTokens { hot, rest, chids };
+        t.check()?;
+        Ok(GuestTokensRequest::Explicit(t))
+    }
+}
+
+impl GuestTokens {
+    /// The automatic set from the device-info table the device presents: the graphics
+    /// engine's runlist and the lowest async copy runlist interleaved first, then the
+    /// video encoders', the other copy runlists and the video decoders', as many as
+    /// `budget` eventfds allow at `chids` ChIDs each (at most `AUTO_CHIDS`). Engines that
+    /// are not host-driven, SEC2, NVJPG and OFA get none. `engines`: (name, runlist,
+    /// host_driven) of each entry.
+    pub fn auto(engines: &[(&str, u32, bool)], chids: u32, budget: usize) -> Option<Self> {
+        let chids = chids.min(AUTO_CHIDS);
+        let rls = |prefix: &str| {
+            let mut v: Vec<u32> = engines
+                .iter()
+                .filter(|(n, _, hd)| *hd && n.starts_with(prefix))
+                .map(|(_, r, _)| *r)
+                .collect();
+            v.sort_unstable();
+            v.dedup();
+            v
+        };
+        let gr = *rls("gr").first()?;
+        let ce: Vec<u32> = rls("ce").into_iter().filter(|r| *r != gr).collect();
+        let mut hot = vec![gr];
+        hot.extend(ce.first());
+        let mut rest: Vec<u32> = Vec::new();
+        for r in rls("nvenc").into_iter().chain(ce.iter().skip(1).copied()).chain(rls("nvdec")) {
+            if !hot.contains(&r) && !rest.contains(&r) {
+                rest.push(r);
             }
-            runlists.push(r);
         }
-        if chids == 0 || chids > 1 << TOKEN_VECTOR_BITS {
-            return Err(format!("{GUEST_TOKENS_ENV}={v:?}: chids must be 1 to {} (VECTOR 11:0)", 1 << TOKEN_VECTOR_BITS));
+        if chids == 0 {
+            return None;
         }
-        let t = GuestTokens { runlists, chids };
-        if t.len() > MAX_TOKENS {
+        let fit = budget / chids as usize;
+        if fit < hot.len() {
+            return None;
+        }
+        rest.truncate(fit - hot.len());
+        let t = GuestTokens { hot, rest, chids };
+        t.check().ok()?;
+        Some(t)
+    }
+
+    fn check(&self) -> Result<(), String> {
+        let all: Vec<u32> = self.hot.iter().chain(&self.rest).copied().collect();
+        for (i, r) in all.iter().enumerate() {
+            if *r > TOKEN_RUNLIST_MAX || all[..i].contains(r) {
+                return Err(format!("{GUEST_TOKENS_ENV}: runlist {r} repeated or beyond RUNLIST_ID 22:16"));
+            }
+        }
+        if self.hot.is_empty() {
+            return Err(format!("{GUEST_TOKENS_ENV}: no runlist"));
+        }
+        if self.chids == 0 || self.chids > 1 << TOKEN_VECTOR_BITS {
+            return Err(format!("{GUEST_TOKENS_ENV}: chids must be 1 to {} (VECTOR 11:0)", 1 << TOKEN_VECTOR_BITS));
+        }
+        if self.len() > MAX_TOKENS {
             return Err(format!(
-                "{GUEST_TOKENS_ENV}={v:?}: {} tokens, at most {MAX_TOKENS} (SCM_MAX_FD: one eventfd each, one reply)",
-                t.len()
+                "{GUEST_TOKENS_ENV}: {} tokens, at most {MAX_TOKENS} (SCM_MAX_FD: one eventfd each, one reply)",
+                self.len()
             ));
         }
-        Ok(Some(t))
+        Ok(())
+    }
+
+    pub fn runlists(&self) -> Vec<u32> {
+        self.hot.iter().chain(&self.rest).copied().collect()
     }
 
     pub fn len(&self) -> usize {
-        self.runlists.len() * self.chids as usize
+        (self.hot.len() + self.rest.len()) * self.chids as usize
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// The tokens in registration order: runlist-major, chids ascending.
+    /// The tokens in registration order: the hot runlists interleaved per ChID, then the
+    /// rest runlist by runlist, ChIDs ascending.
     pub fn values(&self) -> Vec<u32> {
-        self.runlists
-            .iter()
-            .flat_map(|&r| (0..self.chids).map(move |c| guest_token(r, c)))
-            .collect()
+        let hot = (0..self.chids).flat_map(|c| self.hot.iter().map(move |&r| guest_token(r, c)));
+        let rest = self.rest.iter().flat_map(|&r| (0..self.chids).map(move |c| guest_token(r, c)));
+        hot.chain(rest).collect()
     }
 }
 
@@ -368,22 +445,47 @@ mod tests {
 
     #[test]
     fn guest_tokens_parse_and_order() {
-        use super::{guest_token, GuestTokens};
-        assert_eq!(GuestTokens::parse("").unwrap(), None);
-        assert_eq!(GuestTokens::parse("off").unwrap(), None);
-        let t = GuestTokens::parse("0,1,7:3").unwrap().unwrap();
-        assert_eq!(t.values(), vec![0, 1, 2, 0x10000, 0x10001, 0x10002, 0x70000, 0x70001, 0x70002]);
+        use super::{guest_token, GuestTokens, GuestTokensRequest as Q};
+        assert_eq!(Q::parse("").unwrap(), Q::Auto);
+        assert_eq!(Q::parse("auto").unwrap(), Q::Auto);
+        assert_eq!(Q::parse("off").unwrap(), Q::Off);
+        let Q::Explicit(t) = Q::parse("0+1,7:2").unwrap() else { panic!() };
+        assert_eq!(t.values(), vec![0x0, 0x10000, 0x1, 0x10001, 0x70000, 0x70001]);
         assert_eq!(guest_token(1, 15), 0x1000f);
-        assert!(GuestTokens::parse("0,0:4").is_err());
-        assert!(GuestTokens::parse("128:4").is_err());
-        assert!(GuestTokens::parse("0:0").is_err());
-        assert!(GuestTokens::parse("0:4097").is_err());
-        assert!(GuestTokens::parse("0,1,2,3,7,8:51").is_err(), "306 > SCM_MAX_FD");
-        assert!(GuestTokens::parse("0,1,2,3,7:48").unwrap().unwrap().len() == 240);
+        assert!(Q::parse("0,0:4").is_err());
+        assert!(Q::parse("128:4").is_err());
+        assert!(Q::parse("0:0").is_err());
+        assert!(Q::parse("0:4097").is_err());
+        assert!(Q::parse("0+1,2,3,7,8:51").is_err(), "306 > SCM_MAX_FD");
         // Never a pool token: the pool's bits 31:23 lie above RUNLIST_ID 22:16.
-        for v in GuestTokens::parse("0,127:1").unwrap().unwrap().values() {
+        let Q::Explicit(t) = Q::parse("0,127:1").unwrap() else { panic!() };
+        for v in t.values() {
             assert!(!super::is_pool_token(v, super::MAX_TOKENS));
         }
         assert!(!super::is_pool_token(guest_token(127, 4095), super::MAX_TOKENS));
+        let _ = GuestTokens::auto(&[], 48, 253);
+    }
+
+    /// The automatic set from TU106's device-info table (chips/tu106/device-info.toml):
+    /// GR (0) and CE2 (1) interleaved, then NVENC (7), CE3 (2), CE4 (3); the NVDECs do not
+    /// fit 253 eventfds at 48 ChIDs. With the pool's 64 fewer, only NVENC follows.
+    #[test]
+    fn automatic_guest_tokens_on_tu106() {
+        use super::GuestTokens;
+        let engines = [
+            ("gr0", 0, true), ("ce0", 0, true), ("ce1", 0, true), ("ce2", 1, true),
+            ("ce3", 2, true), ("ce4", 3, true), ("nvdec0", 4, true), ("nvdec1", 5, true),
+            ("nvdec2", 6, true), ("nvenc0", 7, true), ("sec2", 8, true), ("sw", 0, false),
+        ];
+        let t = GuestTokens::auto(&engines, 512, 252).unwrap();
+        assert_eq!((t.hot.clone(), t.rest.clone(), t.chids, t.len()), (vec![0, 1], vec![7, 2, 3], 48, 240));
+        let v = t.values();
+        assert_eq!(&v[..4], &[0x0, 0x10000, 0x1, 0x10001]);
+        assert_eq!(v.iter().position(|&x| x == 0x1000f), Some(31), "the KMD's paging CE");
+        assert_eq!(v.iter().position(|&x| x == 0x1a), Some(52), "a GR channel");
+        assert_eq!(v.iter().position(|&x| x == 0x70024), Some(132), "NVENC");
+        let t = GuestTokens::auto(&engines, 512, 253 - 64 - 2).unwrap();
+        assert_eq!(t.runlists(), vec![0, 1, 7]);
+        assert!(GuestTokens::auto(&engines, 512, 50).is_none());
     }
 }
