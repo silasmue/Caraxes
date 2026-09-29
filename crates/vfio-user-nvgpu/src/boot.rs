@@ -883,6 +883,14 @@ impl BootModel {
                 "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes",
                 st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written
             ));
+            s.push(format!(
+                "vram store reads by caller: {}",
+                crate::fb::vram_reads_by_why()
+                    .iter()
+                    .map(|(n, c, b)| format!("{n} {c} read(s) of {b} bytes"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
         }
         if self.fb.private_refused() > 0 {
             s.push(format!(

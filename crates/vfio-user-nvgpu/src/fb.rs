@@ -402,6 +402,56 @@ impl WindowSource for crate::hostmem::ReservationMapper {
     }
 }
 
+/// Why the device reads VRAM (the exit summary's split of the store's reads): a scoped tag
+/// the reading path sets ([`ReadWhy::scope`]); reads without one count as `other`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadWhy {
+    Other = 0,
+    /// `FakeFb::read`: the device's data reads (channels, RPCs, the display, watched dwords).
+    Data = 1,
+    /// `FakeFb::read_table`: page-table reads (walks, the BAR TLB, the pool's area walk).
+    Tables = 2,
+    /// A page entering the BAR2 mapping, loaded into the memfd.
+    Bar2Load = 3,
+    /// The BAR2 memfd's drift sample.
+    Bar2Drift = 4,
+}
+
+/// Names of [`ReadWhy`] in its order.
+pub const READ_WHYS: [&str; 5] = ["other", "device data", "page tables", "BAR2 page loads", "BAR2 drift samples"];
+
+thread_local! {
+    static READ_WHY: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Bytes and reads of the VRAM store by [`ReadWhy`] (all devices of the process).
+static READ_BYTES: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(0) }; 5];
+static READ_COUNT: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(0) }; 5];
+
+/// Restores the previous tag when dropped.
+pub struct ReadWhyGuard(usize);
+
+impl Drop for ReadWhyGuard {
+    fn drop(&mut self) {
+        READ_WHY.with(|w| w.set(self.0));
+    }
+}
+
+impl ReadWhy {
+    /// Tag the VRAM reads of this thread until the guard is dropped.
+    pub fn scope(self) -> ReadWhyGuard {
+        ReadWhyGuard(READ_WHY.with(|w| w.replace(self as usize)))
+    }
+}
+
+/// The store's reads by [`ReadWhy`]: `(name, reads, bytes)`.
+pub fn vram_reads_by_why() -> Vec<(&'static str, u64, u64)> {
+    use std::sync::atomic::Ordering::Relaxed;
+    (0..READ_WHYS.len())
+        .map(|i| (READ_WHYS[i], READ_COUNT[i].load(Relaxed), READ_BYTES[i].load(Relaxed)))
+        .collect()
+}
+
 /// Counters of the VRAM store, for the exit summary.
 #[derive(Default, Debug, Clone)]
 pub struct VramStats {
@@ -824,6 +874,12 @@ enum Piece {
 impl FbStore for VramStore {
     fn read(&self, pa: u64, buf: &mut [u8]) {
         {
+            use std::sync::atomic::Ordering::Relaxed;
+            let why = READ_WHY.with(|w| w.get());
+            READ_COUNT[why].fetch_add(1, Relaxed);
+            READ_BYTES[why].fetch_add(buf.len() as u64, Relaxed);
+        }
+        {
             let mut st = self.stats.borrow_mut();
             st.reads += 1;
             st.bytes_read += buf.len() as u64;
@@ -974,6 +1030,10 @@ pub struct FakeFb {
     /// root's FB address (a sysmem root with bit 63): a guest write to one of its table
     /// pages marks that page dirty, and the next update re-reads only the dirty pages.
     walks: RefCell<std::collections::BTreeMap<u64, crate::ptcache::WalkCache>>,
+    /// Moves whenever a cached walk stops reading a table page (a full walk, a dropped
+    /// table, a walk removed): the BAR2 victim cache's snapshots of page tables stay valid
+    /// only while it stands (bar2area.rs `Victims`).
+    table_epoch: Cell<u64>,
     /// The BAR aperture TLB (docs/caraxes/mapping.md §3): `(root, va page) -> the page's
     /// target`, filled by the walk of a trapped BAR1/BAR2 access. Every BAR access used to
     /// walk five table levels through uncached BAR1 reads; a context creation makes about
@@ -1029,6 +1089,7 @@ impl FakeFb {
             outside: Outside::default(),
             pte_kinds: RefCell::new(std::collections::BTreeMap::new()),
             walks: RefCell::new(std::collections::BTreeMap::new()),
+            table_epoch: Cell::new(0),
             bar_tlb: RefCell::new(HashMap::new()),
             bar_tlb_pages: RefCell::new(std::collections::HashSet::new()),
             bar_tlb_on: std::env::var("CARAXES_BAR_TLB").as_deref() != Ok("0"),
@@ -1113,6 +1174,9 @@ impl FakeFb {
     pub fn note_range_changed(&self, pa: u64, len: u64) {
         if len == 0 {
             return;
+        }
+        if let Some(a) = self.bar2.as_deref() {
+            a.drop_victims(pa, len);
         }
         let (first, last) = (pa >> 12, (pa + len - 1) >> 12);
         let within = |p: u64| p >= first && p <= last;
@@ -1215,6 +1279,7 @@ impl FakeFb {
     /// Stop watching `root` (drops its cached walk).
     pub fn unwatch_tables(&self, root: Target) {
         self.walks.borrow_mut().remove(&Self::watch_key(root));
+        self.table_epoch.set(self.table_epoch.get() + 1);
         // Its table pages may stop being table pages: the pool's replicas of them may
         // move into the pool again (checked at the next poll).
         if let Some(p) = self.pool.borrow_mut().as_mut() {
@@ -1244,6 +1309,9 @@ impl FakeFb {
             });
         let before = c.table_pages();
         let u = c.update(&reader, full);
+        if u.dropped {
+            self.table_epoch.set(self.table_epoch.get() + 1);
+        }
         if c.table_pages() != before || u.full {
             if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
                 pt.hazard_dirty = true;
@@ -1452,7 +1520,14 @@ impl FakeFb {
         let pool = self.pool.borrow();
         let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
         let tr = |pa: u64| table.map_or(pa, |t| t.translate(pa));
-        let r = a.sync(&mut *self.store, size, root, sys, &tr);
+        let walks = self.walks.borrow();
+        let walked = |k: u64| walks.values().any(|c| c.watches(k));
+        let view = crate::bar2area::TableView {
+            epoch: self.table_epoch.get(),
+            walked: &walked,
+        };
+        let r = a.sync_only(&mut *self.store, size, root, sys, &tr, None, &view);
+        drop(walks);
         drop(pool);
         if !r.dirty.is_empty() {
             // The written-back bytes must reach VRAM before the GPU can be told to read
@@ -1513,7 +1588,14 @@ impl FakeFb {
         let pool = self.pool.borrow();
         let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
         let tr = |pa: u64| table.map_or(pa, |t| t.translate(pa));
-        let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys));
+        let walks = self.walks.borrow();
+        let walked = |k: u64| walks.values().any(|c| c.watches(k));
+        let view = crate::bar2area::TableView {
+            epoch: self.table_epoch.get(),
+            walked: &walked,
+        };
+        let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys), &view);
+        drop(walks);
         a.stats.table_syncs += 1;
         a.stats.table_sync_pages += keys.len() as u64;
         a.stats.table_sync_ns += t0.elapsed().as_nanos() as u64;
@@ -1681,6 +1763,7 @@ impl FakeFb {
     }
 
     fn read_with(&self, pa: u64, buf: &mut [u8], tables: bool) -> bool {
+        let _why = if tables { ReadWhy::Tables } else { ReadWhy::Data }.scope();
         self.check('r', pa, buf.len());
         if pa + buf.len() as u64 > self.size {
             return false;
@@ -1692,10 +1775,11 @@ impl FakeFb {
         match (self.bar2.as_deref().filter(|a| a.has_live()), table) {
             (Some(a), t) => {
                 let tr = |x: u64| t.map_or(x, |t| t.translate(x));
+                let epoch = self.table_epoch.get();
                 if tables {
-                    a.read_tables(&*self.store, &tr, pa, buf)
+                    a.read_tables(&*self.store, &tr, pa, buf, epoch)
                 } else {
-                    a.read_merged(&*self.store, &tr, pa, buf)
+                    a.read_merged(&*self.store, &tr, pa, buf, epoch)
                 }
             }
             (None, None) => self.store.read(pa, buf),
@@ -3118,6 +3202,98 @@ mod tests {
         assert!(fb.bar2_area().is_none());
         assert!(!fresh.bar2_area().unwrap().has_live());
         assert_eq!(fb.read_u64(0x14000 + 8 * 6), Some(pte(0x60000)));
+    }
+
+    /// The BAR2 victim cache (bar2area.rs `Victims`): a page table that leaves the BAR2
+    /// mapping keeps its snapshot, which equals VRAM; reads and a re-entry are served from it
+    /// without a VRAM read; a device write patches it; a write the device only learns of, or
+    /// a walk that stops reading a table (a new table epoch), invalidates it; a page that is
+    /// no table is not kept.
+    #[test]
+    fn page_tables_leaving_bar2_are_kept_and_served_without_vram_reads() {
+        use crate::bar2area::{Bar2Area, Config};
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | (0x06 << 56) | 1;
+        let mut fb = FakeFb::new(64 << 20);
+        let root = 0x10000;
+        fb.write_u64(root, vid(0x11000));
+        fb.write_u64(0x11000, vid(0x12000));
+        fb.write_u64(0x12000, vid(0x13000));
+        fb.write_u64(0x13008, vid(0x14000));
+        let bar2_pte = |fb: &mut FakeFb, page: u64, pa: u64| fb.write_u64(0x14000 + 8 * page, pte(pa));
+        bar2_pte(&mut fb, 1, 0x14000);
+        bar2_pte(&mut fb, 6, 0x34000);
+        // A channel's tree 0x30000 -> 0x31000 -> 0x32000 -> 0x33000 -> PT 0x34000.
+        fb.write_u64(0x30000, vid(0x31000));
+        fb.write_u64(0x31000, vid(0x32000));
+        fb.write_u64(0x32000, vid(0x33000));
+        fb.write_u64(0x33008, vid(0x34000));
+        fb.write_u64(0x34000 + 8 * 3, pte(0x50000));
+        fb.write_u64(0x60008, 0x6060);
+        let cfg = Config {
+            traps: vec![0x1f000],
+            sync_doorbell: false,
+            defer_flush: false,
+            flush_page_memory: false,
+        };
+        let area = Bar2Area::create(0x20000, &cfg).unwrap();
+        let guest = area.mem.map_again().unwrap();
+        fb.set_bar2_area(area).unwrap();
+        assert!(fb.bar2_sync(Some(root), None));
+        let croot = Target::Fb(0x30000);
+        fb.walk_update(None, croot, false, 1 << 20);
+        let stats = |fb: &FakeFb| fb.bar2_area().unwrap().victims.borrow().stats.clone();
+        let repoint = |fb: &mut FakeFb, guest: &crate::bar2area::SharedView, pa: u64| {
+            guest.store_word(1, 6, pte(pa));
+            fb.bar2_sync(Some(root), None);
+        };
+        // The guest writes a PTE through BAR2, then maps another page at BAR2 page 6: the
+        // page table leaves, written back and kept.
+        guest.store_word(6, 5, pte(0x51000));
+        repoint(&mut fb, &guest, 0x60000);
+        assert_eq!(fb.backing(0x34000), Backing::Store);
+        let mut v = [0u8; 8];
+        fb.read_raw(0x34028, &mut v);
+        assert_eq!(u64::from_le_bytes(v), pte(0x51000), "VRAM has it");
+        assert_eq!((stats(&fb).kept, fb.bar2_area().unwrap().victims.borrow().len()), (1, 1));
+        // Reads of it, as a table and as data, come from the snapshot.
+        let mut t = [0u8; 8];
+        assert!(fb.read_table(0x34028, &mut t));
+        assert_eq!(u64::from_le_bytes(t), pte(0x51000));
+        assert_eq!(fb.read_u64(0x34028), Some(pte(0x51000)));
+        assert_eq!(stats(&fb).read_hits, 2);
+        // A device write patches it (and reaches VRAM).
+        fb.write_u64(0x34030, pte(0x52000));
+        assert_eq!(fb.read_u64(0x34030), Some(pte(0x52000)));
+        // It enters BAR2 again: loaded from the snapshot, not VRAM. 0x60000 (no table)
+        // leaves and is not kept.
+        repoint(&mut fb, &guest, 0x34000);
+        let s = stats(&fb);
+        assert_eq!((s.load_hits, s.kept), (1, 1));
+        assert_eq!((guest.load_word(6, 5), guest.load_word(6, 6)), (pte(0x51000), pte(0x52000)));
+        // A host engine writes it behind the device while it is out: dropped, the next
+        // entry reads VRAM.
+        repoint(&mut fb, &guest, 0x60000);
+        assert_eq!(stats(&fb).kept, 2);
+        fb.store.write(0x34038, &pte(0x53000).to_le_bytes());
+        fb.note_range_changed(0x34038, 8);
+        assert_eq!(stats(&fb).dropped, 1);
+        let misses = stats(&fb).load_misses;
+        repoint(&mut fb, &guest, 0x34000);
+        assert_eq!(stats(&fb).load_misses, misses + 1);
+        assert_eq!(guest.load_word(6, 7), pte(0x53000));
+        // The walk stops reading its tables (a new table epoch): a kept snapshot is stale.
+        repoint(&mut fb, &guest, 0x60000);
+        assert_eq!(stats(&fb).kept, 3);
+        fb.unwatch_tables(croot);
+        let misses = stats(&fb).load_misses;
+        repoint(&mut fb, &guest, 0x34000);
+        let s = stats(&fb);
+        assert_eq!((s.stale, s.load_misses), (1, misses + 1));
+        assert_eq!(guest.load_word(6, 5), pte(0x51000));
+        // Not walked any more: leaving again keeps nothing.
+        repoint(&mut fb, &guest, 0x60000);
+        assert_eq!(stats(&fb).kept, 3);
     }
 
     /// The flush page as memory (`CARAXES_BAR2_FLUSH_PAGE=memory`, intr-page.md §12.1): no
