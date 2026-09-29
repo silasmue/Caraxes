@@ -1265,7 +1265,7 @@ impl Engine {
         if handle != 0 {
             let off = (((ctrl >> 4) & 0xFF) * 16) as u64;
             if let Some(m) = self.resolve_at(fb, handle, CHN_CORE, off, "core notifier") {
-                m.write(fb, mem, 8, &now.to_le_bytes());
+                m.write(fb, mem, 8, &ptimer_stamp(now).to_le_bytes());
                 m.write(fb, mem, 0, &NOTIFIER_FINISHED.to_le_bytes());
                 self.core_notifier_writes += 1;
                 if self.core_notifier_writes <= 3 {
