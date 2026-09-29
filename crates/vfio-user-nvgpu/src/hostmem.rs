@@ -2170,7 +2170,7 @@ impl HostMemory {
 
     /// P21: export `[fb, fb + len)` of the reservation as a dma-buf for the guest's
     /// BAR1 region (`Bar1Export`). The range must lie inside the reservation; the
-    /// caller has checked it against the usable part (`fb::bar1_passthrough_area`).
+    /// caller has checked it against the usable part (`bar1pool::check_size`).
     pub fn export_bar1_passthrough(&self, fb: u64, len: u64) -> Result<Bar1Export> {
         let r = self
             .reservation

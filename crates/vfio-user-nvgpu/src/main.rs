@@ -685,9 +685,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         if doorbell_ioeventfd {
             bail!("CARAXES_FB_ZERO_BASED=1 refuses token-less direct doorbells");
         }
-        if vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
-            bail!("CARAXES_FB_ZERO_BASED=1 does not support fixed BAR1 passthrough; use the BAR1 pool or trapped BAR1");
-        }
     }
     // D16b (compslice.rs): real compression per VM slice. The reservation is allocated
     // compressed, and only shadow-only host execution may run on it (invariant (b)).
@@ -734,18 +731,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // shadow VA space. CARAXES_BAR1_POOL_MIB sizes it (0: none).
     let bar1_pool = vfio_user_nvgpu::bar1pool::config(a.host_exec).map_err(anyhow::Error::msg)?;
     if doorbell_ioeventfd && bar1_pool.is_some() {
-        // The same reason as for the prototype below: GPPut writes through the area never
-        // reach the device, and the token-less path has nothing else to go by.
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with the BAR1 pool (CARAXES_BAR1_POOL_MIB=0 turns it off): use the token pool ({}=N) instead", tokens::TOKENS_ENV);
-    }
-    if doorbell_ioeventfd && vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
         // The token-less ioeventfd path rings the channels whose GPPut moved, read from the
-        // FB store's watched copy that the trapped BAR1 writes keep current; with the
-        // passthrough area those writes bypass the device, the copy stays stale, no channel
-        // is ever rung and the guest waits forever (caraxes/runs/p21-bar1-2026-09-24/
-        // B-on-with-ioeventfd-hung). The token pool (CARAXES_DOORBELL_TOKENS=N) needs no
-        // GPPut: the eventfd names the channel, so it combines with the area.
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=1: the ioeventfd carries no token and the passthrough area hides the GPPut writes the token-less path relies on; use the token pool ({}=N) instead", tokens::TOKENS_ENV);
+        // FB store's watched copy that the trapped BAR1 writes keep current; through the
+        // area those writes bypass the device, no channel is ever rung and the guest waits
+        // forever (caraxes/runs/p21-bar1-2026-09-24/B-on-with-ioeventfd-hung).
+        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with the BAR1 pool (CARAXES_BAR1_POOL_MIB=0 turns it off): use the token pool ({}=N) instead", tokens::TOKENS_ENV);
     }
     let cfg = config_space(a)?;
     if let Some(v) = vfio_user_nvgpu::falcon::stallack_from_env().map_err(anyhow::Error::msg)? {
@@ -1052,29 +1042,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 eprintln!("vfio-user-nvgpu: host boost off ({}=0)", hostboost::ENV);
                 hostboost::set_off(&format!("{}=0", hostboost::ENV));
             }
-        }
-        if let Some((off, len)) = vfio_user_nvgpu::fb::bar1_passthrough_config() {
-            if !a.host_exec {
-                bail!(
-                    "CARAXES_BAR1_PASSTHROUGH=1 needs host execution (the FB on the reserved VRAM)"
-                );
-            }
-            let bar1 = region_size(&a.board_data, 1);
-            let (fb0, len) = vfio_user_nvgpu::fb::bar1_passthrough_area(&layout, off, len, bar1)
-                .map_err(anyhow::Error::msg)?;
-            let hm = host_mem.as_ref().expect("checked in parse_args");
-            let ex = hm
-                .lock()
-                .unwrap()
-                .export_bar1_passthrough(fb0, len)
-                .context("BAR1 passthrough (CARAXES_BAR1_PASSTHROUGH=1)")?;
-            let (_, root) = layout.bar_roots().expect("a reserved layout");
-            model.fb.set_bar1_passthrough(root, fb0, len);
-            eprintln!(
-                "vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [{fb0:#x}, {:#x}) (reservation offset {off:#x}); {len:#x} of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=1, docs/caraxes/bar1-passthrough.md)",
-                fb0 + len
-            );
-            bar1_export = Some(ex);
         }
         if let Some((pool0, pool_end)) = layout.pool_range() {
             let len = pool_end - pool0;

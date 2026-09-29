@@ -2433,12 +2433,9 @@ impl Device {
     /// worker (bar1pool.rs `poll_sliced`, bar1-pool.md §14).
     fn after_bar0_write_in(&mut self, sync_point: bool, offset: u64, pace: crate::bar1pool::Pace) {
         if sync_point {
-            // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
-            // mapping and before it uses the mapping.
-            if let Some(b) = self.bar0.boot() {
-                b.fb.poll_bar1_passthrough();
-            }
-            // P21 design H: the same point moves pages into and out of the BAR1 pool.
+            // P21 design H: the guest flushes and invalidates through BAR0 after changing a
+            // BAR1 mapping and before it uses the mapping; the same point moves pages into
+            // and out of the BAR1 pool.
             if let Some(b) = self.bar0.boot_mut() {
                 if b.fb.bar1_pool().is_some() {
                     let merge = b.pool_merge_after(offset);

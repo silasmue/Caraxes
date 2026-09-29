@@ -1042,14 +1042,6 @@ impl BootModel {
         s.push(format!(
             "executor tlb: {h} page hit(s), {m} unit walk(s), {f} flush(es) by a table write or an invalidate (docs/caraxes/execution.md §9.7)"
         ));
-        if let (Some((fb0, len)), Some(st)) =
-            (self.fb.bar1_passthrough(), self.fb.bar1_passthrough_stats())
-        {
-            s.push(format!(
-                "bar1 passthrough: guest BAR1 [0, {len:#x}) on FB {fb0:#x}; {} check(s), last: {} page(s) mapped, {} matched, {} elsewhere; {} mismatched page(s) and {} page-table hazard(s) over the run, {} table re-read(s) (docs/caraxes/bar1-passthrough.md)",
-                st.checks, st.mapped, st.matched, st.mismatched, st.mismatch_events, st.table_hazards, st.table_resyncs
-            ));
-        }
         if let Some(a) = self.fb.bar2_area() {
             s.push(a.summary());
         }
@@ -1363,7 +1355,7 @@ impl BootModel {
                 }
             };
         }
-        self.fb.carry_bar1_passthrough(&fresh.fb);
+        self.fb.carry_bar1_pool(&fresh.fb);
         self.fb.carry_bar2_area(&mut fresh.fb);
         fresh.ctrl.channels.tokens = tokens;
         // The persistent settings (ECC and MIG mode) survive, and what was pending applies.

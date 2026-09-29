@@ -1881,7 +1881,6 @@ pub fn replica_lines(b: &crate::boot::BootModel) -> Vec<String> {
 ///   the next poll, or a barrier refused it) is marked changed, so the shadow's next walk
 ///   re-reads it from its pool page instead of trusting its write-through copy, and the
 ///   poll is told to evict it.
-/// - Design G's twin: [`FakeFb::bar1_pt_resync`].
 ///
 /// Returns whether anything was merged or marked. Two borrow checks when there is nothing.
 pub fn sync_untracked(fb: &mut FakeFb) -> bool {
@@ -1897,8 +1896,8 @@ pub fn sync_untracked_tables(fb: &mut FakeFb) -> bool {
     sync_inner_where(fb, true, &mut PollBreakdown::default(), true)
 }
 
-/// [`sync_untracked`]; without `merge` only the marks (design G's and the pooled table
-/// pages'), which cost a few lookups, not the two page reads per replica.
+/// [`sync_untracked`]; without `merge` only the marks (the pooled table pages'), which
+/// cost a few lookups, not the two page reads per replica.
 fn sync_inner(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown) -> bool {
     sync_inner_where(fb, merge, bd, false)
 }
@@ -1906,14 +1905,13 @@ fn sync_inner(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown) -> bool {
 /// [`sync_inner`]; with `tables_only` only the replicas whose home is a followed table page
 /// are merged.
 fn sync_inner_where(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown, tables_only: bool) -> bool {
-    let g_marked = fb.bar1_pt_resync() > 0;
     let (gs, pooled) = {
         let guard = fb.pool_mut();
         let Some(p) = guard.as_ref() else {
-            return g_marked;
+            return false;
         };
         if p.replicas.is_empty() && p.pooled_tables.is_empty() {
-            return g_marked;
+            return false;
         }
         let gs: Vec<(u64, u64)> = if merge {
             merge_order(&p.replicas)
@@ -1957,7 +1955,7 @@ fn sync_inner_where(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown, tables
     if wrote {
         fb.flush();
     }
-    g_marked || wrote || !pooled.is_empty()
+    wrote || !pooled.is_empty()
 }
 
 /// [`poll_at`] with the replica merge (every sync point merges, the tests' default).
@@ -3794,7 +3792,7 @@ mod tests {
         assert!(fb.bar1_pool_summary().unwrap().contains("1 page(s) in the pool now"));
         // A function-level reset: the pool and its counters carry over, the remaps go.
         let fresh = FakeFb::for_layout(&layout());
-        fb.carry_bar1_passthrough(&fresh);
+        fb.carry_bar1_pool(&fresh);
         assert_eq!(fresh.bar1_pool(), Some((pool0, POOL)));
         assert_eq!(fresh.remap(x), x);
         assert_eq!(stats(&fresh).installs_cold, 3);
