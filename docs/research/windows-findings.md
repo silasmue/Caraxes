@@ -748,3 +748,39 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     guest's own tokens (`runlist << 16 | chid`, P43: runlists 0, 1, 2, 8, 9, 10, chids up to 51),
     at most 253 per region. A decision for the user.
 - Memory model: none (tooling and doorbells are independent of the VRAM layout).
+
+## Cloud Hypervisor, step 2: boot and the driver (2026-09-29, C44-nogpu2, C45-gpu, C46-ch1)
+
+- **C44 (no GPU):** Windows boots under CH v53.0-7-ge7b1965c0 with CLOUDHV.fd, kvm_hyperv, 8 GiB
+  shared memfd and the 4-level qcow2 chain (backing_files=on). Network ~13 s after the start, SSH
+  over the tap, a clean `Stop-Computer` in 9 s.
+  - The guest TPM driver reports event 15 ("unrecoverable TPM error", Get-Tpm 0x80284001) with
+    swtpm attached through `--tpm`: Windows boots, TPM-bound features would not work. Open.
+  - The CH RTC is UTC, QEMU's was localtime: the guest now sets RealTimeIsUniversal=1, and
+    run-qemu-gpu.sh must use `-rtc base=utc` (otherwise smoke's "events since boot" window
+    picks up older runs' events, as in C45).
+- **C45 (GPU, P43 binary and flags, trapped doorbells):** the same device instance (PCI 0:6, class
+  key 0007, GSP-RM path), problem code 0, nvidia-smi "Leandro VFIO RTX 2070-4G" WDDM 4096 MiB.
+  - The monitor "Caraxes DP" is active at 1920x1080@60; dwm.exe and LogonUI.exe run on the GPU;
+    our adapter is the only one.
+  - D3D11 gate PASS (create 6.2 s); smoke: D3D11, D3D12, vulkaninfo, nvidia-smi PASS.
+  - CUDA (host load ~5): short kernel median 80.2 us (mean 263, p90 785; QEMU P43 72.6, 295,
+    900); launch + sync 311 us; pinned HtoD 1.98 GB/s (QEMU 12.55), DtoH 13.0 GB/s. The HtoD
+    drop is open.
+  - No host Xid; clean teardown (8 GiB unpinned, 0 ERROR lines).
+- **Scanout: the KMD lights the head but presents nothing.** Under CH as under QEMU (P1-P43): 7 core
+  UPDATEs (modeset 2200x1125 at 148.5 MHz on SOR0, DP trained 1 lane HBR2, OLUT/OCSC/dither),
+  vblank enables toggling, but no window-channel UPDATE; the 8 window channels only get CSC LUTs
+  and no window is ever assigned to a head (no `WINDOW_SET_CONTROL` in the core's 16 kicks).
+  - `NV0073_CTRL_CMD_SYSTEM_GET_ACTIVE` answered 0 for every head (spec: the display a head
+    drives, also one an NV client lit). Fixed (d68e87b5); C46: head 0 -> 0x100, no change.
+  - A DxgKrnl ETW trace around a DWM restart (C46): dxgkrnl calls the KMD's flip DDI
+    (`DdiSetVidPnMultiPlaneOverlay3`, `MMIOFlipMultiPlaneOverlay3`, `SetVidPnSourceVisibility`)
+    and 3 queued flips (`IMMEDIATE_SW_FLIP_QUEUE`) were cancelled at the kill: earlier flips
+    never completed. The device saw no display USERD write during those DDIs.
+  - So the KMD accepts flips and defers the programming. Next: which display register or
+    interrupt it waits for (`CARAXES_TRACE_ACCESSES=bar0:0x610000-0x700000`, a0907d98).
+  - Sunshine: DDA capture re-initialises every ~15 s (each init is a D3D11 device on our adapter,
+    ~12-15 s), the stream never starts; its NVENC self-test fails on frame 1 (100 ms async
+    event wait, nvenc_base.cpp) and it falls back to libx264. Both follow once flips work.
+- Memory model: none (display and tooling are independent of the VRAM layout).
