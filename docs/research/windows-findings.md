@@ -968,3 +968,25 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - **Open:** what the KMD times out on. Next: a DxgKrnl ETW trace across the TDR
   (tools/windows/dxgk-etw.ps1) names the node and the fence.
 - Memory model: the pool (BAR1 pages mapped to host BAR1 windows).
+
+## Cloud Hypervisor, step 10: the TDR is a VSync timeout behind long device-lock holds (2026-09-29, C60b, C61)
+
+- **Gate 6df81acc (four guests, one binary):** Linux B 615 kick-smoke PASS, nova 5-probe PASS
+  (5/4/0), vm10 nouveau+NVK R1-R8 PASS (vkCreateDevice 59.8 ms); Windows: see below. No host Xid.
+- **C60b/C61 (ch15, no pool, auto-logon desktop):** TDR 2-3 min after sign-in, not caused by
+  the display checks (my display-mode task never reached the guest).
+- **DxgKrnl ETW across the TDR (C61, tools/windows/dxgk-etw.ps1):** `TdrPayloadVSyncTimeout`
+  (source 0, present ID 0x4B) at 14:07:47.7. dxgkrnl had set the interrupt target present ID
+  to 0x4B; the KMD's vsync reports (`VSyncDPCMultiPlane`) kept saying 0x4A; the vsync
+  interrupts it reported (`VSyncInterrupt`) came sporadically, none for ~550 ms before.
+- **Cause on the device:** the display clock waits behind the device lock. Exit summary:
+  driver (device lock + catch-up) p50 <= 15 us, p99 <= 524 ms, max 821 ms; catch-up alone p99
+  <= 63 us. The trace is silent for 495 ms right before the timeout: a mirror build of a new GR
+  channel (chid 31: host VAS, TSG, private USERD vidmem, 6 objects) under the lock. Other
+  silences of 0.5-1 s follow shadow syncs (VAS full walks 250-290 ms) and paging doorbells. The
+  guest's ISR reads trap and block on the same lock, so no flip completes and no vblank is
+  reported while it is held.
+- **What follows the card:** the display runs on its own clock. Two levers: long holders off
+  the device lock (mirror builds and shadow full walks async behind a held doorbell), and the
+  display engine's per-tick work on its own lock.
+- Memory model: none for the display; the long holders are the mirror and shadow paths.
