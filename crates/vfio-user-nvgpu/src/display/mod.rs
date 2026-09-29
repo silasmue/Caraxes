@@ -68,6 +68,9 @@ pub const CHN_METHODS: u64 = 0x200;
 /// half is `CORE_ARMED`).
 pub const CHN_ARMED: u64 = 0x800;
 pub const CURSOR_USERD: u64 = 0x006D_8000;
+/// Every display channel's USERD page (`PUT` at +0): core, 32 window, 32 window-immediate
+/// and 8 cursor channels ([`userd_base`]).
+pub const USERD_RANGE: std::ops::Range<u64> = CORE_USERD..USERD_END;
 pub const USERD_END: u64 = 0x006E_0000;
 /// `NVC57A_FREE` (+0x08 of the cursor PIO page): space for methods; must be non-zero.
 const CURSOR_FREE: u64 = 0x08;

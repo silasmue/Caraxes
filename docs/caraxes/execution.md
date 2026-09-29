@@ -582,7 +582,9 @@ clock's per-tick work takes the display engine's lock and never D.
   the ring, the ring, the steps after a BAR0 write).
 - Order: every other guest access rings the queue first, before its own work: every trapped
   access (`SharedDevice::lock`), the eventfd readers, the page reactors (invalidate, usermode,
-  display kick). No access passes a doorbell the guest wrote before it, as on PCIe, where a read
+  display kick), and a display channel's PUT that the routes serve without D (its USERD page,
+  `display::USERD_RANGE`: a flip's semaphore acquire may wait for work a posted doorbell
+  starts). No access passes a doorbell the guest wrote before it, as on PCIe, where a read
   or write does not pass a posted write. The card promises no more: a doorbell only makes the GPU
   fetch the new entries eventually.
 - Counted: the exit summary's `posted doorbells` line (writes, joined, rung by the completer or by
@@ -628,9 +630,20 @@ clock's per-tick work takes the display engine's lock and never D.
     owed (`DeferredFlush::mark`, atomic) and returns the page's bytes as the last locked read
     published them. The copy goes on a device write to its FB page, on a BAR2 walk that
     re-points pages, and at a reset.
+  - **The time** (`NV_PTIMER_TIME_0/1`, the usermode `TIME_0/1`), Windows line (2026-09-29):
+    the hottest trapped read of a Windows guest (C67: 119k). Answered from the device clock
+    (`channel::device_now_ns`, as the locked path). The PTIMER torn-read guard (the high word
+    of the last TIME_1 read, boot.rs `ptimer_word`) is one atomic in fastread.rs, shared by
+    both paths. On this line nothing else a guest sees is ordered by a time read (the
+    time-read display catch-up b4d8975d was reverted in 336caf59; the scan position is computed
+    from the time at its own read). Should it come back, the gate needs the next tick of each
+    active head (from `Head::t0_ns`, `ticks` and `period_ns`), published after every catch-up:
+    a read at `now` below it needs no catch-up.
 - These reads take D:
   - TRIGGER while a BAR1 pool batch runs (its slices continue at those reads);
-  - any read while the trace records accesses;
+  - a register the trace writes a line for (`CARAXES_TRACE_ACCESSES`, per kind: TRIGGER, the
+    flush page, PTIMER, the usermode time; a BAR0 range without them keeps them off D);
+  - reads narrower than a dword;
   - the first read of the flush page after its copy went (it publishes a new one);
   - with the flush reads syncing at once (`CARAXES_BAR2_MEMFD_DEFER_FLUSH=0`).
 - Card semantics: TRIGGER reads pending until the invalidate's roots have their jobs applied,

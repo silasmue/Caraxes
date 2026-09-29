@@ -50,7 +50,7 @@ const PTIMER_TIME_1: u64 = 0x410;
 
 /// One PTIMER word at `now` ns ([`BootModel::ptimer_read`]); `pending` is the high word
 /// of the last TIME_1 read not yet followed by a TIME_0 read.
-fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 {
+pub(crate) fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 {
     if hi {
         *pending = Some(now >> 32);
         return (now >> 32) as u32 & 0x1FFF_FFFF;
@@ -132,9 +132,6 @@ pub struct BootModel {
     l2_ops: BTreeMap<u64, u32>,
     /// The BAR2 memfd's doorbell rule: what each channel could observe (`bar2_observed`).
     bar2_observe: std::collections::HashMap<u32, ObserveEntry>,
-    /// The high word the last `NV_PTIMER_TIME_1` read returned, until the next `TIME_0`
-    /// read (the torn-read guard of [`BootModel::ptimer_read`]).
-    ptimer_hi: Option<u64>,
     /// L2 cache operations started / forwarded to the host / host failures (trace).
     pub l2_op_counts: (u64, u64, u64),
     bar2_block: u32,
@@ -246,6 +243,13 @@ impl BootModel {
         let r = d.registers;
         let fb_bytes = layout.addr_space;
         let fast = std::sync::Arc::new(crate::fastread::FastReads::default());
+        {
+            let tb = d.chip_info.timer_base as u64;
+            fast.set_time_regs(
+                [tb + PTIMER_TIME_0, tb + PTIMER_TIME_1],
+                [r.usermode_time_0, r.usermode_time_1],
+            );
+        }
         BootModel {
             chip,
             regs: r,
@@ -274,7 +278,6 @@ impl BootModel {
             mmu_invalidate: (0, 0, 0),
             l2_ops: BTreeMap::new(),
             bar2_observe: Default::default(),
-            ptimer_hi: None,
             l2_op_counts: (0, 0, 0),
             bar2_block: 0,
             bar_faults: 0,
@@ -1367,8 +1370,22 @@ impl BootModel {
     /// TIME_0 read that follows a TIME_1 read whose high word has since moved on answers
     /// the last low value of that high word (0xFFFF_FFE0): the pair is then a time that
     /// already passed but never older than one read before, and the next pair catches up.
+    /// The pending high word is shared with the reads without the device lock
+    /// (fastread.rs), so both paths keep one guard.
     pub fn ptimer_read(&mut self, hi: bool) -> u32 {
-        ptimer_word(&mut self.ptimer_hi, self.ctrl.channels.now_ns(), hi)
+        self.fast.note_locked_time();
+        self.fast.ptimer_read(self.ctrl.channels.now_ns(), hi)
+    }
+
+    /// The time registers' BAR0 offsets: PTIMER TIME_0, TIME_1, usermode TIME_0, TIME_1.
+    pub fn time_registers(&self) -> [u64; 4] {
+        let tb = self.ptimer_base();
+        [
+            tb + PTIMER_TIME_0,
+            tb + PTIMER_TIME_1,
+            self.regs.usermode_time_0,
+            self.regs.usermode_time_1,
+        ]
     }
 
     /// The BAR0 offset of `_INVALIDATE` (the invalidate page's trigger word, inv_page.rs).
@@ -1526,6 +1543,9 @@ impl BootModel {
             return Some(u32::from_le_bytes(b));
         }
         if self.vf.handles(off) {
+            if off == self.regs.usermode_time_0 || off == self.regs.usermode_time_1 {
+                self.fast.note_locked_time();
+            }
             return Some(self.vf.read32(off, self.ctrl.channels.now_ns()));
         }
         Some(match self.reg(off) {

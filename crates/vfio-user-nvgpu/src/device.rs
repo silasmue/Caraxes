@@ -588,13 +588,27 @@ impl SharedDevice {
             .boot()
             .map(|b| b.fast())
             .unwrap_or_else(|| std::sync::Arc::new(crate::fastread::FastReads::default()));
-        // Only if the trace would write a line for them (CARAXES_TRACE_ACCESSES may name a
-        // BAR0 range without them).
-        let trigger = d.bar0.boot().map(|b| b.mmu_invalidate_register());
-        f.set_traced(
-            trigger.is_some_and(|t| d.trace.records_access(VFIO_PCI_BAR0_REGION_INDEX, t))
-                || d.trace.records_access(3, 0),
-        );
+        // The kinds the trace writes a line for keep the locked path (CARAXES_TRACE_ACCESSES
+        // may name a BAR0 range without them).
+        let at = |off: Option<u64>| {
+            off.is_some_and(|o| d.trace.records_access(VFIO_PCI_BAR0_REGION_INDEX, o))
+        };
+        let boot = d.bar0.boot();
+        let regs = boot.map(|b| b.time_registers());
+        let mut traced = 0;
+        if at(boot.map(|b| b.mmu_invalidate_register())) {
+            traced |= crate::fastread::TRACED_TRIGGER;
+        }
+        if d.trace.records_access(3, 0) {
+            traced |= crate::fastread::TRACED_FLUSH;
+        }
+        if at(regs.map(|r| r[0])) || at(regs.map(|r| r[1])) {
+            traced |= crate::fastread::TRACED_PTIMER;
+        }
+        if at(regs.map(|r| r[2])) || at(regs.map(|r| r[3])) {
+            traced |= crate::fastread::TRACED_USERMODE_TIME;
+        }
+        f.set_traced(traced);
         drop(d);
         crate::fastread::register(key, &f);
         f
@@ -614,8 +628,7 @@ impl ServerBackend for SharedDevice {
             let t0 = std::time::Instant::now();
             if self.fast_reads().try_read(region, offset, data) {
                 if crate::profile::on() {
-                    let name = (region == VFIO_PCI_BAR0_REGION_INDEX)
-                        .then_some("NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE");
+                    let name = self.fast_reads().name_of(region, offset);
                     crate::profile::access(region, false, offset, name, t0);
                 }
                 return Ok(());
@@ -636,7 +649,19 @@ impl ServerBackend for SharedDevice {
     }
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
-        if self.post_doorbell(region, offset, data) || self.routes.write(region, offset, data) {
+        if self.post_doorbell(region, offset, data) {
+            return Ok(());
+        }
+        // A display channel's PUT (its USERD page) that the routes serve without the device
+        // lock: a flip's semaphore acquire may wait for work a posted doorbell starts, so
+        // the posted doorbells are rung first (`lock` rings them), as for every other access.
+        if region == VFIO_PCI_BAR0_REGION_INDEX
+            && self.gate.has_posted()
+            && crate::display::USERD_RANGE.contains(&offset)
+        {
+            drop(self.lock("display PUT after posted doorbells"));
+        }
+        if self.routes.write(region, offset, data) {
             return Ok(());
         }
         let timing = crate::launch::on() && region == VFIO_PCI_BAR0_REGION_INDEX;

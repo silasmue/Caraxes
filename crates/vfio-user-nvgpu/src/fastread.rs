@@ -23,6 +23,14 @@
 //! - The flush page: the owed sync is marked and the page's bytes as the last locked read of it
 //!   found them. That copy goes whenever the page could change: a device write to its FB page,
 //!   a BAR2 table walk that re-points pages, a reset.
+//! - The time: `NV_PTIMER_TIME_0/1` and the usermode `TIME_0/1` from the device clock
+//!   (channel.rs `device_now_ns`), the hottest trapped read of a Windows guest (C67: 119k). The
+//!   PTIMER torn-read guard (boot.rs `ptimer_word`: the high word of the last TIME_1 read) lives
+//!   here, shared by both paths. Nothing else a guest can see is ordered by a time read on
+//!   this line (the display's scan position is computed from the time at its own read).
+//!
+//! A register the trace writes a line for (`CARAXES_TRACE_ACCESSES`) keeps the locked path, so
+//! the trace stays complete for it.
 //!
 //! Lock order (execution.md §9): the mutexes here are leaves; nothing here takes the device
 //! lock, and a device-lock holder only takes them for a state change.
@@ -38,6 +46,12 @@ use crate::invgate::{Hold, Target, FALLBACK, POLL_WAIT};
 const NONE: u64 = u64::MAX;
 const PAGE: u64 = 4096;
 const TRIGGER: u32 = 1 << 31;
+
+/// Kinds of the registers served here, for [`FastReads::set_traced`].
+pub const TRACED_TRIGGER: u32 = 1;
+pub const TRACED_FLUSH: u32 = 2;
+pub const TRACED_PTIMER: u32 = 4;
+pub const TRACED_USERMODE_TIME: u32 = 8;
 
 /// The flush page as the last locked read found it.
 struct FlushPage {
@@ -59,6 +73,8 @@ struct Counters {
     held: AtomicU64,
     held_ns: AtomicU64,
     held_max_ns: AtomicU64,
+    time_fast: AtomicU64,
+    time_locked: AtomicU64,
 }
 
 /// The published state of one device model (see the module docs).
@@ -66,10 +82,15 @@ pub struct FastReads {
     trigger_off: AtomicU64,
     trigger_word: AtomicU32,
     pool_busy: AtomicBool,
-    traced: AtomicBool,
+    /// The kinds the trace writes a line for (`TRACED_*`): their reads take the locked path.
+    traced: AtomicU32,
     holds: Mutex<Vec<Hold>>,
     flush: Mutex<Option<FlushPage>>,
     flush_fb_page: AtomicU64,
+    /// BAR0 offsets of PTIMER TIME_0, TIME_1 and the usermode TIME_0, TIME_1 (`NONE`: unset).
+    time: [AtomicU64; 4],
+    /// The high word of the last PTIMER TIME_1 read not yet followed by a TIME_0 read.
+    ptimer_hi: AtomicU64,
     c: Counters,
 }
 
@@ -79,10 +100,12 @@ impl Default for FastReads {
             trigger_off: AtomicU64::new(NONE),
             trigger_word: AtomicU32::new(0),
             pool_busy: AtomicBool::new(false),
-            traced: AtomicBool::new(false),
+            traced: AtomicU32::new(0),
             holds: Mutex::new(Vec::new()),
             flush: Mutex::new(None),
             flush_fb_page: AtomicU64::new(NONE),
+            time: [const { AtomicU64::new(NONE) }; 4],
+            ptimer_hi: AtomicU64::new(NONE),
             c: Counters::default(),
         }
     }
@@ -109,9 +132,77 @@ impl FastReads {
         self.pool_busy.store(busy, Ordering::Release);
     }
 
-    /// Whether the trace records accesses: every read takes the locked path then.
-    pub fn set_traced(&self, traced: bool) {
-        self.traced.store(traced, Ordering::Release);
+    /// The kinds of registers the trace writes a line for (`TRACED_*`): their reads take the
+    /// locked path.
+    pub fn set_traced(&self, kinds: u32) {
+        self.traced.store(kinds, Ordering::Release);
+    }
+
+    fn traced(&self, kind: u32) -> bool {
+        self.traced.load(Ordering::Acquire) & kind != 0
+    }
+
+    /// The time registers' BAR0 offsets: PTIMER `[TIME_0, TIME_1]`, usermode `[TIME_0,
+    /// TIME_1]`.
+    pub fn set_time_regs(&self, ptimer: [u64; 2], usermode: [u64; 2]) {
+        for (a, v) in self.time.iter().zip(ptimer.into_iter().chain(usermode)) {
+            a.store(v, Ordering::Release);
+        }
+    }
+
+    /// A PTIMER word at `now` ns (boot.rs `ptimer_word`, the torn-read guard) with the
+    /// pending high word shared by the locked path and the reads here.
+    pub fn ptimer_read(&self, now: u64, hi: bool) -> u32 {
+        if hi {
+            let mut pending = None;
+            let v = crate::boot::ptimer_word(&mut pending, now, true);
+            self.ptimer_hi.store(pending.unwrap_or(NONE), Ordering::Release);
+            return v;
+        }
+        let h = self.ptimer_hi.swap(NONE, Ordering::AcqRel);
+        let mut pending = (h != NONE).then_some(h);
+        crate::boot::ptimer_word(&mut pending, now, false)
+    }
+
+    /// Count a time read the locked path answered.
+    pub fn note_locked_time(&self) {
+        self.c.time_locked.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The register name of a read answered here, for the profile.
+    pub fn name_of(&self, region: u32, offset: u64) -> Option<&'static str> {
+        match region {
+            0 if offset == self.trigger_off.load(Ordering::Acquire) => {
+                Some("NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE")
+            }
+            0 if self.time[..2].iter().any(|t| t.load(Ordering::Acquire) == offset) => {
+                Some("NV_PTIMER_TIME_0/1")
+            }
+            0 => Some("NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode)"),
+            _ => None,
+        }
+    }
+
+    /// A time register read at `offset`, answered here when it is one and not traced.
+    fn try_time(&self, offset: u64, data: &mut [u8]) -> bool {
+        let Some(i) = self.time.iter().position(|t| t.load(Ordering::Acquire) == offset) else {
+            return false;
+        };
+        let ptimer = i < 2;
+        if data.len() != 4
+            || self.traced(if ptimer { TRACED_PTIMER } else { TRACED_USERMODE_TIME })
+        {
+            return false;
+        }
+        let now = crate::channel::device_now_ns();
+        let v = if ptimer {
+            self.ptimer_read(now, i == 1)
+        } else {
+            crate::uvm::usermode_time_word(now, i == 3)
+        };
+        data.copy_from_slice(&v.to_le_bytes());
+        self.c.time_fast.fetch_add(1, Ordering::Relaxed);
+        true
     }
 
     /// Whether TRIGGER reads busy: a handed-off hold whose jobs the worker has not applied.
@@ -200,6 +291,7 @@ impl FastReads {
         }
         self.drop_flush();
         self.pool_busy.store(false, Ordering::Release);
+        self.ptimer_hi.store(NONE, Ordering::Release);
     }
 
     /// Count a read of these registers the locked path answered.
@@ -214,14 +306,15 @@ impl FastReads {
     /// Answer a trapped read without the device lock when it is one of these registers and
     /// the published state suffices; false sends it to the locked path.
     pub fn try_read(&self, region: u32, offset: u64, data: &mut [u8]) -> bool {
-        if self.traced.load(Ordering::Acquire) {
-            return false;
-        }
         match region {
             0 => {
+                if self.try_time(offset, data) {
+                    return true;
+                }
                 if data.len() != 4
                     || offset != self.trigger_off.load(Ordering::Acquire)
                     || self.pool_busy.load(Ordering::Acquire)
+                    || self.traced(TRACED_TRIGGER)
                 {
                     return false;
                 }
@@ -233,6 +326,9 @@ impl FastReads {
                 true
             }
             3 => {
+                if self.traced(TRACED_FLUSH) {
+                    return false;
+                }
                 let g = lock(&self.flush);
                 let Some(f) = g.as_ref() else { return false };
                 let at = offset.wrapping_sub(f.bar2_page);
@@ -253,12 +349,14 @@ impl FastReads {
         let c = &self.c;
         let held = c.held.load(Ordering::Relaxed);
         format!(
-            "reads without the device lock (execution.md §9.10): {} TRIGGER read(s) ({} busy), {} flush-page read(s); under the lock {} TRIGGER, {} flush-page; flush page published {} time(s), dropped {}; {} held invalidate(s) completed by a read (mean {} us, max {} us)",
+            "reads without the device lock (execution.md §9.10): {} TRIGGER read(s) ({} busy), {} flush-page read(s), {} time read(s); under the lock {} TRIGGER, {} flush-page, {} time; flush page published {} time(s), dropped {}; {} held invalidate(s) completed by a read (mean {} us, max {} us)",
             c.trigger_fast.load(Ordering::Relaxed),
             c.trigger_fast_busy.load(Ordering::Relaxed),
             c.flush_fast.load(Ordering::Relaxed),
+            c.time_fast.load(Ordering::Relaxed),
             c.trigger_locked.load(Ordering::Relaxed),
             c.flush_locked.load(Ordering::Relaxed),
+            c.time_locked.load(Ordering::Relaxed),
             c.flush_published.load(Ordering::Relaxed),
             c.flush_dropped.load(Ordering::Relaxed),
             held,
@@ -318,10 +416,47 @@ mod tests {
         p.finish(7);
         assert_eq!(word(&f, 0xb8_30b0), Some(5), "applied: idle");
         assert!(p.urgent_roots().is_empty(), "the root is no longer urgent");
-        f.set_traced(true);
+        f.set_traced(TRACED_FLUSH);
+        assert_eq!(word(&f, 0xb8_30b0), Some(5), "only the flush page is traced");
+        f.set_traced(TRACED_TRIGGER);
         assert_eq!(word(&f, 0xb8_30b0), None);
-        assert!(f.summary().contains("3 TRIGGER read(s) (1 busy)"));
+        assert!(f.summary().contains("4 TRIGGER read(s) (1 busy)"));
         assert!(f.summary().contains("1 held invalidate(s) completed by a read"));
+    }
+
+    /// The time registers without the lock: the device clock as the locked path gives it,
+    /// with the PTIMER torn-read guard shared by both paths; a traced kind and other widths
+    /// take the locked path.
+    #[test]
+    fn the_time_registers_answer_the_device_clock_with_one_torn_read_guard() {
+        let f = FastReads::default();
+        let mut b = [0u8; 4];
+        assert!(!f.try_read(0, 0x9400, &mut b), "no time registers set");
+        f.set_time_regs([0x9400, 0x9410], [0xbb_0080, 0xbb_0084]);
+        let t = |f: &FastReads, off: u64| {
+            let mut b = [0u8; 4];
+            f.try_read(0, off, &mut b).then(|| u32::from_le_bytes(b))
+        };
+        let before = crate::channel::device_now_ns();
+        let hi = t(&f, 0x9410).unwrap() as u64;
+        let lo = t(&f, 0x9400).unwrap() as u64;
+        let after = crate::channel::device_now_ns();
+        let pair = (hi << 32) | lo;
+        assert!(before < pair + 0x20 && pair <= after, "{before} {pair} {after}");
+        assert_eq!(lo & 0x1F, 0);
+        let um_lo = t(&f, 0xbb_0080).unwrap() as u64;
+        assert_eq!(um_lo & 0x1F, 0);
+        // The guard across the paths: a TIME_1 on the locked path, then a TIME_0 here whose
+        // high word moved on answers the last low value of the old high word.
+        assert_eq!(f.ptimer_read(0x1_0000_0000 - 5, true), 0);
+        assert_eq!(f.ptimer_read(0x1_0000_0040, false), 0xFFFF_FFE0);
+        assert_eq!(f.ptimer_read(0x1_0000_0040, false), 0x40, "the guard is taken once");
+        f.set_traced(TRACED_PTIMER);
+        assert_eq!(t(&f, 0x9400), None, "a traced PTIMER: the locked path");
+        assert!(t(&f, 0xbb_0084).is_some(), "the usermode time is not traced");
+        let mut two = [0u8; 2];
+        assert!(!f.try_read(0, 0xbb_0080, &mut two), "only dword reads");
+        assert!(f.summary().contains("4 time read(s)"), "{}", f.summary());
     }
 
     /// The flush page without the lock: the owed sync is marked and the published bytes
