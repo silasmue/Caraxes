@@ -85,6 +85,41 @@ Isolation:
 - Reach: the carve-out is outside the guest's FB range, among the device's private pages, which guest BAR and PRAMIN accesses cannot reach since 8e621e0a. The VAs are private and excluded from set A. The buffers hold only this VM's context state: a guest kernel that finds them corrupts its own context (its own RC).
 - Scheduling: GFXP and CTA/CILP bound how long a guest context holds the shared GR engine at a switch. With WFI any guest can hold it up to 4.29 s per switch (host desktop frozen, Xid 109). Work that cannot drain even then (an endless shader) still ends in Xid 109 and an RC of that TSG only, as here.
 
+## Step 2 as built (2026-09-29, branch gfxp-2026-09-29): design
+
+- Why now: without the Windows diagnostic patch the production binary does not run Windows at
+  all (P39: the KMD's `GR_GFX_POOL_QUERY_SIZE` is refused, the KMD unloads, Code 43).
+- Layout: usable | GFXP slots | BAR1 pool | carve-out (fb.rs `FbLayout::gfxp_range`). The region
+  table reports everything above the usable end as reserved, the slots included.
+- Slot: the five buffers 0xb-0xf at 64 KiB granularity, sized at start from the host's
+  `GET_ENGINE_CONTEXT_PROPERTIES` (0x6a0000 = 6.625 MiB on the RTX 2070). A failed query: no
+  slots, every TSG stays WFI with one WARN.
+- Slot count: one per 512 MiB of profile, 2 to 16; the carve-out rounded up to 2 MiB:
+
+  | profile | slots | slice cost |
+  |---|---|---|
+  | 1 GiB | 2 | 14 MiB (1.4 %) |
+  | 2 GiB | 4 | 28 MiB (1.4 %) |
+  | 3 GiB | 6 | 40 MiB (1.3 %) |
+  | 4 GiB | 8 | 54 MiB (1.3 %) |
+  | 8 GiB | 16 | 106 MiB (1.3 %) |
+
+- Mapping: each buffer through the reservation's own handle at its slot offset, at a private VA
+  the host allocates in the shadow VAS (excluded from set A); no host VRAM object outside the
+  slice.
+- Isolation: the slots join the device's private pages (fb.rs `FakeFb::private`): refused for
+  guest BAR/PRAMIN accesses, BAR2 memfd pages, software CE pieces and shadow leaves; the device
+  CE's window ends at the usable end.
+- Windows: the pool query and the three pool controls get the synthesized answer of recorded.rs
+  (the KMD's pool is its own heap memory, part of the slice); its BIND translates: GFXP_POOL to a
+  slot in host mode 1, compute to `bind_owned_compute`, WFI to an unbind and slot free (or a
+  confirmation); P17's first-use gate holds a deferred GR context until its BIND.
+- Linux: every host TSG with a C597 object gets a slot bound at its build, before its first
+  schedule.
+- Teardown: BIND WFI, GET 0, unmap, free the virtual range, free the slot. No slot free: WFI
+  and a WARN, never a failure towards the guest.
+- Risk: a later guest mapping at a private VA is refused (the guest channel faults); counted.
+
 ## Test plan
 
 - Unit: SET decode and record; BIND payloads with host handles and private VAs only (as mirror.rs:7313-7340); slot bounds and reuse; bind before the first GPFIFO_SCHEDULE; no CILP-to-CTA downgrade; teardown order; slots exhausted gives WFI and a WARN.
