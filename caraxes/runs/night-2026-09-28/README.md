@@ -306,3 +306,8 @@ The production candidate, with no diagnostic patch:
 - **Open design question for the user:** where GFXP buffers can live structurally guest-free below 2^47.
   - (a) The guest's own server-RM range [4 GiB, 4.5 GiB), which needs an RM-source check.
   - (d) Buffers allocated by the host RM in its server range: host VRAM outside the slice, ~6.6 MiB per GR context, capped per VM.
+
+## P43 merged into dev (29d4a4dd)
+
+- The Linux compute series on P43 (`series-p43/`, lean VM 4 GiB, defaults): short kernel 11 µs (one rep 112 µs); llama 1B 8580 / 289 (1.12 / 0.95); transformer 109393 (1.02); ResNet-18 550 / 531 / 519 (0.97-1.03); NVENC 146-166 (0.88-1.0); NVDEC 120-125 (~0.88); 0 Xid.
+- With Windows P43 (all stages PASS), Linux B (`smoke-p43/`: ALL PASS, compute CTA 18 / CILP 5 bound, 0 REFUSED, 0 Xid) and nova (`nova-p43/`), P43 is gated on all three guest types. gfxp-2026-09-29 is merged into dev.
