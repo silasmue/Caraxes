@@ -1501,6 +1501,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             (b.pcfg_size >= NV_XVE_CYA_2 + 4).then_some(b.pcfg + NV_XVE_CYA_2)
         }),
         display: display_route.clone(),
+        fe_page: fe.clone(),
     };
     let rearm = if msi_rearm {
         let b = &chip.data().bar0;

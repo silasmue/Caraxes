@@ -196,6 +196,9 @@ pub struct Stats {
     pub raises: AtomicU64,
     pub watchdog: AtomicU64,
     pub cas_retries: AtomicU64,
+    /// Trapped accesses of the page (a VMM that maps it read-only, or not at all) served
+    /// without the device mutex (device.rs `Routes`).
+    pub routed: AtomicU64,
     pub odd: [AtomicU64; 5],
     pub marker_us_max: AtomicU64,
     /// From the display clock's raise to the reactor applying the guest's EVT_STAT ack:
@@ -659,7 +662,7 @@ impl FePage {
             .map(|(what, n)| format!("{} x {what}", l(n)))
             .collect();
         format!(
-            "display page: {} scan(s) with work; guest stores applied: {} EVT_STAT ack(s), {} RM_INTR_EN store(s); {} awaken marker(s), {} acked by CORE_RESET (longest {:.1} ms); {} raise(s) after an ack, {} by the watchdog; {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
+            "display page: {} scan(s) with work; guest stores applied: {} EVT_STAT ack(s), {} RM_INTR_EN store(s); {} awaken marker(s), {} acked by CORE_RESET (longest {:.1} ms); {} raise(s) after an ack, {} by the watchdog; {} compare-and-swap(s) lost to a guest store; {} trapped access(es) served without the device mutex; inconsistencies: {}\n",
             l(&s.scans),
             l(&s.evt_acks),
             l(&s.en_stores),
@@ -669,6 +672,7 @@ impl FePage {
             l(&s.raises),
             l(&s.watchdog),
             l(&s.cas_retries),
+            l(&s.routed),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
         ) + &format!(
             "display page delivery: raise to the guest's EVT_STAT ack {}; marker to CORE_RESET {}\n",
@@ -715,6 +719,27 @@ mod tests {
     }
 
     const H3: u64 = 12;
+
+    /// A VMM that maps the page read-only traps the guest's stores: the server applies them
+    /// under the page's own lock, without the device mutex (device.rs `Routes`; Linux SotTR
+    /// spent 42.6 s of its load in 41k EVT_STAT acks waiting for the device mutex).
+    #[test]
+    fn routed_trapped_acks_do_not_need_the_device_mutex() {
+        let (_intr, fe, _) = page();
+        fe.update(|i| i.evt[3] = super::super::engine::LAST_DATA);
+        let routes = crate::device::Routes { fe_page: Some(fe.clone()), ..Default::default() };
+        let device = std::sync::Mutex::new(());
+        let _held = device.lock().unwrap();
+        let ack = FE_EVT_STAT_HEAD_TIMING + H3;
+        let mut b = [0u8; 4];
+        assert!(routes.read(0, ack, &mut b));
+        assert_eq!(u32::from_le_bytes(b) & !TAG, super::super::engine::LAST_DATA);
+        assert!(routes.write(0, ack, &super::super::engine::LAST_DATA.to_le_bytes()));
+        assert_eq!(fe.irq().evt[3], 0, "the ack applied");
+        assert_eq!(fe.stats.routed.load(Ordering::Relaxed), 2);
+        assert!(!routes.write(1, ack, &[0; 4]), "BAR0 only");
+        assert!(fe.summary().contains("2 trapped access(es) served without the device mutex"));
+    }
 
     #[test]
     fn trapped_echo_clears_before_another_guest_pass_without_a_scan() {
