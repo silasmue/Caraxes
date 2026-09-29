@@ -61,7 +61,11 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 | vm10-boot2 | probe fails, `fwsec-sb(v2): -2` | `nvidia/tu106/acr/bl.bin` missing: nouveau loads a v2 FWSEC descriptor through the generic falcon bootloader (N/nvkm/subdev/gsp/fwsec.c `nvkm_gsp_fwsec_v2`) | vm10 gets it (8abe58c9) |
 | vm10-boot3 | FWSEC-FRTS and Booter-Load run, then `GSP_INIT_DONE` times out (-110) | nouveau queues `GSP_SET_SYSTEM_INFO`/`SET_REGISTRY` and rings before the mailboxes carry the libos arguments, then only polls (r535/gsp.c:1782-1795); the device linked message queue v0 only at a doorbell | the queues link at Booter-Load when commands are queued, as GSP-RM does at its init (6715c4e3) |
 | vm10-boot4 | R1, R2: probe, kernel channels ("MM: using COPY for buffer copies"), `card0`, `renderD128`; NVK absent | nouveau allocates a user channel's objects with hObject 0; the device refused the second copy object as a live handle (0x1f) | RM's handle assignment for hObject 0 (f7e9f4c7) |
-| vm10-boot5 | pending | | |
+| vm10-boot5 | R1-R5 and R7 pass: NVK lists "NVIDIA GeForce RTX 2070 (NVK TU106)"; vk-offscreen's clear and copy 0 of 65536 pixels wrong, its triangle 20808 pixels (`vk-offscreen.png`); GL 4.6 core as zink on NVK through EGL surfaceless | - | - |
+
+- In vm10-boot5 NVK's GR channel (chid 5, bare) ran on a host GR channel in a host TSG of its own on the shadow VAS of its root, with the host objects TURING_DMA_COPY_A (twice), TURING_A and TURING_COMPUTE_A; the kernel's fence channel (chid 3, no compute class) stayed on the software executor ("bare channel (no TSG)") [vm10-boot5 device.txt].
+- Times in vm10-boot5: `vkCreateDevice` 18.1 s (nouveau zeroes the channel's GR context buffers through trapped BAR2 writes, see below), step A 4.12 ms, step B 1.79 ms, pipeline creation 4 ms; no device ERROR line, no host Xid [vm10-boot5 serial.log, gpu.log].
+- R6 did not run: the image's vkmark (2017.08+git20220909) has no headless plugin and its vkcube (vulkan-tools 1.3.275) no headless WSI; the image has neither weston nor mutter [vm10-boot5 serial.log "packages"].
 
 - Accel init took about 7 s; about 5 s of it are trapped 8-byte BAR2 writes (26 us each) with which nouveau zeroes the GR context buffers of its golden and scrubber channels: 952 KiB, 2 x 512 KiB and smaller pieces, 288k BAR2 writes in the boot [vm10-boot4 trace].
 - The BAR2 memfd would remove those exits, but its sync points are the 615 kernel's (the flush page at BAR2 0xfea000); nouveau flushes by reading FB page 0 through its own BAR2 mapping, 202 reads in vm10-boot4, served from the device's private store and counted as outside the reservation [vm10-boot4 gpu.log; N/nvkm/subdev/gsp/rm/r535/bar.c:33-45, 100-114].
@@ -79,9 +83,9 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 | D1-D3 | 570 control frame, alloc translation, snapshots | ~400 lines incl. generated | done (67fb1128) |
 | G3, G5, G7 | Fermi mask queries, ZCULL, WAR id, NVDEC1/2 vectors, OS error log | ~250 lines | done (86d0e71f) |
 | K | kernel with nouveau, image vm10, check service, vk-offscreen | scripts | done (this commit) |
-| R1-R3 | nouveau probe with accel, render node, NVK device | run | R1, R2 in vm10-boot4; R3 in boot5 |
+| R1-R3 | nouveau probe with accel, render node, NVK device | run | pass (vm10-boot5) |
 | B | bare (TSG-less) GR channels: those with `TURING_COMPUTE_A` (NVK's) already take the GR shadow path with a host TSG of their own (`mirror.rs` `is_gr_shadow`, `tsg_key_of`); fixes only if R4/R5 show a gap | 0 to 350 lines | to verify in the run |
-| R4-R5 | clear+copy and triangle read back through NVK | run | after B |
+| R4-R5 | clear+copy and triangle read back through NVK | run | pass (vm10-boot5); B needed no change |
 | R6, R7 | vkmark headless where the image's build has the plugin (vkcube 1.3.275 has no headless WSI), GL through EGL surfaceless | check script | in the image from the next prepare |
 | R8 | vkcube on a compositor (the image has neither weston nor mutter) | image work | later |
 
@@ -90,7 +94,7 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 
 ## Consequence for Caraxes
 
-- nouveau with NVK is the open stack that can render on the device now, on the firmware nova will use; nova can follow when it gains channels, with the same device answers.
+- An open driver stack renders on the device: nouveau (GSP-RM 570.144, the firmware nova uses) with Mesa NVK draws a triangle on the physical GPU through a host mirror channel, and Mesa's GL runs on it as zink (vm10-boot5). nova can follow when it gains channels, with the same device answers.
 - A 570 guest is no longer "controls as 610": the control frame and the two alloc structs are translated, and every other 570 layout the device answers is checked against the snapshots, not assumed.
 - No nouveau or Mesa patch is needed so far: every gap was a device answer.
 
