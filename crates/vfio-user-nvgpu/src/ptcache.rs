@@ -195,6 +195,9 @@ pub struct Update {
     pub added: Vec<u64>,
     /// Whether the cache stopped watching a table page in this update.
     pub dropped: bool,
+    /// Nodes whose table lives in guest sysmem, re-read in this update (they cannot be
+    /// watched; [`WalkCache::sys_uses`]).
+    pub sys_nodes: usize,
 }
 
 /// The cached walk of one guest root.
@@ -208,6 +211,12 @@ pub struct WalkCache {
     built: bool,
     /// A table of this tree lives in guest sysmem: it cannot be watched.
     pub sys_tables: bool,
+    /// The nodes whose table lives in guest sysmem: every update re-reads them (and follows
+    /// what changed below them), as it re-reads a dirty VRAM table page's nodes. Before
+    /// 2026-09-29 one such table made every update a full walk that re-read every VRAM table
+    /// page too (SotTR under VRAM pressure: 3328 full walks, 6.5 M table reads through the
+    /// BAR1 windows, the loading screen for 20 minutes).
+    sys_uses: BTreeSet<Use>,
     leaves: usize,
     /// Malformed entries in the cached tree (the module docs).
     malformed: usize,
@@ -253,6 +262,7 @@ impl WalkCache {
             dirty: BTreeSet::new(),
             built: false,
             sys_tables: false,
+            sys_uses: BTreeSet::new(),
             leaves: 0,
             malformed: 0,
             max_leaves,
@@ -377,6 +387,9 @@ impl WalkCache {
     }
 
     fn add_use(&mut self, t: Target, u: Use) {
+        if let Target::Sys(_) = t {
+            self.sys_uses.insert(u);
+        }
         if let Target::Fb(pa) = t {
             let s = self.uses.entry(pa >> 12).or_default();
             if s.is_empty() {
@@ -408,7 +421,8 @@ impl WalkCache {
         self.dropped = false;
         let dirty_pages = self.dirty.len();
         let mut changed = BTreeSet::new();
-        let full = full || !self.built || self.sys_tables;
+        let full = full || !self.built;
+        let sys_nodes = if full { 0 } else { self.sys_uses.len() };
         if full {
             changed.extend(self.units.keys().copied());
             self.dirs.clear();
@@ -422,6 +436,7 @@ impl WalkCache {
             self.malformed = 0;
             self.truncated = false;
             self.sys_tables = false;
+            self.sys_uses.clear();
             let root = self.root;
             self.walk_dir(r, 3, 0, root, &mut changed);
             self.built = true;
@@ -433,6 +448,8 @@ impl WalkCache {
                     work.extend(s.iter().copied());
                 }
             }
+            // The nodes whose table lives in sysmem: unwatchable, so always re-read.
+            work.extend(self.sys_uses.iter().copied());
             // Directories top-down (level 3 first), then the page tables of units.
             let mut dirs: Vec<(u8, u64)> = work
                 .iter()
@@ -459,6 +476,7 @@ impl WalkCache {
                 }
             }
         }
+        self.sys_tables = !self.sys_uses.is_empty();
         if full || !changed.is_empty() {
             self.generation = fresh_generation();
         }
@@ -478,6 +496,7 @@ impl WalkCache {
             dirty_pages,
             added,
             dropped: self.dropped,
+            sys_nodes,
         }
     }
 
@@ -561,8 +580,12 @@ impl WalkCache {
                 return;
             }
             let big = bt.and_then(|t| {
-                if let Target::Fb(pa) = t {
-                    pages.push(pa >> 12);
+                match t {
+                    Target::Fb(pa) => pages.push(pa >> 12),
+                    Target::Sys(_) => {
+                        self.sys_uses.insert(Use::Unit(va));
+                    }
+                    _ => {}
                 }
                 self.read(r, t, 32)
             });
@@ -572,8 +595,12 @@ impl WalkCache {
                 }
             }
             if let Some(t) = st {
-                if let Target::Fb(pa) = t {
-                    pages.push(pa >> 12);
+                match t {
+                    Target::Fb(pa) => pages.push(pa >> 12),
+                    Target::Sys(_) => {
+                        self.sys_uses.insert(Use::Unit(va));
+                    }
+                    _ => {}
                 }
                 if let Some(s) = self.read(r, t, 512) {
                     for (i, pte) in s.iter().enumerate() {
@@ -618,6 +645,7 @@ impl WalkCache {
     }
 
     fn drop_unit(&mut self, va: u64, changed: &mut BTreeSet<u64>) {
+        self.sys_uses.remove(&Use::Unit(va));
         if let Some(u) = self.units.remove(&va) {
             for p in &u.pages {
                 self.drop_use(*p, Use::Unit(va));
@@ -659,8 +687,12 @@ impl WalkCache {
             for k in keys {
                 if let Some(d) = self.dirs.remove(&k) {
                     self.malformed -= d.bad;
-                    if let Target::Fb(pa) = d.at {
-                        self.drop_use(pa >> 12, Use::Dir(k.0, k.1));
+                    match d.at {
+                        Target::Fb(pa) => self.drop_use(pa >> 12, Use::Dir(k.0, k.1)),
+                        Target::Sys(_) => {
+                            self.sys_uses.remove(&Use::Dir(k.0, k.1));
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -789,12 +821,24 @@ mod tests {
         }
     }
 
+    /// Guest sysmem in [`Mem`]: its addresses carry this bit.
+    const SYS: u64 = 1 << 62;
+
     impl TableReader for Mem {
         fn block(&self, t: Target, n: usize) -> Option<Vec<u64>> {
-            let Target::Fb(pa) = t else { return None };
+            let pa = match t {
+                Target::Fb(pa) => pa,
+                Target::Sys(pa) => pa | SYS,
+                _ => return None,
+            };
             let m = self.0.borrow();
             Some((0..n as u64).map(|i| *m.get(&(pa + 8 * i)).unwrap_or(&0)).collect())
         }
+    }
+
+    /// A directory entry naming a table in guest sysmem (aperture 2).
+    fn sys(addr: u64) -> u64 {
+        ((addr >> 12) << 8) | 0b100
     }
 
     fn vid(addr: u64) -> u64 {
@@ -864,6 +908,59 @@ mod tests {
         c.update(&m, false);
         assert_ne!(c.tables_generation(), tg);
         assert!(c.observable(&[]).unwrap().1.contains(&0x16));
+    }
+
+    /// A table in guest sysmem cannot be watched: every update re-reads it and follows
+    /// what changed below it, and nothing else. Before, it made every update a full walk
+    /// that re-read every VRAM table page too.
+    #[test]
+    fn a_sysmem_table_is_re_read_at_every_update_without_a_full_walk() {
+        let m = tree();
+        // Unit 1: its small page table in sysmem at 0x7000.
+        m.w(0x13000 + 16 + 8, sys(0x7000));
+        m.w(SYS | (0x7000 + 8 * 2), pte(0x30000));
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        let u = c.update(&m, false);
+        assert!(u.full);
+        assert!(c.sys_tables && c.is_dirty(), "sysmem is never clean");
+        assert_eq!(c.unit_leaves(UNIT), &[(UNIT + 0x2000, Target::Fb(0x30000), 0x1000, 6)]);
+        // Nothing written: only the sysmem table is read again, nothing changed.
+        let u = c.update(&m, false);
+        assert!(!u.full);
+        assert_eq!((u.reads, u.sys_nodes), (1, 1));
+        assert!(u.changed.is_empty());
+        // A new PTE in the sysmem table: its unit changed, still one read.
+        m.w(SYS | (0x7000 + 8 * 4), pte(0x31000));
+        let u = c.update(&m, false);
+        assert_eq!((u.full, u.reads), (false, 1));
+        assert_eq!(u.changed, vec![UNIT]);
+        let mut full = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        full.update(&m, true);
+        assert_eq!(c.all_leaves(), full.all_leaves());
+        // A PD0 in sysmem under a watched PD1: its entry changes are followed as well.
+        m.w(0x12000 + 8, sys(0x8000));
+        m.w(SYS | (0x8000 + 8), vid(0x14000));
+        c.mark_dirty(0x12);
+        let u = c.update(&m, false);
+        assert!(!u.full);
+        assert!(u.changed.contains(&(0x2000_0000)), "{:x?}", u.changed);
+        m.w(SYS | (0x8000 + 16 + 8), vid(0x14000));
+        let u = c.update(&m, false);
+        assert_eq!(u.sys_nodes, 2, "the sysmem PD0 and unit 1's sysmem table");
+        assert_eq!(u.changed, vec![0x2000_0000 + UNIT]);
+        let mut full = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        full.update(&m, true);
+        assert_eq!(c.all_leaves(), full.all_leaves());
+        // Both sysmem tables gone: the cache is clean again and watches only VRAM.
+        m.w(0x12000 + 8, 0);
+        m.w(0x13000 + 16 + 8, 0);
+        c.mark_dirty(0x12);
+        c.mark_dirty(0x13);
+        c.update(&m, false);
+        assert!(!c.sys_tables && !c.is_dirty());
+        let mut full = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        full.update(&m, true);
+        assert_eq!(c.all_leaves(), full.all_leaves());
     }
 
     #[test]

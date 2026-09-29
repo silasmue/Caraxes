@@ -2190,6 +2190,120 @@ impl FakeFb {
         (Target::Unmapped { level: 0 }, 0)
     }
 
+    /// [`Self::walk_in`] for every 4 KiB page of `[va, va + len)`: one `(target, bytes)` per
+    /// page piece (the first and last may be partial), each exactly what `walk_in` gives for
+    /// that address. A 2 MiB unit's directory entries are read once and its page-table
+    /// entries in one block per table, so a long range costs a few table reads instead of
+    /// five uncached words per page, each of which could evict the window the previous one
+    /// mapped (Windows C65: software CE memsets of several MB, 200-540 ms per doorbell under
+    /// the device lock; docs/caraxes/execution.md §9.3).
+    pub fn translate_pages(
+        &self,
+        sys: Option<&GuestMemory>,
+        root: Target,
+        va: u64,
+        len: u64,
+    ) -> Vec<(Target, usize)> {
+        let mut out = Vec::new();
+        let page_piece = |a: u64, done: u64| (0x1000 - (a & 0xFFF)).min(len - done);
+        if self.mmu_v3 {
+            let mut done = 0u64;
+            while done < len {
+                let a = va + done;
+                let n = page_piece(a, done);
+                out.push((self.walk_in(sys, root, a).0, n as usize));
+                done += n;
+            }
+            return out;
+        }
+        let run = |t: Target, first: u64, n: usize| -> Option<Vec<u64>> {
+            let at = match t {
+                Target::Fb(pa) => Target::Fb(pa + 8 * first),
+                Target::Sys(pa) => Target::Sys(pa + 8 * first),
+                _ => return None,
+            };
+            self.table_block(sys, at, n)
+        };
+        let mut done = 0u64;
+        while done < len {
+            let a = va + done;
+            // The pages of this call inside a's 2 MiB unit share every directory entry.
+            let unit_end = (a | 0x1F_FFFF).saturating_add(1);
+            let run_end = unit_end.min(va + len);
+            let mut pieces = Vec::new();
+            let mut d = done;
+            while va + d < run_end {
+                let p = va + d;
+                let n = page_piece(p, d);
+                pieces.push((p, n));
+                d += n;
+            }
+            // Directories PD3 -> PD0 (as `walk_in`).
+            let dirs = (|| -> Result<(u64, u64), Target> {
+                let e3 = self
+                    .table_u64(sys, root, 8 * ((a >> 47) & 3))
+                    .ok_or(Target::Unmapped { level: 3 })?;
+                let pd2 = Self::next_table(e3).ok_or(Target::Unmapped { level: 3 })?;
+                let e2 = self
+                    .table_u64(sys, pd2, 8 * ((a >> 38) & 0x1FF))
+                    .ok_or(Target::Unmapped { level: 2 })?;
+                let pd1 = Self::next_table(e2).ok_or(Target::Unmapped { level: 2 })?;
+                let e1 = self
+                    .table_u64(sys, pd1, 8 * ((a >> 29) & 0x1FF))
+                    .ok_or(Target::Unmapped { level: 1 })?;
+                let pd0 = Self::next_table(e1).ok_or(Target::Unmapped { level: 1 })?;
+                let idx0 = (a >> 21) & 0xFF;
+                match (
+                    self.table_u64(sys, pd0, 16 * idx0),
+                    self.table_u64(sys, pd0, 16 * idx0 + 8),
+                ) {
+                    (Some(lo), Some(hi)) => Ok((lo, hi)),
+                    _ => Err(Target::Unmapped { level: 0 }),
+                }
+            })();
+            match dirs {
+                Err(t) => out.extend(pieces.iter().map(|&(_, n)| (t, n as usize))),
+                Ok((lo, _)) if lo & 1 == 1 => {
+                    // A 2 MiB page: the low qword is a PTE.
+                    for &(p, n) in &pieces {
+                        self.observe_pte(lo);
+                        out.push((Self::decode_pte(lo, p & 0x1F_FFFF), n as usize));
+                    }
+                }
+                Ok((lo, hi)) => {
+                    let small = Self::next_table(hi);
+                    let big = Self::big_table(lo);
+                    let first = (a >> 12) & 0x1FF;
+                    let last = ((run_end - 1) >> 12) & 0x1FF;
+                    let small_ptes = small.and_then(|t| run(t, first, (last - first + 1) as usize));
+                    let (bfirst, blast) = (first >> 4, last >> 4);
+                    let big_ptes = big.and_then(|t| run(t, bfirst, (blast - bfirst + 1) as usize));
+                    for &(p, n) in &pieces {
+                        let i = ((p >> 12) & 0x1FF) - first;
+                        if let Some(pte) = small_ptes.as_ref().map(|s| s[i as usize]) {
+                            let t = Self::decode_pte(pte, p & 0xFFF);
+                            if !matches!(t, Target::Unmapped { .. }) || big.is_none() {
+                                self.observe_pte(pte);
+                                out.push((t, n as usize));
+                                continue;
+                            }
+                        }
+                        let bi = ((p >> 16) & 0x1F) - bfirst;
+                        match big_ptes.as_ref().map(|b| b[bi as usize]) {
+                            Some(pte) => {
+                                self.observe_pte(pte);
+                                out.push((Self::decode_pte(pte, p & 0xFFFF), n as usize));
+                            }
+                            None => out.push((Target::Unmapped { level: 0 }, n as usize)),
+                        }
+                    }
+                }
+            }
+            done = d;
+        }
+        out
+    }
+
     /// [`Self::translate`] through the BAR TLB: a hit costs no table read; a miss walks
     /// and records the table pages it read, so that a later write to one flushes the TLB.
     pub fn bar_translate(&self, root: u64, va: u64) -> Target {
@@ -3095,6 +3209,74 @@ mod tests {
         fb.store.write(0x30000, &[9]);
         let mut w = [0u8; 1];
         assert!(fb.read(0x30000, &mut w) && w[0] == 9);
+    }
+
+    /// The range translation gives every page what the page-by-page walk gives it: small and
+    /// big pages and their precedence, a sparse PTE, a 2 MiB page, a page table in guest
+    /// sysmem, a missing directory; ranges that start and end inside pages and cross units.
+    #[test]
+    fn a_range_translates_as_its_pages_do() {
+        use std::os::fd::FromRawFd;
+        let mut fb = FakeFb::new(64 << 20);
+        let (root, pd2, pd1, pd0, pt_small, pt_big) =
+            (0x10000u64, 0x11000u64, 0x12000u64, 0x13000u64, 0x14000u64, 0x15000u64);
+        let vid = |addr: u64| ((addr >> 12) << 8) | 0b010;
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        // Unit 0: big and small page tables.
+        fb.write_u64(pd0, ((pt_big >> 8) << 4) | 0b010);
+        fb.write_u64(pd0 + 8, vid(pt_small));
+        fb.write_u64(pt_small + 8 * 3, ((0x20000u64 >> 12) << 8) | 1);
+        fb.write_u64(pt_small + 8 * 4, 0x8);
+        fb.write_u64(pt_small + 8 * 17, ((0x21000u64 >> 12) << 8) | 1);
+        fb.write_u64(pt_big + 8, ((0x8000_0000u64 >> 12) << 8) | 0b101);
+        // Unit 1: a 2 MiB page.
+        fb.write_u64(pd0 + 16, ((0x40_0000u64 >> 12) << 8) | 1);
+        // Unit 2: its small page table in guest sysmem at 0x3000.
+        fb.write_u64(pd0 + 32 + 8, ((0x3000u64 >> 12) << 8) | 0b100);
+        let name = std::ffi::CString::new("caraxes-fb-test").unwrap();
+        // SAFETY: a plain syscall; the descriptor is checked and owned by the File.
+        let fd = unsafe { libc::memfd_create(name.as_ptr(), libc::MFD_CLOEXEC) };
+        assert!(fd >= 0);
+        // SAFETY: a fresh descriptor nothing else owns.
+        let ram = unsafe { std::fs::File::from_raw_fd(fd) };
+        ram.set_len(1 << 20).unwrap();
+        let mut mem = GuestMemory::new();
+        mem.map(0, 1 << 20, 0, &ram).unwrap();
+        assert!(mem.write(0x3000 + 8, &(((0x50000u64 >> 12) << 8) | 1).to_le_bytes()));
+        let by_page = |va: u64, len: u64| {
+            let mut out = Vec::new();
+            let mut done = 0u64;
+            while done < len {
+                let a = va + done;
+                let n = (0x1000 - (a & 0xFFF)).min(len - done);
+                out.push((fb.walk_in(Some(&mem), Target::Fb(root), a).0, n as usize));
+                done += n;
+            }
+            out
+        };
+        for (va, len) in [
+            (0, 0x60_0000),
+            (0x2FF0, 0x40),
+            (0x1_0010, 0x2_0000),
+            (0x1F_F800, 0x1000),
+            (0x3F_F000, 0x3000),
+            (0x40_0FFF, 2),
+            (1 << 47, 0x3000),
+            (0x3000, 0),
+        ] {
+            assert_eq!(
+                fb.translate_pages(Some(&mem), Target::Fb(root), va, len),
+                by_page(va, len),
+                "{va:#x}+{len:#x}"
+            );
+        }
+        // Without guest memory the sysmem table is unreadable, the same way.
+        assert_eq!(
+            fb.translate_pages(None, Target::Fb(root), 0x40_0000, 0x3000),
+            vec![(Target::Unmapped { level: 0 }, 0x1000); 3]
+        );
     }
 
     #[test]

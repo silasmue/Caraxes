@@ -103,19 +103,18 @@ impl GpuMem<'_> {
     }
 
     /// Resolve `len` bytes at `va` page by page (4 KiB is the smallest GMMU page,
-    /// so every larger page splits consistently) into physical pieces.
+    /// so every larger page splits consistently) into physical pieces. The tables are read
+    /// once per 2 MiB unit (fb.rs `translate_pages`), not per page.
     fn pieces(&self, root: Target, va: u64, len: u64) -> Result<Vec<(Target, usize)>, String> {
+        let _spent = crate::dlock::Spend::new(crate::dlock::Part::Translate);
         let mut out = Vec::new();
-        let mut done = 0u64;
-        while done < len {
-            let a = va + done;
-            let n = (0x1000 - (a & 0xFFF)).min(len - done);
-            let t = self.fb.translate_in(Some(self.sys), root, a);
+        let mut a = va;
+        for (t, n) in self.fb.translate_pages(Some(self.sys), root, va, len) {
             match t {
-                Target::Fb(_) | Target::Sys(_) => out.push((t, n as usize)),
+                Target::Fb(_) | Target::Sys(_) => out.push((t, n)),
                 other => return Err(format!("va {a:#x}: {other:?}")),
             }
-            done += n;
+            a += n as u64;
         }
         Ok(out)
     }
@@ -3597,6 +3596,7 @@ fn ce_pieces(
 }
 
 fn ce_read(mem: &GpuMem, pieces: &[(Target, usize)], data: &mut [u8]) -> Result<(), String> {
+    let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
     let mut off = 0;
     for &(target, n) in pieces {
         let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
@@ -3611,6 +3611,7 @@ fn ce_read(mem: &GpuMem, pieces: &[(Target, usize)], data: &mut [u8]) -> Result<
 }
 
 fn ce_write(mem: &mut GpuMem, pieces: &[(Target, usize)], data: &[u8]) -> Result<(), String> {
+    let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
     let mut off = 0;
     for &(target, n) in pieces {
         let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
@@ -3695,6 +3696,7 @@ const MAX_INVALIDATE_ROUNDS: usize = 256;
 /// Write the element `elem` repeated over `pieces` (the destination rows of a memset),
 /// in [`CE_FILL_CHUNK`] writes, the pattern continuing across pieces.
 fn ce_fill(mem: &mut GpuMem, pieces: &[(Target, usize)], elem: &[u8]) -> Result<(), String> {
+    let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
     let e = elem.len().max(1);
     // One chunk of whole elements plus one element of slack for the phase at a piece start.
     let reps = CE_FILL_CHUNK.div_ceil(e) + 1;
