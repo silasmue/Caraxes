@@ -1137,7 +1137,7 @@ impl BootModel {
     /// (`Reg::UsermodeDoorbell` in `write32`), then the channel-error scan the pool's
     /// eventfd path runs after a ring.
     pub fn doorbell_value(&mut self, mem: &GuestMemory, value: u32) -> Vec<String> {
-        self.bar2_doorbell_sync(mem);
+        self.bar2_before_ring(mem, Some(value));
         let mut gm = crate::channel::GpuMem {
             fb: &mut self.fb,
             sys: mem,
