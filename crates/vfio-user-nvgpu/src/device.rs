@@ -82,6 +82,9 @@ pub struct Device {
     registrar_thread: Option<std::thread::JoinHandle<()>>,
     /// The vectors and MSI state the host event thread raises through (E5b part 2).
     intr: Option<Arc<IntrShared>>,
+    /// The display engine the display clock and the routed status accesses reach without
+    /// the device mutex, republished at every reset (display/core_path.rs).
+    display_slot: DisplaySlot,
     /// Doorbell ioeventfd: wakeups of the reader thread and guest writes they counted.
     doorbell_wakeups: u64,
     doorbell_writes: u64,
@@ -357,6 +360,35 @@ pub fn spawn_doorbell_reader_hooked(
 /// shares it.
 pub struct SharedDevice(pub Arc<Mutex<Device>>, pub Routes);
 
+/// The current display engine, for the paths without the device mutex (`Device::display_slot`).
+pub type DisplaySlot = Arc<std::sync::RwLock<Option<Arc<Mutex<crate::display::engine::Engine>>>>>;
+
+/// The display's status registers without the device mutex (display/core_path.rs).
+#[derive(Clone)]
+pub struct DisplayRoute {
+    pub slot: DisplaySlot,
+    pub mem: crate::guestmem::MemView,
+}
+
+impl DisplayRoute {
+    fn engine(&self) -> Option<Arc<Mutex<crate::display::engine::Engine>>> {
+        self.slot.read().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    fn mem(&self) -> Arc<GuestMemory> {
+        self.mem.read().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    /// The display clock's tick when the device mutex is taken: advance the engine
+    /// without it. Returns whether the display interrupt line is asserted.
+    pub fn tick(&self) -> bool {
+        match self.engine() {
+            Some(e) => crate::display::core_path::tick(&e, &self.mem()),
+            None => false,
+        }
+    }
+}
+
 /// Trapped BAR0 accesses the server serves without the device mutex, each on its own
 /// lock (docs/caraxes/display-own-clock.md §2.4): a device operation that holds the mutex
 /// (a mirror build, a shadow walk) must not stall the guest's interrupt service.
@@ -367,11 +399,22 @@ pub struct Routes {
     pub intr_page: Option<Arc<crate::intr_page::IntrPage>>,
     /// BAR0 offset of the MSI re-arm (`NV_PCFG` + [`NV_XVE_CYA_2`]), taken by the page.
     pub rearm: Option<u64>,
+    /// The display engine's status registers (`Engine::handles`: the FE interrupt status,
+    /// head state, scan position), served under the display lock only.
+    pub display: Option<DisplayRoute>,
 }
 
 impl Routes {
     /// Serve a trapped write without the device mutex; false when it is not routed.
     pub fn write(&self, region: u32, offset: u64, data: &[u8]) -> bool {
+        if region == VFIO_PCI_BAR0_REGION_INDEX && data.len() == 4 && offset % 4 == 0 {
+            if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
+                let v = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+                if crate::display::core_path::write32(&e.1, &e.0.mem(), offset, v) {
+                    return true;
+                }
+            }
+        }
         let Some(p) = self.intr_page.as_ref().filter(|_| region == VFIO_PCI_BAR0_REGION_INDEX) else {
             return false;
         };
@@ -392,6 +435,14 @@ impl Routes {
 
     /// Serve a trapped read without the device mutex; false when it is not routed.
     pub fn read(&self, region: u32, offset: u64, data: &mut [u8]) -> bool {
+        if region == VFIO_PCI_BAR0_REGION_INDEX && data.len() == 4 && offset % 4 == 0 {
+            if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
+                if let Some(v) = crate::display::core_path::read32(&e.1, &e.0.mem(), offset) {
+                    data.copy_from_slice(&v.to_le_bytes());
+                    return true;
+                }
+            }
+        }
         let Some(p) = self.intr_page.as_ref().filter(|_| region == VFIO_PCI_BAR0_REGION_INDEX) else {
             return false;
         };
@@ -689,6 +740,7 @@ impl Device {
             registrar: None,
             registrar_thread: None,
             intr: None,
+            display_slot: DisplaySlot::default(),
             doorbell_wakeups: 0,
             doorbell_writes: 0,
             guest_token_rings: 0,
@@ -1315,6 +1367,10 @@ impl Device {
             self.note(&l);
         }
         if let Some(b) = self.bar0.boot_mut() {
+            // The display core's FB record windows go with the store's own (their BAR1
+            // mappings need the host RM client).
+            *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
+            b.ctrl.display.eng().pins.clear();
             b.fb.shutdown();
         }
         if let GuestRam::Register(hm) = &self.guest_ram {
@@ -1405,6 +1461,13 @@ impl Device {
     /// A device reset (FLR or the client's reset): the interrupt vectors raised before it
     /// and not yet delivered go first, then the model and the guest aliases.
     fn reset_model(&mut self) {
+        // The display clock and the routed registers stop reaching the old engine; a tick
+        // still running on it finishes (its lock) before the reset, and the old engine's FB
+        // record windows go with the old FB store.
+        *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
+        if let Some(b) = self.bar0.boot() {
+            b.ctrl.display.eng().pins.clear();
+        }
         if let Some(s) = &self.intr {
             let dropped = s.reset_pending();
             if dropped.iter().any(|&p| p != 0) {
@@ -1416,6 +1479,28 @@ impl Device {
         }
         self.bar0.reset();
         self.load_guest_aliases();
+        self.publish_display();
+    }
+
+    /// The display engine for the paths without the device mutex (the display clock, the
+    /// routed status registers), published now and at every reset.
+    pub fn display_slot(&mut self) -> DisplaySlot {
+        self.publish_display();
+        self.display_slot.clone()
+    }
+
+    fn publish_display(&self) {
+        let e = self
+            .bar0
+            .boot()
+            .filter(|b| b.ctrl.display.enabled)
+            .map(|b| b.ctrl.display.engine.clone());
+        *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = e;
+    }
+
+    /// The guest memory view for the paths without the device mutex (guestmem.rs).
+    pub fn mem_view(&mut self) -> crate::guestmem::MemView {
+        self.mem.view()
     }
 
     /// The display clock's tick (engine.rs `Ticker::set_driver`, display/fe_page.rs):
@@ -2217,7 +2302,7 @@ mod tests {
         let (_hook, wake) = crate::intr_page::PageHook::new(page.clone()).unwrap();
         shared.attach_page(wake);
         let rearm = 0x88704;
-        let routes = Routes { intr_page: Some(page.clone()), rearm: Some(rearm) };
+        let routes = Routes { intr_page: Some(page.clone()), rearm: Some(rearm), display: None };
         let held = lock(&device);
         // Tagged page: the re-arm is not routed.
         assert!(!routes.write(0, rearm, &0u32.to_le_bytes()));
@@ -2241,6 +2326,38 @@ mod tests {
         assert!(!routes.write(1, tree, &0u32.to_le_bytes()), "BAR0 only");
         drop(held);
         assert!(page.summary().contains("served without the device mutex"));
+    }
+
+    /// The display's status registers are served under the display lock only: a guest
+    /// read of the dispatch and a write of an enable complete while the device mutex is
+    /// held (display/core_path.rs), and the engine counts them.
+    #[test]
+    fn routed_display_registers_do_not_need_the_device_mutex() {
+        use crate::display::engine::{self, Engine, FE_RM_INTR_DISPATCH, FE_RM_INTR_EN_HEAD_TIMING};
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let e = Arc::new(Mutex::new(Engine::new(4, 8)));
+        let mut mem = GuestMemory::new();
+        let routes = Routes {
+            display: Some(DisplayRoute {
+                slot: Arc::new(std::sync::RwLock::new(Some(e.clone()))),
+                mem: mem.view(),
+            }),
+            ..Routes::default()
+        };
+        let held = lock(&device);
+        let mut b = [0u8; 4];
+        assert!(routes.read(0, FE_RM_INTR_DISPATCH, &mut b));
+        assert_eq!(u32::from_le_bytes(b), 0);
+        assert!(routes.write(0, FE_RM_INTR_EN_HEAD_TIMING, &engine::LAST_DATA.to_le_bytes()));
+        assert!(routes.read(0, FE_RM_INTR_EN_HEAD_TIMING, &mut b));
+        assert_eq!(u32::from_le_bytes(b), engine::LAST_DATA);
+        // Not an engine register, or not a whole dword: the device.
+        assert!(!routes.read(0, 0x61_0000, &mut b));
+        assert!(!routes.read(0, FE_RM_INTR_DISPATCH, &mut b[..2]));
+        drop(held);
+        let e = engine::lock(&e);
+        assert_eq!((e.routed_reads, e.routed_writes), (2, 1));
+        assert!(e.notes.iter().any(|n| n.contains("vblank (LAST_DATA) interrupt enabled")), "{:?}", e.notes);
     }
 
     #[test]

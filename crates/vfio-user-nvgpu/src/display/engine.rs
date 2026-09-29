@@ -147,6 +147,12 @@ const HASH_ENTRY: u64 = 8;
 // -------------------------------------------------------------------------------------
 // The clock and the ticker thread.
 
+/// The engine under the display lock (a poisoned lock is taken over: the engine's state
+/// stays consistent between statements).
+pub fn lock(e: &Mutex<Engine>) -> std::sync::MutexGuard<'_, Engine> {
+    e.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// Nanoseconds of the display clock: the device clock, PTIMER's base
 /// ([`crate::channel::device_now_ns`]), so notifier timestamps and the guest's PTIMER
 /// reads compare.
@@ -751,6 +757,13 @@ pub struct Engine {
     pub vblank_raised: u64,
     pub unresolved: u64,
     pub notes: Vec<String>,
+    /// FB record windows for the path without the device mutex (display/core_path.rs).
+    pub pins: Arc<super::core_path::RecordPins>,
+    /// Display clock ticks and guest register reads and writes served without the device
+    /// mutex (display/core_path.rs).
+    pub core_ticks: u64,
+    pub routed_reads: u64,
+    pub routed_writes: u64,
 }
 
 impl Engine {
@@ -766,6 +779,10 @@ impl Engine {
             vblank_raised: 0,
             unresolved: 0,
             notes: Vec::new(),
+            pins: Arc::default(),
+            core_ticks: 0,
+            routed_reads: 0,
+            routed_writes: 0,
         };
         for h in 0..MAX_HEADS {
             ticker().set_head(h, 0, 0);
@@ -784,7 +801,7 @@ impl Engine {
         (0..8u32).find(|&s| self.sor_owners[s as usize] & (1 << h) != 0)
     }
 
-    fn note(&mut self, s: String) {
+    pub(crate) fn note(&mut self, s: String) {
         if self.notes.len() < 4096 {
             self.notes.push(s);
         }
@@ -1453,6 +1470,14 @@ impl Engine {
             sem_off,
             "window semaphore",
         );
+        // The flip's FB records reachable by the display clock without the device mutex.
+        for m in [notifier.map(|(m, _)| m), sem].into_iter().flatten() {
+            if m.target == 1 {
+                if let Some(n) = self.pins.ensure(fb, m.addr, 16) {
+                    self.note(n);
+                }
+            }
+        }
         let iso = get(W_SET_CONTEXT_DMA_ISO);
         let size = get(W_SET_SIZE);
         let storage = get(W_SET_STORAGE);
@@ -1541,8 +1566,9 @@ impl Engine {
             })
             .collect();
         let clock = ticker().timing_summary();
+        let (pinned, refused) = self.pins.counts();
         format!(
-            "display engine: {} core UPDATEs, {} core notifiers written, {} vblank interrupts, {} unresolved context DMAs, ticker raised {} ({} MSIs); {}; {}{}{}",
+            "display engine: {} core UPDATEs, {} core notifiers written, {} vblank interrupts, {} unresolved context DMAs, ticker raised {} ({} MSIs); {}; {}; without the device mutex: {} clock ticks, {} register reads, {} register writes, {} FB record window(s), {} region(s) left to the device path{}{}",
             self.core_updates,
             self.core_notifier_writes,
             self.vblank_raised,
@@ -1551,6 +1577,11 @@ impl Engine {
             ticker().msis.load(Ordering::Relaxed),
             heads.join("; "),
             wins.join("; "),
+            self.core_ticks,
+            self.routed_reads,
+            self.routed_writes,
+            pinned,
+            refused,
             if clock.is_empty() { "" } else { "; " },
             clock
         )
@@ -1684,6 +1715,92 @@ mod tests {
             e.read32(FE_RM_INTR_STAT_CTRL_DISP, 0),
             Some(CTRL_DISP_AWAKEN)
         );
+    }
+
+    /// Queue the flip of `a_flip_completes_at_the_next_tick_not_before`: notifier record 1
+    /// of 0x50_0000, semaphore record 2 of 0x60_0000 (acquire 7, release 8).
+    fn queue_flip(e: &mut Engine, fb: &mut FakeFb, mem: &GuestMemory, now: u64) {
+        for (m, v) in [
+            (W_SET_CONTEXT_DMA_NOTIFIER, 0x20),
+            (W_SET_NOTIFIER_CONTROL, 1 | (1 << 4)),
+            (W_SET_CONTEXT_DMA_SEMAPHORE, 0x30),
+            (W_SET_SEMAPHORE_CONTROL, 2),
+            (W_SET_SEMAPHORE_ACQUIRE, 7),
+            (W_SET_SEMAPHORE_RELEASE, 8),
+            (W_SET_CONTEXT_DMA_ISO, 0x40),
+            (W_SET_OFFSET, 0x100),
+            (W_SET_SIZE, 1920 | (1080 << 16)),
+            (W_SET_STORAGE, 1 << 4),
+            (W_SET_PARAMS, 0xE6),
+            (W_SET_PLANAR_STORAGE, 120),
+            (W_SET_PRESENT_CONTROL, 1),
+        ] {
+            e.window_method(0, m, v);
+        }
+        e.window_update(0, now, fb, mem);
+    }
+
+    /// The display clock's path without the device mutex (display/core_path.rs): with the
+    /// flip's FB records in shared windows it latches (BEGUN), finishes at the next tick
+    /// and raises vblank, all under the display lock only; the device path sees the same
+    /// records.
+    #[test]
+    fn the_clock_latches_and_finishes_without_the_device_mutex() {
+        let mut fb = crate::fb::testing::shared_ram_fb(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        e.write32(FE_EVT_STAT_AWAKEN_OTHER, 1);
+        e.write32(FE_RM_INTR_EN_HEAD_TIMING, LAST_DATA);
+        let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+        queue_flip(&mut e, &mut fb, &mem, t0 + 1_000_000);
+        assert_eq!(e.pins.counts(), (2, 0), "the notifier's and the semaphore's regions");
+        assert!(e.notes.iter().any(|n| n.contains("mapped for the display clock")));
+        fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
+        let engine = Arc::new(Mutex::new(e));
+        // The device mutex is someone else's now: the clock runs on another thread with the
+        // engine alone.
+        let device = Mutex::new(());
+        let _held = device.lock().unwrap();
+        let (en, m2) = (engine.clone(), GuestMemory::new());
+        let asserted = std::thread::spawn(move || super::super::core_path::tick_at(&en, &m2, t0 + p))
+            .join()
+            .unwrap();
+        assert!(asserted, "LAST_DATA at the tick");
+        assert!(!lock(&engine).window_busy(0), "latched without the device mutex");
+        let mut b = [0u8; 4];
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
+        let (en, m2) = (engine.clone(), GuestMemory::new());
+        std::thread::spawn(move || super::super::core_path::tick_at(&en, &m2, t0 + 2 * p))
+            .join()
+            .unwrap();
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
+        assert_eq!(lock(&engine).core_ticks, 2);
+    }
+
+    /// FB records the store cannot share wait for the device path: the clock without the
+    /// device mutex writes none of them and the latch happens at the next device tick.
+    #[test]
+    fn records_the_clock_cannot_reach_wait_for_the_device_path() {
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+        queue_flip(&mut e, &mut fb, &mem, t0 + 1_000_000);
+        assert_eq!(e.pins.counts(), (0, 2));
+        fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
+        let engine = Mutex::new(e);
+        super::super::core_path::tick_at(&engine, &mem, t0 + p);
+        let mut e = engine.into_inner().unwrap();
+        assert!(e.window_busy(0), "no latch without its records");
+        let mut b = [0u8; 4];
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0, "nothing written");
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
+        assert!(!e.window_busy(0));
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
     }
 
     #[test]

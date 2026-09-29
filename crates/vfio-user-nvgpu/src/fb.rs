@@ -291,6 +291,38 @@ pub trait FbStore: Send {
     fn pin_window(&mut self, _w: Box<dyn WindowBacking>) -> bool {
         false
     }
+    /// Map `len` bytes at FB address `pa` for good as a window that another thread may use
+    /// at the same time (the display core's record windows, docs/caraxes/display-own-clock.md
+    /// §2.3), and serve the range from it here too. `None` when the store cannot.
+    fn share_window(&mut self, _pa: u64, _len: usize) -> Option<std::sync::Arc<dyn SharedWindow>> {
+        None
+    }
+}
+
+/// A window other threads may use at the same time as the store: its reads and writes are
+/// device-memory accesses of at most eight bytes each, like the GPU's own (the display
+/// core's record windows).
+pub trait SharedWindow: WindowBacking + Sync {}
+
+/// A shared window as one of the store's pinned windows.
+struct ArcWindow(std::sync::Arc<dyn SharedWindow>);
+
+impl WindowBacking for ArcWindow {
+    fn offset(&self) -> u64 {
+        self.0.offset()
+    }
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn flush(&self) {
+        self.0.flush()
+    }
+    fn read(&self, off: u64, buf: &mut [u8]) {
+        self.0.read(off, buf)
+    }
+    fn write(&self, off: u64, data: &[u8]) {
+        self.0.write(off, data)
+    }
 }
 
 /// Sparse host RAM, zero until written (fb-model.md §4a).
@@ -350,6 +382,15 @@ impl WriteFilter for NoFilter {}
 pub trait WindowSource: Send {
     /// Map `len` bytes at reservation offset `offset`; the error is an RM status.
     fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32>;
+    /// [`WindowSource::map`] for a window other threads use too ([`SharedWindow`]); the
+    /// error is an RM status, 0 when the source has no shared windows.
+    fn map_shared(
+        &mut self,
+        _offset: u64,
+        _len: usize,
+    ) -> Result<std::sync::Arc<dyn SharedWindow>, u32> {
+        Err(0)
+    }
     /// A window of `len` bytes was unmapped (its host BAR1 is free again).
     fn released(&mut self, _len: usize) {}
     /// Windows the host BAR1 floor refused so far (hostfloor.rs).
@@ -388,11 +429,21 @@ impl WindowBacking for crate::hostmem::Window {
     }
 }
 
+impl SharedWindow for crate::hostmem::Window {}
+
 impl WindowSource for crate::hostmem::ReservationMapper {
     fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32> {
         // Never through the `HostMemory` lock: the FB is walked while it is held.
         let w = crate::hostmem::ReservationMapper::map(self, offset, len)?;
         Ok(Box::new(w))
+    }
+    fn map_shared(
+        &mut self,
+        offset: u64,
+        len: usize,
+    ) -> Result<std::sync::Arc<dyn SharedWindow>, u32> {
+        let w = crate::hostmem::ReservationMapper::map(self, offset, len)?;
+        Ok(std::sync::Arc::new(w))
     }
     fn released(&mut self, len: usize) {
         crate::hostmem::ReservationMapper::released(self, len)
@@ -900,6 +951,26 @@ impl FbStore for VramStore {
     fn pin_window(&mut self, w: Box<dyn WindowBacking>) -> bool {
         self.pinned.push(w);
         true
+    }
+
+    fn share_window(&mut self, pa: u64, len: usize) -> Option<std::sync::Arc<dyn SharedWindow>> {
+        let end = pa.checked_add(len as u64)?;
+        if pa < self.base || end > self.end {
+            return None;
+        }
+        let off = pa - self.base;
+        // A range another pinned window serves stays with it (the BAR1 pool's mapping).
+        if self
+            .pinned
+            .iter()
+            .any(|w| w.offset() < off + len as u64 && off < w.offset() + w.len() as u64)
+        {
+            return None;
+        }
+        let w = self.src.get_mut().map_shared(off, len).ok()?;
+        self.stats.get_mut().maps += 1;
+        self.pinned.push(Box::new(ArcWindow(w.clone())));
+        Some(w)
     }
 }
 
@@ -1611,6 +1682,23 @@ impl FakeFb {
     /// Release store mappings before the host RM reservation and client are freed.
     pub fn shutdown(&mut self) {
         self.store.shutdown();
+    }
+
+    /// A window over `len` bytes at FB address `pa` that the display core reads and writes
+    /// without the device mutex (its records: semaphores and notifiers in VRAM,
+    /// docs/caraxes/display-own-clock.md §2.3), mapped for good and serving the range here
+    /// too. `None` where the FB address is not the VRAM page itself for good: the BAR1 pool
+    /// remaps pages and the BAR2 memfd holds the guest's latest bytes of the pages it maps,
+    /// so with either on the records stay on the device path.
+    pub fn share_record_window(&mut self, pa: u64, len: usize) -> Option<std::sync::Arc<dyn SharedWindow>> {
+        if self.pool.borrow().is_some() || self.bar2.is_some() || self.bar1_pt.borrow().is_some() {
+            return None;
+        }
+        let end = pa.checked_add(len as u64)?;
+        if end > self.size || self.private.iter().any(|&(b, e)| pa < e && b < end) {
+            return None;
+        }
+        self.store.share_window(pa, len)
     }
 
     /// Serve the range of `w` (reservation offsets) from `w` for good, outside the VRAM
@@ -2595,6 +2683,62 @@ pub(crate) struct AreaUnitWalk {
     pub leaf_tables: Vec<u64>,
     /// The unit's PD0 entry `(lo, hi)`, when the path reaches it.
     pub pde: Option<(u64, u64)>,
+}
+
+/// A FB whose VRAM store is host RAM behind shareable windows (tests of the display
+/// core's record windows, display/core_path.rs).
+#[cfg(test)]
+pub(crate) mod testing {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    struct SharedRam(Arc<Mutex<HostRamStore>>);
+
+    struct SharedRamWindow {
+        offset: u64,
+        len: usize,
+        pages: Arc<Mutex<HostRamStore>>,
+    }
+
+    impl WindowBacking for SharedRamWindow {
+        fn offset(&self) -> u64 {
+            self.offset
+        }
+        fn len(&self) -> usize {
+            self.len
+        }
+        fn read(&self, off: u64, buf: &mut [u8]) {
+            assert!(off >= self.offset && off + buf.len() as u64 <= self.offset + self.len as u64);
+            self.pages.lock().unwrap().read(off, buf)
+        }
+        fn write(&self, off: u64, data: &[u8]) {
+            assert!(off >= self.offset && off + data.len() as u64 <= self.offset + self.len as u64);
+            self.pages.lock().unwrap().write(off, data)
+        }
+    }
+
+    impl SharedWindow for SharedRamWindow {}
+
+    impl WindowSource for SharedRam {
+        fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32> {
+            Ok(Box::new(SharedRamWindow { offset, len, pages: self.0.clone() }))
+        }
+        fn map_shared(&mut self, offset: u64, len: usize) -> Result<Arc<dyn SharedWindow>, u32> {
+            Ok(Arc::new(SharedRamWindow { offset, len, pages: self.0.clone() }))
+        }
+    }
+
+    /// `size` bytes of FB, all of it the reservation, in 2 MiB windows.
+    pub(crate) fn shared_ram_fb(size: u64) -> FakeFb {
+        let store = VramStore::with_budget(
+            Box::new(SharedRam(Arc::new(Mutex::new(HostRamStore::default())))),
+            0,
+            size,
+            2 << 20,
+            2,
+        );
+        FakeFb::new(size).with_store(Box::new(store))
+    }
 }
 
 #[cfg(test)]

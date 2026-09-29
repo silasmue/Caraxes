@@ -559,7 +559,7 @@ fn get_active_reports_the_display_a_client_lit() {
         put32(&mut p, d::GET_ACTIVE_FLAGS, flags);
         disp.control(d::CMD_SYSTEM_GET_ACTIVE, &p).unwrap()
     };
-    disp.engine.core_update(&lit(true), 1_000, &mut fb, &mem);
+    disp.eng().core_update(&lit(true), 1_000, &mut fb, &mem);
     for flags in [0, 1] {
         let a = ask(&mut disp, 0, flags);
         assert_eq!((a.status, get32(&a.params, d::GET_ACTIVE_DISPLAY_ID)), (NV_OK, DP), "{}", a.note);
@@ -571,7 +571,7 @@ fn get_active_reports_the_display_a_client_lit() {
     }
     let a = ask(&mut disp, 4, 0);
     assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT, "{}", a.note);
-    disp.engine.core_update(&lit(false), 2_000, &mut fb, &mem);
+    disp.eng().core_update(&lit(false), 2_000, &mut fb, &mem);
     let a = ask(&mut disp, 0, 0);
     assert_eq!((a.status, get32(&a.params, d::GET_ACTIVE_DISPLAY_ID)), (NV_OK, 0));
 }
@@ -759,11 +759,11 @@ fn core_pio_blanking_and_scan_line() {
     let blank = CORE_USERD + CORE_SET_GET_BLANKING_CTRL;
     let n = disp.write32(blank, 0x1, &mem, &mut fb).unwrap();
     assert!(n[0].contains("head 0 SET_GET_BLANKING_CTRL 0x1: blanked"), "{n:?}");
-    assert!(disp.engine.heads[0].blanked);
+    assert!(disp.eng().heads[0].blanked);
     assert_eq!(disp.read32(blank), Some(0x1), "the state reached: BLANK");
     let n = disp.write32(blank, 0x2, &mem, &mut fb).unwrap();
     assert!(n[0].contains("unblanked"), "{n:?}");
-    assert!(!disp.engine.heads[0].blanked);
+    assert!(!disp.eng().heads[0].blanked);
     assert_eq!(disp.read32(blank), Some(0x2), "the state reached: UNBLANK");
     let n = disp.write32(blank + 4, 0x3, &mem, &mut fb).unwrap();
     assert!(n[0].contains("head 1") && n[0].contains("stays unblanked"), "BLANK then UNBLANK: {n:?}");
@@ -780,12 +780,15 @@ fn core_pio_blanking_and_scan_line() {
     armed.insert(0x2000 + 0x70, 2111 | (1120 << 16));
     armed.insert(0x2000 + 0x0C, 148_500_000);
     armed.insert(0x2000 + 0x4C, 1920 | (1080 << 16));
-    disp.engine.core_update(&armed, engine::now_ns(), &mut fb, &mem);
+    disp.eng().core_update(&armed, engine::now_ns(), &mut fb, &mem);
     let v = disp.read32(scan).unwrap();
     let line = v & 0xFFFF;
     assert!(line < 1125, "{v:#x}");
     assert_eq!(v >> 16 & 1 == 1, !(40..1120).contains(&line), "{v:#x}");
-    assert!(disp.engine.in_vblank(0, 10) && disp.engine.in_vblank(0, 1121) && !disp.engine.in_vblank(0, 500));
+    {
+        let e = disp.eng();
+        assert!(e.in_vblank(0, 10) && e.in_vblank(0, 1121) && !e.in_vblank(0, 500));
+    }
     let n = disp.write32(scan, 0x5, &mem, &mut fb).unwrap();
     assert!(n[0].contains("read-only"), "{n:?}");
 }
@@ -807,18 +810,21 @@ fn auto_dump_writes_new_latches_rate_limited() {
     let dir = std::env::temp_dir().join(format!("caraxes-autodump-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     disp.auto_dump = Some(AutoDump::new(dir.clone()));
-    let w = &mut disp.engine.windows[0];
-    w.head = Some(0);
-    w.flips = 1;
-    w.latched = engine::Surface {
-        mem: Some(engine::MemRef { target: 1, addr: 0 }),
-        width: 16,
-        height: 2,
-        format: 0xCF,
-        pitch: 1,
-        pitch_layout: true,
-        block_height_log2: 0,
-    };
+    {
+        let mut e = disp.eng();
+        let w = &mut e.windows[0];
+        w.head = Some(0);
+        w.flips = 1;
+        w.latched = engine::Surface {
+            mem: Some(engine::MemRef { target: 1, addr: 0 }),
+            width: 16,
+            height: 2,
+            format: 0xCF,
+            pitch: 1,
+            pitch_layout: true,
+            block_height_log2: 0,
+        };
+    }
     disp.maybe_auto_dump(&fb, &mem);
     disp.auto_dump.as_mut().unwrap().join();
     let f = dir.join("scanout-auto-0.png");
@@ -829,7 +835,7 @@ fn auto_dump_writes_new_latches_rate_limited() {
     assert_eq!(&png[at..at + 7], &[0, 0, 0, 0, 0, 0, 1]);
     assert!(disp.notes.iter().any(|n| n.contains("auto dump #0") && n.contains("1 step(s)")), "{:?}", disp.notes);
     // A new flip within the period: no second file.
-    disp.engine.windows[0].flips = 2;
+    disp.eng().windows[0].flips = 2;
     disp.maybe_auto_dump(&fb, &mem);
     assert!(!dir.join("scanout-auto-1.png").exists());
     let _ = std::fs::remove_dir_all(&dir);

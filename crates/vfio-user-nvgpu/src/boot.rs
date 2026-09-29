@@ -991,7 +991,7 @@ impl BootModel {
             s.push(self.ctrl.routing.summary());
         }
         if self.ctrl.display.enabled {
-            s.push(self.ctrl.display.engine.summary());
+            s.push(self.ctrl.display.eng().summary());
         }
         s
     }
