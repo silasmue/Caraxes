@@ -902,8 +902,9 @@ impl BootModel {
         let mut s = Vec::new();
         if let Some(st) = self.fb.vram_stats() {
             s.push(format!(
-                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes",
-                st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written
+                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes; BAR2 windows: {} map(s), {} eviction(s), {} refused by the host (BAR1 floor), {} access(es) in the back-off after a refusal, {} access(es) served, {} held",
+                st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written,
+                st.bar2_maps, st.bar2_evictions, st.bar2_refused, st.bar2_backoff, st.bar2_served, st.bar2_held
             ));
             s.push(format!(
                 "vram store reads by caller: {}",

@@ -247,6 +247,10 @@ guest's tables. So no other page needs to trap.
    in the table sync, of it 62 us listing the table pages (about 112 live of every watched
    page), 295 us scan and write-back (dirty table pages written back through the VRAM store's
    BAR1 windows), 44 us following the BAR2 tables, 17 us drift samples.
+   The write-backs go to VRAM through the VRAM store's BAR2 windows (2 of 2 MiB, host-
+   resources.md), not the 32 MiB data windows: in run F a dirty page's write-back could cost a
+   window remap (about 270 us of host calls) and evict the executor's window. Page loads and
+   drift samples use them too; a page a data window holds is served by it.
    A flush owed stays owed (rule 3). Only while a host VA space walks the guest's own tables (a mirror VAS,
    `Mirror::walks_guest_tables`) is the invalidate a full sync. A doorbell syncs only what its
    channel could observe (rule 4),
