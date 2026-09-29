@@ -40,13 +40,19 @@ pub const PAGES: usize = 64;
 /// A kick not completed after this long is counted.
 pub const WATCHDOG: Duration = Duration::from_millis(20);
 
-/// `CARAXES_DISPLAY_KICK_PAGE`: off, or on with the display page.
+/// `CARAXES_DISPLAY_KICK_PAGE`: on by default with the display page (since 2026-09-29), `0`
+/// turns it off. The night of 2026-09-28 measured it twice against its control in fresh
+/// Linux B guests: vkmark +2-23 %, glmark2 +11-26 %, 0 inconsistencies, the smoke suite and a
+/// Moonlight stream verified (caraxes/runs/night-2026-09-28/README.md).
 pub fn requested(display_page: bool) -> Result<bool, String> {
     parse(std::env::var(KICK_PAGE_ENV).ok().as_deref(), display_page)
 }
 
 pub fn parse(v: Option<&str>, display_page: bool) -> Result<bool, String> {
-    let on = match v.map(str::trim).filter(|v| !v.is_empty()).unwrap_or("0") {
+    let Some(v) = v.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(display_page);
+    };
+    let on = match v {
         "0" | "off" => false,
         "1" | "on" => true,
         v => return Err(format!("{KICK_PAGE_ENV}={v:?}: 0 or 1")),
@@ -275,6 +281,8 @@ mod tests {
     #[test]
     fn switch_needs_the_display_page() {
         assert_eq!(parse(None, false), Ok(false));
+        assert_eq!(parse(None, true), Ok(true));
+        assert_eq!(parse(Some("0"), true), Ok(false));
         assert_eq!(parse(Some("1"), true), Ok(true));
         assert!(parse(Some("1"), false).is_err());
         assert!(parse(Some("x"), true).is_err());

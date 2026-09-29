@@ -1,0 +1,4 @@
+vfio-user-nvgpu: display kick page: BAR0 [0x690000, 0x6d0000) (the window channels' USERD pages, PUT and GET) offered as a sparse mmap area; the reactor runs the kick of each PUT change and stores GET (CARAXES_DISPLAY_KICK_PAGE=1, docs/caraxes/intr-p
+vfio-user-nvgpu: ERROR untrapped GPPut: at 1790644342.004 chid 3's host channel ran ahead of its doorbell (GPGet 31345, forwarded up to 31342, GPPut 31345) with plans pending (lazy false, worker true, 0 unwaited invalidate plan(s) since the forward);
+vfio-user-nvgpu: ERROR untrapped GPPut: at 1790644343.988 chid 6's host channel ran ahead of its doorbell (GPGet 9889, forwarded up to 9886, GPPut 9889) with plans pending (lazy false, worker true, 0 unwaited invalidate plan(s) since the forward); US
+display kick page: BAR0 [0x690000, 0x6d0000); 4610 kick(s) run by the reactor, mean 223 us, max 6193 us; 0 PUT write(s) in a page without a channel; inconsistencies: none

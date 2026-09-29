@@ -21,6 +21,9 @@ for arm in "${@:-trace notrace pages}"; do
         um) env+=(CARAXES_NO_TRACE=1 CARAXES_USERMODE_PAGE=1) ;;
         inv) env+=(CARAXES_NO_TRACE=1 CARAXES_INVALIDATE_PAGE=1) ;;
         kick) env+=(CARAXES_NO_TRACE=1 CARAXES_DISPLAY_KICK_PAGE=1) ;;
+        clean-ctl|clean-ctl2) env+=(CARAXES_NO_TRACE=1) ;;
+        clean-kick|clean-kick2) env+=(CARAXES_NO_TRACE=1 CARAXES_DISPLAY_KICK_PAGE=1) ;;
+        *) echo "unknown arm $arm" >&2; continue ;;
     esac
     env "${env[@]}" timeout 400 "$W" up > "$O/up.txt" 2>&1 || { echo "$arm: up failed"; tail -3 "$O/up.txt"; timeout 200 "$W" down >/dev/null 2>&1; continue; }
     timeout 240 "$W" wait 200 >> "$O/up.txt" 2>&1
