@@ -65,5 +65,5 @@ Scope: what a 615 guest decides compression by, and what the device answers with
 
 - Does the Windows KMD accept a compbit store without a location, or does it need NOT_SUPPORTED as vGPU guests get?
 - `cbcCoveragePerSlice` (0xd8_0000) is passed on as the card's; its derivation is unknown.
-- Off keeps the host's `COMPRESSION_SIZE` although D16 says no compression.
+- ~~Off keeps the host's `COMPRESSION_SIZE` although D16 says no compression.~~ Fixed 2026-09-29 (fc4c297e): off answers `COMPRESSION_SIZE` 0 and `1TO1_COMPTAG_ENABLED` 0; `CARAXES_WIN_COMPBIT` is retired. With both, the Windows KMD allocated kind 0x09 surfaces the shadow refused (C87: 1540 leaves).
 - `DMA_FLUSH` COMPTAG stays a no-op; the note in dmodel.rs still says D16.
