@@ -1008,6 +1008,9 @@ impl Dispatcher {
                     // invalidate plans the shadow, as at the register invalidate
                     // (docs/caraxes/bar1-pool.md §13).
                     crate::bar1pool::sync_untracked_tables(gm.fb);
+                    // The table pages the guest wrote through the BAR2 memfd are synced by the
+                    // shadow's re-plan below (mirror.rs `shadow_resync`), as at the register
+                    // invalidate (bar2-memfd.md §3 rule 2).
                     let n: usize = inv.iter().map(|_| m.invalidate_tlb(gm.fb, None)).sum();
                     let mut notes = vec![format!(
                         "mirror: {} software TLB invalidate(s) -> invalidated on {n} mirror VA space(s) [host]",

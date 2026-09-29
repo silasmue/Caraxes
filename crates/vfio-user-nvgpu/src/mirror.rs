@@ -2389,6 +2389,14 @@ impl Mirror {
         let (base, end, reservation) = (self.base, self.leaf_end(), self.reservation);
         let descs = self.descs();
         let mut out = Vec::new();
+        // The guest's page-table writes through the BAR2 memfd reach the walks first
+        // (bar2-memfd.md §3 rule 2): a guest that updates its tables through BAR2 and
+        // invalidates in a pushbuffer (the Windows KMD's paging channel, or a MEM_OP a
+        // host channel runs where the device cannot see it) has no register invalidate that
+        // would have synced them. The live table pages are compared and the changed ones
+        // marked dirty in the walks, so the plan below re-reads them (C80: without this,
+        // host Xid 31 at the KMD's GPFIFO and USERD VAs).
+        gm.fb.bar2_sync_tables(None, Some(gm.sys));
         // The exclusions follow the guest's live channels (`exclusions_of`).
         let roots: Vec<u64> = self.shadows.keys().copied().filter(|r| root.is_none_or(|x| x == *r)).collect();
         for r in &roots {
@@ -3338,6 +3346,9 @@ impl Mirror {
         // VAS: plan here; the worker applies it before the build job below (a root's jobs
         // never pass each other), so nothing waits for it here.
         let t_plan = Instant::now();
+        // The guest's table writes through the BAR2 memfd first, as at every re-plan
+        // (`shadow_resync`).
+        gm.fb.bar2_sync_tables(None, Some(gm.sys));
         let plan = sp.front.plan(
             gm.fb,
             gm.sys,
