@@ -1,0 +1,21 @@
+modules: ok
+RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+desktop: WAYLAND_DISPLAY=wayland-0 gnome-shell=2 Xwayland=0
+display: connected 1920x1080
+Leandro VFIO RTX 2070-1G, 615.71.09, 1024 MiB
+vkcube-wayland rc=0
+vkcube-x11 rc=0
+glmark2 [build] duration=10: FPS: 5063 FrameTime: 0.198 ms
+vkcomp: device Leandro VFIO RTX 2070-1G
+vkcomp: device created fam=2 in 0.33 s
+vkcomp rc=124
+cuwork: START wall=1790644246.029 pid=2268
+cuwork: context in 0.38 s
+cuwork rc=124
+ENC frames=300 bytes=5274082 seconds=1.682 fps=178.4 fill_ms_total=931 lat_us_med=2266 lat_us_p99=3381 lat_us_max=4235 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=1.942 fps=154.5 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+vkcube-x11 beside NVENC holder rc=0
+holder RESULT PASS
+sunshine: active
+guest Xid: 0

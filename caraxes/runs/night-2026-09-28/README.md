@@ -199,3 +199,24 @@ What happened, in order (`timeline.txt`, `host-shots/`, `guest-shots/`, `guest-m
 - The native reference exists: 2026-08-20, 1080p exclusive fullscreen, VSync off, higher settings (textures/shadows/LOD 3), 91.7 FPS average, budget 5888 MB.
 - v1 ran two 3 GiB guests of the game with zero NVKMS failures thanks to its display balloon.
 - A v2 balloon design for the user's decision is being written (docs/research/display-balloon-2026-09-29.md).
+
+## Device CE on Linux, the kick page as default (2026-09-29 ~03:00)
+
+- **The device CE** (Windows branch 70614b41: validated software-CE pieces ≥64 KiB copied or filled by a device-owned host CE whose VA space maps only the VM's usable FB), `validate-devce-70614b41/`:
+  - Linux B scrub stress 30 × 300 MiB in **12.4 s** (CPU slicing at 6c566092: 28 s), worst loop 0.81 s;
+  - vkcube ran alongside;
+  - device CE: 168 pushes, 9242 MiB, 277 ms busy, all NV_OK; 0 Xid.
+  - On Windows (P34): 981 pushes, 29251 MiB, 1600 ms busy; ResNet-18 first step 98-121 → 62 s.
+  - Log noise to fix: 20 × "ERROR bar1 pool … cannot move back … the page is the USERD of mirrored channel chid N … consistent, retried" under CUDA context churn. The case is handled, so the line should not be an ERROR.
+- **The kick page, clean pair** (dev ca2559f5, fresh VMs, trace off; Windows P34 started during the kick arm):
+  - control: vkmark 5026 / 4500, glmark2 3900;
+  - kick page: 5687 / 5551, glmark2 4347 (+13-23 %, +11 %).
+  - Together with the bisect this is the second positive A/B.
+- **Kick page smoke plus stream** (70614b41 + kick, `kick-smoke-70614b41/`):
+  - smoke ALL PASS: glmark2 build 5063 FPS, NVENC 178.4 fps, NVDEC 154.5 fps (boost on), Sunshine active;
+  - Moonlight windowed on the host with three grim shots: means 0.19 / 0.14 / 0.14, RMSE 12670 / 1528 (the picture changes while vkcube runs); 0 Xid;
+  - 4610 kicks, 0 inconsistencies.
+- Two "ERROR untrapped GPPut: chid 3/6's host channel ran ahead of its doorbell … with plans pending (worker true)" lines, no fault.
+  - The same detector lines were already in Linux B on 2026-09-28 at 20:48 with cb4974fc, without the kick page and without the device CE (reported by the Windows agent in P22). So this is a pre-existing detector condition; it is listed separately.
+  - The entries the host channel fetched were written before the guest's invalidate, so they need none of the pending plan's mappings. The detector cannot tell that apart.
+- **dev 4dde63e1:** the display kick page is on by default with the display page (`CARAXES_DISPLAY_KICK_PAGE=0` turns it off), after LAUNCH_FAST=2 (ca2559f5) and the host boost (78d4b0fd).
