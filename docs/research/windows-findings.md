@@ -669,6 +669,22 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - Memory model: the GFXP buffers' placement depends on it (host vidmem today, the VM's slice
   proposed).
 
+## P40-P42 (2026-09-29 05:38-05:57): the production binary without the diagnostic patch
+
+- P40 (owned GFXP in the slice, the pool answered, no patch): the pool query passes; the KMD then
+  loops on 5070 control 0x50700117 (116 times, 2 in P38-a) with ~7 s waits and unloads (Code 43).
+  The missing piece was the patch's display caps.
+- P41 (plus the captured TU106 TMO/ILUT/OLUT caps in chips/tu106/display.toml, 9d021744): the first
+  production binary that runs Windows. Smoke all PASS, 0 TDR, no host Xid; CUDA short kernel
+  53.7 us median; transformer 85854 tokens/s (first step 12.5 s); NVENC 98.9 / 131.5 fps.
+  - Compute parity works on Windows: its SETs (CILP_SET, CTA) are bound after the build.
+  - GFXP stayed WFI on every 3D TSG: the slot VA 2^48 lay outside the 2^47 shadow VA space (0x1a).
+- P42 (slot VAs at 2^47 in a 2^48 shadow VA space): GFXP bound (GET gfxp 1 at build), then host Xid
+  31 HUBCLIENT_SCC_NB FAULT_PDE VIRT_WRITE at the slot VAs with bit 47 dropped (0x610000 = slot 0's
+  RTV buffer) on Windows and Linux B: the context switch hardware keeps these pointers in 47 bits.
+  Reverted (1c581554); GFXP buffer VAs must lie below 2^47, open (gr-preemption-2026-09-29.md).
+- Memory model: the slots are part of the VM's reservation (54 MiB at 4 GiB).
+
 ## Security fix: the device's private pages were reachable as guest memory (2026-09-29)
 
 - **Before (all builds up to 70614b41's parent):** the top of the reservation holds device-owned

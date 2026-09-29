@@ -123,6 +123,13 @@ Isolation:
 - Teardown: BIND WFI, GET 0, unmap, free the virtual range, free the slot. No slot free: WFI
   and a WARN, never a failure towards the guest.
 - The mode log is step 0's (a GET per host GR TSG at its build and at its teardown).
+- Measured (P40-P42): 2^48 is outside the 2^47 shadow VA space (0x1a, every TSG WFI); at 2^47
+  in a 2^48 shadow VA space the BIND succeeds but the context switch faults at the VAs with bit 47
+  dropped (host Xid 31, HUBCLIENT_SCC_NB): GFXP buffer VAs must lie below 2^47. Reverted to WFI.
+- Open: a structurally guest-free VA range below 2^47. Candidates: the guest's server-RM range
+  [4 GiB, 4.5 GiB), which the guest reserves for its GSP (this device), but where a base-0 shadow
+  VA space has the host's own server-RM range; the host RM's own GFXP buffers (SET GFXP without
+  pointers), outside the slice, ~6.6 MiB per context.
 
 ## Test plan
 
