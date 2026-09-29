@@ -28,6 +28,9 @@ dmesg | grep -iE "nouveau.*(accel|channel|fence|DRM: )" | tail -n 20
 ls -la /dev/dri 2>&1
 for c in /sys/class/drm/*; do echo "$c: $(tr '\n' ' ' < "$c/device/uevent" 2>/dev/null)"; done
 cat /sys/kernel/debug/dri/*/name 2>/dev/null
+echo "CARAXES-CHECK packages"
+dpkg-query -W -f '${Package} ${Version}\n' mesa-vulkan-drivers libgl1-mesa-dri vulkan-tools vkmark \
+    glmark2 glmark2-wayland weston mutter mesa-utils 2>&1 | head -n 12
 echo "CARAXES-CHECK R3 nvk"
 timeout 60 vulkaninfo --summary 2>&1 | grep -E "deviceName|driverName|driverInfo|driverID|apiVersion|ERROR|error" | head -n 20
 echo "CARAXES-CHECK R4-R5 vk-offscreen"
