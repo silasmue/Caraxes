@@ -85,6 +85,24 @@ pub struct Trace {
     /// after every line (one write syscall per trapped access).
     flush_each: bool,
     last_flush: Instant,
+    /// The free-space guard ([`TRACE_MIN_FREE`]): when the trace's filesystem was last
+    /// checked.
+    last_space_check: Instant,
+}
+
+/// The trace stops below this much free space on its filesystem (said once, on stderr and as
+/// the trace's last line): the guest's disk image and the VM state share it, and a full one
+/// stopped C92's trace mid-line for 4 minutes (2026-09-29).
+pub const TRACE_MIN_FREE: u64 = 10 << 30;
+
+/// Free bytes on the filesystem of `f` (fstatvfs), if the call succeeds.
+fn free_bytes(f: &File) -> Option<u64> {
+    use std::os::fd::AsRawFd;
+    // SAFETY: a zeroed statvfs is a valid out-parameter; the descriptor is open.
+    let mut s: libc::statvfs = unsafe { std::mem::zeroed() };
+    // SAFETY: fstatvfs writes only into `s`.
+    (unsafe { libc::fstatvfs(f.as_raw_fd(), &mut s) } == 0)
+        .then(|| s.f_bavail as u64 * s.f_frsize as u64)
 }
 
 /// Render an access value: little-endian integer up to 8 bytes, hex bytes beyond.
@@ -122,11 +140,36 @@ impl Trace {
             accesses: Accesses::parse(std::env::var("CARAXES_TRACE_ACCESSES").ok().as_deref())?,
             flush_each: std::env::var("CARAXES_TRACE_FLUSH").as_deref() != Ok("0"),
             last_flush: Instant::now(),
+            last_space_check: Instant::now(),
         })
+    }
+
+    /// The free-space guard, at most once a second: below [`TRACE_MIN_FREE`] the trace ends
+    /// with one line that says so, and nothing more is written.
+    fn space_guard(&mut self) {
+        if self.last_space_check.elapsed().as_secs() < 1 {
+            return;
+        }
+        self.last_space_check = Instant::now();
+        let Some(out) = &mut self.out else { return };
+        let Some(free) = free_bytes(out.get_ref()) else { return };
+        if free >= TRACE_MIN_FREE {
+            return;
+        }
+        let m = format!(
+            "trace stopped: {} MiB free on its filesystem, below {} MiB (the guest's disk and the VM state share it)",
+            free >> 20,
+            TRACE_MIN_FREE >> 20
+        );
+        let _ = writeln!(out, "{:>12} E {m}", self.start.elapsed().as_micros());
+        let _ = out.flush();
+        eprintln!("vfio-user-nvgpu: {m}");
+        self.out = None;
     }
 
     fn line(&mut self, text: &str) {
         let t = self.start.elapsed().as_micros();
+        self.space_guard();
         if let Some(out) = &mut self.out {
             let _ = writeln!(out, "{t:>12} {text}");
             if self.flush_each || text.starts_with('E') || self.last_flush.elapsed().as_millis() >= 100 {
@@ -188,6 +231,7 @@ impl Trace {
     /// Several events with one flush at the end (the fast ring path, launch.rs).
     pub fn events(&mut self, texts: &[String]) {
         let t = self.start.elapsed().as_micros();
+        self.space_guard();
         if let Some(out) = &mut self.out {
             for text in texts {
                 let _ = writeln!(out, "{t:>12} E {text}");
@@ -263,6 +307,20 @@ impl Trace {
 #[cfg(test)]
 mod tests {
     use super::Accesses;
+
+    /// The free-space guard reads the trace file's filesystem and keeps tracing while there is
+    /// room (the stop below `TRACE_MIN_FREE` needs a nearly full filesystem to show).
+    #[test]
+    fn the_space_guard_keeps_tracing_with_room() {
+        let p = std::env::temp_dir().join(format!("caraxes-trace-guard-{}", std::process::id()));
+        let mut t = super::Trace::new(Some(&p)).unwrap();
+        let free = super::free_bytes(t.out.as_ref().unwrap().get_ref());
+        assert!(free.is_some());
+        t.last_space_check = std::time::Instant::now() - std::time::Duration::from_secs(2);
+        t.event("one");
+        assert_eq!(t.out.is_some(), free.unwrap() >= super::TRACE_MIN_FREE);
+        std::fs::remove_file(p).ok();
+    }
 
     #[test]
     fn bar_accesses_are_counted_per_mib() {
