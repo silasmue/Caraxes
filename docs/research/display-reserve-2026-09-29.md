@@ -260,7 +260,7 @@ Evidence: `B/drsv-smoke3/`; the build is `B/drsv-build2/prepare.txt`.
    - The reserve holds the declared size at 1080p, re-cuts to the 720p size, and is released when the head goes off.
    - GNOME gives the 1080p size again.
    - With VRAM filled, the dumb buffer is granted with one run released and refilled 1 s later; `display_reserve_mib=0` refuses it.
-2. **SotTR 1080p at 4 GiB** with `display_reserve_mib=-1`, and a control with 0. The bench gets `SOTTR_DISPLAY_RESERVE_MIB` once the first design's runs are done.
+2. **SotTR 1080p at 4 GiB** with `display_reserve_mib=-1`, and a control with 0: `SOTTR_FB_MIB=4096 DMEM_CAP=off SOTTR_DISPLAY_RESERVE_MIB=-1 sottr-bench-6g.sh OUT BINARY`.
 
 ## Test plan (first design, history)
 

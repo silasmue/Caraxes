@@ -24,10 +24,16 @@
 # (display-reserve-prepare.sh) with those registry keys and NVreg_RmMsg=display_reserve.c (its
 # state lines in the kernel log) instead of the installed one, and stops if that build is not
 # the loaded one; unset keeps the stock modules (docs/research/display-reserve-2026-09-29.md).
+# SOTTR_DISPLAY_RESERVE_MIB=<n> loads the redesigned build instead (/opt/caraxes/display-reserve-v2,
+# nvidia.ko and nvidia-modeset.ko) with display_reserve_mib=<n> (-1 automatic, 0 as the control)
+# and NVreg_RmMsg=display_reserve.c, and stops if that build is not the loaded one.
 # Usage: sottr-bench-6g.sh OUT BINARY   (SOTTR_RES, SOTTR_MAX_S as in sottr-bench.sh)
 set -uo pipefail
 OUT=$1 BIN=$2
 MAX=${SOTTR_MAX_S:-2100}
+if [[ -n ${SOTTR_DISPLAY_RESERVE:-} && -n ${SOTTR_DISPLAY_RESERVE_MIB:-} ]]; then
+    echo "SOTTR_DISPLAY_RESERVE and SOTTR_DISPLAY_RESERVE_MIB select different builds: set one"; exit 2
+fi
 RES=${SOTTR_RES:-1920x1080}; RW=${RES%x*}; RH=${RES#*x}
 W=$(cd "$(dirname "$0")" && pwd)/desktop-b-dmem-6g.sh
 CAP=${DMEM_CAP:-off}
@@ -40,9 +46,10 @@ NIGHT_SERVER=$BIN NIGHT_FB_MIB=${SOTTR_FB_MIB:-6144} NIGHT_VRAM_FLOOR_MIB=${SOTT
     || { log "up failed"; tail -5 "$OUT/up.txt"; exit 1; }
 timeout 240 "$W" wait 200 >> "$OUT/up.txt" 2>&1
 log "vm up"
-T=200 gssh "DMEM_CAP=$CAP DMEM_R=${SOTTR_DMEM_RESERVE_MIB:-} DRSV=${SOTTR_DISPLAY_RESERVE:-} bash -s" > "$OUT/guest-prep.txt" <<'G'
+T=200 gssh "DMEM_CAP=$CAP DMEM_R=${SOTTR_DMEM_RESERVE_MIB:-} DRSV=${SOTTR_DISPLAY_RESERVE:-} DRSV2=${SOTTR_DISPLAY_RESERVE_MIB:-} bash -s" > "$OUT/guest-prep.txt" <<'G'
 sudo ip route replace default via 192.168.106.1 dev eth0 && sudo resolvectl dns eth0 192.168.188.1 && sudo resolvectl domain eth0 "~."
 if [ -n "$DRSV" ]; then sudo /opt/caraxes/display-reserve/load.sh "$DRSV" NVreg_RmMsg=display_reserve.c || exit 1; fi
+if [ -n "$DRSV2" ]; then sudo /opt/caraxes/display-reserve-v2/load.sh "$DRSV2" NVreg_RmMsg=display_reserve.c || exit 1; fi
 sudo modprobe nvidia && sudo modprobe nvidia_modeset && sudo modprobe nvidia_drm modeset=1 && echo modules-ok
 bash ~/caraxes-guest/display-up.sh >/dev/null 2>&1; sudo systemctl start gdm3; sleep 12
 export XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
@@ -84,6 +91,9 @@ PREFS
 cat "$OUT/guest-prep.txt" >> "$OUT/timeline.txt"
 if [[ -n ${SOTTR_DISPLAY_RESERVE:-} ]] && ! grep -q "^loaded /opt/caraxes/display-reserve/" "$OUT/guest-prep.txt"; then
     log "the display reserve build of nvidia.ko is not loaded (guest-prep.txt): stopping"; exit 1
+fi
+if [[ -n ${SOTTR_DISPLAY_RESERVE_MIB:-} ]] && ! grep -q "^loaded /opt/caraxes/display-reserve-v2/" "$OUT/guest-prep.txt"; then
+    log "the display reserve v2 build is not loaded (guest-prep.txt): stopping"; exit 1
 fi
 
 # The host client.
