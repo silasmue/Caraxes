@@ -58,6 +58,7 @@ pub mod invgate;
 pub mod kgr;
 pub mod launch;
 pub mod lazy;
+pub mod mbuild;
 pub mod mirror;
 pub mod msgq;
 pub mod nvml;

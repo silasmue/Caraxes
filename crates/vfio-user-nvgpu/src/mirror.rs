@@ -38,7 +38,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
 use nvrm_abi::sys;
@@ -640,23 +640,23 @@ fn release_gfxp(
     Ok(())
 }
 
-/// Bind owned GFXP to host TSG `tsg` at its build, before its first schedule: a slot of the
-/// VM's slice, its five buffers mapped at the slot's fixed VAs in VA space `vas` through the
-/// reservation's handle, then `BIND {GFXP_SET, gfxp 1}` on the TSG and a GET on `channel`
-/// that must show 1. On an error what was made is released again (or kept, if that fails).
+/// Bind owned GFXP to host TSG `tsg` at its build, before its first schedule: slot `slot` of
+/// the VM's slice (reserved by the caller), its five `buffers` mapped at the slot's fixed VAs
+/// in VA space `vas` through the reservation's handle, then `BIND {GFXP_SET, gfxp 1}` on the
+/// TSG and a GET on `channel` that must show 1. On an error what was made is released again
+/// (or kept, if that fails); an `Err` without a set leaves the slot to the caller to free.
+/// Runs on the shadow worker (execution.md §9.2), which cannot touch the slot map.
 #[allow(clippy::too_many_arguments)]
-fn attach_gfxp(
+fn attach_gfxp_slot(
     h: &mut HostMemory,
-    slots: &mut crate::gfxpslot::Slots,
+    slot: usize,
+    buffers: &[(u64, u64, u64); 5],
     vas: u32,
     tsg: u32,
     channel: u32,
     reservation: u32,
     guest_base: u64,
 ) -> Result<OwnedGfxp, (Option<OwnedGfxp>, String)> {
-    let slot = slots
-        .alloc()
-        .ok_or((None, format!("all {} slots in use", slots.count())))?;
     let mut owned = OwnedGfxp {
         slot,
         bind_attempted: false,
@@ -665,7 +665,7 @@ fn attach_gfxp(
     };
     let result = (|| -> Result<(), String> {
         let mut addresses = [0u64; 5];
-        for (k, (pa, va, len)) in slots.buffers(slot).into_iter().enumerate() {
+        for (k, &(pa, va, len)) in buffers.iter().enumerate() {
             if len == 0 {
                 continue;
             }
@@ -719,7 +719,7 @@ fn attach_gfxp(
             if owned.bind_attempted {
                 let _ = bind_gfxp(h, tsg, 0, &[0; 5]);
             }
-            match release_gfxp(h, Some(slots), reservation, &mut owned) {
+            match release_gfxp(h, None, reservation, &mut owned) {
                 Ok(()) => Err((None, why)),
                 Err(e) => Err((Some(owned), format!("{why}; release: {e}"))),
             }
@@ -1042,6 +1042,373 @@ impl ShadowUserd {
                 }
             });
         }
+    }
+}
+
+/// A mirror build in flight on the shadow worker (docs/caraxes/execution.md §9.2): what the
+/// commit needs from the first doorbell, the doorbells that joined it, and the slot the job
+/// fills ([`build_on_host`]).
+struct PendingBuild {
+    /// Commit order: oldest first.
+    id: u64,
+    root: u64,
+    /// The build job's number (a preparation waits for it).
+    seq: u64,
+    generation: u64,
+    /// The guest channel's `(hClient, hObject)`.
+    h_client: u32,
+    h_channel: u32,
+    tsg_key: TsgKey,
+    tsg_guest: (u32, u32),
+    vas_key: (u32, u32),
+    /// The host TSG's engine (for a TSG the build makes).
+    engine_type: u32,
+    /// A GFXP slot reserved for the build (the first build of a guest TSG with a 3D object).
+    slot: Option<usize>,
+    out: Arc<Mutex<Option<BuildOut>>>,
+    /// The guest's USERD GPGet/GPPut addresses and values at the first doorbell.
+    saved_userd: Option<(Target, Target, Option<u32>, Option<u32>)>,
+    /// The newest nonzero GPPut read at a doorbell of the build (mbuild.rs `put_to_restore`).
+    newest_put: Option<u32>,
+    /// The root's last job at the newest doorbell: the ring waits for it after the commit.
+    ring_seq: u64,
+    doorbells: u64,
+    since: Instant,
+    submit: bool,
+    preempt_request: Option<crate::preempt::Recorded>,
+    /// Engine objects the guest allocated during the build, added at the commit.
+    late_objects: Vec<(u32, u32, Vec<u8>)>,
+    channel_engine: u32,
+    alloc_flags: u32,
+}
+
+/// The USERD of a build's host channel, from the guest's state under the lock.
+enum UserdPlan {
+    /// A vidmem page of the reservation: `(reservation handle, offset)`.
+    Fb(u32, u64),
+    /// Guest sysmem shadowed by a private host USERD (`CARAXES_SHADOW_USERD=1`).
+    Private { iova: u64, entries: u32 },
+    /// A guest sysmem page: the device's host pointer to it, the USERD's offset in it.
+    GuestPage { ptr: usize, offset: u64, iova: u64 },
+}
+
+/// What the worker needs for a build ([`build_on_host`]): no guest memory, no device state.
+struct BuildInput {
+    chid: u32,
+    vas_handle: u32,
+    tsg_key: TsgKey,
+    tsg_guest: (u32, u32),
+    cell: Arc<Mutex<crate::mbuild::TsgCell>>,
+    engine_type: u32,
+    userd: UserdPlan,
+    /// The device's host pointer to the guest's error-notifier page, if it has one.
+    error_page: Option<usize>,
+    gpfifo_va: u64,
+    gpfifo_entries: u32,
+    channel_engine: u32,
+    alloc_flags: u32,
+    /// `(guest handle, class, params)` of the guest's engine objects.
+    objects: Vec<(u32, u32, Vec<u8>)>,
+    /// The engine a channel without an object is bound to (a video or copy channel).
+    bind_engine: Option<u32>,
+    gpfifo_class: u32,
+    /// The GFXP slot and its buffers, or why there is none (every slot in use).
+    gfxp_slot: Option<GfxpSlot>,
+    reservation: u32,
+    base: u64,
+    /// On a GR TSG: the guest's compute preemption request (steps 0 and 1, preempt.rs).
+    preempt: Option<Option<u32>>,
+    sw_classes: [u32; 2],
+    diag: Option<GpfifoDiag>,
+}
+
+/// A reserved GFXP slot and its five buffers `(pa, va, len)`, or why there is none.
+type GfxpSlot = Result<(usize, [(u64, u64, u64); 5]), String>;
+/// `CARAXES_SHADOW_CHANNEL_DIAG=1`: the GPFIFO span's bytes and end, its guest and host
+/// coverage, and the set-B ranges it meets.
+type GpfifoDiag = (u64, Option<u64>, String, String, Vec<(u64, u64)>);
+/// The host channel, its engine objects and their map; or why not, with the RM status.
+type HostSteps = Result<(u32, Vec<(u32, u32)>, BTreeMap<u32, u32>), (String, Option<u32>)>;
+
+/// What the worker made for a build.
+struct BuildOut {
+    /// The host TSG (made by this build, or joined), also when a later step failed.
+    tsg: Option<(u32, bool)>,
+    result: Result<HostBuilt, (String, Option<u32>)>,
+    gfxp: Option<Result<OwnedGfxp, (Option<OwnedGfxp>, String)>>,
+    preempt: Option<crate::preempt::Applied>,
+    notes: Vec<String>,
+    host: std::time::Duration,
+}
+
+/// A host channel the worker made, not scheduled yet.
+struct HostBuilt {
+    channel: u32,
+    objects: Vec<(u32, u32)>,
+    engine_map: BTreeMap<u32, u32>,
+    /// Everything the build made on the host except the TSG, oldest first (the USERD and
+    /// error-notifier objects, the channel).
+    owned: Vec<u32>,
+    shadow_userd: Option<ShadowUserd>,
+    rc_page: Option<crate::hostmem::DevicePage>,
+}
+
+/// The host side of a mirror build (execution.md §9.2), on the shadow worker after the
+/// root's plans: the host TSG (made or joined), the USERD and error-notifier objects, the
+/// channel, the engine objects (the GR object makes the host RM build the context), the
+/// owned GFXP bind and the preemption bind. Not the scheduling: the channel cannot run
+/// before the commit. The host lock is taken per RM call, so the device's own host calls
+/// interleave. On a refusal what the build made is freed again, except a TSG, which stands
+/// for the guest TSG as at the synchronous build.
+fn build_on_host(b: BuildInput, hm: &Mutex<HostMemory>) -> BuildOut {
+    let t0 = Instant::now();
+    let lock = || hm.lock().unwrap_or_else(PoisonError::into_inner);
+    let chid = b.chid;
+    let mut notes = Vec::new();
+    let tsg = crate::mbuild::tsg_for_build(&b.cell, || {
+        // The host driver's layout (hostabi.rs).
+        let mut tp = crate::hostabi::current().tsg_params(b.vas_handle, b.engine_type);
+        let mut h = lock();
+        let device = h.device();
+        h.alloc_object(device, sys::KEPLER_CHANNEL_GROUP_A, &mut tp, "shadow-tsg")
+    });
+    let (tsg, made_tsg) = match tsg {
+        Ok((t, made)) => {
+            notes.push(if made {
+                format!(
+                    "shadow: host TSG {t:#x} for guest TSG {:#x} ({}) on VAS {:#x} [host]",
+                    b.tsg_guest.1, b.tsg_key, b.vas_handle
+                )
+            } else {
+                format!(
+                    "shadow: chid {chid} joins host TSG {t:#x} of guest TSG {:#x} ({}) [host]",
+                    b.tsg_guest.1, b.tsg_key
+                )
+            });
+            (t, made)
+        }
+        Err(st) => {
+            return BuildOut {
+                tsg: None,
+                result: Err((format!("shadow: TSG refused: {}", status_name(st)), Some(st))),
+                gfxp: None,
+                preempt: None,
+                notes,
+                host: t0.elapsed(),
+            }
+        }
+    };
+    let mut owned: Vec<u32> = Vec::new();
+    let mut shadow_userd: Option<ShadowUserd> = None;
+    let mut rc_page: Option<crate::hostmem::DevicePage> = None;
+    let mut gfxp = None;
+    let mut preempt = None;
+    let built = (|| -> HostSteps {
+        let userd = match b.userd {
+            UserdPlan::Fb(handle, offset) => (handle, offset),
+            UserdPlan::Private { iova, entries } => {
+                let page = lock().alloc_host_userd().map_err(|st| {
+                    (format!("shadow USERD allocation: {}", status_name(st)), Some(st))
+                })?;
+                let handle = page.handle();
+                notes.push(format!("shadow USERD chid {chid}: guest sysmem {iova:#x} -> private host vidmem {:#x}, object {handle:#x} [host]", page.gpu_addr()));
+                shadow_userd = Some(ShadowUserd {
+                    storage: page,
+                    guest: iova,
+                    entries,
+                    published_put: None,
+                    harvested: None,
+                });
+                (handle, 0)
+            }
+            UserdPlan::GuestPage { ptr, offset, iova } => {
+                match lock().guest_page_object(ptr as *mut u8, PAGE, "shadow-userd-page") {
+                    Ok(d) => {
+                        owned.push(d);
+                        (d, offset)
+                    }
+                    Err(e) => {
+                        return Err((
+                            format!("shadow: chid {chid} USERD IOVA {iova:#x}: no host object over the guest page ({e:#})"),
+                            None,
+                        ))
+                    }
+                }
+            }
+        };
+        // The error notifier: the guest's page, else a page of the device's own.
+        let guest_error = b
+            .error_page
+            .and_then(|ptr| lock().guest_page_object(ptr as *mut u8, PAGE, "shadow-error-notifier").ok());
+        let h_error = match guest_error {
+            Some(d) => {
+                owned.push(d);
+                d
+            }
+            None => match lock().device_page_object("rc-notifier") {
+                Ok((d, page)) => {
+                    owned.push(d);
+                    rc_page = Some(page);
+                    d
+                }
+                Err(e) => {
+                    notes.push(format!(
+                        "shadow: chid {chid}: no host error notifier ({e:#}); an RC of this channel reaches the guest only as a fence timeout [host]"
+                    ));
+                    0
+                }
+            },
+        };
+        let mut cp = crate::hostabi::ChannelAllocParams::default();
+        cp.flags = HOST_MIRROR_CHANNEL_FLAGS;
+        cp.hObjectError = h_error;
+        cp.gpFifoOffset = b.gpfifo_va;
+        cp.gpFifoEntries = b.gpfifo_entries;
+        cp.hUserdMemory[0] = userd.0;
+        cp.userdOffset[0] = userd.1;
+        cp.engineType = b.channel_engine;
+        if let Some((bytes, end, guest, host, hits)) = &b.diag {
+            notes.push(format!(
+                "shadow diagnostic: chid {chid} GPFIFO start {:#x} end {end:#x?} {} entries/{bytes:#x} bytes: guest {guest}; host {host}; set-B intersections {hits:x?}; USERD object {:#x}+{:#x}; engineType {:#x}; guest alloc_flags {:#x}; host flags {:#x}/internalFlags {:#x}; host ABI {} [host]",
+                b.gpfifo_va, b.gpfifo_entries, userd.0, userd.1, b.channel_engine,
+                b.alloc_flags, cp.flags, cp.internalFlags, crate::hostabi::current().driver(),
+            ));
+        }
+        let channel = lock()
+            .alloc_object(tsg, b.gpfifo_class, as_bytes(&mut cp), "shadow-channel")
+            .map_err(|st| {
+                (
+                    format!(
+                        "shadow: channel refused: {} (gpfifo va {:#x})",
+                        status_name(st),
+                        b.gpfifo_va
+                    ),
+                    Some(st),
+                )
+            })?;
+        owned.push(channel);
+        notes.push(format!(
+            "shadow: host GR channel {channel:#x} in TSG {tsg:#x} on VAS {:#x}, gpfifo va {:#x} [host]",
+            b.vas_handle, b.gpfifo_va
+        ));
+        // The guest's engine objects; the compute object makes the host RM build set B.
+        let mut objects = Vec::new();
+        let mut engine_map = BTreeMap::new();
+        let mut refused = None;
+        for (guest_handle, class, params) in &b.objects {
+            let mut p = params.clone();
+            let r = lock().alloc_object(channel, crate::board::host_class_of(*class), &mut p, "shadow-engine");
+            match r {
+                Ok(oh) => {
+                    notes.push(format!(
+                        "shadow: chid {chid} host object class {class:#x}{} {oh:#x} [host]",
+                        crate::board::mapped_note(*class)
+                    ));
+                    objects.push((*class, oh));
+                    engine_map.insert(*guest_handle, oh);
+                }
+                Err(e) => {
+                    refused = refused.or(Some(e));
+                    notes.push(format!(
+                        "shadow: chid {chid} object class {class:#x} refused: {}",
+                        status_name(e)
+                    ))
+                }
+            }
+        }
+        if objects.is_empty() {
+            // A video channel rings before its engine object exists, and the guest
+            // waits for that first push before it allocates the object (a held doorbell
+            // deadlocked for 10 s, 2026-09-25 probe-hold). The host channel is bound to
+            // the engine instead; the object follows at the guest's allocation
+            // (`place_video_object`). A copy channel likewise (`copy_bind`); its object
+            // is added on the host at the guest's allocation (`add_engine_object`).
+            let Some(engine) = b.bind_engine else {
+                return Err(("shadow: no engine object; not scheduling".into(), refused));
+            };
+            let mut p = engine.to_le_bytes();
+            let st = lock().control(channel, CMD_CHANNEL_BIND, &mut p);
+            if st != sys::NV_OK {
+                return Err((
+                    format!(
+                        "shadow: chid {chid} BIND engineType {engine:#x}: {}; not scheduling",
+                        status_name(st)
+                    ),
+                    None,
+                ));
+            }
+            notes.push(format!(
+                "shadow: chid {chid} host channel bound to engineType {engine:#x} ({}; its object follows the guest's) [host]",
+                video_engine(engine).unwrap_or("copy engine")
+            ));
+        }
+        // Owned GFXP (gfxpslot.rs): a new host TSG with a 3D object gets a slot of the VM's
+        // slice bound before its first schedule, for every guest (NVIDIA's vGPU binds GFXP
+        // for every 3D object of a Unix guest, rpc.c:3951-3956 of 615). No slot: the
+        // context stays in graphics WFI.
+        let three_d = objects
+            .iter()
+            .any(|(class, _)| crate::board::host_class_of(*class) == HOST_3D_CLASS);
+        if made_tsg && three_d {
+            gfxp = match &b.gfxp_slot {
+                Some(Ok((slot, buffers))) => Some(attach_gfxp_slot(
+                    &mut lock(),
+                    *slot,
+                    buffers,
+                    b.vas_handle,
+                    tsg,
+                    channel,
+                    b.reservation,
+                    b.base,
+                )),
+                Some(Err(why)) => Some(Err((None, why.clone()))),
+                None => None,
+            };
+        }
+        // The GR context exists once an object of the GR engine does (not the UVM or
+        // deferred-API software classes); the channel is not scheduled yet.
+        if let Some(requested) = b.preempt {
+            if objects.iter().any(|(class, _)| !b.sw_classes.contains(class))
+                && crate::mbuild::claim_preempt_check(&b.cell)
+            {
+                preempt = Some(crate::preempt::apply_compute(&*lock(), tsg, channel, requested));
+            }
+        }
+        Ok((channel, objects, engine_map))
+    })();
+    let result = match built {
+        Ok((channel, objects, engine_map)) => Ok(HostBuilt {
+            channel,
+            objects,
+            engine_map,
+            owned,
+            shadow_userd,
+            rc_page,
+        }),
+        Err(e) => {
+            // Newest first: the channel (with its engine objects), then the guest pages.
+            let mut h = lock();
+            let mut freed = true;
+            for d in owned.into_iter().rev() {
+                freed &= h.free_object(d).is_ok();
+            }
+            if let Some(u) = shadow_userd.take() {
+                // If a channel free failed, retain its tracked memory object until
+                // RM client teardown; the CPU mapping may still be dropped safely.
+                if freed {
+                    let _ = h.free_host_userd(u.storage);
+                }
+            }
+            Err(e)
+        }
+    };
+    BuildOut {
+        tsg: Some((tsg, made_tsg)),
+        result,
+        gfxp,
+        preempt,
+        notes,
+        host: t0.elapsed(),
     }
 }
 
@@ -1430,6 +1797,14 @@ pub struct Mirror {
     ring_gate: Arc<crate::ringgate::RingGate>,
     held_rings: BTreeMap<u32, crate::ringgate::HeldRing>,
     ring_stats: crate::ringgate::RingStats,
+    /// Mirror builds in flight on the worker, by guest ChID (execution.md §9.2), the host
+    /// TSG cells their jobs share, the counters, and the channels committed since the
+    /// dispatcher last pinned their tokens ([`Mirror::take_committed`]).
+    builds: BTreeMap<u32, PendingBuild>,
+    tsg_cells: BTreeMap<TsgKey, Arc<Mutex<crate::mbuild::TsgCell>>>,
+    build_stats: crate::mbuild::BuildStats,
+    next_build: u64,
+    committed: Vec<(u32, u32)>,
     /// `CARAXES_ALLOC_LAZY=1` (lazy.rs, docs/caraxes/alloc-path.md): a guest MMU invalidate
     /// defers its plan to the next shadow doorbell or channel creation.
     lazy: crate::lazy::LazyPlans,
@@ -1611,6 +1986,11 @@ impl Mirror {
             ring_gate,
             held_rings: BTreeMap::new(),
             ring_stats: Default::default(),
+            builds: BTreeMap::new(),
+            tsg_cells: BTreeMap::new(),
+            build_stats: Default::default(),
+            next_build: 0,
+            committed: Vec::new(),
             lazy: match crate::lazy::LazyPlans::from_env() {
                 Ok(l) => {
                     if l.enabled() {
@@ -1709,7 +2089,8 @@ impl Mirror {
     /// shadow space's set, and so does its TSG key when no host TSG stands under it, so an
     /// empty shadow VAS is torn down instead of held until the device exits.
     fn abandon_shadow_build(&mut self, root: u64, chid: u32, tsg_key: TsgKey, notes: &mut Vec<String>) {
-        let has_tsg = self.tsgs.contains_key(&tsg_key);
+        let has_tsg = self.tsgs.contains_key(&tsg_key)
+            || self.builds.values().any(|b| b.tsg_key == tsg_key);
         if let Some(sp) = self.shadows.get_mut(&root) {
             sp.chids.remove(&chid);
             if !has_tsg {
@@ -2074,7 +2455,7 @@ impl Mirror {
             self.held_scope.2,
             self.worker.summary(),
             self.ring_summary()
-        )
+        ) + "; " + &self.build_summary()
     }
 
     /// A read of the invalidate trigger: whether the held invalidate in flight is still
@@ -2245,11 +2626,28 @@ impl Mirror {
     }
 
     /// P21 design H (bar1pool.rs): every mirrored channel as `(guest chid, the guest root of
-    /// its shadow VAS or None, its host TSG handle)`.
+    /// its shadow VAS or None, its host TSG handle)`. A channel whose mirror build is in
+    /// flight counts too (execution.md §9.2): its host channel takes the guest's USERD page
+    /// as the snapshot found it, so the pool must not move that page before the commit; its
+    /// TSG handle is known once the worker made it (and not waited for when the worker is
+    /// making it).
     pub fn pool_channels(&self) -> Vec<(u32, Option<u64>, Option<u32>)> {
+        let building = self.builds.iter().map(|(chid, b)| {
+            let tsg = self
+                .tsgs
+                .get(&b.tsg_key)
+                .map(|t| t.handle)
+                .or_else(|| {
+                    self.tsg_cells
+                        .get(&b.tsg_key)
+                        .and_then(|c| c.try_lock().ok().and_then(|c| c.handle))
+                });
+            (*chid, Some(b.root), tsg)
+        });
         self.channels
             .iter()
             .map(|(chid, c)| (*chid, c.shadow_root, self.tsgs.get(&c.tsg).map(|t| t.handle)))
+            .chain(building)
             .collect()
     }
 
@@ -2373,6 +2771,13 @@ impl Mirror {
         // here, before the barrier below or the creation's own wait.
         let mut lazy_notes = replacement_notes;
         lazy_notes.extend(self.flush_lazy(reg, gm));
+        // Its mirror build in flight (execution.md §9.2): the doorbell joins the held ring.
+        if self.builds.contains_key(&chid) {
+            let mut notes = lazy_notes;
+            notes.extend(ahead_line);
+            notes.extend(self.build_doorbell(reg, gm, chid));
+            return notes;
+        }
         // Already built: re-sync the shadow VAS from the guest root FIRST (the guest maps
         // more set-A between doorbells), then flush and ring.
         if self.channels.contains_key(&chid) {
@@ -2419,7 +2824,7 @@ impl Mirror {
                         self.held_rings.insert(chid, ring);
                     }
                 }
-                self.ring_gate.set_waiting(self.held_rings.len());
+                self.update_waiting();
                 notes.push(format!(
                     "shadow: chid {chid} ring held until root {:#x}'s jobs are applied [host]",
                     root.unwrap_or(0)
@@ -2429,7 +2834,7 @@ impl Mirror {
             if let Some(h) = self.held_rings.remove(&chid) {
                 // A ring held before is covered by this one (its jobs are older).
                 self.note_ring_completed(&h);
-                self.ring_gate.set_waiting(self.held_rings.len());
+                self.update_waiting();
             } else {
                 self.ring_stats.direct += 1;
             }
@@ -2454,13 +2859,14 @@ impl Mirror {
     /// Forward the held rings whose root's jobs are applied and whose root no hold names
     /// (the completer thread, under the device lock briefly; ringgate.rs).
     pub fn complete_held_rings(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
+        // Builds the worker finished first: a commit may ring at once or hold its ring.
+        let mut notes = self.commit_finished_builds(reg, gm);
         let ready: Vec<u32> = self
             .held_rings
             .iter()
             .filter(|(_, r)| crate::ringgate::ready(r, &self.worker.progress, &self.ring_gate))
             .map(|(c, _)| *c)
             .collect();
-        let mut notes = Vec::new();
         for chid in ready {
             let Some(h) = self.held_rings.remove(&chid) else { continue };
             if !self.channels.contains_key(&chid) {
@@ -2475,7 +2881,7 @@ impl Mirror {
             ));
             notes.extend(self.ring_now(reg, gm, chid));
         }
-        self.ring_gate.set_waiting(self.held_rings.len());
+        self.update_waiting();
         notes
     }
 
@@ -2552,6 +2958,14 @@ impl Mirror {
 
     /// The first doorbell of channel `chid` (or its preparation, `submit` false): build its
     /// mirror on the host (VAS, TSG, channel, USERD, engine objects, scheduling).
+    ///
+    /// Off the device lock (execution.md §9.2): under the lock this takes the build's inputs
+    /// from the guest's state (the VAS and its set-A plan, the USERD and error-notifier pages,
+    /// the engine objects, the preemption request), and hands the host RM calls to the shadow
+    /// worker as one job after the root's plans ([`build_on_host`]). The channel's ring is
+    /// held until [`Self::commit_build`] schedules the channel and rings it, under the lock,
+    /// at the completer's next pass (or at the channel's next doorbell). A preparation
+    /// (`submit` false) waits for its build: its caller needs the host context at once.
     fn shadow_build(
         &mut self,
         reg: &Registry,
@@ -2561,6 +2975,7 @@ impl Mirror {
         submit: bool,
         lazy_notes: Vec<String>,
     ) -> Vec<String> {
+        let since = Instant::now();
         let Some(vas_key) = reg.vas_key_of(&ch) else {
             return vec![format!("shadow: chid {chid} has no VA space")];
         };
@@ -2584,11 +2999,11 @@ impl Mirror {
         // A bare CE channel (`bare_ce`, the GL driver's) gets a host TSG of its own, keyed
         // by its internal TSG id (615) or its handle, on the channel's own engine.
         let (tsg_key, bare, tsg_guest) = tsg_key_of(reg, &ch);
-        // The host RM clears the channel's USERD when it creates the mirror; the guest has
-        // already written its GPFIFO entry and GPPut for the submission that rang this
-        // doorbell. Save them now and restore them after the alloc, or the GR PBDMA sees
-        // GPPut 0 and fetches nothing (measured 2026-09-23: GPGet 0 / GPPut 0, the launch
-        // hung with no Xid).
+        // A sysmem USERD is zeroed by the host RM when it allocates the channel (mbuild.rs
+        // `put_to_restore`); the guest has already written its GPFIFO entry and GPPut for the
+        // submission that rang this doorbell. Save them now and write them back at the
+        // commit, or the GR PBDMA sees GPPut 0 and fetches nothing (measured 2026-09-23:
+        // GPGet 0 / GPPut 0, the launch hung with no Xid).
         let saved_userd = ch.userd.map(|u| {
             let at = |o: u64| match u {
                 Target::Fb(pa) => Target::Fb(pa + o),
@@ -2623,11 +3038,12 @@ impl Mirror {
         // The owned-GFXP slot VA window is never mirrored (gfxpslot.rs).
         .with_slot_window(self.slots.as_ref().map(|s| s.va_window()));
         if let std::collections::btree_map::Entry::Vacant(slot) = self.shadows.entry(root) {
+            let t0 = Instant::now();
             match crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone(), &layout) {
                 Ok(mut sv) => {
                     sv.comp = self.comp.clone();
                     notes.push(format!(
-                        "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{}{} [host]",
+                        "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{}{} in {} us [host]",
                         sv.vas,
                         sv.va_start,
                         if layout.va_base == 0 && sv.va_start != 0 {
@@ -2650,7 +3066,8 @@ impl Mirror {
                             )
                         } else {
                             String::new()
-                        }
+                        },
+                        t0.elapsed().as_micros()
                     ));
                     let vas = sv.vas;
                     self.worker.submit(Job::Create(root, Box::new(sv)));
@@ -2677,7 +3094,9 @@ impl Mirror {
         sp.tsgs.insert(tsg_key);
         let exclude = sp.exclude.clone();
         // Mirror the guest's set-A before the channel/GPFIFO VA is validated against the
-        // VAS: plan here, apply in the worker, and wait for it.
+        // VAS: plan here; the worker applies it before the build job below (a root's jobs
+        // never pass each other), so nothing waits for it here.
+        let t_plan = Instant::now();
         let plan = sp.front.plan(
             gm.fb,
             gm.sys,
@@ -2689,10 +3108,16 @@ impl Mirror {
         );
         let vas_handle = sp.vas;
         drop(h);
+        let planned = t_plan.elapsed();
+        crate::dlock::work("mirror", "build walk (the root's set-A plan)".into(), planned);
+        if planned >= std::time::Duration::from_millis(1) {
+            crate::dlock::tag(|| format!("build chid {chid} walk {} ms", planned.as_millis()));
+        }
         if let Some(plan) = plan {
             self.worker.submit(Job::Apply(plan, Instant::now()));
         }
-        self.worker.wait_all();
+        // Diagnostics only (`CARAXES_SHADOW_CHANNEL_DIAG=1`): the coverage query waits for
+        // the worker.
         let diag_gpfifo = (std::env::var("CARAXES_SHADOW_CHANNEL_DIAG").as_deref() == Ok("1")).then(|| {
             let bytes = u64::from(ch.gpfifo_entries).saturating_mul(8);
             let Some(end) = ch.gpfifo_va.checked_add(bytes) else {
@@ -2718,359 +3143,411 @@ impl Mirror {
         if let Some(sp) = self.shadows.get_mut(&root) {
             sp.tsgs.insert(tsg_key);
         }
-        let mut h = self.hm.lock().unwrap();
-        // One host TSG per guest TSG, on the shadow VAS (GR0): the guest's GR channels
-        // of one group (CUDA's chids 2-9, one TSG, one context share) share one GR
-        // context on the host too, so state a push sets on one channel is what a launch
-        // on another sees (the guest's layout; before, every channel got its own TSG and
-        // context, and `self.tsgs` kept only the last handle).
-        let mut new_tsg = false;
-        let tsg = match self.tsgs.get(&tsg_key) {
-            Some(t) => {
-                notes.push(format!(
-                    "shadow: chid {chid} joins host TSG {:#x} of guest TSG {:#x} ({tsg_key}) [host]",
-                    t.handle, tsg_guest.1
-                ));
-                t.handle
-            }
-            None => {
-                let gr = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
-                // The guest TSG's engine: GR0 for a compute channel, COPYn for a CE one.
-                let engine_type = match reg.tsg(tsg_guest) {
-                    Some((_, e)) if e != 0 => e,
-                    _ if bare && ch.engine_type != 0 => ch.engine_type,
-                    _ => gr,
-                };
-                // The host driver's layout (hostabi.rs).
-                let mut tp = crate::hostabi::current().tsg_params(vas_handle, engine_type);
-                let device = h.device();
-                let tsg = match h.alloc_object(
-                    device,
-                    sys::KEPLER_CHANNEL_GROUP_A,
-                    &mut tp,
-                    "shadow-tsg",
-                ) {
-                    Ok(x) => x,
-                    Err(st) => {
-                        notes.push(format!("shadow: TSG refused: {}", status_name(st)));
-                        if crate::hostfloor::is_exhaustion(st) {
-                            self.exhausted.insert(chid);
-                        }
-                        drop(h);
-                        self.abandon_shadow_build(root, chid, tsg_key, &mut notes);
-                        return notes;
-                    }
-                };
-                notes.push(format!(
-                    "shadow: host TSG {tsg:#x} for guest TSG {:#x} ({tsg_key}) on VAS {vas_handle:#x} [host]",
-                    tsg_guest.1
-                ));
-                self.tsgs.insert(
-                    tsg_key,
-                    HostTsg {
-                        handle: tsg,
-                        vas: vas_key,
-                        engine: engine_type,
-                        guest: tsg_guest,
-                        gfxp: None,
-                        preempt: TsgPreempt::default(),
-                    },
-                );
-                new_tsg = true;
-                tsg
-            }
-        };
-        // Owned GFXP for a new host TSG with a 3D object (gfxpslot.rs), bound in the build
-        // below before the first schedule; `None`: not attempted.
-        let mut gfxp: Option<Result<OwnedGfxp, (Option<OwnedGfxp>, String)>> = None;
-        // Everything this build makes on the host, freed newest first when it fails (a
-        // channel refused after its guest pages were wrapped, or built but never scheduled,
-        // used to stay until the device exited: one leak per doorbell of a refused channel).
-        let mut owned: Vec<u32> = Vec::new();
-        let mut shadow_userd: Option<ShadowUserd> = None;
-        let mut rc_page: Option<crate::hostmem::DevicePage> = None;
-        // Steps 0 and 1 of the GR preemption fix (preempt.rs), once per host GR TSG: after
-        // the first GR object made its context and before this channel's first
-        // GPFIFO_SCHEDULE, read the host modes and bind the guest's recorded compute request.
-        let gr_engine = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
-        let preempt_check = self
-            .tsgs
-            .get(&tsg_key)
-            .is_some_and(|t| t.engine == gr_engine && !t.preempt.checked);
-        let preempt_request = if preempt_check {
-            reg.preemption(tsg_guest)
-        } else {
-            None
-        };
-        let sw_classes = [self.chip.channel.uvm_sw, 0x5080];
-        let mut preempt_applied: Option<crate::preempt::Applied> = None;
-        let built = (|| -> Result<Built, (String, Option<u32>)> {
-            // P21 design H: a USERD page the guest maps into the BAR1 pool area lives at
-            // its pool page (fb.rs `remap`).
-            let userd = match ch.userd.map(|t| match t {
-                Target::Fb(pa) => Target::Fb(gm.fb.remap(pa)),
-                t => t,
-            }) {
-                Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => {
-                    (self.reservation, pa - self.base)
-                }
-                // USERD in guest sysmem (the guest's RMInstLoc USERD=COH,
-                // docs/caraxes/mapping.md §6): the host memory object over the guest's own
-                // page, as for a CE channel.
-                Some(Target::Sys(iova)) if std::env::var("CARAXES_SHADOW_USERD").as_deref() == Ok("1") => {
-                    let mut snapshot = [0; crate::userd::USERD_BYTES];
-                    if iova % 512 != 0 || !gm.read(Target::Sys(iova), &mut snapshot) {
-                        return Err(("shadow USERD: guest extent is unaligned or unreadable".into(), None));
-                    }
-                    let page = h.alloc_host_userd().map_err(|st| (
-                        format!("shadow USERD allocation: {}", status_name(st)), Some(st)
-                    ))?;
-                    let handle = page.handle();
-                    notes.push(format!("shadow USERD chid {chid}: guest sysmem {iova:#x} -> private host vidmem {:#x}, object {handle:#x} [host]", page.gpu_addr()));
-                    shadow_userd = Some(ShadowUserd {
-                        storage: page, guest: iova, entries: ch.gpfifo_entries, published_put: None,
-                        harvested: None,
-                    });
-                    (handle, 0)
-                }
-                Some(Target::Sys(iova)) => {
-                    match gm
-                        .sys
-                        .translate(iova & !(PAGE - 1), PAGE)
-                        .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
-                        .map(|ptr| h.guest_page_object(ptr, PAGE, "shadow-userd-page"))
-                    {
-                        Some(Ok(d)) => {
-                            owned.push(d);
-                            (d, iova & (PAGE - 1))
-                        }
-                        other => {
-                            return Err((
-                                format!(
-                                    "shadow: chid {chid} USERD IOVA {iova:#x} not registered guest RAM ({:?})",
-                                    other.map(|r| r.map_err(|e| e.to_string()))
-                                ),
-                                None,
-                            ))
-                        }
-                    }
-                }
-                other => {
-                    return Err((
-                        format!("shadow: chid {chid} USERD {other:?} not a vidmem reservation page"),
-                        None,
-                    ))
-                }
-            };
-            // The error notifier: the guest's page, so the host RM writes an RC there and
-            // the guest sees the fault (returns 719) instead of hanging to the 30 s
-            // watchdog (the CE path does this; without it launch5 hung on the MMU fault).
-            let h_error = match ch.error_notifier {
-                Some(Target::Sys(iova)) if iova % PAGE == 0 => gm
-                    .sys
-                    .translate(iova, PAGE)
-                    .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
-                    .and_then(|ptr| h.guest_page_object(ptr, PAGE, "shadow-error-notifier").ok())
-                    .inspect(|d| owned.push(*d))
-                    .unwrap_or(0),
-                _ => 0,
-            };
-            let h_error = if h_error != 0 {
-                h_error
-            } else {
-                match h.device_page_object("rc-notifier") {
-                    Ok((d, page)) => {
-                        owned.push(d);
-                        rc_page = Some(page);
-                        d
-                    }
-                    Err(e) => {
-                        notes.push(format!(
-                            "shadow: chid {chid}: no host error notifier ({e:#}); an RC of this channel reaches the guest only as a fence timeout [host]"
-                        ));
-                        0
-                    }
-                }
-            };
-            let mut cp = crate::hostabi::ChannelAllocParams::default();
-            cp.flags = HOST_MIRROR_CHANNEL_FLAGS;
-            cp.hObjectError = h_error;
-            cp.gpFifoOffset = ch.gpfifo_va;
-            cp.gpFifoEntries = ch.gpfifo_entries;
-            cp.hUserdMemory[0] = userd.0;
-            cp.userdOffset[0] = userd.1;
-            cp.engineType = ch.engine_type;
-            if let Some((bytes, end, guest, host, hits)) = &diag_gpfifo {
-                notes.push(format!(
-                    "shadow diagnostic: chid {chid} GPFIFO start {:#x} end {end:#x?} {} entries/{bytes:#x} bytes: guest {guest}; host {host}; set-B intersections {hits:x?}; USERD object {:#x}+{:#x}; engineType {:#x}; guest alloc_flags {:#x}; host flags {:#x}/internalFlags {:#x}; host ABI {} [host]",
-                    ch.gpfifo_va, ch.gpfifo_entries, userd.0, userd.1, ch.engine_type,
-                    ch.alloc_flags, cp.flags, cp.internalFlags, crate::hostabi::current().driver(),
-                ));
-            }
-            let channel = match h.alloc_object(
-                tsg,
-                crate::board::host_class_of(self.chip.channel.gpfifo),
-                as_bytes(&mut cp),
-                "shadow-channel",
-            ) {
-                Ok(x) => x,
-                Err(st) => {
-                    return Err((
-                        format!(
-                            "shadow: channel refused: {} (gpfifo va {:#x})",
-                            status_name(st),
-                            ch.gpfifo_va
-                        ),
-                        Some(st),
-                    ))
-                }
-            };
-            owned.push(channel);
-            notes.push(format!("shadow: host GR channel {channel:#x} in TSG {tsg:#x} on VAS {vas_handle:#x}, gpfifo va {:#x} [host]", ch.gpfifo_va));
-            // The guest's engine objects; the compute object makes the host RM build set B.
-            let mut objects = Vec::new();
-            let mut engine_map = BTreeMap::new();
-            let mut refused = None;
-            for (guest_handle, class, params) in ch.engine_objects_with_handles() {
-                let mut p = params.to_vec();
-                match h.alloc_object(channel, crate::board::host_class_of(class), &mut p, "shadow-engine") {
-                    Ok(oh) => {
-                        notes.push(format!(
-                            "shadow: chid {chid} host object class {class:#x}{} {oh:#x} [host]",
-                            crate::board::mapped_note(class)
-                        ));
-                        objects.push((class, oh));
-                        engine_map.insert(guest_handle, oh);
-                    }
-                    Err(e) => {
-                        refused = refused.or(Some(e));
-                        notes.push(format!(
-                            "shadow: chid {chid} object class {class:#x} refused: {}",
-                            status_name(e)
-                        ))
-                    }
-                }
-            }
-            if objects.is_empty() {
-                // A video channel rings before its engine object exists, and the guest
-                // waits for that first push before it allocates the object (a held doorbell
-                // deadlocked for 10 s, 2026-09-25 probe-hold). The host channel is bound to
-                // the engine instead; the object follows at the guest's allocation
-                // (`place_video_object`). A copy channel likewise (`copy_bind`); its object
-                // is added on the host at the guest's allocation (`add_engine_object`).
-                let Some(engine) = video_bind(self.chip, &ch).or_else(|| copy_bind(&ch)) else {
-                    return Err(("shadow: no engine object; not scheduling".into(), refused));
-                };
-                let mut p = engine.to_le_bytes();
-                let st = h.control(channel, CMD_CHANNEL_BIND, &mut p);
-                if st != sys::NV_OK {
-                    return Err((
-                        format!(
-                            "shadow: chid {chid} BIND engineType {engine:#x}: {}; not scheduling",
-                            status_name(st)
-                        ),
-                        None,
-                    ));
-                }
-                notes.push(format!(
-                    "shadow: chid {chid} host channel bound to engineType {engine:#x} ({}; its object follows the guest's) [host]",
-                    video_engine(engine).unwrap_or("copy engine")
-                ));
-            }
-            // Owned GFXP (gfxpslot.rs): a new host TSG with a 3D object gets a slot of the VM's
-            // slice bound before its first schedule, for every guest (NVIDIA's vGPU binds GFXP
-            // for every 3D object of a Unix guest, rpc.c:3951-3956 of 615). No slot: the
-            // context stays in graphics WFI.
-            let three_d = objects
-                .iter()
-                .any(|(class, _)| crate::board::host_class_of(*class) == HOST_3D_CLASS);
-            if new_tsg && three_d {
-                if let Some(slots) = self.slots.as_mut() {
-                    gfxp = Some(attach_gfxp(
-                        &mut h,
-                        slots,
-                        vas_handle,
-                        tsg,
-                        channel,
-                        self.reservation,
-                        self.base,
-                    ));
-                }
-            }
-            // The GR context exists once an object of the GR engine does (not the UVM or
-            // deferred-API software classes); the channel is not scheduled yet.
-            if preempt_check && objects.iter().any(|(class, _)| !sw_classes.contains(class)) {
-                preempt_applied = Some(crate::preempt::apply_compute(
-                    &*h,
-                    tsg,
-                    channel,
-                    preempt_request.and_then(|r| r.compute),
-                ));
-            }
-            if let Some(u) = shadow_userd.as_mut() {
-                // Initialize an unscheduled, empty ring once. Later copies never
-                // overwrite GPU-owned state; new GPPut is published before the doorbell.
-                let get = gm.read_u32(Target::Sys(u.guest + 0x88))
-                    .filter(|get| *get < u.entries)
-                    .ok_or_else(|| ("shadow USERD: invalid initial GPGet".into(), None))?;
-                u.storage.write_u32(0x88, get);
-                // Hold the ring empty until token acquisition and ownership insertion.
-                u.storage.write_u32(0x8c, get);
-                u.storage.flush();
-            }
-            let mut sched = [1u8, 0, 0];
-            let st = h.control(channel, CMD_GPFIFO_SCHEDULE, &mut sched);
-            if st != sys::NV_OK {
-                return Err((format!("shadow: GPFIFO_SCHEDULE: {}", status_name(st)), None));
-            }
-            let mut tok = [0u8; 4];
-            let st = h.control(channel, CMD_GET_WORK_SUBMIT_TOKEN, &mut tok);
-            if st != sys::NV_OK {
-                return Err((
-                    format!("shadow: GET_WORK_SUBMIT_TOKEN: {}", status_name(st)),
-                    None,
-                ));
-            }
-            Ok((channel, objects, engine_map, u32::from_le_bytes(tok)))
-        })();
-        let (channel, objects, engine_map, token) = match built {
-            Ok(b) => b,
-            Err((why, st)) => {
+        // The USERD the host channel uses, from the guest's state now.
+        let userd = match self.userd_plan(gm, chid, &ch) {
+            Ok(u) => u,
+            Err(why) => {
                 notes.push(why);
-                // An owned GFXP set bound in this build goes back first (WFI, unmap, slot).
-                if let Some(Ok(mut set)) = gfxp.take() {
-                    let _ = bind_gfxp(&h, tsg, 0, &[0; 5]);
-                    if let Err(e) =
-                        release_gfxp(&mut h, self.slots.as_mut(), self.reservation, &mut set)
-                    {
-                        notes.push(format!("ERROR gfxp: tsg {tsg_key}: {e}; set retained"));
-                        if let Some(t) = self.tsgs.get_mut(&tsg_key) {
-                            t.gfxp = Some(set);
-                        }
-                    }
-                }
-                // Newest first: the channel (with its engine objects), then the guest pages.
-                let mut freed = true;
-                for d in owned.into_iter().rev() {
-                    freed &= h.free_object(d).is_ok();
-                }
-                if let Some(u) = shadow_userd.take() {
-                    // If a channel free failed, retain its tracked memory object until
-                    // RM client teardown; the CPU mapping may still be dropped safely.
-                    if freed {
-                        let _ = h.free_host_userd(u.storage);
-                    }
-                }
-                drop(h);
-                if st.is_some_and(crate::hostfloor::is_exhaustion) {
-                    self.exhausted.insert(chid);
-                }
                 self.abandon_shadow_build(root, chid, tsg_key, &mut notes);
                 return notes;
             }
         };
-        let pages: Vec<u32> = owned.into_iter().filter(|d| *d != channel).collect();
-        match gfxp {
+        // The error notifier: the guest's page, so the host RM writes an RC there and
+        // the guest sees the fault (returns 719) instead of hanging to the 30 s
+        // watchdog (the CE path does this; without it launch5 hung on the MMU fault).
+        let error_page = match ch.error_notifier {
+            Some(Target::Sys(iova)) if iova % PAGE == 0 => gm
+                .sys
+                .translate(iova, PAGE)
+                .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
+                .map(|p| p as usize),
+            _ => None,
+        };
+        // One host TSG per guest TSG, on the shadow VAS (GR0): the guest's GR channels
+        // of one group (CUDA's chids 2-9, one TSG, one context share) share one GR
+        // context on the host too, so state a push sets on one channel is what a launch
+        // on another sees (the guest's layout; before, every channel got its own TSG and
+        // context, and `self.tsgs` kept only the last handle). The builds of one guest TSG
+        // in flight share its cell: the first one the worker runs makes the host TSG.
+        let gr_engine = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+        let engine_type = match self.tsgs.get(&tsg_key) {
+            Some(t) => t.engine,
+            None => match reg.tsg(tsg_guest) {
+                // The guest TSG's engine: GR0 for a compute channel, COPYn for a CE one.
+                Some((_, e)) if e != 0 => e,
+                _ if bare && ch.engine_type != 0 => ch.engine_type,
+                _ => gr_engine,
+            },
+        };
+        let first_of_tsg =
+            !self.tsgs.contains_key(&tsg_key) && !self.builds.values().any(|b| b.tsg_key == tsg_key);
+        let cell = self.tsg_cell(tsg_key);
+        let objects: Vec<(u32, u32, Vec<u8>)> = ch
+            .engine_objects_with_handles()
+            .map(|(handle, class, params)| (handle, class, params.to_vec()))
+            .collect();
+        // Owned GFXP (gfxpslot.rs): a slot for the new host TSG of a channel with a 3D object,
+        // bound on the worker before its first schedule; given back at the commit if unused.
+        let gfxp_slot = (first_of_tsg
+            && objects
+                .iter()
+                .any(|(_, class, _)| crate::board::host_class_of(*class) == HOST_3D_CLASS))
+        .then(|| {
+            self.slots.as_mut().map(|s| {
+                s.alloc()
+                    .map(|i| (i, s.buffers(i)))
+                    .ok_or_else(|| format!("all {} slots in use", s.count()))
+            })
+        })
+        .flatten();
+        // Steps 0 and 1 of the GR preemption fix (preempt.rs), once per host GR TSG: after
+        // the first GR object made its context and before this channel's first
+        // GPFIFO_SCHEDULE, read the host modes and bind the guest's recorded compute request.
+        let preempt_request = reg.preemption(tsg_guest);
+        let out = Arc::new(Mutex::new(None));
+        let input = BuildInput {
+            chid,
+            vas_handle,
+            tsg_key,
+            tsg_guest,
+            cell: cell.clone(),
+            engine_type,
+            userd,
+            error_page,
+            gpfifo_va: ch.gpfifo_va,
+            gpfifo_entries: ch.gpfifo_entries,
+            channel_engine: ch.engine_type,
+            alloc_flags: ch.alloc_flags,
+            objects,
+            bind_engine: video_bind(self.chip, &ch).or_else(|| copy_bind(&ch)),
+            gpfifo_class: crate::board::host_class_of(self.chip.channel.gpfifo),
+            gfxp_slot: gfxp_slot.clone(),
+            reservation: self.reservation,
+            base: self.base,
+            preempt: (engine_type == gr_engine).then_some(preempt_request.and_then(|r| r.compute)),
+            sw_classes: [self.chip.channel.uvm_sw, 0x5080],
+            diag: diag_gpfifo,
+        };
+        let slot2 = out.clone();
+        let job: HostCall = Box::new(move |hm| {
+            let o = build_on_host(input, hm);
+            *slot2.lock().unwrap_or_else(PoisonError::into_inner) = Some(o);
+            Vec::new()
+        });
+        if self.worker.thread.is_some() {
+            self.worker.submit(Job::Call(root, job, None));
+        } else {
+            job(&self.hm);
+        }
+        let seq = self.worker.seqs.last_of(root);
+        self.next_build += 1;
+        self.builds.insert(
+            chid,
+            PendingBuild {
+                id: self.next_build,
+                root,
+                seq,
+                generation: ch.generation,
+                h_client: ch.h_client,
+                h_channel: ch.h_object,
+                tsg_key,
+                tsg_guest,
+                vas_key,
+                engine_type,
+                slot: gfxp_slot.and_then(|r| r.ok()).map(|(i, _)| i),
+                out,
+                saved_userd,
+                newest_put: saved_userd.and_then(|(_, _, _, put)| put),
+                ring_seq: seq,
+                doorbells: 1,
+                since,
+                submit,
+                preempt_request,
+                late_objects: Vec::new(),
+                channel_engine: ch.engine_type,
+                alloc_flags: ch.alloc_flags,
+            },
+        );
+        self.build_stats.started += 1;
+        self.update_waiting();
+        if !submit || self.build_finished(chid) {
+            if !self.build_finished(chid) {
+                self.wait_build(chid);
+            } else {
+                self.build_stats.inline += 1;
+            }
+            notes.extend(self.commit_build(reg, gm, chid));
+            return notes;
+        }
+        notes.push(format!(
+            "shadow: chid {chid} mirror build handed to the worker (job {seq}, {} us under the lock); its ring is held until the build is committed [host]",
+            since.elapsed().as_micros()
+        ));
+        crate::dlock::tag(|| format!("build chid {chid} snapshot {} us", since.elapsed().as_micros()));
+        crate::dlock::work("mirror", "build snapshot".into(), since.elapsed());
+        notes
+    }
+
+    /// The USERD a build's host channel uses (from the guest's state under the lock).
+    fn userd_plan(&self, gm: &mut GpuMem, chid: u32, ch: &crate::channel::Channel) -> Result<UserdPlan, String> {
+        // P21 design H: a USERD page the guest maps into the BAR1 pool area lives at
+        // its pool page (fb.rs `remap`).
+        match ch.userd.map(|t| match t {
+            Target::Fb(pa) => Target::Fb(gm.fb.remap(pa)),
+            t => t,
+        }) {
+            Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => {
+                Ok(UserdPlan::Fb(self.reservation, pa - self.base))
+            }
+            // USERD in guest sysmem (the guest's RMInstLoc USERD=COH,
+            // docs/caraxes/mapping.md §6): the host memory object over the guest's own
+            // page, as for a CE channel.
+            Some(Target::Sys(iova)) if std::env::var("CARAXES_SHADOW_USERD").as_deref() == Ok("1") => {
+                let mut snapshot = [0; crate::userd::USERD_BYTES];
+                if iova % 512 != 0 || !gm.read(Target::Sys(iova), &mut snapshot) {
+                    return Err("shadow USERD: guest extent is unaligned or unreadable".into());
+                }
+                Ok(UserdPlan::Private {
+                    iova,
+                    entries: ch.gpfifo_entries,
+                })
+            }
+            Some(Target::Sys(iova)) => gm
+                .sys
+                .translate(iova & !(PAGE - 1), PAGE)
+                .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
+                .map(|ptr| UserdPlan::GuestPage {
+                    ptr: ptr as usize,
+                    offset: iova & (PAGE - 1),
+                    iova,
+                })
+                .ok_or_else(|| format!("shadow: chid {chid} USERD IOVA {iova:#x} not registered guest RAM")),
+            other => Err(format!(
+                "shadow: chid {chid} USERD {other:?} not a vidmem reservation page"
+            )),
+        }
+    }
+
+    /// The host TSG cell of guest TSG `key` for a build (mbuild.rs `TsgCell`): shared with the
+    /// builds in flight, else fresh (from the committed host TSG, if there is one).
+    fn tsg_cell(&mut self, key: TsgKey) -> Arc<Mutex<crate::mbuild::TsgCell>> {
+        let committed = self
+            .tsgs
+            .get(&key)
+            .map(|t| crate::mbuild::TsgCell::committed(t.handle, t.preempt.checked));
+        self.tsg_cells
+            .entry(key)
+            .or_insert_with(|| Arc::new(Mutex::new(committed.unwrap_or_default())))
+            .clone()
+    }
+
+    /// Whether the worker has finished the build of `chid`.
+    fn build_finished(&self, chid: u32) -> bool {
+        self.builds
+            .get(&chid)
+            .is_some_and(|b| b.out.lock().unwrap_or_else(PoisonError::into_inner).is_some())
+    }
+
+    /// Wait under the lock for the build of `chid` (a preparation; a free of its objects).
+    fn wait_build(&mut self, chid: u32) {
+        let Some(b) = self.builds.get(&chid) else {
+            return;
+        };
+        if self.worker.thread.is_none() || self.build_finished(chid) {
+            return;
+        }
+        let t0 = Instant::now();
+        self.worker
+            .progress
+            .wait(&crate::invgate::Target::Roots(vec![(b.root, b.seq)]));
+        self.build_stats.waited += 1;
+        self.build_stats.waited_ns += t0.elapsed().as_nanos() as u64;
+    }
+
+    /// Rings the completer waits for: held rings and builds in flight.
+    fn update_waiting(&self) {
+        self.ring_gate
+            .set_waiting(self.held_rings.len() + self.builds.len());
+    }
+
+    /// A doorbell of channel `chid` whose mirror build is in flight (execution.md §9.2): the
+    /// root is re-synced as at a built channel's doorbell, the newest GPPut and the root's
+    /// last job are noted for the commit, and the build is committed now if the worker has
+    /// finished it.
+    fn build_doorbell(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
+        let Some((root, put_at)) = self
+            .builds
+            .get(&chid)
+            .map(|b| (b.root, b.saved_userd.map(|(_, put, _, _)| put)))
+        else {
+            return Vec::new();
+        };
+        let mut notes = self.shadow_resync(reg, gm, Some(root));
+        // A zero here is the host RM's clear, not a store: the guest cannot wrap its GPPut
+        // back to 0 while nothing it submitted is fetched (GPGet stays 0).
+        let put = put_at.and_then(|at| gm.read_u32(at)).filter(|p| *p != 0);
+        let last = self.worker.seqs.last_of(root);
+        if let Some(b) = self.builds.get_mut(&chid) {
+            b.newest_put = put.or(b.newest_put);
+            b.ring_seq = last;
+            b.doorbells += 1;
+        }
+        self.build_stats.joined += 1;
+        if self.build_finished(chid) {
+            notes.extend(self.commit_build(reg, gm, chid));
+        } else {
+            notes.push(format!(
+                "shadow: chid {chid} doorbell joined its mirror build in flight [host]"
+            ));
+        }
+        notes
+    }
+
+    /// Commit every build the worker has finished, oldest first (the completer; ringgate.rs).
+    fn commit_finished_builds(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
+        let mut done: Vec<(u64, u32)> = self
+            .builds
+            .iter()
+            .filter(|(_, b)| b.out.lock().unwrap_or_else(PoisonError::into_inner).is_some())
+            .map(|(c, b)| (b.id, *c))
+            .collect();
+        done.sort_unstable();
+        let mut notes = Vec::new();
+        for (_, chid) in done {
+            notes.extend(self.commit_build(reg, gm, chid));
+        }
+        notes
+    }
+
+    /// Wait for and commit the builds in flight that a guest free of `(h_client, h_object)`
+    /// concerns (the channel, one of its engine objects, its TSG, its VA space, or the client
+    /// of any of them), so the free finds them built (boot.rs, before `Dispatcher::free`).
+    /// Any other free leaves them in flight. Rare: a build lives about a second.
+    pub fn settle_builds_for_free(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        h_client: u32,
+        h_object: u32,
+    ) -> Vec<String> {
+        if self.builds.is_empty() {
+            return Vec::new();
+        }
+        let key = reg.resolve((h_client, h_object));
+        let object_of = reg.engine_object(h_client, h_object).map(|(chid, ..)| chid);
+        let mut hit: Vec<(u64, u32)> = self
+            .builds
+            .iter()
+            .filter(|(chid, b)| {
+                let client = h_object == h_client
+                    && (b.h_client == h_client || b.vas_key.0 == h_client || b.tsg_guest.0 == h_client);
+                client
+                    || (b.h_client, b.h_channel) == (h_client, h_object)
+                    || object_of == Some(**chid)
+                    || b.tsg_guest == key
+                    || b.vas_key == key
+            })
+            .map(|(c, b)| (b.id, *c))
+            .collect();
+        hit.sort_unstable();
+        let mut notes = Vec::new();
+        for (_, chid) in hit {
+            self.wait_build(chid);
+            notes.push(format!(
+                "shadow: chid {chid}: mirror build committed before the free of {h_client:#x}/{h_object:#x} [host]"
+            ));
+            notes.extend(self.commit_build(reg, gm, chid));
+        }
+        notes
+    }
+
+    /// A build in flight whose channel, TSG or VA space goes (a free the boot model did not
+    /// settle, a reset): wait for it, then put what it made in the maps unscheduled (token 0,
+    /// context not ready, so nothing rings it), for the caller's teardown to free as any host
+    /// channel. Its doorbells are dropped with the channel.
+    fn settle_build(&mut self, chid: u32, notes: &mut Vec<String>) {
+        if !self.builds.contains_key(&chid) {
+            return;
+        }
+        self.wait_build(chid);
+        let Some(pb) = self.builds.remove(&chid) else {
+            return;
+        };
+        self.update_waiting();
+        self.build_stats.dropped += 1;
+        let Some(built) = self.absorb_build(&pb, chid, notes) else {
+            return;
+        };
+        notes.push(format!(
+            "shadow: chid {chid}: mirror build taken down before its commit (host channel {:#x} never scheduled) [host]",
+            built.channel
+        ));
+        let pages: Vec<u32> = built.owned.iter().copied().filter(|d| *d != built.channel).collect();
+        self.channels.insert(
+            chid,
+            HostChannel {
+                generation: pb.generation,
+                handle: built.channel,
+                tsg: pb.tsg_key,
+                token: 0,
+                objects: built.objects,
+                engine_map: built.engine_map,
+                pages,
+                created: Instant::now(),
+                doorbells: 0,
+                shadow_root: Some(pb.root),
+                fwd_put: None,
+                fwd_unwaited: 0,
+                userd: built.shadow_userd,
+                context_ready: false,
+                rc_page: built.rc_page,
+            },
+        );
+    }
+
+    /// Take a finished build's output into the maps (the commit and the teardown): the host
+    /// TSG it made or joined, its GFXP slot and set, the preemption check. `None`: nothing
+    /// to schedule (the host refused the build, or the job never ran), with the build
+    /// abandoned.
+    fn absorb_build(&mut self, pb: &PendingBuild, chid: u32, notes: &mut Vec<String>) -> Option<HostBuilt> {
+        let key = pb.tsg_key;
+        let out = pb.out.lock().unwrap_or_else(PoisonError::into_inner).take();
+        if !self.builds.values().any(|b| b.tsg_key == key) {
+            self.tsg_cells.remove(&key);
+        }
+        let Some(out) = out else {
+            notes.push(format!("shadow: chid {chid}: mirror build lost (the shadow worker is gone)"));
+            if let (Some(s), Some(slots)) = (pb.slot, self.slots.as_mut()) {
+                slots.free(s);
+            }
+            self.abandon_shadow_build(pb.root, chid, key, notes);
+            return None;
+        };
+        self.build_stats.host(out.host);
+        notes.extend(out.notes);
+        if let Some((handle, made)) = out.tsg {
+            let t = self.tsgs.entry(key).or_insert(HostTsg {
+                handle,
+                vas: pb.vas_key,
+                engine: pb.engine_type,
+                guest: pb.tsg_guest,
+                gfxp: None,
+                preempt: TsgPreempt::default(),
+            });
+            if made && t.handle != handle {
+                notes.push(format!(
+                    "ERROR shadow: tsg {key}: host TSG {handle:#x} made by the build of chid {chid} while {:#x} stands for the guest TSG [host]",
+                    t.handle
+                ));
+            }
+        }
+        // The reserved GFXP slot goes back unless the set holds it.
+        let slot_held = matches!(&out.gfxp, Some(Ok(_)) | Some(Err((Some(_), _))));
+        if let (Some(s), false, Some(slots)) = (pb.slot, slot_held, self.slots.as_mut()) {
+            slots.free(s);
+        }
+        let tsg = out.tsg.map(|(t, _)| t);
+        match out.gfxp {
             Some(Ok(set)) => {
                 let (lo, hi) = self
                     .slots
@@ -3078,71 +3555,252 @@ impl Mirror {
                     .map(|s| s.range(set.slot))
                     .unwrap_or_default();
                 notes.push(format!(
-                    "shadow: tsg {tsg_key}: owned GFXP bound at build (slot {} of the VM's slice [{lo:#x}, {hi:#x}), graphics mode 1 verified) [host]",
+                    "shadow: tsg {key}: owned GFXP bound at build (slot {} of the VM's slice [{lo:#x}, {hi:#x}), graphics mode 1 verified) [host]",
                     set.slot
                 ));
                 self.gfxp_bound += 1;
-                if let Some(t) = self.tsgs.get_mut(&tsg_key) {
+                if let Some(t) = self.tsgs.get_mut(&key) {
                     t.gfxp = Some(set);
                 }
             }
             Some(Err((kept, why))) => {
                 let line = format!(
-                    "WARNING gfxp: tsg {tsg_key} (guest chid {chid}) stays in graphics WFI: {why}"
+                    "WARNING gfxp: tsg {key} (guest chid {chid}) stays in graphics WFI: {why}"
                 );
                 eprintln!("vfio-user-nvgpu: {line}");
                 notes.push(line);
                 self.gfxp_no_slot += 1;
-                if let (Some(set), Some(t)) = (kept, self.tsgs.get_mut(&tsg_key)) {
+                if let (Some(set), Some(t)) = (kept, self.tsgs.get_mut(&key)) {
                     t.gfxp = Some(set);
                 }
             }
             None => {}
         }
+        match out.result {
+            Ok(built) => {
+                if let (Some(a), Some(tsg)) = (out.preempt, tsg) {
+                    self.note_preempt_build(key, tsg, chid, pb.preempt_request, &a, notes);
+                }
+                Some(built)
+            }
+            Err((why, st)) => {
+                notes.push(why);
+                self.build_stats.failed += 1;
+                if st.is_some_and(crate::hostfloor::is_exhaustion) {
+                    self.exhausted.insert(chid);
+                }
+                self.abandon_shadow_build(pb.root, chid, key, notes);
+                None
+            }
+        }
+    }
+
+    /// Commit the finished build of `chid` under the lock (execution.md §9.2): take its
+    /// output into the maps, schedule the channel and get its work-submit token (the host
+    /// channel runs from here on), write back the GPPut the host RM cleared, and ring it once
+    /// the root's jobs up to its newest doorbell are applied (a held ring otherwise).
+    fn commit_build(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
+        let t0 = Instant::now();
+        let Some(pb) = self.builds.remove(&chid) else {
+            return Vec::new();
+        };
+        let mut notes = Vec::new();
+        let built = self.absorb_build(&pb, chid, &mut notes);
+        let committed = self.schedule_build(reg, gm, &pb, chid, built, &mut notes);
+        crate::dlock::tag(|| format!("commit chid {chid} {} us", t0.elapsed().as_micros()));
+        crate::dlock::work("mirror", "build commit".into(), t0.elapsed());
+        self.update_waiting();
+        self.build_stats.committed += 1;
+        self.build_stats.commit(t0.elapsed(), pb.since.elapsed());
+        self.stats.max_create_us = self.stats.max_create_us.max(pb.since.elapsed().as_micros());
+        if !committed {
+            return notes;
+        }
+        // The guest freed or replaced the channel during the build (a free the boot model
+        // did not settle): the host channel goes again at once.
+        if reg.channel(chid).is_none_or(|c| c.generation != pb.generation) {
+            notes.push(format!(
+                "shadow: chid {chid}: the guest replaced the channel during its mirror build; host channel freed [host]"
+            ));
+            self.committed.retain(|(c, _)| *c != chid);
+            self.free_channel(chid, &mut notes);
+            return notes;
+        }
+        if !pb.submit {
+            notes.push(format!(
+                "shadow: chid {chid} context prepared with an empty private USERD; no submission"
+            ));
+            return notes;
+        }
+        // The ring: after the root's jobs up to its newest doorbell (plans submitted during
+        // the build) and while no hold names the root, as for a built channel.
+        let ring = crate::ringgate::HeldRing {
+            root: Some(pb.root),
+            target: crate::invgate::Target::Roots(vec![(pb.root, pb.ring_seq)]),
+            since: Instant::now(),
+            doorbells: pb.doorbells,
+        };
+        if crate::ringgate::ready(&ring, &self.worker.progress, &self.ring_gate) {
+            notes.extend(self.ring_now(reg, gm, chid));
+        } else {
+            self.ring_stats.held += 1;
+            self.held_rings.insert(chid, ring);
+            self.update_waiting();
+            notes.push(format!(
+                "shadow: chid {chid} ring held until root {:#x}'s jobs are applied [host]",
+                pb.root
+            ));
+        }
+        // One-shot USERD read (no poll): GPGet advancing past GPPut's start means the GR
+        // PBDMA fetched the guest's first push; GPGet stuck at 0 means it never fetched
+        // (scheduling/token). Distinguishes a completion-delivery hang from a fetch hang.
+        // Diagnostic only (`CARAXES_MIRROR_DIAG=1`): its 5 ms sleep ran at every shadow
+        // channel's creation, about half a second per CUDA context (mapping.md §3).
+        if let Some((get_at, put_at, _, _)) = pb
+            .saved_userd
+            .filter(|_| std::env::var("CARAXES_MIRROR_DIAG").as_deref() == Ok("1"))
+        {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            notes.push(format!(
+                "shadow: chid {chid} USERD after doorbell: GPGet {:?} GPPut {:?} [host GPU]",
+                gm.read_u32(get_at),
+                gm.read_u32(put_at)
+            ));
+        }
+        notes
+    }
+
+    /// The scheduling half of a commit: the private USERD's first state, GPFIFO_SCHEDULE,
+    /// the work-submit token (the host RM writes it into the guest's notifier page, from
+    /// which the guest rings it from its next submission on), the channel in the maps, the
+    /// engine objects the guest allocated during the build, and the GPPut write-back.
+    /// Whether the channel is scheduled; a refusal frees what the build made.
+    fn schedule_build(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        pb: &PendingBuild,
+        chid: u32,
+        built: Option<HostBuilt>,
+        notes: &mut Vec<String>,
+    ) -> bool {
+        let Some(mut built) = built else {
+            return false;
+        };
+        let key = pb.tsg_key;
+        let tsg = self.tsgs.get(&key).map_or(0, |t| t.handle);
+        let scheduled = (|| -> Result<u32, String> {
+            if let Some(u) = built.shadow_userd.as_mut() {
+                // Initialize an unscheduled, empty ring once. Later copies never
+                // overwrite GPU-owned state; new GPPut is published before the doorbell.
+                let get = gm
+                    .read_u32(Target::Sys(u.guest + 0x88))
+                    .filter(|get| *get < u.entries)
+                    .ok_or("shadow USERD: invalid initial GPGet")?;
+                u.storage.write_u32(0x88, get);
+                // Hold the ring empty until token acquisition and ownership insertion.
+                u.storage.write_u32(0x8c, get);
+                u.storage.flush();
+            }
+            let h = self.hm.lock().unwrap();
+            let mut sched = [1u8, 0, 0];
+            let st = h.control(built.channel, CMD_GPFIFO_SCHEDULE, &mut sched);
+            if st != sys::NV_OK {
+                return Err(format!("shadow: GPFIFO_SCHEDULE: {}", status_name(st)));
+            }
+            let mut tok = [0u8; 4];
+            let st = h.control(built.channel, CMD_GET_WORK_SUBMIT_TOKEN, &mut tok);
+            if st != sys::NV_OK {
+                return Err(format!("shadow: GET_WORK_SUBMIT_TOKEN: {}", status_name(st)));
+            }
+            Ok(u32::from_le_bytes(tok))
+        })();
+        let token = match scheduled {
+            Ok(t) => t,
+            Err(why) => {
+                notes.push(why);
+                self.build_stats.failed += 1;
+                let mut h = self.hm.lock().unwrap();
+                // An owned GFXP set bound in this build goes back first (WFI, unmap, slot):
+                // a TSG this build made holds no other channel.
+                if let Some(t) = self.tsgs.get_mut(&key).filter(|_| pb.slot.is_some()) {
+                    if let Some(mut set) = t.gfxp.take() {
+                        let _ = bind_gfxp(&h, tsg, 0, &[0; 5]);
+                        if let Err(e) = release_gfxp(&mut h, self.slots.as_mut(), self.reservation, &mut set) {
+                            notes.push(format!("ERROR gfxp: tsg {key}: {e}; set retained"));
+                            t.gfxp = Some(set);
+                        }
+                    }
+                }
+                // Newest first: the channel (with its engine objects), then the guest pages.
+                let mut freed = true;
+                for d in built.owned.iter().rev() {
+                    freed &= h.free_object(*d).is_ok();
+                }
+                if let Some(u) = built.shadow_userd.take() {
+                    // If a channel free failed, retain its tracked memory object until
+                    // RM client teardown; the CPU mapping may still be dropped safely.
+                    if freed {
+                        let _ = h.free_host_userd(u.storage);
+                    }
+                }
+                drop(h);
+                self.abandon_shadow_build(pb.root, chid, key, notes);
+                return false;
+            }
+        };
+        let pages: Vec<u32> = built.owned.iter().copied().filter(|d| *d != built.channel).collect();
         self.stats.channels_created += 1;
+        let private_userd = built.shadow_userd.is_some();
         self.channels.insert(
             chid,
             HostChannel {
-                generation: ch.generation,
-                handle: channel,
-                tsg: tsg_key,
+                generation: pb.generation,
+                handle: built.channel,
+                tsg: key,
                 token,
-                objects,
-                engine_map,
+                objects: built.objects,
+                engine_map: built.engine_map,
                 pages,
                 created: Instant::now(),
                 doorbells: 0,
-                shadow_root: Some(root),
+                shadow_root: Some(pb.root),
                 fwd_put: None,
                 fwd_unwaited: 0,
-                userd: shadow_userd,
-                context_ready: submit,
-                rc_page,
+                userd: built.shadow_userd,
+                context_ready: pb.submit,
+                rc_page: built.rc_page,
             },
         );
+        self.committed.push((chid, token));
         notes.push(format!(
-            "shadow: chid {chid} scheduled; host token {token:#x} (host chid {}, runlist {}) [host]",
+            "shadow: chid {chid} scheduled; host token {token:#x} (host chid {}, runlist {}), {} ms after its first doorbell [host]",
             token & 0xFFF,
-            (token >> 16) & 0x7F
+            (token >> 16) & 0x7F,
+            pb.since.elapsed().as_millis()
         ));
-        if ch.alloc_flags & (1 << 5) != 0
-            && ch.engine_type != v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1)
+        if pb.alloc_flags & (1 << 5) != 0
+            && pb.channel_engine != v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1)
         {
             notes.push(format!(
                 "shadow: chid {chid}: the guest's privileged engine {:#x} channel ({}) runs unprivileged on the host (DENY_PHYSICAL_MODE_CE; a privileged or physical-mode method faults this channel only) [host]",
-                ch.engine_type,
-                if video_engine(ch.engine_type).is_some() { "a video engine" } else { "an application's VA space" }
+                pb.channel_engine,
+                if video_engine(pb.channel_engine).is_some() { "a video engine" } else { "an application's VA space" }
             ));
         }
-        drop(h);
-        if let Some(a) = preempt_applied {
-            self.note_preempt_build(tsg_key, tsg, chid, preempt_request, &a, &mut notes);
-        }
-        // Restore the guest's GPGet/GPPut the host RM cleared at channel creation.
-        if let Some((get_at, put_at, Some(get), Some(put))) = saved_userd
-            .filter(|_| self.channels.get(&chid).is_some_and(|hc| hc.userd.is_none()))
+        // A preemption SET of the guest during the build: bound now, as a SET after a build.
+        if self.tsgs.get(&key).is_some_and(|t| t.preempt.checked)
+            && reg.preemption(pb.tsg_guest) != pb.preempt_request
         {
-            if gm.read_u32(put_at) != Some(put) {
+            notes.extend(self.guest_preemption_set(reg, pb.tsg_guest));
+        }
+        // Engine objects the guest allocated during the build.
+        for (handle, class, params) in &pb.late_objects {
+            notes.extend(self.add_engine_object(chid, *handle, *class, params));
+        }
+        // The GPPut the host RM's clear took (mbuild.rs `put_to_restore`).
+        if let Some((get_at, put_at, Some(get), _)) = pb.saved_userd.filter(|_| !private_userd) {
+            if let Some(put) = crate::mbuild::put_to_restore(pb.newest_put, gm.read_u32(put_at)) {
                 gm.write(get_at, &get.to_le_bytes());
                 gm.write(put_at, &put.to_le_bytes());
                 notes.push(format!(
@@ -3151,40 +3809,18 @@ impl Mirror {
             }
         }
         gm.fb.flush();
-        if !submit {
-            notes.push(format!("shadow: chid {chid} context prepared with an empty private USERD; no submission"));
-            return notes;
-        }
-        if let Some(u) = self.channels.get_mut(&chid).and_then(|hc| hc.userd.as_mut()) {
-            if let Err(e) = u.publish(gm) {
-                notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
-                return notes;
-            }
-        }
-        match self.doorbell(chid) {
-            Ok(n) => notes.push(n),
-            Err(e) => notes.push(format!("shadow: doorbell chid {chid}: {e}")),
-        }
-        // One-shot USERD read (no poll): GPGet advancing past GPPut's start means the GR
-        // PBDMA fetched the guest's first push; GPGet stuck at 0 means it never fetched
-        // (scheduling/token). Distinguishes a completion-delivery hang from a fetch hang.
-        // Diagnostic only (`CARAXES_MIRROR_DIAG=1`): its 5 ms sleep ran at every shadow
-        // channel's creation, about half a second per CUDA context (mapping.md §3).
-        let diag = std::env::var("CARAXES_MIRROR_DIAG").as_deref() == Ok("1");
-        if let Some(userd) = ch.userd.filter(|_| diag) {
-            let at = |o: u64| match userd {
-                Target::Fb(pa) => Target::Fb(pa + o),
-                Target::Sys(pa) => Target::Sys(pa + o),
-                t => t,
-            };
-            std::thread::sleep(std::time::Duration::from_millis(5));
-            notes.push(format!(
-                "shadow: chid {chid} USERD after doorbell: GPGet {:?} GPPut {:?} [host GPU]",
-                gm.read_u32(at(0x88)),
-                gm.read_u32(at(0x8C))
-            ));
-        }
-        notes
+        true
+    }
+
+    /// Channels committed since the last call, with their host tokens (ctrl.rs pins a pool
+    /// token over the host token the RM wrote into the guest's notifier).
+    pub fn take_committed(&mut self) -> Vec<(u32, u32)> {
+        std::mem::take(&mut self.committed)
+    }
+
+    /// The exit summary's line of the builds off the lock.
+    pub fn build_summary(&self) -> String {
+        self.build_stats.line(self.builds.len())
     }
 
     /// The guest channel whose host mirror owns work-submit token `token`. The host RM
@@ -4426,6 +5062,13 @@ impl Mirror {
 
     /// An engine object the guest allocated on an already mirrored channel.
     pub fn add_engine_object(&mut self, chid: u32, guest_handle: u32, class: u32, params: &[u8]) -> Option<String> {
+        // A channel whose mirror build is in flight gets the object at the commit.
+        if let Some(b) = self.builds.get_mut(&chid) {
+            b.late_objects.push((guest_handle, class, params.to_vec()));
+            return Some(format!(
+                "chid {chid}: engine object {class:#x} added at its mirror build's commit [host]"
+            ));
+        }
         let hc = self.channels.get_mut(&chid)?;
         if hc.engine_map.contains_key(&guest_handle) {
             return Some(format!("chid {chid}: duplicate live engine handle {guest_handle:#x} refused"));
@@ -5052,6 +5695,8 @@ impl Mirror {
     }
 
     fn free_channel(&mut self, chid: u32, notes: &mut Vec<String>) -> bool {
+        // A build in flight is waited for and freed as a built channel (execution.md §9.2).
+        self.settle_build(chid, notes);
         // Step 0 at teardown (preempt.rs): the live modes, before an owned GFXP set unbinds.
         self.preempt_teardown_read(chid, notes);
         // The owned-GFXP set belongs to the TSG's context: it goes with the TSG's last host
@@ -5066,7 +5711,7 @@ impl Mirror {
         self.exhausted_raised.remove(&chid);
         if self.held_rings.remove(&chid).is_some() {
             self.ring_stats.dropped += 1;
-            self.ring_gate.set_waiting(self.held_rings.len());
+            self.update_waiting();
         }
         if let Some(mut hc) = self.channels.remove(&chid) {
             let r = {
@@ -5116,6 +5761,15 @@ impl Mirror {
     }
 
     fn free_tsg(&mut self, key: TsgKey, notes: &mut Vec<String>) -> bool {
+        let building: Vec<u32> = self
+            .builds
+            .iter()
+            .filter(|(_, b)| b.tsg_key == key)
+            .map(|(c, _)| *c)
+            .collect();
+        for c in building {
+            self.settle_build(c, notes);
+        }
         let chids: Vec<u32> = self
             .channels
             .iter()
@@ -5165,6 +5819,15 @@ impl Mirror {
     }
 
     fn drop_vas(&mut self, key: (u32, u32), notes: &mut Vec<String>) {
+        let building: Vec<u32> = self
+            .builds
+            .iter()
+            .filter(|(_, b)| b.vas_key == key)
+            .map(|(c, _)| *c)
+            .collect();
+        for c in building {
+            self.settle_build(c, notes);
+        }
         let tsgs: Vec<TsgKey> = self
             .tsgs
             .iter()
@@ -5434,6 +6097,10 @@ impl Mirror {
     /// events) and stop the event thread. Idempotent; the mirror stays usable.
     pub fn reset(&mut self) -> Vec<String> {
         let mut notes = Vec::new();
+        let building: Vec<u32> = self.builds.keys().copied().collect();
+        for c in building {
+            self.settle_build(c, &mut notes);
+        }
         let chids: Vec<u32> = self.channels.keys().copied().collect();
         for c in chids {
             self.free_channel(c, &mut notes);
@@ -5459,7 +6126,9 @@ impl Mirror {
         self.inv_gate.clear(&self.worker.progress);
         self.ring_stats.dropped += self.held_rings.len() as u64;
         self.held_rings.clear();
-        self.ring_gate.set_waiting(0);
+        self.tsg_cells.clear();
+        self.committed.clear();
+        self.update_waiting();
         if let Some(inv) = self.invalidator.take() {
             let mut h = self.hm.lock().unwrap();
             notes.push(inv.free(&mut h));

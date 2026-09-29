@@ -2016,6 +2016,9 @@ impl BootModel {
                     "checksum"
                 };
                 let t_rpc = crate::profile::on().then(std::time::Instant::now);
+                // The device lock's work table and the hold's tags (dlock.rs).
+                let t_work = std::time::Instant::now();
+                let work_key = rpc::work_key(h.function, &msg.payload);
                 notes.push(format!(
                     "rx seq {} {} ({}) sequence {} length {} {integrity} {}: {}",
                     msg.seq_num,
@@ -2360,6 +2363,15 @@ impl BootModel {
                         let w =
                             |o: usize| u32::from_le_bytes(p[o..o + 4].try_into().unwrap_or([0; 4]));
                         let (h_client, h_object) = (w(v::FREE_H_ROOT), w(v::FREE_H_OBJECT));
+                        // Mirror builds in flight the free may concern are committed first,
+                        // so the free finds them built (execution.md §9.2).
+                        {
+                            let mut gm = crate::channel::GpuMem {
+                                fb: &mut self.fb,
+                                sys: mem,
+                            };
+                            notes.extend(self.ctrl.settle_builds_for_free(&mut gm, h_client, h_object));
+                        }
                         let a = self.ctrl.free(h_client, h_object);
                         // Shadow VA spaces the free handed to the teardown: drop their
                         // cached walks (docs/caraxes/host-resources.md).
@@ -2604,6 +2616,11 @@ impl BootModel {
                         }
                     }
                 }
+                let spent = t_work.elapsed();
+                if spent >= std::time::Duration::from_millis(1) {
+                    crate::dlock::tag(|| format!("rpc {work_key} {} ms", spent.as_millis()));
+                }
+                crate::dlock::work("rpc", work_key, spent);
                 if let Some(t) = t_rpc {
                     crate::profile::record(
                         crate::profile::Key::Rpc(h.function),

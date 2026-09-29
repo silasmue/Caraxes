@@ -462,7 +462,60 @@ clock's per-tick work takes the display engine's lock and never D.
 - Counters: the mirror line's `held rings: ...` part; the device-lock holds by holder
   (`dlock.rs`) at exit: count, total, p50/p99 bounds, max per holder, and the longest holds.
 - Still waiting under D: the preparation path (`submit` false), the trapped GPPut store's barrier
-  (`gp_put_barrier`), the software MEM_OP hold, the pool's barriers (pool rework), the first
-  doorbell's build (§9.2).
+  (`gp_put_barrier`), the software MEM_OP hold, the pool's barriers (pool rework). The first
+  doorbell's build moved off D in §9.2.
 - Tests: `ringgate::tests` (a ring waits for its root's jobs and holds only; the completer wakes
   on a poke while rings are held), `dlock::tests`.
+
+### 9.2 The mirror build off D (2026-09-29)
+
+- A shadow channel's first doorbell takes the build's inputs under D and hands the host RM calls
+  to the shadow worker as one job (`mirror.rs` `shadow_build`, `build_on_host`).
+  - The inputs: the VAS (made under D if the root is new) and its set-A plan, the USERD plan, the
+    error-notifier page, the engine objects, the preemption request, a reserved GFXP slot.
+  - The job is queued after the root's plans, and a root's jobs never pass each other, so the
+    set-A mirror is there before the host RM validates the GPFIFO VA. Nothing waits for it.
+- The job makes the host TSG, the USERD and error-notifier objects, the channel and the engine
+  objects, then binds GFXP and the compute preemption mode. It takes `hm` per RM call. It does not
+  schedule: the channel cannot run before the commit.
+- The builds of one guest TSG share a cell (`mbuild.rs` `TsgCell`): the first job the worker runs
+  makes the host TSG, the later ones join it, and the preemption check is claimed once.
+- The commit, under D briefly (`commit_build`), runs at the completer's next pass after the job
+  (the worker pokes the gate) or at the channel's next doorbell. It:
+  - takes the job's output into the maps;
+  - schedules the channel and gets its token (the host RM writes the token into the guest's
+    notifier; the dispatcher pins a pool token over it, `take_committed`);
+  - adds the engine objects the guest allocated during the build;
+  - writes back the GPPut the host RM cleared;
+  - rings once the root's jobs up to the newest doorbell are applied, else holds the ring (§9.1).
+- Doorbells during the build join it. The root is re-synced as for a built channel, the newest
+  nonzero GPPut and the root's last job are noted, and the commit rings for all of them.
+- The USERD clear: the host RM zeroes a sysmem USERD at the channel's allocation
+  (`kfifoSetupUserD_HAL`, kernel_channel.c 2435-2449 of 615.71.09), now on the worker.
+  - The commit writes the newest rung GPPut back only over a zero (`put_to_restore`).
+  - A store of the guest after the clear stays. The synchronous build restored the first
+    doorbell's GPPut over any other value, which also overwrote a newer store.
+- Teardown and the free path:
+  - A guest free of the channel, one of its engine objects, its TSG, its VAS or their client
+    first waits for the build and commits it (boot.rs FREE, `settle_builds_for_free`), so the free
+    finds a built channel.
+  - The mirror's own teardowns (`free_channel`, `free_tsg`, `drop_vas`, reset) wait for a build
+    in flight and put it in the maps unscheduled (token 0, context not ready) for the teardown to
+    free (`settle_build`). Its doorbells go with the channel.
+  - These are the only waits under D for a build; they are counted.
+- A preparation (`submit` false, the deferred context) waits for its build under D: its caller
+  needs the host context at once.
+- The BAR1 pool sees a channel in flight as mirrored (`pool_channels`), so it does not move the
+  USERD page the build took.
+- Counters (exit summary, the mirror line):
+  - `mirror builds (execution.md §9.2)`: started, committed, refused, dropped, in flight, joined
+    doorbells, host time on the worker, commit time under D, first doorbell to commit, and the
+    waits under D.
+  - The device-lock work table (`dlock::work`: every GSP RPC by function and command or class,
+    doorbells by software or host, the build's walk, snapshot and commit) and the tags a long hold
+    keeps (`dlock::tag`: what the hold did).
+- Still under D in a build: a new root's VAS allocation (one or two RM calls) and its full walk
+  (§9.3).
+- Tests: `mbuild::tests` (the TSG cell: the first build makes it, the next join, a refusal leaves
+  it empty; the preemption check is claimed once; the GPPut write-back only over the clear; the
+  counters), `dlock::tests` (tags of a long hold, the work table).

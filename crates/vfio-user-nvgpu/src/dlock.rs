@@ -9,7 +9,12 @@
 //! label, and the longest holds with their label and detail (the register of a trapped
 //! access), for the exit summary. Waiting for D is not counted here (the readers' lock-wait
 //! lines count that); a hold is from the acquisition to the release.
+//!
+//! What a hold did: the work under it tags the hold ([`tag`]: an RPC, a mirror build, a
+//! channel's doorbell), and a long hold keeps its tags as detail. The GSP RPCs are also timed
+//! by function and command or class ([`work`]), for the exit summary's work table.
 
+use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -20,6 +25,53 @@ const BUCKETS: usize = 32;
 const LONGEST: usize = 8;
 /// Holds at least this long keep their detail.
 const DETAIL_AT: Duration = Duration::from_millis(5);
+/// Tags kept per hold.
+const TAGS: usize = 12;
+/// Rows of the work table in the summary.
+const WORK_ROWS: usize = 16;
+
+thread_local! {
+    /// The tags of the hold this thread is in, and how deep (a guard inside a guard).
+    static HOLD_TAGS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static DEPTH: Cell<u32> = const { Cell::new(0) };
+}
+
+/// Tag the device-lock hold this thread is in with what it does now (computed only inside a
+/// hold, and only for the first [`TAGS`] tags).
+pub fn tag(f: impl FnOnce() -> String) {
+    if DEPTH.with(|d| d.get()) == 0 {
+        return;
+    }
+    HOLD_TAGS.with(|t| {
+        let mut t = t.borrow_mut();
+        if t.len() < TAGS {
+            t.push(f());
+        } else if t.len() == TAGS {
+            t.push("...".into());
+        }
+    });
+}
+
+#[derive(Clone, Debug, Default)]
+struct WorkRow {
+    count: u64,
+    total_ns: u64,
+    max_ns: u64,
+}
+
+type WorkTable = std::collections::HashMap<(&'static str, String), WorkRow>;
+
+static WORK: Mutex<Option<WorkTable>> = Mutex::new(None);
+
+/// Record `d` of work `kind`/`key` under the device lock (a GSP RPC by function and command).
+pub fn work(kind: &'static str, key: String, d: Duration) {
+    let ns = d.as_nanos() as u64;
+    let mut w = WORK.lock().unwrap_or_else(PoisonError::into_inner);
+    let row = w.get_or_insert_with(Default::default).entry((kind, key)).or_default();
+    row.count += 1;
+    row.total_ns += ns;
+    row.max_ns = row.max_ns.max(ns);
+}
 
 #[derive(Clone, Debug, Default)]
 struct Row {
@@ -110,6 +162,29 @@ pub fn summary() -> Vec<String> {
             .collect::<Vec<_>>()
             .join("; ")
     )];
+    let mut work: Vec<((&'static str, String), WorkRow)> = WORK
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|w| w.iter().map(|(k, r)| (k.clone(), r.clone())).collect())
+        .unwrap_or_default();
+    if !work.is_empty() {
+        work.sort_by(|a, b| b.1.total_ns.cmp(&a.1.total_ns));
+        out.push(format!(
+            "device lock work by kind (top {WORK_ROWS} by total of {}): {}",
+            work.len(),
+            work.iter()
+                .take(WORK_ROWS)
+                .map(|((kind, key), r)| format!(
+                    "{kind} {key} {} x {} ms (max {} us)",
+                    r.count,
+                    r.total_ns / 1_000_000,
+                    r.max_ns / 1000
+                ))
+                .collect::<Vec<_>>()
+                .join("; ")
+        ));
+    }
     if !st.longest.is_empty() {
         out.push(format!(
             "device lock: longest holds: {}",
@@ -134,6 +209,9 @@ pub struct Held<'a, T> {
 /// Take `m` for `label`.
 pub fn lock<'a, T>(m: &'a Mutex<T>, label: &'static str) -> Held<'a, T> {
     let guard = m.lock().unwrap_or_else(PoisonError::into_inner);
+    if DEPTH.with(|d| d.replace(d.get() + 1)) == 0 {
+        HOLD_TAGS.with(|t| t.borrow_mut().clear());
+    }
     Held {
         guard: Some(guard),
         label,
@@ -146,6 +224,11 @@ impl<'a, T> Held<'a, T> {
     /// The detail a long hold keeps (the register of a trapped access), computed only then.
     pub fn detail(&mut self, f: impl FnOnce() -> String + 'a) {
         self.detail = Some(Box::new(f));
+    }
+
+    /// How long the lock has been held so far.
+    pub fn held_for(&self) -> Duration {
+        self.t0.elapsed()
     }
 }
 
@@ -166,8 +249,23 @@ impl<T> Drop for Held<'_, T> {
     fn drop(&mut self) {
         let d = self.t0.elapsed();
         drop(self.guard.take());
+        let outer = DEPTH.with(|n| n.replace(n.get().saturating_sub(1))) == 1;
+        let tags = if outer && d >= DETAIL_AT {
+            HOLD_TAGS.with(|t| std::mem::take(&mut *t.borrow_mut()))
+        } else {
+            Vec::new()
+        };
         let detail = self.detail.take();
-        record(self.label, d, || detail.map_or_else(String::new, |f| f()));
+        record(self.label, d, || {
+            let mut s = detail.map_or_else(String::new, |f| f());
+            if !tags.is_empty() {
+                if !s.is_empty() {
+                    s.push_str(": ");
+                }
+                s.push_str(&tags.join(", "));
+            }
+            s
+        });
     }
 }
 
@@ -191,7 +289,8 @@ mod tests {
         let s = summary();
         assert!(s[0].contains("test: long 1 hold(s)"), "{s:?}");
         assert!(s[0].contains("test: short 1 hold(s)"), "{s:?}");
-        assert!(s[1].contains("test: long (bar0 W 0xb830b0)"), "{s:?}");
+        let longest = s.iter().find(|l| l.starts_with("device lock: longest")).unwrap();
+        assert!(longest.contains("test: long (bar0 W 0xb830b0)"), "{s:?}");
         assert_eq!(bucket(Duration::from_micros(3)), 2);
         assert_eq!(bucket(Duration::ZERO), 0);
         let mut r = Row::default();
@@ -202,5 +301,29 @@ mod tests {
         }
         assert_eq!(quantile(&r, 0.5), Duration::from_micros(4), "2 and 3 us are in [2, 4)");
         assert_eq!(quantile(&r, 0.99), Duration::from_micros(1024));
+    }
+
+    /// A long hold keeps what the work under it tagged; outside a hold a tag is dropped; the
+    /// work table sums by kind and key.
+    #[test]
+    fn a_long_hold_keeps_its_tags_and_work_is_summed_by_key() {
+        tag(|| unreachable!("no hold on this thread"));
+        let m = Mutex::new(0u32);
+        {
+            let _g = lock(&m, "test: tagged");
+            tag(|| "rpc GSP_RM_CONTROL 0x90f10106".into());
+            tag(|| "build chid 4".into());
+            std::thread::sleep(Duration::from_millis(6));
+        }
+        work("test-rpc", "GSP_RM_ALLOC class 0xc46f".into(), Duration::from_millis(3));
+        work("test-rpc", "GSP_RM_ALLOC class 0xc46f".into(), Duration::from_millis(5));
+        let s = summary();
+        let longest = s.iter().find(|l| l.starts_with("device lock: longest")).unwrap();
+        assert!(
+            longest.contains("test: tagged (rpc GSP_RM_CONTROL 0x90f10106, build chid 4)"),
+            "{longest}"
+        );
+        let work = s.iter().find(|l| l.starts_with("device lock work")).unwrap();
+        assert!(work.contains("test-rpc GSP_RM_ALLOC class 0xc46f 2 x 8 ms (max 5000 us)"), "{work}");
     }
 }
