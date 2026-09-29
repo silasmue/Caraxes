@@ -1438,6 +1438,9 @@ pub struct Mirror {
     /// waiting inside the trapped write under the device lock.
     inv_async: bool,
     inv_gate: crate::invgate::InvalidateGate,
+    /// Held invalidates by scope: one root, `ALL_PDB` (its untrapped roots), and the roots
+    /// the `ALL_PDB` ones held in total.
+    held_scope: (u64, u64, u64),
     /// Invalidates whose plans were submitted without a wait before the guest continued
     /// (eager or at the lazy deadline, not held): a host channel that runs ahead of its
     /// doorbell after one of them may run on a mirror the worker is still applying.
@@ -1634,6 +1637,7 @@ impl Mirror {
                 }
             },
             hold: crate::untrapped::HoldStats::default(),
+            held_scope: (0, 0, 0),
             inv_async: match crate::invgate::parse_switch(
                 std::env::var(crate::invgate::ENV).ok().as_deref(),
             ) {
@@ -1913,6 +1917,13 @@ impl Mirror {
             // whose barrier plans and waits for them, so they follow the lazy rule below.
             let t0 = Instant::now();
             let held = crate::untrapped::held_roots(pdb, &untrapped);
+            match pdb {
+                Some(_) => self.held_scope.0 += 1,
+                None => {
+                    self.held_scope.1 += 1;
+                    self.held_scope.2 += held.len() as u64;
+                }
+            }
             let mut notes = Vec::new();
             for r in &held {
                 notes.extend(self.shadow_resync(reg, gm, Some(*r)));
@@ -2043,13 +2054,16 @@ impl Mirror {
     /// The untrapped-GPPut counters (untrapped.rs), for the pool's per-context line.
     pub fn hold_summary(&self) -> String {
         format!(
-            "{}; held invalidates {} (trigger read busy {} time(s), {} waited past {} ms) [{}]; {}",
+            "{}; held invalidates {} (trigger read busy {} time(s), {} waited past {} ms) [{}], by scope: {} of one root, {} ALL_PDB holding {} untrapped root(s) in total; {}",
             self.hold.summary(self.hold_on),
             if self.inv_async { "complete through the trigger's busy bit" } else { "wait under the device lock" },
             self.inv_gate.busy_reads,
             self.inv_gate.fallbacks,
             crate::invgate::FALLBACK.as_millis(),
             crate::invgate::ENV,
+            self.held_scope.0,
+            self.held_scope.1,
+            self.held_scope.2,
             self.worker.summary()
         )
     }
