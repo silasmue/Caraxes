@@ -136,6 +136,13 @@ impl Trace {
         }
     }
 
+    /// Whether a trapped access of `region` at `offset` is written to the trace (the reads
+    /// answered without the device lock bypass it, so they are off for such registers;
+    /// fastread.rs).
+    pub fn records_access(&self, region: u32, offset: u64) -> bool {
+        self.out.is_some() && self.accesses.wants(region, offset)
+    }
+
     pub fn access(&mut self, dir: Dir, region: u32, offset: u64, data: &[u8], note: Option<&str>) {
         let r = region as usize;
         if r < 9 {

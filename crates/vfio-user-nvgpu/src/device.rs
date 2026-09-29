@@ -574,10 +574,52 @@ fn lock_access<'a>(
     d
 }
 
+impl SharedDevice {
+    /// The state of the reads answered without the device lock (fastread.rs): registered at
+    /// the first trapped read, under the lock once.
+    fn fast_reads(&self) -> std::sync::Arc<crate::fastread::FastReads> {
+        let key = Arc::as_ptr(&self.device) as usize;
+        if let Some(f) = crate::fastread::lookup(key) {
+            return f;
+        }
+        let d = crate::dlock::lock(&self.device, "fast reads setup");
+        let f = d
+            .bar0
+            .boot()
+            .map(|b| b.fast())
+            .unwrap_or_else(|| std::sync::Arc::new(crate::fastread::FastReads::default()));
+        // Only if the trace would write a line for them (CARAXES_TRACE_ACCESSES may name a
+        // BAR0 range without them).
+        let trigger = d.bar0.boot().map(|b| b.mmu_invalidate_register());
+        f.set_traced(
+            trigger.is_some_and(|t| d.trace.records_access(VFIO_PCI_BAR0_REGION_INDEX, t))
+                || d.trace.records_access(3, 0),
+        );
+        drop(d);
+        crate::fastread::register(key, &f);
+        f
+    }
+}
+
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
         if self.routes.read(region, offset, data) {
             return Ok(());
+        }
+        // The MMU invalidate's TRIGGER and the BAR2 flush page are status reads on the card:
+        // answered from the published state, without the device lock (fastread.rs,
+        // docs/caraxes/execution.md §9.10); anything else, and those when the state does not
+        // suffice, take the lock below.
+        if region == VFIO_PCI_BAR0_REGION_INDEX || region == 3 {
+            let t0 = std::time::Instant::now();
+            if self.fast_reads().try_read(region, offset, data) {
+                if crate::profile::on() {
+                    let name = (region == VFIO_PCI_BAR0_REGION_INDEX)
+                        .then_some("NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE");
+                    crate::profile::access(region, false, offset, name, t0);
+                }
+                return Ok(());
+            }
         }
         if !crate::profile::on() {
             return lock_access(self, region, offset, false).region_read(region, offset, data);
@@ -1897,6 +1939,8 @@ impl Device {
                 s.push_str(&l);
                 s.push('\n');
             }
+            s.push_str(&b.fast().summary());
+            s.push('\n');
             if let Some(l) = b.fb.bar1_pool_summary() {
                 s.push_str(&l);
                 s.push('\n');

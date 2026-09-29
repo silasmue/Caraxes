@@ -592,3 +592,56 @@ clock's per-tick work takes the display engine's lock and never D.
 - Tests: `a_trapped_doorbell_is_posted_and_rung_before_the_next_access` (answered while D is
   held elsewhere, rung by the next access first, joined writes, other registers not posted),
   `a_posted_doorbell_wakes_the_completer_and_keeps_the_order`.
+
+- Target: about 100 us per guest MMU invalidate end to end. Run D spent, per invalidate, three
+  trapped writes (19, 12 and 1180 us of device time), about 2.9 trapped TRIGGER polls (53 us
+  each) and 445 us from arming to applied, plus the vCPU exits of five traps.
+- The invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs, intr-page.md §11.3) makes the
+  PDB, UPPER and TRIGGER stores and the TRIGGER polls memory. Its reactor used to wait out a
+  held invalidate under D before it cleared TRIGGER.
+- Now the reactor runs the invalidate under D and takes the gate's hold (`InvalidateGate::
+  hand_off`: the roots and their last jobs, still urgent for the worker). The page's
+  completion thread (`inv-complete`) waits for the worker's progress without D and only then
+  clears TRIGGER; until then the reactor takes no new trigger (the guest stores none while
+  TRIGGER shows). The card's rule holds: TRIGGER reads busy until every root the invalidate
+  names (with the untrapped scope rules, untrapped.rs) has its jobs applied.
+- One completion thread in the guest's order: the guest RM waits for TRIGGER before its next
+  invalidate. Counted: the page line's "held until the worker applied their roots" with the
+  armed-to-done mean and max, and the profile's "held invalidate: armed to TRIGGER read done".
+- Still under D in the page path: the BAR1 pool's poll after the trigger (at `Pace::ALL`, it may
+  wait for the worker; the pool's own rework).
+- Tests: `a_held_trigger_completes_when_the_worker_applied_its_root` (busy until the root's job
+  is applied, no second trigger meanwhile, urgent while held), the page's existing tests.
+
+### 9.10 Status reads without the device lock (2026-09-29)
+
+- SotTR run E, benchmark window: 507 TRIGGER reads/s at 152 us and 587 flush-page reads/s at 95 us,
+  about 133 ms per second, mostly spent waiting for D. On the card both are plain status reads.
+- The vfio-user server answers them before it takes D (device.rs `SharedDevice::region_read`,
+  fastread.rs), from state that D-holders publish:
+  - **TRIGGER** (`NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE`, bit 31): the trapped trigger write
+    hands its held invalidate off (`Mirror::hand_off_invalidate`, as the invalidate page does).
+    A read returns the latched word, with TRIGGER set while the hold's jobs are not applied. It
+    waits at most `POLL_WAIT` for the worker, and past `FALLBACK` to the end. The first read that
+    finds a hold done finishes it: its roots stop being urgent, and it is counted.
+  - **The BAR2 flush page** (`pReadToFlush`, the RM ignores the value): a read marks the sync
+    owed (`DeferredFlush::mark`, atomic) and returns the page's bytes as the last locked read
+    published them. The copy goes on a device write to its FB page, on a BAR2 walk that
+    re-points pages, and at a reset.
+- These reads take D:
+  - TRIGGER while a BAR1 pool batch runs (its slices continue at those reads);
+  - any read while the trace records accesses;
+  - the first read of the flush page after its copy went (it publishes a new one);
+  - with the flush reads syncing at once (`CARAXES_BAR2_MEMFD_DEFER_FLUSH=0`).
+- Card semantics: TRIGGER reads pending until the invalidate's roots have their jobs applied,
+  then idle; the flush read orders the guest's BAR2 writes (the owed sync, settled at the next
+  engine start or by the flush clock) and returns the page's content.
+- Order: the state's mutexes are leaves. Nothing on this path takes D, and D-holders only
+  publish. The posted doorbells (device agent) are not rung first by these reads: neither
+  result depends on a doorbell.
+- Counted at exit: `reads without the device lock: N TRIGGER read(s) (B busy), F flush-page
+  read(s); under the lock ...; H held invalidate(s) completed by a read (mean, max)`. Held
+  invalidates completed this way are counted there, not in the mirror line's hold count.
+- Tests: `fastread::tests` (busy until the hold's job is applied; a pool batch or the access
+  trace sends the read to the lock; the flush copy marks the sync owed and goes on a write to
+  its page), `boot::tests::the_flush_page_and_trigger_are_published_for_reads_without_the_lock`.

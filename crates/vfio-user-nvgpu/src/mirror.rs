@@ -2461,6 +2461,12 @@ impl Mirror {
     /// A read of the invalidate trigger: whether the held invalidate in flight is still
     /// being applied (TRIGGER reads TRUE). The first read that finds it applied counts the
     /// hold with its time from the trigger write (invgate.rs).
+    /// The held invalidate in flight, handed off the device lock (fastread.rs): whoever
+    /// completes TRIGGER waits for the worker.
+    pub fn hand_off_invalidate(&mut self) -> Option<crate::invgate::Hold> {
+        self.inv_gate.hand_off(&self.worker.progress)
+    }
+
     pub fn invalidate_busy(&mut self) -> bool {
         match self.inv_gate.read(&self.worker.progress) {
             crate::invgate::Trigger::Busy => true,
