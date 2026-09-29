@@ -388,6 +388,11 @@ impl Bar0 {
             NV_PMC_BOOT_1 => self.identity.boot_1,
             NV_PMC_BOOT_42 => self.identity.boot_42,
             _ => {
+                // The time a guest reads never runs ahead of the display (boot.rs
+                // `sync_display_clock`).
+                if let Some(b) = self.boot.as_mut().filter(|b| b.is_time_register(reg)) {
+                    b.sync_display_clock(mem);
+                }
                 // The display engine's registers and pages (display/mod.rs) come first:
                 // the fuse there overrides the chip's boot constant.
                 if let Some(v) = self.boot.as_mut().and_then(|b| b.display_read32(reg, mem)) {
