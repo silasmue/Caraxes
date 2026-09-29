@@ -4,9 +4,11 @@
 # then windowed again; each phase clears every frame to a new colour and presents with sync
 # interval 1. Prints frames, time, rate and the swap chain's frame statistics per phase.
 # -Seconds N: windowed only, phases of -Frames frames for N seconds (a soak load).
+# -Width/-Height: the window's size (960x540); the screen's size or more makes it a borderless
+# window over the whole screen (a game's borderless mode).
 # Runs in the signed-in user's session (a scheduled task with an interactive principal), not
 # as SYSTEM: session 0 has no desktop to present to. Stock Windows components only.
-param([int]$Frames = 300, [int]$Seconds = 0)
+param([int]$Frames = 300, [int]$Seconds = 0, [int]$Width = 960, [int]$Height = 540)
 $ErrorActionPreference = "Stop"
 $src = @'
 using System; using System.Runtime.InteropServices; using System.Windows.Forms;
@@ -60,9 +62,15 @@ public static class Present {
       failed > 0 ? " (last 0x" + hrLast.ToString("x8") + ")" : "",
       sh < 0 ? "hr 0x" + sh.ToString("x8") : String.Format("present {0}, present refresh {1}, sync refresh {2}", s.PresentCount, s.PresentRefreshCount, s.SyncRefreshCount));
   }
-  public static string Run(int frames, int seconds) {
+  public static string Run(int frames, int seconds, int w, int h) {
     var sb = new System.Text.StringBuilder();
-    var form = new Form { Text = "caraxes present probe", Width = 960, Height = 540, StartPosition = FormStartPosition.CenterScreen };
+    var form = new Form { Text = "caraxes present probe", Width = w, Height = h, StartPosition = FormStartPosition.CenterScreen };
+    var screen = Screen.PrimaryScreen.Bounds;
+    string kind = "windowed " + w + "x" + h;
+    if (w >= screen.Width && h >= screen.Height) {
+      form.FormBorderStyle = FormBorderStyle.None; form.StartPosition = FormStartPosition.Manual; form.Bounds = screen;
+      kind = "borderless " + screen.Width + "x" + screen.Height;
+    }
     form.Show(); Application.DoEvents();
     var d = new SwapDesc { Buffer = new ModeDesc { W = 0, H = 0, Format = 87 }, SampleCount = 1, Usage = 0x20, Count = 2,
                            Window = form.Handle, Windowed = 1, Effect = 4, Flags = 2 };
@@ -72,11 +80,11 @@ public static class Present {
       sb.AppendLine(String.Format("device feature level {0:x}, flip-discard swap chain, 2 buffers, B8G8R8A8", level));
       if (seconds > 0) {
         var end = DateTime.Now.AddSeconds(seconds); int n = 0;
-        while (DateTime.Now < end) { Console.WriteLine(Phase("windowed 960x540 #" + (++n), form, swap, dev, ctx, frames)); Console.Out.Flush(); }
+        while (DateTime.Now < end) { Console.WriteLine(Phase(kind + " #" + (++n), form, swap, dev, ctx, frames)); Console.Out.Flush(); }
         sb.Append("PASS: D3D11 flip-model windowed presents for " + seconds + " s, " + n + " phase(s)");
         return sb.ToString();
       }
-      sb.AppendLine(Phase("windowed 960x540", form, swap, dev, ctx, frames));
+      sb.AppendLine(Phase(kind, form, swap, dev, ctx, frames));
       Check(Fn<SetFullscreen>(swap, 10)(swap, 1, IntPtr.Zero), "SetFullscreenState(TRUE)");
       Check(Fn<ResizeBuffers>(swap, 13)(swap, 0, 0, 0, 0, 2), "ResizeBuffers(fullscreen)");
       sb.AppendLine(Phase("exclusive fullscreen", form, swap, dev, ctx, frames));
@@ -92,4 +100,4 @@ public static class Present {
 }
 '@
 Add-Type -TypeDefinition $src -Language CSharp -ReferencedAssemblies System.Windows.Forms
-[Present]::Run($Frames, $Seconds)
+[Present]::Run($Frames, $Seconds, $Width, $Height)
