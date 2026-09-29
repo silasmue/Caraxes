@@ -275,6 +275,17 @@ impl Hold {
         self.progress.is_done(&Target::Roots(self.targets.clone()))
     }
 
+    /// When the invalidate was armed (a hold's identity for fastread.rs).
+    pub fn since(&self) -> Instant {
+        self.since
+    }
+
+    /// The worker's progress, the targets and when it was armed, for a wait without the
+    /// hold (fastread.rs: a read waits without the lock that keeps the holds).
+    pub fn parts(&self) -> (Arc<Progress>, Vec<(u64, u64)>, Instant) {
+        (self.progress.clone(), self.targets.clone(), self.since)
+    }
+
     /// Wait until the worker applied the targets' jobs; the roots stop being urgent. Returns
     /// the time since the invalidate was armed.
     pub fn wait(self) -> Duration {

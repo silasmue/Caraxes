@@ -34,6 +34,7 @@ pub mod dmodel;
 pub mod deferred;
 pub mod devce;
 pub mod falcon;
+pub mod fastread;
 pub mod families;
 pub mod fwdcache;
 pub mod fb;

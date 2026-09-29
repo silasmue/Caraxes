@@ -1097,6 +1097,9 @@ pub struct FakeFb {
     /// root's FB address (a sysmem root with bit 63): a guest write to one of its table
     /// pages marks that page dirty, and the next update re-reads only the dirty pages.
     walks: RefCell<std::collections::BTreeMap<u64, crate::ptcache::WalkCache>>,
+    /// The state trapped status reads are answered from without the device lock
+    /// (fastread.rs): a write to the BAR2 flush page's FB page drops its copy.
+    fast: Option<std::sync::Arc<crate::fastread::FastReads>>,
     /// The BAR2 victim cache's table epoch (bar2area.rs `Victims`). It no longer moves:
     /// a snapshot is dropped when no walk reads its page any more ([`Self::forget_victims`]),
     /// not every snapshot whenever any walk drops any page.
@@ -1158,6 +1161,7 @@ impl FakeFb {
             outside: Outside::default(),
             pte_kinds: RefCell::new(std::collections::BTreeMap::new()),
             walks: RefCell::new(std::collections::BTreeMap::new()),
+            fast: None,
             table_epoch: Cell::new(0),
             bar_tlb: RefCell::new(HashMap::new()),
             bar_tlb_pages: RefCell::new(std::collections::HashSet::new()),
@@ -1452,8 +1456,31 @@ impl FakeFb {
         self.walks.borrow().get(&Self::watch_key(root)).map(f)
     }
 
+    /// The published state of the reads without the device lock (fastread.rs).
+    pub fn set_fast(&mut self, f: std::sync::Arc<crate::fastread::FastReads>) {
+        self.fast = Some(f);
+    }
+
+    fn note_fast(&self, first: u64, last: u64) {
+        if let Some(f) = &self.fast {
+            f.note_fb_write(first, last);
+        }
+    }
+
+    /// The BAR2 walk re-pointed pages (`walks` counted before and after a sync): the flush
+    /// page's copy goes (fastread.rs).
+    fn note_bar2_walks(&self, before: u64) {
+        let after = self.bar2.as_deref().map_or(before, |a| a.stats.walks);
+        if after != before {
+            if let Some(f) = &self.fast {
+                f.drop_flush();
+            }
+        }
+    }
+
     fn note_write(&self, pa: u64, data: &[u8]) {
         let last = (pa + data.len().max(1) as u64 - 1) >> 12;
+        self.note_fast(pa >> 12, last);
         if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
             if !pt.walk_dirty && (pa >> 12..=last).any(|p| pt.table_pages.contains(&p)) {
                 pt.walk_dirty = true;
@@ -1533,6 +1560,9 @@ impl FakeFb {
     pub fn note_pages_changed(&self, pages: &[u64]) {
         if pages.is_empty() {
             return;
+        }
+        for p in pages {
+            self.note_fast(*p, *p);
         }
         if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
             if pages.iter().any(|p| pt.table_pages.contains(p)) {
@@ -1643,9 +1673,11 @@ impl FakeFb {
             epoch: self.table_epoch.get(),
             walked: &walked,
         };
+        let walks_before = a.stats.walks;
         let r = a.sync_only(&mut *self.store, size, root, sys, &tr, None, &view);
         drop(walks);
         drop(pool);
+        self.note_bar2_walks(walks_before);
         if !r.dirty.is_empty() {
             // The written-back bytes must reach VRAM before the GPU can be told to read
             // them (the RPC and invalidate paths that follow a sync).
@@ -1728,6 +1760,7 @@ impl FakeFb {
             epoch: self.table_epoch.get(),
             walked: &walked,
         };
+        let walks_before = a.stats.walks;
         let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys), &view);
         drop(walks);
         a.stats.table_syncs += 1;
@@ -1735,6 +1768,7 @@ impl FakeFb {
         a.stats.table_sync_pages += keys.len() as u64;
         a.stats.table_sync_ns += t0.elapsed().as_nanos() as u64;
         drop(pool);
+        self.note_bar2_walks(walks_before);
         if !r.dirty.is_empty() {
             self.store.flush();
         }
@@ -2642,6 +2676,7 @@ impl FakeFb {
         let mut b = vec![0u8; PAGE as usize];
         self.store.read(from, &mut b);
         self.store.write(to, &b);
+        self.note_fast(to >> 12, to >> 12);
         // Bytes written past `note_write`: the pool's copies of `to` are stale.
         if let Some(p) = self.pool.borrow_mut().as_mut() {
             p.note_pages_unknown(&[to >> 12]);
@@ -2668,6 +2703,7 @@ impl FakeFb {
     /// write tracking (a pool page the guest reads through the area).
     pub(crate) fn write_raw(&mut self, pa: u64, data: &[u8]) {
         self.store.write(pa, data);
+        self.note_fast(pa >> 12, (pa + data.len().max(1) as u64 - 1) >> 12);
         if let Some(p) = self.pool.borrow_mut().as_mut() {
             p.note_raw_write(pa, data.len());
         }

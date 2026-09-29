@@ -385,8 +385,44 @@ fn lock_access<'a>(
     d
 }
 
+impl SharedDevice {
+    /// The state of the reads answered without the device lock (fastread.rs): registered at
+    /// the first trapped read, under the lock once.
+    fn fast_reads(&self) -> std::sync::Arc<crate::fastread::FastReads> {
+        let key = Arc::as_ptr(&self.device) as usize;
+        if let Some(f) = crate::fastread::lookup(key) {
+            return f;
+        }
+        let d = crate::dlock::lock(&self.device, "fast reads setup");
+        let f = d
+            .bar0
+            .boot()
+            .map(|b| b.fast())
+            .unwrap_or_else(|| std::sync::Arc::new(crate::fastread::FastReads::default()));
+        f.set_traced(d.trace.records_accesses());
+        drop(d);
+        crate::fastread::register(key, &f);
+        f
+    }
+}
+
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
+        // The MMU invalidate's TRIGGER and the BAR2 flush page are status reads on the card:
+        // answered from the published state, without the device lock (fastread.rs,
+        // docs/caraxes/execution.md §9.10); anything else, and those when the state does not
+        // suffice, take the lock below.
+        if region == VFIO_PCI_BAR0_REGION_INDEX || region == 3 {
+            let t0 = std::time::Instant::now();
+            if self.fast_reads().try_read(region, offset, data) {
+                if crate::profile::on() {
+                    let name = (region == VFIO_PCI_BAR0_REGION_INDEX)
+                        .then_some("NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE");
+                    crate::profile::access(region, false, offset, name, t0);
+                }
+                return Ok(());
+            }
+        }
         if !crate::profile::on() {
             return lock_access(self, region, offset, false).region_read(region, offset, data);
         }
@@ -1599,6 +1635,8 @@ impl Device {
                 s.push_str(&l);
                 s.push('\n');
             }
+            s.push_str(&b.fast().summary());
+            s.push('\n');
             if let Some(l) = b.fb.bar1_pool_summary() {
                 s.push_str(&l);
                 s.push('\n');
@@ -1960,6 +1998,8 @@ impl Device {
     /// `held` (after a BAR0 `what` at `offset`).
     fn after_pool_poll(&mut self, what: &str, offset: u64, held: std::time::Duration) {
         let Some(b) = self.bar0.boot_mut() else { return };
+        // A batch still running keeps the TRIGGER reads on the locked path, which continues it.
+        b.fast().set_pool_busy(b.fb.pool_mut().as_ref().is_some_and(|p| p.batch_pending()));
         // The guest's BAR1 mapping churn, once per second with activity
         // (docs/caraxes/bar1-pool.md §13).
         let churn = b.fb.pool_mut().as_mut().and_then(|p| p.take_churn());
