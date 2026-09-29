@@ -154,8 +154,9 @@ fn flip_type(immediate: bool) -> u32 {
 
 /// Recent display events kept (`Engine::recent`).
 const RECENT: usize = 96;
-/// Recent routed register accesses kept (`Engine::recent_regs`).
-const RECENT_REGS: usize = 256;
+/// Recent routed register accesses kept (`Engine::recent_regs`): about a minute of a
+/// Windows desktop's ISR (C71: 256 covered 1.7 s, not the failing flip).
+const RECENT_REGS: usize = 16384;
 
 // -------------------------------------------------------------------------------------
 // The clock and the ticker thread.
@@ -788,6 +789,10 @@ pub struct Engine {
     /// equal to the one before counted instead of kept (the ISR polls the dispatch word),
     /// traced with `recent`.
     pub recent_regs: VecDeque<(u64, bool, u64, u32, u32)>,
+    /// The notifiers the engine wrote last (word 0 as written), checked at every tick: a
+    /// guest store to one lands among the recent events (what the KMD does with a flip's
+    /// notifier around a latch).
+    watched: VecDeque<(MemRef, u32)>,
 }
 
 impl Engine {
@@ -810,6 +815,7 @@ impl Engine {
             recent: VecDeque::new(),
             record_write_failures: 0,
             recent_regs: VecDeque::new(),
+            watched: VecDeque::new(),
         };
         for h in 0..MAX_HEADS {
             ticker().set_head(h, 0, 0);
@@ -848,6 +854,31 @@ impl Engine {
             self.recent_regs.pop_front();
         }
         self.recent_regs.push_back((ns, write, off, v, 0));
+    }
+
+    /// Watch notifier `m` holding word 0 `w0` as the engine wrote it (the last four).
+    fn watch(&mut self, m: MemRef, w0: u32) {
+        self.watched.retain(|(x, _)| *x != m);
+        if self.watched.len() >= 4 {
+            self.watched.pop_front();
+        }
+        self.watched.push_back((m, w0));
+    }
+
+    /// Guest stores to the watched notifiers since the engine wrote them.
+    fn check_watched(&mut self, ns: u64, io: &dyn RecordIo) {
+        let mut seen = Vec::new();
+        for (m, w0) in self.watched.iter_mut() {
+            if let Some(now) = m.read32(io) {
+                if now != *w0 {
+                    seen.push(format!("notifier {} word 0 {:#x} -> {now:#x} by the guest [{}]", m.describe(), *w0, io.path()));
+                    *w0 = now;
+                }
+            }
+        }
+        for s in seen {
+            self.recent(ns, s);
+        }
     }
 
     /// Write a record on `io`; a failed write is counted and kept among the recent events.
@@ -1156,6 +1187,9 @@ impl Engine {
                         self.try_latch(w, tick, tick_ns, false, io);
                     }
                 }
+                if !self.watched.is_empty() {
+                    self.check_watched(tick_ns, io);
+                }
                 let newly = self.with_irq(|i| {
                     let newly = i.en[h] & LAST_DATA != 0 && i.evt[h] & LAST_DATA == 0;
                     i.evt[h] |= LAST_DATA;
@@ -1296,6 +1330,7 @@ impl Engine {
             let w0 = NOTIFIER_FINISHED | flip_type(f.immediate);
             self.put(io, m, 8, &stamp, tick_ns, "notifier timestamp");
             self.put(io, m, 0, &w0.to_le_bytes(), tick_ns, "notifier FINISHED");
+            self.watch(m, w0);
         }
         // AWAKEN follows the rule nvidia-drm models the hardware by
         // (`__will_generate_flip_event`, nvidia-drm-modeset.c:96-140): a flip event only
@@ -1574,6 +1609,7 @@ impl Engine {
             let w0 = NOTIFIER_BEGUN | flip_type(immediate);
             self.put(io, m, 8, &ptimer_stamp(now).to_le_bytes(), now, "notifier timestamp");
             self.put(io, m, 0, &w0.to_le_bytes(), now, "notifier BEGUN");
+            self.watch(m, w0);
             let n = self.windows[w].updates + 1;
             self.recent(now, format!("window {w} update {n} armed: notifier {} BEGUN [device]", m.describe()));
         }
