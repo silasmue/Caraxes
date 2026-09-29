@@ -41,13 +41,17 @@ const MIB: u64 = 1 << 20;
 /// The area is walked and tracked in 2 MiB units (one PD0 entry each).
 const UNIT: u64 = 2 * MIB;
 
-/// `CARAXES_BAR1_POOL_MIB` default.
-pub const DEFAULT_POOL_MIB: u64 = 64;
+/// The pool with host execution when `CARAXES_BAR1_POOL_MIB` is unset: what every production
+/// launcher ran until 2026-09-30 (Linux B 615, nouveau+NVK, the Windows kit's
+/// `WIN_BAR1_POOL_MIB=32`).
+pub const DEFAULT_POOL_MIB: u64 = 32;
+/// The knob: the pool in MiB (0: no pool).
+pub const POOL_MIB_ENV: &str = "CARAXES_BAR1_POOL_MIB";
 /// The largest pool: the dma-buf maps all of it into the host's shared BAR1 (256 MiB on
 /// this card, docs/caraxes/parallel.md §2).
 pub const MAX_POOL_MIB: u64 = 128;
 /// Host BAR1 one device may hold with a pool: the pool plus its window budget
-/// (`CARAXES_BAR1_WINDOWS` x `CARAXES_BAR1_WINDOW_MIB`, 64 MiB by default).
+/// (`fb::bar1_budget`, 2 x 16 MiB).
 pub const MAX_HOST_BAR1: u64 = 192 * MIB;
 /// Host BAR1 a new pool must leave free for the host's own clients (the desktop's Vulkan
 /// fails at vkCreateDevice without it, 2026-09-25: a game VM's 128 MiB pool plus a second
@@ -76,23 +80,30 @@ pub const CHURN_EVERY: Duration = Duration::from_secs(1);
 /// Findings logged at most (the counters are complete).
 const LOG_FIRST: usize = 32;
 
-/// The switch: `CARAXES_BAR1_PASSTHROUGH=pool`, the pool size from `CARAXES_BAR1_POOL_MIB`
-/// (an even number of MiB, 2..=128, default 64). `Ok(Some(bytes))` when on; an invalid
-/// size is an error, never a silent default.
-pub fn config() -> Result<Option<u64>, String> {
-    if std::env::var("CARAXES_BAR1_PASSTHROUGH").as_deref() != Ok("pool") {
-        return Ok(None);
-    }
-    let mib = match std::env::var("CARAXES_BAR1_POOL_MIB") {
-        Err(_) => DEFAULT_POOL_MIB,
-        Ok(v) => v
-            .trim()
+/// The pool: with host execution [`DEFAULT_POOL_MIB`] unless [`POOL_MIB_ENV`] sets another
+/// size (an even number of MiB, 2..=128) or 0 (no pool); without host execution none.
+/// `Ok(Some(bytes))` when on; an invalid size is an error, never a silent default.
+pub fn config(host_exec: bool) -> Result<Option<u64>, String> {
+    parse_pool(std::env::var(POOL_MIB_ENV).ok().as_deref(), host_exec)
+}
+
+/// [`config`] on a given value (`None`: unset).
+pub fn parse_pool(v: Option<&str>, host_exec: bool) -> Result<Option<u64>, String> {
+    let mib = match v.map(str::trim).filter(|v| !v.is_empty()) {
+        None if host_exec => DEFAULT_POOL_MIB,
+        None | Some("0") => return Ok(None),
+        Some(v) => v
             .parse::<u64>()
-            .map_err(|_| format!("CARAXES_BAR1_POOL_MIB={v}: not a number of MiB"))?,
+            .map_err(|_| format!("{POOL_MIB_ENV}={v}: not a number of MiB"))?,
     };
+    if !host_exec {
+        return Err(format!(
+            "{POOL_MIB_ENV}={mib}: the BAR1 pool needs host execution (--host-exec)"
+        ));
+    }
     if !(2..=MAX_POOL_MIB).contains(&mib) || mib % 2 != 0 {
         return Err(format!(
-            "CARAXES_BAR1_POOL_MIB={mib}: the pool must be an even number of MiB from 2 to {MAX_POOL_MIB}"
+            "{POOL_MIB_ENV}={mib}: the pool must be 0 (none) or an even number of MiB from 2 to {MAX_POOL_MIB}"
         ));
     }
     Ok(Some(mib * MIB))
@@ -1385,9 +1396,6 @@ impl PoolGpu for MirrorGpu<'_> {
     }
 
     fn quiesce(&mut self, fb: &mut FakeFb, roots: &BTreeSet<u64>) -> Result<(usize, usize), String> {
-        if std::env::var("CARAXES_BAR1_POOL_WARM").as_deref() == Ok("refuse") {
-            return Err("CARAXES_BAR1_POOL_WARM=refuse: no page the GPU maps is moved".into());
-        }
         let chans: Vec<(u32, Option<u64>, Option<u32>)> = self
             .mirror
             .pool_channels()
@@ -1443,9 +1451,6 @@ impl PoolGpu for MirrorGpu<'_> {
                 ntsgs,
                 ..Default::default()
             });
-        }
-        if std::env::var("CARAXES_BAR1_POOL_WARM").as_deref() == Ok("refuse") {
-            return Err("CARAXES_BAR1_POOL_WARM=refuse: no page the GPU maps is moved".into());
         }
         let chans: Vec<(u32, Option<u64>, Option<u32>)> = self
             .mirror
@@ -3040,6 +3045,22 @@ mod floor_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The knob: 32 MiB with host execution unless set, 0 for none, nothing without host
+    /// execution; a malformed or out-of-range size is refused.
+    #[test]
+    fn the_pool_knob() {
+        assert_eq!(parse_pool(None, true), Ok(Some(32 * MIB)));
+        assert_eq!(parse_pool(Some(" "), true), Ok(Some(32 * MIB)));
+        assert_eq!(parse_pool(None, false), Ok(None));
+        assert_eq!(parse_pool(Some("0"), true), Ok(None));
+        assert_eq!(parse_pool(Some("0"), false), Ok(None));
+        assert_eq!(parse_pool(Some("64"), true), Ok(Some(64 * MIB)));
+        assert!(parse_pool(Some("64"), false).unwrap_err().contains("host execution"));
+        assert!(parse_pool(Some("3"), true).is_err());
+        assert!(parse_pool(Some("130"), true).is_err());
+        assert!(parse_pool(Some("pool"), true).is_err());
+    }
 
     // A 64 MiB reservation [64 MiB, 128 MiB) in a 256 MiB FB with a 4 MiB pool: the pool is
     // [122 MiB, 126 MiB), the carve-out [126 MiB, 128 MiB), usable [64 MiB, 122 MiB).

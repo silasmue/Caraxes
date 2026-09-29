@@ -704,13 +704,13 @@ pub const BAR2_WINDOW: usize = 2 << 20;
 /// long before a BAR2 window is asked for again.
 pub const BAR2_WINDOW_BACKOFF: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// The default window: 32 MiB. BAR1 is a shared host resource (256 MiB on this card,
-/// no resizable BAR): the desktop's own mappings and every device's windows come out of
-/// it. 2 x 32 MiB per device leaves the desktop about 40 MiB of its measured ~232 MiB
-/// free even with three devices up (P20, docs/caraxes/parallel.md §2; three devices at
-/// 3 x 64 MiB exhausted it). `CARAXES_BAR1_WINDOW_MIB` (a power of two, 2..=64) and
-/// `CARAXES_BAR1_WINDOWS` (1..=8) set another budget.
-pub const VRAM_WINDOW: usize = 32 << 20;
+/// The window: 16 MiB. BAR1 is a shared host resource (256 MiB on this card, no resizable
+/// BAR): the desktop's own mappings, every device's windows and every BAR1 pool come out
+/// of it (P20, docs/caraxes/parallel.md §2; three devices at 3 x 64 MiB exhausted it).
+/// 2 x 16 MiB beside a 32 MiB pool is what every production launcher ran until 2026-09-30
+/// (`CARAXES_BAR1_WINDOWS=2 CARAXES_BAR1_WINDOW_MIB=16`: Linux B 615, nouveau+NVK, the
+/// Windows kit's gpu-up-host.sh).
+pub const VRAM_WINDOW: usize = 16 << 20;
 /// Windows held at once by default.
 pub const VRAM_WINDOWS: usize = 2;
 /// Stalls (1 ms apart, one window map each) of an access for which the host grants no
@@ -721,50 +721,9 @@ pub const STALL_TRIES: u64 = 3;
 /// one per millisecond (2026-09-25: `dmaAllocMapping_GM107: can't alloc VA space` bursts).
 pub const WINDOW_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// The per-device BAR1 budget: (window bytes, windows), from the environment. A value out of
-/// range is reported once on stderr and the default is used (2026-09-29: a SotTR A/B asked
-/// for 32 x 1 MiB and silently ran the default 2 x 32 MiB).
-pub fn bar1_budget() -> (usize, usize) {
-    let (len, len_bad) = bar1_budget_value(
-        std::env::var("CARAXES_BAR1_WINDOW_MIB").ok(),
-        |m| m.is_power_of_two() && (2..=64).contains(&m),
-        VRAM_WINDOW >> 20,
-    );
-    let (n, n_bad) = bar1_budget_value(
-        std::env::var("CARAXES_BAR1_WINDOWS").ok(),
-        |n| (1..=8).contains(&n),
-        VRAM_WINDOWS,
-    );
-    static WARNED: std::sync::Once = std::sync::Once::new();
-    if len_bad.is_some() || n_bad.is_some() {
-        WARNED.call_once(|| {
-            for (var, bad, rule, used) in [
-                ("CARAXES_BAR1_WINDOW_MIB", len_bad, "a power of two in 2..=64", len),
-                ("CARAXES_BAR1_WINDOWS", n_bad, "in 1..=8", n),
-            ] {
-                if let Some(v) = bad {
-                    eprintln!("vfio-user-nvgpu: WARNING {var}={v:?} ignored (must be {rule}); {used} used");
-                }
-            }
-        });
-    }
-    (len << 20, n)
-}
-
-/// A budget value from `raw`: the parsed value if `ok` accepts it, else `default` and the
-/// rejected text.
-fn bar1_budget_value(
-    raw: Option<String>,
-    ok: impl Fn(usize) -> bool,
-    default: usize,
-) -> (usize, Option<String>) {
-    match raw {
-        None => (default, None),
-        Some(v) => match v.trim().parse::<usize>() {
-            Ok(x) if ok(x) => (x, None),
-            _ => (default, Some(v)),
-        },
-    }
+/// The per-device BAR1 budget: (window bytes, windows).
+pub const fn bar1_budget() -> (usize, usize) {
+    (VRAM_WINDOW, VRAM_WINDOWS)
 }
 
 /// P21 switch (docs/caraxes/bar1-passthrough.md §6): `CARAXES_BAR1_PASSTHROUGH=1` maps
@@ -3527,16 +3486,10 @@ pub(crate) mod testing {
 
 #[cfg(test)]
 mod tests {
-    /// A budget value out of range falls back to the default and is named for the warning.
+    /// The budget: two windows of 16 MiB, 32 MiB of host BAR1 beside the pool.
     #[test]
-    fn a_rejected_bar1_budget_value_is_reported() {
-        let mib = |m: usize| m.is_power_of_two() && (2..=64).contains(&m);
-        assert_eq!(super::bar1_budget_value(None, mib, 32), (32, None));
-        assert_eq!(super::bar1_budget_value(Some("16".into()), mib, 32), (16, None));
-        assert_eq!(super::bar1_budget_value(Some("1".into()), mib, 32), (32, Some("1".into())));
-        assert_eq!(super::bar1_budget_value(Some("x".into()), mib, 32), (32, Some("x".into())));
-        let n = |n: usize| (1..=8).contains(&n);
-        assert_eq!(super::bar1_budget_value(Some("32".into()), n, 2), (2, Some("32".into())));
+    fn the_bar1_budget_is_two_windows_of_16_mib() {
+        assert_eq!(super::bar1_budget(), (16 << 20, 2));
     }
 
     #[test]

@@ -729,18 +729,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             tokens::GUEST_TOKENS_ENV
         );
     }
-    let bar1_pool = vfio_user_nvgpu::bar1pool::config().map_err(anyhow::Error::msg)?;
+    // The BAR1 pool (docs/caraxes/bar1-pool.md), on with host execution: every GPU access
+    // goes through a translation the device controls, since every host channel runs on a
+    // shadow VA space. CARAXES_BAR1_POOL_MIB sizes it (0: none).
+    let bar1_pool = vfio_user_nvgpu::bar1pool::config(a.host_exec).map_err(anyhow::Error::msg)?;
     if doorbell_ioeventfd && bar1_pool.is_some() {
         // The same reason as for the prototype below: GPPut writes through the area never
         // reach the device, and the token-less path has nothing else to go by.
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=pool: use the token pool ({}=N) instead", tokens::TOKENS_ENV);
-    }
-    if bar1_pool.is_some() {
-        // Every GPU access goes through a translation the device controls: every host
-        // channel runs on a shadow VA space (docs/caraxes/bar1-pool.md, isolation and rules).
-        if !a.reserve_vram || !a.boot_model || !a.host_exec {
-            bail!("CARAXES_BAR1_PASSTHROUGH=pool needs --reserve-vram, --boot-model and host execution (the FB on the reserved VRAM)");
-        }
+        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with the BAR1 pool (CARAXES_BAR1_POOL_MIB=0 turns it off): use the token pool ({}=N) instead", tokens::TOKENS_ENV);
     }
     if doorbell_ioeventfd && vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
         // The token-less ioeventfd path rings the channels whose GPPut moved, read from the
@@ -1092,31 +1088,29 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 .lock()
                 .unwrap()
                 .export_bar1_passthrough(host_pool0, len)
-                .context("BAR1 pool (CARAXES_BAR1_PASSTHROUGH=pool)")?;
+                .context("BAR1 pool")?;
             let (_, root) = layout.bar_roots().expect("a reserved layout");
             let usable = layout.usable().expect("a reserved layout");
             model.fb.set_bar1_pool(root, pool0, len, usable);
             // The device's own mapping of the pool (the dma-buf's BAR1 range, no extra host
             // BAR1): pool copies and replica merges stop mapping and evicting the FB
-            // store's two LRU windows (docs/caraxes/bar1-pool.md §12). Without it the pool
-            // works as before, through the windows.
-            if std::env::var("CARAXES_BAR1_POOL_PIN").as_deref() == Ok("0") {
-                eprintln!("vfio-user-nvgpu: bar1 pool: the device reaches the pool through the FB store's windows (CARAXES_BAR1_POOL_PIN=0)");
-            } else {
-                match ex.map_self(layout.host_reservation.expect("a reserved layout").0) {
-                    Ok(w) => {
-                        if model.fb.pin_store_window(Box::new(w)) {
-                            eprintln!("vfio-user-nvgpu: bar1 pool: the device maps the pool through its own dma-buf mapping, outside the FB store's windows (docs/caraxes/bar1-pool.md §12; CARAXES_BAR1_POOL_PIN=0 turns it off)");
-                        }
+            // store's two LRU windows (docs/caraxes/bar1-pool.md §12). Without the mapping
+            // the pool works through the windows.
+            match ex.map_self(layout.host_reservation.expect("a reserved layout").0) {
+                Ok(w) => {
+                    if model.fb.pin_store_window(Box::new(w)) {
+                        eprintln!("vfio-user-nvgpu: bar1 pool: the device maps the pool through its own dma-buf mapping, outside the FB store's windows (docs/caraxes/bar1-pool.md §12)");
                     }
-                    Err(e) => eprintln!(
-                        "vfio-user-nvgpu: bar1 pool: no mapping of the pool's dma-buf ({e:#}); the pool is reached through the FB store's windows"
-                    ),
                 }
+                Err(e) => eprintln!(
+                    "vfio-user-nvgpu: bar1 pool: no mapping of the pool's dma-buf ({e:#}); the pool is reached through the FB store's windows"
+                ),
             }
             eprintln!(
-                "vfio-user-nvgpu: bar1 pool: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [{pool0:#x}, {pool_end:#x}) below the carve-out; the guest's usable FB ends at {:#x} (fbRegionInfo region 0), the pool is reported reserved; every page the guest maps into the area is moved to its pool page; {len:#x} of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=pool, docs/caraxes/bar1-pool.md)",
-                usable.1
+                "vfio-user-nvgpu: bar1 pool: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [{pool0:#x}, {pool_end:#x}) below the carve-out; the guest's usable FB ends at {:#x} (fbRegionInfo region 0), the pool is reported reserved; every page the guest maps into the area is moved to its pool page; {len:#x} of host BAR1 held while the client maps it ({}={}, docs/caraxes/bar1-pool.md)",
+                usable.1,
+                vfio_user_nvgpu::bar1pool::POOL_MIB_ENV,
+                len >> 20
             );
             bar1_export = Some(ex);
         }
