@@ -403,11 +403,29 @@ pub struct Routes {
     /// The display engine's status registers (`Engine::handles`: the FE interrupt status,
     /// head state, scan position), served under the display lock only.
     pub display: Option<DisplayRoute>,
+    /// The display page (display/fe_page.rs): a trapped store to it (a VMM that maps it
+    /// read-only) is applied under the page's own lock, as the reactor applies a store to
+    /// the mapping.
+    pub fe_page: Option<Arc<crate::display::fe_page::FePage>>,
 }
 
 impl Routes {
+    /// The display page, when the whole access lies in it.
+    fn fe_page_for(&self, region: u32, offset: u64, len: usize) -> Option<&Arc<crate::display::fe_page::FePage>> {
+        self.fe_page.as_ref().filter(|p| {
+            region == VFIO_PCI_BAR0_REGION_INDEX
+                && p.covers(offset)
+                && p.covers(offset + len.max(1) as u64 - 1)
+        })
+    }
+
     /// Serve a trapped write without the device mutex; false when it is not routed.
     pub fn write(&self, region: u32, offset: u64, data: &[u8]) -> bool {
+        if let Some(p) = self.fe_page_for(region, offset, data.len()) {
+            p.stats.routed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            p.write(offset, data);
+            return true;
+        }
         if region == VFIO_PCI_BAR0_REGION_INDEX && data.len() == 4 && offset % 4 == 0 {
             if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
                 let v = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
@@ -436,6 +454,14 @@ impl Routes {
 
     /// Serve a trapped read without the device mutex; false when it is not routed.
     pub fn read(&self, region: u32, offset: u64, data: &mut [u8]) -> bool {
+        if let Some(p) = self.fe_page_for(region, offset, data.len()) {
+            p.stats.routed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            for (i, b) in data.iter_mut().enumerate() {
+                let o = offset + i as u64;
+                *b = (p.read32(o & !3) >> ((o & 3) * 8)) as u8;
+            }
+            return true;
+        }
         if region == VFIO_PCI_BAR0_REGION_INDEX && data.len() == 4 && offset % 4 == 0 {
             if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
                 if let Some(v) = crate::display::core_path::read32(&e.1, &e.0.mem(), offset) {
@@ -2352,7 +2378,7 @@ mod tests {
         let (_hook, wake) = crate::intr_page::PageHook::new(page.clone()).unwrap();
         shared.attach_page(wake);
         let rearm = 0x88704;
-        let routes = Routes { intr_page: Some(page.clone()), rearm: Some(rearm), display: None };
+        let routes = Routes { intr_page: Some(page.clone()), rearm: Some(rearm), ..Routes::default() };
         let held = lock(&device);
         // Tagged page: the re-arm is not routed.
         assert!(!routes.write(0, rearm, &0u32.to_le_bytes()));
