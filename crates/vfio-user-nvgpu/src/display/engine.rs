@@ -778,9 +778,10 @@ pub struct Engine {
     pub recent: VecDeque<String>,
     pub record_write_failures: u64,
     /// The last guest accesses of the engine's registers served without the device mutex
-    /// (display/core_path.rs): (display-clock ns, write, offset, value), traced with
-    /// `recent`.
-    pub recent_regs: VecDeque<(u64, bool, u64, u32)>,
+    /// (display/core_path.rs): (display-clock ns, write, offset, value, repeats), an access
+    /// equal to the one before counted instead of kept (the ISR polls the dispatch word),
+    /// traced with `recent`.
+    pub recent_regs: VecDeque<(u64, bool, u64, u32, u32)>,
 }
 
 impl Engine {
@@ -831,10 +832,16 @@ impl Engine {
 
     /// A guest register access served without the device mutex, for `recent_regs`.
     pub(crate) fn recent_reg(&mut self, ns: u64, write: bool, off: u64, v: u32) {
+        if let Some(last) = self.recent_regs.back_mut() {
+            if (last.1, last.2, last.3) == (write, off, v) {
+                last.4 = last.4.saturating_add(1);
+                return;
+            }
+        }
         if self.recent_regs.len() >= RECENT_REGS {
             self.recent_regs.pop_front();
         }
-        self.recent_regs.push_back((ns, write, off, v));
+        self.recent_regs.push_back((ns, write, off, v, 0));
     }
 
     /// Write a record on `io`; a failed write is counted and kept among the recent events.
@@ -1606,7 +1613,14 @@ impl Engine {
         let regs: Vec<String> = self
             .recent_regs
             .iter()
-            .map(|&(ns, w, off, val)| format!("{:.4} {} {off:#x}={val:#x}", ns as f64 / 1e9, if w { 'W' } else { 'R' }))
+            .map(|&(ns, w, off, val, again)| {
+                format!(
+                    "{:.4} {} {off:#x}={val:#x}{}",
+                    ns as f64 / 1e9,
+                    if w { 'W' } else { 'R' },
+                    if again > 0 { format!(" x{}", again + 1) } else { String::new() }
+                )
+            })
             .collect();
         for chunk in regs.chunks(8) {
             v.push(format!("display recent registers: {}", chunk.join("; ")));
