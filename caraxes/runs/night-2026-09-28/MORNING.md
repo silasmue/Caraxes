@@ -11,7 +11,9 @@ One binary on dev (b2e0d749 + docs): the guest's ABI is detected at the GSP boot
 - **Linux, NVIDIA open 615:** smoke, compute series and scrub stress; 0 Xid.
 - **Windows 11 / 617.14:** D3D11, D3D12, Vulkan, CUDA, managed memory, NVENC/NVDEC, smoke ALL PASS; 0 Xid, 0 TDR.
   - **Caveat:** every Windows run binary (P28-P38) carried the P17 diagnostic build patch, which binds owned GFXP buffers on the host (host vidmem, outside the VM's slice). dev itself has no such bind.
-  - A Windows gate of the plain dev binary (P39) is scheduled. The productized owned-GFXP bind for both guests, with the buffers in the VM's slice, is being designed; it is also the likely fix for the Linux Xid 109.
+  - **P39 confirmed it (05:00): the plain dev binary does not start the Windows driver at all (Code 43).** dev refuses the KMD's GR_GFX_POOL_QUERY_SIZE, and the KMD unloads.
+  - Productizing P17 is now the top stability item: the pool bootstrap plus owned GFXP in the VM's slice (your "Puffer in den SLICE der VM"), for both guests. It is being implemented. It is also step 2 of the Linux Xid 109 fix.
+  - Until it lands, Windows needs the P17 diagnostic build.
 
 ## Performance, Linux vs native (defaults, no extra switches)
 
@@ -84,6 +86,8 @@ Graphics: the vblank handler's display-page writes each ran an unrelated BAR1 po
    - See docs/research/windows-traps-exit-2026-09-29.md.
 4. **The device trace** costs ~10 % in graphics micro-benchmarks. Off by default in the launcher?
 5. **NAS:** the games disk reads at ~62 MiB/s (qcow2 on /mnt/vmstore); you mentioned 25 Gbit/s.
+6. **GFXP slots cost VM VRAM:** ~6.6 MiB per GR context, e.g. 8 slots = 53 MiB of a 4 GiB slice. The alternative is host VRAM outside the slice, as in P17. It is being implemented in the slice as you decided; say if the cost changes your mind.
+7. **Long-draw test:** proving the Xid 109 fix needs a synthetic guest draw of ~6 s. It provokes one host Xid and a ~4 s host-desktop freeze, so it waits for your go.
 
 ## Open items (not blocking)
 
