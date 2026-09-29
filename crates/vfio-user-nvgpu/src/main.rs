@@ -1644,6 +1644,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                     if gate.has_posted() {
                         vfio_user_nvgpu::dlock::lock(&d, "posted doorbells").ring_posted(&gate, false);
                     }
+                    if gate.has_userd() {
+                        vfio_user_nvgpu::dlock::lock(&d, "shadow USERD rings").ring_polled_userds(&gate);
+                    }
                     if gate.waiting() == 0 {
                         continue;
                     }
@@ -1719,11 +1722,32 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let userd_poll = if std::env::var("CARAXES_SHADOW_USERD").as_deref() == Ok("1") {
         let d = device.clone();
         let stop = soak_stop.clone();
+        // Without the device lock (docs/caraxes/execution.md §9.11): USERD GP_GET and GP_PUT
+        // are plain memory on the card. The poller harvests the GPU-owned words under each
+        // channel's own USERD mutex and posts the channels with entries not yet forwarded;
+        // the ring completer rings those under the lock. C75: the locked poll held the lock
+        // 897k times (19.9 s).
+        let view = d.lock().unwrap_or_else(PoisonError::into_inner).mem_view();
+        let gate = vfio_user_nvgpu::ringgate::global();
         Some(std::thread::Builder::new().name("shadow-userd".into()).spawn(move || {
+            let mut cursor = 0usize;
             while !stop.load(std::sync::atomic::Ordering::Acquire) {
                 std::thread::sleep(std::time::Duration::from_millis(1));
                 if stop.load(std::sync::atomic::Ordering::Acquire) { break }
-                vfio_user_nvgpu::dlock::lock(&d, "shadow USERD poll").poll_shadow_userds();
+                let watch = vfio_user_nvgpu::mirror::userd_watch();
+                if watch.is_empty() {
+                    continue;
+                }
+                let mem = view.read().unwrap_or_else(PoisonError::into_inner).clone();
+                // At most 32 channels a tick, round-robin, as the locked poll did.
+                let n = watch.len().min(32);
+                for k in 0..n {
+                    let (chid, slot) = &watch[(cursor + k) % watch.len()];
+                    if slot.poll(&mem) {
+                        gate.post_userd(*chid);
+                    }
+                }
+                cursor = (cursor + n) % watch.len();
             }
         }).context("spawn shadow USERD poller")?)
     } else {

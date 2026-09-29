@@ -98,6 +98,22 @@ pub struct HostUserd {
 }
 
 impl HostUserd {
+    /// A USERD over `page` (a leaked host page standing in for the vidmem window), for tests.
+    #[cfg(test)]
+    pub(crate) fn for_test(page: &'static mut [u8; 4096]) -> Self {
+        HostUserd {
+            handle: 0,
+            gpu_addr: 0,
+            window: Window {
+                _fd: Box::new(()),
+                unmap: None,
+                ptr: page.as_mut_ptr(),
+                offset: 0,
+                len: 4096,
+            },
+        }
+    }
+
     pub fn handle(&self) -> u32 {
         self.handle
     }

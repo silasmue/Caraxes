@@ -707,3 +707,27 @@ clock's per-tick work takes the display engine's lock and never D.
 - Tests: `fastread::tests` (busy until the hold's job is applied; a pool batch or the access
   trace sends the read to the lock; the flush copy marks the sync owed and goes on a write to
   its page), `boot::tests::the_flush_page_and_trigger_are_published_for_reads_without_the_lock`.
+
+### 9.11 The shadow USERD poll without the lock (2026-09-29, Windows line)
+
+- With `CARAXES_SHADOW_USERD=1` a guest sysmem USERD is shadowed by a private host USERD; a
+  thread polls them every 1 ms (entries the guest published without a doorbell the device
+  saw, and the GPU-owned words back to the guest). It took D for every poll: C75 897k holds,
+  19.9 s, max 298 ms.
+- On the card USERD GP_GET and GP_PUT are plain memory. The poller now runs without D: each
+  host channel's private USERD sits in a `UserdSlot` (mirror.rs) with its own mutex, a leaf
+  taken by the D-holders (publish, harvest, the takeovers, the free) and the poller. The
+  poller harvests under it (the GPU-owned words to the guest's USERD in guest RAM, as the
+  locked harvest) and posts a channel whose GPPut is in the ring and not the one last
+  published to the ring gate (`RingGate::post_userd`, one entry per channel).
+- The completer rings those under D after the locked poll's checks (`Mirror::userd_pending`:
+  context ready, the guest channel unchanged, still pending), as the locked poll rang them
+  (`doorbell_chid`).
+- The poller reads only what the mirror published (`mirror::userd_watch`: republished when a
+  channel is added or removed, by mirror id, dropped with the mirror). A free empties the
+  slot before the host USERD goes, so the poller never reads an unmapped window; a channel
+  not ready is skipped.
+- Counted: the exit summary's `shadow USERD poller` line, the D holder "shadow USERD rings",
+  the work key "rings of the poller".
+- Test: `the_userd_poller_harvests_and_finds_unforwarded_entries_off_the_lock`.
+

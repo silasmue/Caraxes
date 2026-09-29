@@ -1646,6 +1646,24 @@ impl Device {
         &self.mem
     }
 
+    /// The channels the USERD poller posted (main.rs, execution.md §9.11), rung under the
+    /// device lock after the locked checks.
+    pub fn ring_polled_userds(&mut self, gate: &crate::ringgate::RingGate) {
+        let chids = gate.take_userd();
+        if chids.is_empty() {
+            return;
+        }
+        let t0 = std::time::Instant::now();
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.ring_userd_pending(&self.mem, &chids),
+            None => return,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+        crate::dlock::work("shadow USERD", "rings of the poller".into(), t0.elapsed());
+    }
+
     pub fn poll_shadow_userds(&mut self) {
         let notes = match self.bar0.boot_mut() {
             Some(b) => b.poll_shadow_userds(&self.mem),
@@ -1919,6 +1937,12 @@ impl Device {
         if posted.writes > 0 {
             s.push_str(&posted.line());
             s.push('\n');
+        }
+        let (userd_posts, userd_joined) = crate::ringgate::global().userd_stats();
+        if userd_posts > 0 {
+            s.push_str(&format!(
+                "shadow USERD poller (execution.md §9.11): {userd_posts} channel(s) found with entries not forwarded, without the device lock; {userd_joined} joined a queued ring\n"
+            ));
         }
         if self.mirror_writes_unsynced > 0 || self.slow_pool_polls > 0 {
             s.push_str(&format!(

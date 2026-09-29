@@ -40,6 +40,11 @@ struct State {
     /// Doorbell writes posted and not rung yet, in the guest's order, one per token.
     posted: Vec<Posted>,
     post: PostStats,
+    /// Channels the USERD poller found with entries the device has not forwarded
+    /// (execution.md §9.11), one entry per channel; and how many were posted and joined.
+    userd_rings: Vec<u32>,
+    userd_posted: u64,
+    userd_joined: u64,
     stop: bool,
 }
 
@@ -50,6 +55,8 @@ pub struct RingGate {
     cv: Condvar,
     /// `posted.len()`, for the check every trapped access makes without the gate's mutex.
     posted_n: AtomicUsize,
+    /// `userd_rings.len()`, for the completer's check.
+    userd_n: AtomicUsize,
 }
 
 /// A trapped doorbell write the vfio-user loop posted: the value written and when.
@@ -170,6 +177,37 @@ impl RingGate {
         true
     }
 
+    /// The USERD poller found channel `chid` with entries not yet forwarded: the completer
+    /// rings it under the device lock (a channel already queued joins its entry).
+    pub fn post_userd(&self, chid: u32) {
+        let mut st = self.st();
+        st.userd_posted += 1;
+        if st.userd_rings.contains(&chid) {
+            st.userd_joined += 1;
+            return;
+        }
+        st.userd_rings.push(chid);
+        self.userd_n.store(st.userd_rings.len(), Ordering::Release);
+        st.generation += 1;
+        self.cv.notify_all();
+    }
+
+    pub fn has_userd(&self) -> bool {
+        self.userd_n.load(Ordering::Acquire) > 0
+    }
+
+    pub fn take_userd(&self) -> Vec<u32> {
+        let mut st = self.st();
+        self.userd_n.store(0, Ordering::Release);
+        std::mem::take(&mut st.userd_rings)
+    }
+
+    /// The USERD poller's posts and those that joined a queued one.
+    pub fn userd_stats(&self) -> (u64, u64) {
+        let st = self.st();
+        (st.userd_posted, st.userd_joined)
+    }
+
     /// Whether doorbell writes are posted and not rung yet (no mutex).
     pub fn has_posted(&self) -> bool {
         self.posted_n.load(Ordering::Acquire) > 0
@@ -213,7 +251,9 @@ impl RingGate {
             if st.stop {
                 return None;
             }
-            if (st.waiting > 0 || !st.posted.is_empty()) && st.generation != seen {
+            if (st.waiting > 0 || !st.posted.is_empty() || !st.userd_rings.is_empty())
+                && st.generation != seen
+            {
                 return Some(st.generation);
             }
             let now = std::time::Instant::now();

@@ -1020,7 +1020,103 @@ struct ShadowUserd {
     harvested: Option<(u32, u32)>,
 }
 
+/// A host channel's private USERD, shared with the USERD poller that runs without the
+/// device lock (docs/caraxes/execution.md §9.11). The cell's mutex is a leaf: the device
+/// lock's holders (publish, harvest, the takeovers, the free) and the poller take it
+/// briefly; nothing under it takes another lock. `userd` is `None` once the channel is freed
+/// (its host USERD goes after the cell is emptied, so the poller never reads an unmapped
+/// window); `ready` mirrors `HostChannel::context_ready`.
+pub struct UserdSlot {
+    cell: Mutex<UserdCell>,
+}
+
+struct UserdCell {
+    userd: Option<ShadowUserd>,
+    ready: bool,
+}
+
+impl UserdSlot {
+    fn new(u: ShadowUserd, ready: bool) -> Arc<Self> {
+        Arc::new(UserdSlot {
+            cell: Mutex::new(UserdCell { userd: Some(u), ready }),
+        })
+    }
+
+    fn cell(&self) -> std::sync::MutexGuard<'_, UserdCell> {
+        self.cell.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn with<R>(&self, f: impl FnOnce(&mut ShadowUserd) -> R) -> Option<R> {
+        self.cell().userd.as_mut().map(f)
+    }
+
+    fn set_ready(&self, ready: bool) {
+        self.cell().ready = ready;
+    }
+
+    /// Empty the cell (the channel's free): the poller no longer touches the USERD.
+    fn take(&self) -> Option<ShadowUserd> {
+        self.cell().userd.take()
+    }
+
+    /// The poll of one channel without the device lock: the GPU-owned words back to the
+    /// guest's USERD if the host's moved (as the locked harvest), and whether the guest
+    /// published entries the device has not forwarded (GPPut in the ring and not the one
+    /// last published). A channel not ready (or freed) is skipped: false.
+    pub fn poll(&self, mem: &GuestMemory) -> bool {
+        let mut c = self.cell();
+        if !c.ready {
+            return false;
+        }
+        let Some(u) = c.userd.as_mut() else {
+            return false;
+        };
+        u.harvest_sys(mem);
+        u.pending(mem)
+    }
+}
+
+/// The private USERDs the poller watches, by mirror (one per device model; a model rebuilt
+/// at a reset publishes under a new id and the old one's entries go when it is dropped).
+type UserdWatch = Vec<(u64, u32, Arc<UserdSlot>)>;
+
+fn userd_watch_list() -> &'static Mutex<UserdWatch> {
+    static W: std::sync::OnceLock<Mutex<UserdWatch>> = std::sync::OnceLock::new();
+    W.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+/// The private USERDs to poll now: `(chid, slot)` of every live mirror.
+pub fn userd_watch() -> Vec<(u32, Arc<UserdSlot>)> {
+    userd_watch_list()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .map(|(_, c, s)| (*c, s.clone()))
+        .collect()
+}
+
 impl ShadowUserd {
+    /// [`Self::harvest`] with guest RAM only (the words go to the guest's sysmem USERD).
+    fn harvest_sys(&mut self, mem: &GuestMemory) {
+        let storage = &self.storage;
+        if let Some(state) = crate::userd::GpuState::read_if_moved(&mut self.harvested, |off| {
+            Some(storage.read_u32(off))
+        }) {
+            state.publish(|off, value| {
+                if let Some(at) = self.guest.checked_add(off) {
+                    mem.write(at, &value.to_le_bytes());
+                }
+            });
+        }
+    }
+
+    /// The guest published entries the device has not forwarded: its GPPut (NV_RAMUSERD
+    /// GP_PUT, +0x8c) inside the ring and not the one last published.
+    fn pending(&self, mem: &GuestMemory) -> bool {
+        mem.read_u32(self.guest + 0x8c)
+            .is_some_and(|put| put < self.entries && Some(put) != self.published_put)
+    }
+
     fn publish(&mut self, gm: &GpuMem) -> Result<u32, String> {
         let cpu = crate::userd::CpuState::read(self.entries, |off| {
             gm.read_u32(Target::Sys(self.guest.checked_add(off)?))
@@ -1032,16 +1128,7 @@ impl ShadowUserd {
     }
 
     fn harvest(&mut self, gm: &mut GpuMem) {
-        let storage = &self.storage;
-        if let Some(state) = crate::userd::GpuState::read_if_moved(&mut self.harvested, |off| {
-            Some(storage.read_u32(off))
-        }) {
-            state.publish(|off, value| {
-                if let Some(at) = self.guest.checked_add(off) {
-                    gm.write(Target::Sys(at), &value.to_le_bytes());
-                }
-            });
-        }
+        self.harvest_sys(gm.sys);
     }
 }
 
@@ -1436,12 +1523,27 @@ pub struct HostChannel {
     pub fwd_put: Option<u32>,
     /// `Mirror::unwaited` (the count of plans submitted without a wait) at that forward.
     pub fwd_unwaited: u64,
-    /// Private low-address USERD for a guest sysmem USERD on a high-IOVA host.
-    userd: Option<ShadowUserd>,
+    /// Private low-address USERD for a guest sysmem USERD on a high-IOVA host, shared with
+    /// the USERD poller ([`UserdSlot`]).
+    userd: Option<Arc<UserdSlot>>,
     context_ready: bool,
     /// The host error notifier when the guest's could not be mirrored (a guest notifier in
     /// VRAM): the device's own page, read by the RC scan (`Mirror::rc_notifier`).
     rc_page: Option<crate::hostmem::DevicePage>,
+}
+
+impl HostChannel {
+    /// `f` on the private USERD, if the channel has one.
+    fn with_userd<R>(&self, f: impl FnOnce(&mut ShadowUserd) -> R) -> Option<R> {
+        self.userd.as_ref().and_then(|s| s.with(f))
+    }
+
+    fn set_context_ready(&mut self, ready: bool) {
+        self.context_ready = ready;
+        if let Some(s) = &self.userd {
+            s.set_ready(ready);
+        }
+    }
 }
 
 /// Counters for the exit summary.
@@ -1741,6 +1843,8 @@ pub struct Mirror {
     /// By guest ChID.
     channels: BTreeMap<u32, HostChannel>,
     userd_cursor: u32,
+    /// This mirror's id among the USERD poller's watch list (`publish_userd_watch`).
+    watch_id: u64,
     capture_deferred: bool,
     /// Replay the guest's VA-space controls to make GR channels schedulable on the host
     /// (off while the GR-context wall stands: GR runs in software, only CE on the host).
@@ -1962,6 +2066,7 @@ impl Mirror {
             tsgs: BTreeMap::new(),
             channels: BTreeMap::new(),
             userd_cursor: 0,
+            watch_id: crate::ptcache::fresh_generation(),
             capture_deferred: std::env::var("CARAXES_DEFERRED_API_CAPTURE").as_deref() == Ok("1"),
             // GR channels on the host (the c2 experiment, exec-formats.md §4.5): the
             // replayed shared-management VAS plus a second `GPU_PROMOTE_CTX` on the host
@@ -2189,6 +2294,35 @@ impl Mirror {
     /// Harvest private USERDs and find new submissions without requiring a trapped RAM
     /// write. At most 32 channels per tick, round-robin. The caller routes each submission
     /// through its normal disabled-channel checks and the shadow mapping barrier.
+    /// Publish this mirror's private USERDs to the poller's watch list (after a channel
+    /// was added or removed): the poller then polls them without the device lock.
+    fn publish_userd_watch(&self) {
+        let mut w = userd_watch_list().lock().unwrap_or_else(PoisonError::into_inner);
+        w.retain(|(id, _, _)| *id != self.watch_id);
+        w.extend(
+            self.channels
+                .iter()
+                .filter_map(|(&chid, hc)| hc.userd.as_ref().map(|s| (self.watch_id, chid, s.clone()))),
+        );
+    }
+
+    /// Whether channel `chid`'s private USERD has entries the device has not forwarded,
+    /// checked as the locked poll checks it (ready, the guest's channel unchanged), with the
+    /// GPU-owned words harvested first: the USERD poller's ring under the device lock.
+    pub fn userd_pending(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> bool {
+        let Some(hc) = self.channels.get(&chid) else {
+            return false;
+        };
+        if !hc.context_ready || reg.channel(chid).is_none_or(|ch| ch.generation != hc.generation) {
+            return false;
+        }
+        let sys = gm.sys;
+        hc.with_userd(|u| {
+            u.harvest_sys(sys);
+            u.pending(sys)
+        }) == Some(true)
+    }
+
     pub fn poll_userds(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<u32> {
         use std::ops::Bound::{Excluded, Unbounded};
         let ids: Vec<u32> = self.channels.range((Excluded(self.userd_cursor), Unbounded))
@@ -2198,12 +2332,13 @@ impl Mirror {
         let mut pending = Vec::new();
         for chid in ids {
             self.userd_cursor = chid;
-            let hc = self.channels.get_mut(&chid).unwrap();
+            let hc = self.channels.get(&chid).unwrap();
             if !hc.context_ready || reg.channel(chid).is_none_or(|ch| ch.generation != hc.generation) { continue }
-            let u = hc.userd.as_mut().unwrap();
-            u.harvest(gm);
-            if gm.read_u32(Target::Sys(u.guest + 0x8c))
-                .is_some_and(|put| put < u.entries && Some(put) != u.published_put)
+            let sys = gm.sys;
+            if hc.with_userd(|u| {
+                u.harvest_sys(sys);
+                u.pending(sys)
+            }) == Some(true)
             {
                 pending.push(chid);
             }
@@ -3002,15 +3137,13 @@ impl Mirror {
         gm.fb.flush();
         mark(Step::Flush);
         {
-            if let Some(u) = self
+            let published = self
                 .channels
-                .get_mut(&chid)
-                .and_then(|hc| hc.userd.as_mut())
-            {
-                if let Err(e) = u.publish(gm) {
-                    notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
-                    return notes;
-                }
+                .get(&chid)
+                .and_then(|hc| hc.with_userd(|u| u.publish(gm)));
+            if let Some(Err(e)) = published {
+                notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
+                return notes;
             }
             let put = if crate::launch::fast() {
                 Self::userd_put(reg, gm, chid)
@@ -3029,12 +3162,8 @@ impl Mirror {
             }
             // The GPU-owned words back to the guest's USERD after the ring, off the
             // submission path (uncached reads of the host USERD; P37: 9.6 us before it).
-            if let Some(u) = self
-                .channels
-                .get_mut(&chid)
-                .and_then(|hc| hc.userd.as_mut())
-            {
-                u.harvest(gm);
+            if let Some(hc) = self.channels.get(&chid) {
+                hc.with_userd(|u| u.harvest(gm));
             }
         }
         notes
@@ -3609,11 +3738,12 @@ impl Mirror {
                 shadow_root: Some(pb.root),
                 fwd_put: None,
                 fwd_unwaited: 0,
-                userd: built.shadow_userd,
+                userd: built.shadow_userd.map(|u| UserdSlot::new(u, false)),
                 context_ready: false,
                 rc_page: built.rc_page,
             },
         );
+        self.publish_userd_watch();
     }
 
     /// Take a finished build's output into the maps (the commit and the teardown): the host
@@ -3878,11 +4008,12 @@ impl Mirror {
                 shadow_root: Some(pb.root),
                 fwd_put: None,
                 fwd_unwaited: 0,
-                userd: built.shadow_userd,
+                userd: built.shadow_userd.map(|u| UserdSlot::new(u, pb.submit)),
                 context_ready: pb.submit,
                 rc_page: built.rc_page,
             },
         );
+        self.publish_userd_watch();
         self.committed.push((chid, token));
         notes.push(format!(
             "shadow: chid {chid} scheduled; host token {token:#x} (host chid {}, runlist {}), {} ms after its first doorbell [host]",
@@ -3954,9 +4085,10 @@ impl Mirror {
         let ch = reg.channel(chid).ok_or("management channel is gone")?;
         let hc = self.channels.get(&chid).ok_or("management has no host channel")?;
         if hc.generation != ch.generation { return Err("management channel generation changed".into()); }
-        let u = hc.userd.as_ref().ok_or("management takeover requires private USERD")?;
-        let get = u.storage.read_u32(0x88);
-        if u.published_put != Some(get) { return Err("management host channel still has unfetched work".into()); }
+        let (get, published) = hc
+            .with_userd(|u| (u.storage.read_u32(0x88), u.published_put))
+            .ok_or("management takeover requires private USERD")?;
+        if published != Some(get) { return Err("management host channel still has unfetched work".into()); }
         Ok(get)
     }
 
@@ -3976,7 +4108,10 @@ impl Mirror {
             .ok_or("management idle has no host target")?;
         if status != sys::NV_OK { return Err(idle_note); }
         if self.management_cursor(reg, chid)? != expected_get { return Err("management prefix changed while idling".into()); }
-        self.channels.get_mut(&chid).and_then(|hc| hc.userd.as_mut()).ok_or("private USERD disappeared")?.harvest(gm);
+        self.channels
+            .get(&chid)
+            .and_then(|hc| hc.with_userd(|u| u.harvest(gm)))
+            .ok_or("private USERD disappeared")?;
         // The root's plans applied before the host TSG goes; the shadow VAS's teardown then runs
         // on the worker in bounded steps, not waited for under the device lock: no channel or
         // TSG is left on it, so nothing can run through it (Windows C70: 300-345 ms holds).
@@ -4024,7 +4159,7 @@ impl Mirror {
         let hc = self.channels.get_mut(&chid).filter(|hc| hc.generation == ch.generation)
             .ok_or("deferred target host context is gone")?;
         if root != hc.shadow_root.map(Target::Fb) { return Err("deferred target VAS changed".into()); }
-        hc.context_ready = true;
+        hc.set_context_ready(true);
         Ok(())
     }
 
@@ -4262,7 +4397,7 @@ impl Mirror {
         if reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
             return Err("deferred eviction of a multi-channel TSG is not implemented".into());
         }
-        hc.context_ready = false;
+        hc.set_context_ready(false);
 
         // `FIFO_IDLE_CHANNELS` deschedules the target and waits for its pending engine work,
         // unlike GPGet (which proves only that PBDMA fetched the entries). Match management
@@ -4285,20 +4420,23 @@ impl Mirror {
             .filter(|hc| hc.generation == generation && hc.tsg == key)
             .ok_or("deferred target host context changed while idling")?;
         let doorbells = hc.doorbells;
-        let userd = hc.userd.as_mut().ok_or("deferred target has no private USERD")?;
-        let get = userd.storage.read_u32(USERD_GP_GET);
-        if get >= userd.entries {
-            return Err(format!("deferred target final GPGet {get} is outside its {}-entry ring", userd.entries));
-        }
-        let put = userd.storage.read_u32(USERD_GP_PUT);
-        let all_published_work_fetched = userd.published_put == Some(get);
-        let untouched_empty_ring = userd.published_put.is_none()
-            && doorbells == 0
-            && put == get;
-        if !all_published_work_fetched && !untouched_empty_ring {
-            return Err("deferred target still has published work after idling".into());
-        }
-        userd.harvest(gm);
+        let get = hc.with_userd(|userd| {
+            let get = userd.storage.read_u32(USERD_GP_GET);
+            if get >= userd.entries {
+                return Err(format!("deferred target final GPGet {get} is outside its {}-entry ring", userd.entries));
+            }
+            let put = userd.storage.read_u32(USERD_GP_PUT);
+            let all_published_work_fetched = userd.published_put == Some(get);
+            let untouched_empty_ring = userd.published_put.is_none()
+                && doorbells == 0
+                && put == get;
+            if !all_published_work_fetched && !untouched_empty_ring {
+                return Err("deferred target still has published work after idling".to_string());
+            }
+            userd.harvest(gm);
+            Ok(get)
+        })
+        .ok_or("deferred target has no private USERD")??;
 
         // As at the management retirement: the root's plans, not the teardown.
         self.wait_root_or_all(root.and_then(|t| match t {
@@ -5842,6 +5980,8 @@ impl Mirror {
             self.update_waiting();
         }
         if let Some(mut hc) = self.channels.remove(&chid) {
+            // Out of the poller's list before the USERD goes (the cell is emptied below).
+            self.publish_userd_watch();
             let r = {
                 let mut h = self.hm.lock().unwrap();
                 let r = h.free_object(hc.handle);
@@ -5856,7 +5996,8 @@ impl Mirror {
                     }
                 }
                 if r.is_ok() {
-                    if let Some(u) = hc.userd.take() {
+                    // The cell is emptied first: the poller no longer reads the window.
+                    if let Some(u) = hc.userd.take().and_then(|s| s.take()) {
                         if let Err(st) = h.free_host_userd(u.storage) {
                             notes.push(format!("chid {chid}: ERROR freeing private USERD: {}", status_name(st)));
                         }
@@ -5877,8 +6018,9 @@ impl Mirror {
                 Err(st) => format!("chid {chid}: ERROR freeing host channel {:#x}: {}", hc.handle, status_name(st)),
             });
             if r.is_err() {
-                hc.context_ready = false;
+                hc.set_context_ready(false);
                 self.channels.insert(chid, hc);
+                self.publish_userd_watch();
                 return false;
             }
         }
@@ -6925,6 +7067,11 @@ fn promote_gr(
 
 impl Drop for Mirror {
     fn drop(&mut self) {
+        // The poller forgets this mirror's USERDs.
+        userd_watch_list()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|(id, _, _)| *id != self.watch_id);
         for n in self.reset() {
             eprintln!("vfio-user-nvgpu: mirror: {n}");
         }
@@ -7050,6 +7197,48 @@ mod tests {
     }
 
     use super::*;
+
+    /// The USERD poller's view of one channel without the device lock (execution.md §9.11):
+    /// the GPU-owned words go to the guest's USERD when the host's moved, a guest GPPut not
+    /// yet published is pending, and a channel not ready or freed is left alone.
+    #[test]
+    fn the_userd_poller_harvests_and_finds_unforwarded_entries_off_the_lock() {
+        let (mem, _, base, path) = crate::msgq::tests::queue_fixture("userd-poll");
+        let host: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let host_ptr = host.as_mut_ptr();
+        let guest = base + 0x2000;
+        let slot = UserdSlot::new(
+            ShadowUserd {
+                storage: crate::hostmem::HostUserd::for_test(host),
+                guest,
+                entries: 16,
+                published_put: Some(2),
+                harvested: None,
+            },
+            true,
+        );
+        // The host fetched to 1; the guest's GPPut is the published 2.
+        // SAFETY: the page is leaked and only this test touches it.
+        unsafe { std::ptr::write_volatile(host_ptr.add(0x88) as *mut u32, 1) };
+        assert!(mem.write(guest + 0x8c, &2u32.to_le_bytes()));
+        assert!(!slot.poll(&mem), "nothing new from the guest");
+        assert_eq!(mem.read_u32(guest + 0x88), Some(1), "GPGet harvested to the guest");
+        // The guest publishes entry 2: pending.
+        assert!(mem.write(guest + 0x8c, &3u32.to_le_bytes()));
+        assert!(slot.poll(&mem));
+        // Out of the ring: not a submission.
+        assert!(mem.write(guest + 0x8c, &16u32.to_le_bytes()));
+        assert!(!slot.poll(&mem));
+        assert!(mem.write(guest + 0x8c, &3u32.to_le_bytes()));
+        slot.set_ready(false);
+        assert!(!slot.poll(&mem), "not ready: left alone");
+        slot.set_ready(true);
+        let u = slot.take().expect("the channel's USERD");
+        assert!(!slot.poll(&mem), "freed: left alone");
+        assert_eq!(u.entries, 16);
+        std::mem::forget(u);
+        let _ = std::fs::remove_file(&path);
+    }
 
     /// What a shadow job in flight may still map beyond the cached walks (bar1-pool.md
     /// §14): a page overlaps a range when it starts inside it; a teardown without its walk

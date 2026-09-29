@@ -670,6 +670,23 @@ impl Dispatcher {
     }
 
     /// Poll private USERDs, then reuse normal submission and scheduling checks.
+    /// The USERD poller's rings (main.rs, execution.md §9.11): each channel it found with
+    /// entries not yet forwarded is checked again under the device lock as the locked poll
+    /// checks it (`Mirror::userd_pending`) and rung as that poll rang it.
+    pub fn ring_userd_pending(&mut self, gm: &mut crate::channel::GpuMem, chids: &[u32]) -> Vec<String> {
+        let mut notes = Vec::new();
+        for &chid in chids {
+            let pending = self
+                .mirror
+                .as_mut()
+                .is_some_and(|m| m.userd_pending(&self.channels, gm, chid));
+            if pending {
+                notes.extend(self.doorbell_chid(gm, chid, chid, false));
+            }
+        }
+        notes
+    }
+
     pub fn poll_shadow_userds(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
         let pending = self.mirror.as_mut()
             .map(|m| m.poll_userds(&self.channels, gm)).unwrap_or_default();
