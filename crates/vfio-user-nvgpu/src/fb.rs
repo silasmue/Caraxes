@@ -2525,6 +2525,48 @@ mod tests {
         assert_eq!(fb.backing(0xF_1000), Backing::Store);
     }
 
+    /// The BAR2 memfd's drift check: a GPU engine's write to VRAM behind a mapped page (the
+    /// store written directly) is found by the next sampled check and counted, a device
+    /// write through the FB (memfd and VRAM) is not.
+    #[test]
+    fn the_bar2_memfd_counts_vram_changed_behind_it() {
+        use crate::bar2area::{Bar2Area, Config, DRIFT_EVERY};
+        let mut fb = FakeFb::new(1 << 20);
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        let (root, pd2, pd1, pd0, pt) = (0x10000, 0x11000, 0x12000, 0x13000, 0x14000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        fb.write_u64(pt + 8, pte(0x20000));
+        let cfg = Config {
+            traps: vec![0x1f000],
+            sync_doorbell: false,
+            defer_flush: false,
+            flush_page_memory: false,
+        };
+        fb.set_bar2_area(Bar2Area::create(0x20000, &cfg).unwrap())
+            .unwrap();
+        assert!(fb.bar2_sync(Some(root), None));
+        let drift = |fb: &FakeFb| {
+            let s = fb.bar2_area().unwrap().stats();
+            (s.drift_checked, s.drift_found)
+        };
+        assert_eq!(drift(&fb), (1, 0));
+        // A device write reaches the memfd and VRAM: no drift.
+        fb.write_u64(0x20008, 0x55);
+        std::thread::sleep(DRIFT_EVERY + std::time::Duration::from_millis(10));
+        fb.bar2_sync(Some(root), None);
+        assert_eq!(drift(&fb), (2, 0));
+        // An engine writes VRAM behind the memfd: found and counted, the guest's view stale.
+        fb.store.write(0x20010, &[7, 7, 7, 7]);
+        std::thread::sleep(DRIFT_EVERY + std::time::Duration::from_millis(10));
+        fb.bar2_sync(Some(root), None);
+        assert_eq!(drift(&fb), (3, 1));
+        assert!(fb.bar2_area().unwrap().summary().contains("FB 0x20000"));
+    }
+
     #[test]
     fn walk_small_and_big_pages() {
         let mut fb = FakeFb::new(64 << 20);

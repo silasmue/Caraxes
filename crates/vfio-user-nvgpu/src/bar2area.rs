@@ -362,6 +362,9 @@ pub struct Live {
     pub snap: Box<PageBuf>,
 }
 
+/// The drift check's period (one mapped page per period, [`Bar2Area::check_drift`]).
+pub const DRIFT_EVERY: std::time::Duration = std::time::Duration::from_millis(50);
+
 /// Page key of a page-aligned target: FB page number, or a guest sysmem page tagged.
 pub fn key_of(t: Target) -> Option<u64> {
     match t {
@@ -414,6 +417,31 @@ pub struct RemapTable {
 }
 
 impl RemapTable {
+    /// The next live FB page key after `after` (wrapping), for the drift check's round robin.
+    fn next_fb_key(&self, after: u64) -> Option<u64> {
+        let fb = |k: &&u64| **k & SYS == 0;
+        let above = self
+            .live
+            .keys()
+            .filter(fb)
+            .filter(|k| **k > after)
+            .min()
+            .copied();
+        above.or_else(|| self.live.keys().filter(fb).min().copied())
+    }
+
+    /// Whether VRAM (`vram`, one page) differs from the snapshot of FB page `key`.
+    fn drifted(&self, key: u64, vram: &[u8]) -> bool {
+        let Some(l) = self.live.get(&key) else {
+            return false;
+        };
+        l.snap
+            .iter()
+            .flat_map(|w| w.to_le_bytes())
+            .zip(vram)
+            .any(|(a, b)| a != *b)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.live.is_empty()
     }
@@ -843,6 +871,12 @@ pub struct Bar2Stats {
     pub settled_sync_point: u64,
     pub settled_doorbell: u64,
     pub settled_clock: u64,
+    /// The sampled drift check ([`DRIFT_EVERY`]): FB pages compared with VRAM after a sync,
+    /// those whose VRAM had changed behind the memfd (a GPU engine wrote a page the guest
+    /// reads through BAR2: its reads are stale), and the first few of them.
+    pub drift_checked: u64,
+    pub drift_found: u64,
+    pub drift_first: Vec<u64>,
 }
 
 /// What one sync changed, for the FB's caches.
@@ -868,6 +902,9 @@ pub struct Bar2Area {
     trapped: Cell<u64>,
     /// The owed flush when flush reads defer ([`Config::defer_flush`]).
     defer: Option<Arc<DeferredFlush>>,
+    /// The drift check's round robin: the last FB page key checked, and when.
+    drift_cursor: u64,
+    drift_at: Option<std::time::Instant>,
     /// The device's private FB pages (devce.rs `PRIVATE_AT`): never mapped into the memfd
     /// nor read as a BAR2 table; a guest access there traps (fb.rs `bar_access` refuses it).
     private: Option<(u64, u64)>,
@@ -901,6 +938,8 @@ impl Bar2Area {
                 })
             }),
             private: None,
+            drift_cursor: 0,
+            drift_at: None,
         })
     }
 
@@ -1055,6 +1094,7 @@ impl Bar2Area {
         if let Some(root) = root {
             self.follow_tables(store, fb_size, root, sys, tr, &mut rep);
         }
+        self.check_drift(store, tr, t0);
         self.stats.max_live = self.stats.max_live.max(self.remap.live_pages() as u64);
         self.stats.max_aliases = self.stats.max_aliases.max(self.remap.max_aliases() as u64);
         let ns = t0.elapsed().as_nanos() as u64;
@@ -1068,6 +1108,36 @@ impl Bar2Area {
             "",
         );
         rep
+    }
+
+    /// At most once per [`DRIFT_EVERY`], after the write-back: compare one mapped FB page's
+    /// VRAM with its snapshot. They must agree (the guest's writes were just written back,
+    /// the device's own go to both); a difference is a GPU engine's write the memfd does not
+    /// show, so the guest reads it stale through BAR2. Counted, never corrected here.
+    fn check_drift(&mut self, store: &dyn FbStore, tr: Translate, now: std::time::Instant) {
+        if self
+            .drift_at
+            .is_some_and(|t| now.saturating_duration_since(t) < DRIFT_EVERY)
+        {
+            return;
+        }
+        self.drift_at = Some(now);
+        let Some(key) = self.remap.next_fb_key(self.drift_cursor) else {
+            return;
+        };
+        self.drift_cursor = key;
+        let Target::Fb(pa) = target_of(key) else {
+            return;
+        };
+        let mut vram = vec![0u8; PAGE as usize];
+        store.read(tr(pa), &mut vram);
+        self.stats.drift_checked += 1;
+        if self.remap.drifted(key, &vram) {
+            self.stats.drift_found += 1;
+            if self.stats.drift_first.len() < 8 && !self.stats.drift_first.contains(&pa) {
+                self.stats.drift_first.push(pa);
+            }
+        }
     }
 
     /// Bring the BAR2 translation up to date with the tables rooted at `root`.
@@ -1251,7 +1321,7 @@ impl Bar2Area {
             .map(|p| format!("{:#x}", p * PAGE))
             .collect();
         format!(
-            "bar2 memfd: BAR2 [0, {:#x}) in host RAM, trapped page(s) [{}] with {} access(es); {} sync(s) ({} us total, {} us max), {} page compare(s), {} dirty page(s), {} byte(s) written back, {} alias conflict(s); {} BAR2 table walk(s), {} page(s) entered ({} loaded), {} left; now {} page(s) mapped at {} BAR2 page(s), at most {} live and {} alias(es) of one page; {} sysmem write-back(s) skipped; flush reads {} (docs/caraxes/bar2-memfd.md, display-pacing.md)",
+            "bar2 memfd: BAR2 [0, {:#x}) in host RAM, trapped page(s) [{}] with {} access(es); {} sync(s) ({} us total, {} us max), {} page compare(s), {} dirty page(s), {} byte(s) written back, {} alias conflict(s); {} BAR2 table walk(s), {} page(s) entered ({} loaded), {} left; now {} page(s) mapped at {} BAR2 page(s), at most {} live and {} alias(es) of one page; {} sysmem write-back(s) skipped; flush reads {}; VRAM behind the memfd: {} of {} sampled page(s) changed{} (docs/caraxes/bar2-memfd.md, display-pacing.md)",
             self.size,
             traps.join(" "),
             s.trapped,
@@ -1278,6 +1348,16 @@ impl Bar2Area {
                 )
             } else {
                 "sync at once".to_string()
+            },
+            s.drift_found,
+            s.drift_checked,
+            if s.drift_first.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " (GPU writes the guest reads stale through BAR2: FB {})",
+                    s.drift_first.iter().map(|p| format!("{p:#x}")).collect::<Vec<_>>().join(" ")
+                )
             }
         )
     }
