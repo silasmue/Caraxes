@@ -43,8 +43,14 @@ caraxes/runs/openrender-2026-09-29/openrender-boot.sh caraxes/runs/openrender-20
 
 ## Expected at this commit
 
-- R1-R3: nouveau binds with GSP-RM 570.144, creates its kernel channels (on the device's
-  software executor), `/dev/dri/renderD128` appears, `vulkaninfo` lists NVK on the device.
-- R4-R5: NVK's GR channels are bare (nouveau makes no TSG) and the mirror keeps bare GR
-  channels on the software executor (`mirror.rs` `eligible`), so step A/B are expected to
-  FAIL with wrong pixels until bare GR channels are mirrored (plan step B of the note).
+- R1-R3: nouveau binds with GSP-RM 570.144, creates its kernel channels, `/dev/dri/renderD128`
+  appears, `vulkaninfo` lists NVK on the device.
+- nouveau makes no TSG (every channel's parent is the device; the RM wraps such a channel in
+  a TSG of its own, kernel_channel.c:365-410 of 615). Where each channel runs:
+  - NVK's GR channels carry `TURING_COMPUTE_A`, so the GR shadow path takes them
+    (`mirror.rs` `is_gr_shadow` does not ask for a guest TSG) and builds a host TSG of their
+    own on GR0, keyed by the channel's handle (`tsg_key_of`): R4/R5 run on the host.
+  - The kernel's GR channel (fences) and its privileged TTM copy channel stay on the
+    software executor (`eligible`: bare GR without the compute class, privileged CE).
+- If R4/R5 fail, `device.txt` names the channel's path (`shadow:` lines or
+  `mirror: chid N in software: <why>`).

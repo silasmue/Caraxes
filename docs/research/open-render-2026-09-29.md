@@ -65,12 +65,12 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 | G3, G5, G7 | Fermi mask queries, ZCULL, WAR id, NVDEC1/2 vectors, OS error log | ~250 lines | done (86d0e71f) |
 | K | kernel with nouveau, image vm10, check service, vk-offscreen | scripts | done (this commit) |
 | R1-R3 | nouveau probe with accel, render node, NVK device | run | user |
-| B | bare (TSG-less) GR channels with `TURING_A`/`TURING_COMPUTE_A` on the GR shadow path; GR objects with paramsSize 0 replayed on the host | 150-350 lines after R1-R3 | open |
+| B | bare (TSG-less) GR channels: those with `TURING_COMPUTE_A` (NVK's) already take the GR shadow path with a host TSG of their own (`mirror.rs` `is_gr_shadow`, `tsg_key_of`); fixes only if R4/R5 show a gap | 0 to 350 lines | to verify in the run |
 | R4-R5 | clear+copy and triangle read back through NVK | run | after B |
 | R6 | vkcube under weston headless with a screenshot | 100-300 lines of bring-up | later |
 
 - Evening goal: R1-R3 (nouveau binds with accel, `renderD128`, `vulkaninfo` lists NVK on the device); R4/R5 if the bare GR channels mirror without change.
-- The kernel's own GR and CE channels (fences, TTM moves) run on the device's software executor; NVK's GR channels carry `TURING_COMPUTE_A` and take the GR shadow path [census of mirror.rs:1762-1776, 2380-2382, 3379-3438].
+- The kernel's own GR and CE channels (fences, TTM moves) run on the device's software executor; NVK's GR channels carry `TURING_COMPUTE_A` and take the GR shadow path [crates/vfio-user-nvgpu/src/mirror.rs `is_gr_shadow` 1762-1776, `shadow_channel` 2297-2382, `tsg_key_of` 928-941, `eligible` 3379-3438; ctrl.rs 775-781].
 
 ## Consequence for Caraxes
 
