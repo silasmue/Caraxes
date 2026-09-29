@@ -20,6 +20,10 @@ use crate::guestmem::GuestMemory;
 
 const PAGE: u64 = 4096;
 const MIB: u64 = 1 << 20;
+/// A walk's live BAR2 table pages as of its tables generation and the BAR2 live generation
+/// (`FakeFb::live_tables`): `(tables generation, live generation, pages)`.
+type LiveTables = (u64, u64, Vec<u64>);
+
 /// The BAR2 walk's entry among the walks' live table pages (`FakeFb::live_tables`); the
 /// walks are keyed by their root's FB address, never this.
 const BAR2_WALK_KEY: u64 = u64::MAX;
@@ -1416,7 +1420,7 @@ pub struct FakeFb {
     /// The live BAR2 pages among each walk's table pages, as of the walk's tables
     /// generation and the BAR2 live generation ([`Self::bar2_sync_tables`]): key, the two
     /// generations, the pages. The BAR2 walk's own under [`BAR2_WALK_KEY`].
-    live_tables: RefCell<HashMap<u64, (u64, u64, Vec<u64>)>>,
+    live_tables: RefCell<HashMap<u64, LiveTables>>,
     /// The state trapped status reads are answered from without the device lock
     /// (fastread.rs): a write to the BAR2 flush page's FB page drops its copy.
     fast: Option<std::sync::Arc<crate::fastread::FastReads>>,
