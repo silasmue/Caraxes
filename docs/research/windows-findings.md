@@ -807,3 +807,26 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - **Doorbells:** the guest-token ioeventfds (doorbell-token-pool.md (g), 8e82567c): automatic
   from the device-info table, 240 values on TU106. Not run yet.
 - Memory model: none.
+
+## Cloud Hypervisor, step 4: blanking, the caps page, guest-token doorbells (2026-09-29, C48-ch3)
+
+- **SET_GET_BLANKING_CTRL reads the state, not pending requests.** With the read-back at 0
+  (8e5452e3, "none pending") the KMD polled the register 3599 times after its BLANK; with the
+  latched 0x1 (C47) it went on after one read. So a read shows the head's blanking state in
+  the register's fields; ed82e0db: BLANK (0x1) while blanked, UNBLANK (0x2) otherwise.
+  Still no UNBLANK and no window UPDATE in C48.
+- **The caps page was no TU106's** (NVC573, BAR0 0x640000; C48 vs the card's capture
+  display-caps-2026-09-27.txt): window pipes without FULL_WIDTH/UNIT_WIDTH/ALPHA_WIDTH, no
+  scalers and VSCLR_MAX_PIXELS 2TAP/5TAP 0 (window CAPF, head CAPD), every CSC stage on every
+  window (the card: the even windows), 47 of the card's 90 nonzero dwords missing. ed82e0db
+  serves the capture except IHUB VGA/compression/MSCG/MCLK-switch/bit-24 and head 0's VGA bit.
+  The suspected reason the KMD accepts flips without programming a window; C49 tests it.
+  Linux now sees the card's caps too.
+- **Guest-token doorbell ioeventfds work** (doorbell-token-pool.md (g), automatic): CH
+  registered 240 of 240; "9143 guest write(s) in 3169 eventfd wakeup(s)". CUDA probe (a
+  nouveau VM booting beside it, not clean): short kernel median 28.6 us (trapped C47 88.3,
+  QEMU P43 72.6, Linux B 11), min 14.7 us; queued launch 65.6 us (C47: 430); launch +
+  synchronize 104.8 us (C47: 227); HtoD/DtoH 12.45/12.05 GB/s. The tail (p90 ~900 us) is the
+  interrupt path (28 traps per interrupt, windows-traps-exit-2026-09-29.md).
+- No host Xid in C45-C48.
+- Memory model: none.
