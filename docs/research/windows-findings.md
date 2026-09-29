@@ -1212,3 +1212,57 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     0xf000000c/0xffffffff), not the programmed addresses. The KMD wrote them back after the
     FLR, and CH kept BAR0 ("Failed moving device BAR").
 - Memory model: none.
+
+## Cloud Hypervisor, step 18: host events livelock the KMD's teardown (2026-09-29, C78, C79)
+
+- **C78** hung at boot: the KMD's modeset to the persisted mode ran the same teardown as C77's
+  restore, then its pre-reset config save. **C79's** stop hung in Windows' shutdown teardown.
+- Both are C74's storm: 19.09M (C78) and 3.44M (C79) MSIs at the re-arm, the trace silent,
+  CH at 80 % CPU.
+  - A host GR0 non-stall event arrived right after the teardown began (C79: 908.9985 s ->
+    vector 4).
+  - The KMD's handler in its reset and shutdown paths neither acknowledges nor masks the
+    vector but re-arms (kbifRearmMSI).
+  - Level semantics resend the MSI for ever.
+- The host events are the host GPU's, not the guest's. C78: 128,200 of 129,504 came with no
+  guest doorbell waiting, 127,939 of them more than 100 ms after the last one.
+  - NV2080 engine non-stall notifiers fire for every client of the host GPU, the host desktop
+    included.
+  - Turing's `intrSetIntrEn(DISABLED)` only touches the legacy PMC enable
+    (intrSetIntrEnInHw_GP100, pmcRmOwnsIntrMask). The CPU_INTR tree stays enabled, and a card
+    with only this driver has nothing pending there.
+- **Fix (26e67b26):** when the re-arm's MSI would be for pending host hints only (the
+  forwarded engines' non-stall vectors 4-9), and the guest re-armed 256 times without an ack,
+  they are withdrawn. Their raises are muted for 1 s, or until the guest acks or enables them.
+  - The device's own vectors are never withdrawn.
+  - Tests: rearm_withdraws_a_host_hint_the_handler_does_not_service,
+    rearm_keeps_serviced_hints_and_device_vectors.
+- **Open:** the spec-true end state is attribution: only the guest's own work raises its
+  non-stall vectors. The host API gives no per-channel non-stall event (NVC46F_NOTIFIERS_NONSTALL
+  is defined but never notified by the RM).
+- **Kit:** run44's host-kernel.log was cut by the start's dmesg line count. Once the ring buffer
+  had dropped lines the file was empty, and C80's 54 Xid 31 lines read PASS. It is cut by the
+  start's uptime now, and check-ch.sh also greps the live log for the device's pid.
+- Memory model: none.
+
+## Cloud Hypervisor, step 19: context creation for Sunshine (2026-09-29, C79-C83)
+
+- Moonlight gives the host 10 s for the first frame. Sunshine's capture setup (a D3D11 device
+  plus DXGI duplication on our GPU):
+  - C79 (lf17): 13.2 s.
+  - C81 (lf18-perf2b): 15.2 s, probe captures 3.2 s each.
+  - C82 (lf19): 12.2 s, of which 2.9 s is "Output Name". Probe captures 3.25 s.
+- **Blocked acquires (4f925b23):** the software executor retried a failed semaphore acquire only
+  at the next doorbell or budget stop of any channel. C79 lost 1.58 s in 59 waits, C81 3.8 s
+  (one 2.26 s).
+  - Now the ce-slices clock (1 ms) re-reads the blocked word.
+  - C82's boot: chid 15 waits dropped from 8.3 s (374 stretches) to 2.5 s (175 stretches).
+- **What remains per D3D device:** the host mirror of each new GR channel takes 238-397 ms
+  after its first doorbell (shadow VAS 8 ms, TSG, private USERD, channel, 6 engine objects).
+  The KMD's paging channel waits for it through chid 4's deferred-management semaphores.
+  CE-only builds take 3-18 ms.
+- **BAR2 memfd (C80):** 54 host Xid 31 (HOST0/HOST10, FAULT_PTE, PBDMA reads at the KMD's
+  GPFIFO/USERD VAs 0x1_200d9000-0x1_203b3000). The shadow's walk did not see PTEs the KMD wrote
+  through BAR2. The device agent's 1c31cac2 syncs the memfd's table pages before every re-plan;
+  it is not yet run with the memfd on.
+- Memory model: the memfd (BAR2) and the BAR1 pool change it; the rest is the unified model.
