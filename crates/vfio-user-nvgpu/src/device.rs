@@ -1430,16 +1430,34 @@ impl Device {
         }
     }
 
-    /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`,
-    /// display/fe_page.rs): advance the display engine, trace its notes.
-    pub fn display_tick(&mut self) {
+    /// A device reset (FLR or the client's reset): the interrupt vectors raised before it
+    /// and not yet delivered go first, then the model and the guest aliases.
+    fn reset_model(&mut self) {
+        if let Some(s) = &self.intr {
+            let dropped = s.reset_pending();
+            if dropped.iter().any(|&p| p != 0) {
+                self.trace.event(&format!(
+                    "reset: raised vectors dropped with the interrupt state, per leaf: {:x?}",
+                    dropped
+                ));
+            }
+        }
+        self.bar0.reset();
+        self.load_guest_aliases();
+    }
+
+    /// The display clock's tick (engine.rs `Ticker::set_driver`, display/fe_page.rs):
+    /// advance the display engine, trace its notes. Returns whether the display interrupt
+    /// line is asserted afterwards (the clock raises the vector only then).
+    pub fn display_tick(&mut self) -> bool {
         let notes = match self.bar0.boot_mut() {
             Some(b) => b.display_tick(&self.mem),
-            None => return,
+            None => return false,
         };
         for n in notes {
             self.trace.event(&format!("boot: {n}"));
         }
+        self.bar0.boot().is_some_and(|b| b.ctrl.display.line())
     }
 
     /// The BAR2 memfd's owed flush (bar2area.rs `DeferredFlush`), for the flush clock.
@@ -1836,8 +1854,7 @@ impl ServerBackend for Device {
     fn reset(&mut self) -> Result<(), std::io::Error> {
         self.trace
             .event("reset: device model back to its initial state");
-        self.bar0.reset();
-        self.load_guest_aliases();
+        self.reset_model();
         Ok(())
     }
 
@@ -1940,8 +1957,7 @@ impl Device {
         if self.cfg.take_flr() {
             self.trace
                 .event("flr: function-level reset, device model back to its initial state");
-            self.bar0.reset();
-            self.load_guest_aliases();
+            self.reset_model();
         }
         if self.bar0.boot_mut().is_some_and(|b| b.take_msi()) {
             self.raise_msi();

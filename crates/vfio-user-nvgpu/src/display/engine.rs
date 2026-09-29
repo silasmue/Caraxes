@@ -262,7 +262,9 @@ pub struct TickTiming {
 }
 
 /// What the display clock runs at a tick when the engine does not advance on reads.
-pub type Driver = dyn Fn() + Send + Sync;
+/// The display clock's driver (main.rs: the device's display tick): advances the engine
+/// to now and returns whether the display interrupt line is asserted afterwards.
+pub type Driver = dyn Fn() -> bool + Send + Sync;
 
 static TICKER: OnceLock<Arc<Ticker>> = OnceLock::new();
 
@@ -308,19 +310,29 @@ impl Ticker {
         }
     }
 
-    /// The tick's work: the driver first if there is one (the page is written), then the
-    /// raise, as the trapped path raises at every tick with work: a `LAST_DATA` the guest
-    /// left pending (vblank callbacks still queued) is serviced again at the next frame.
+    /// The tick's work. With a driver it advances the engine (the page is written) and the
+    /// vector is raised while the display's interrupt line is asserted, as the card's FE
+    /// raises its tree leaf: a `LAST_DATA` the guest left pending (vblank callbacks still
+    /// queued) is raised again at the next frame; a tick with nothing pending raises
+    /// nothing (a leaf pending without an FE cause is one the guest's display handler never
+    /// acknowledges: C64, a re-arm storm after an FLR). Without a driver the tick raises and
+    /// the guest's trapped status read advances the engine (`Display::read32_io`).
     fn fire(&self) {
         let d = self.driver.lock().unwrap().clone();
-        if let Some(d) = d {
-            self.driven.fetch_add(1, Ordering::Relaxed);
-            let t0 = now_ns();
-            d();
-            let us = now_ns().saturating_sub(t0) / 1000;
-            self.timing.lock().unwrap().driver.add(us);
+        let asserted = match d {
+            Some(d) => {
+                self.driven.fetch_add(1, Ordering::Relaxed);
+                let t0 = now_ns();
+                let asserted = d();
+                let us = now_ns().saturating_sub(t0) / 1000;
+                self.timing.lock().unwrap().driver.add(us);
+                asserted
+            }
+            None => true,
+        };
+        if asserted {
+            self.raise();
         }
-        self.raise();
     }
 
     /// The first raise the guest has not acknowledged yet ([`now_ns`]), taken.
@@ -515,34 +527,59 @@ pub struct MemRef {
     pub addr: u64,
 }
 
+/// Where the engine reads and writes its records (context DMA targets: FB or guest
+/// sysmem). The device path goes through the FB store and guest memory under the device
+/// mutex ([`DeviceIo`]); the display clock's own path through a guest memory view and
+/// pinned FB windows without it (`display::CoreIo`, docs/caraxes/display-own-clock.md §2).
+pub trait RecordIo {
+    /// Whether `len` bytes at `m` + `off` can be read and written now; a latch or a
+    /// FINISHED whose records cannot waits for a path that can.
+    fn can(&self, _m: MemRef, _off: u64, _len: u64) -> bool {
+        true
+    }
+    fn read(&self, m: MemRef, off: u64, buf: &mut [u8]) -> bool;
+    fn write(&mut self, m: MemRef, off: u64, data: &[u8]) -> bool;
+}
+
+/// The device path: the FB store and guest memory, under the device mutex.
+pub struct DeviceIo<'a> {
+    pub fb: &'a mut FakeFb,
+    pub mem: &'a GuestMemory,
+}
+
+impl RecordIo for DeviceIo<'_> {
+    fn read(&self, m: MemRef, off: u64, buf: &mut [u8]) -> bool {
+        if m.target == 1 {
+            self.fb.read(m.addr + off, buf)
+        } else {
+            self.mem.read(m.addr + off, buf)
+        }
+    }
+
+    fn write(&mut self, m: MemRef, off: u64, data: &[u8]) -> bool {
+        if m.target == 1 {
+            self.fb.write(m.addr + off, data)
+        } else {
+            self.mem.write(m.addr + off, data)
+        }
+    }
+}
+
 impl MemRef {
     /// The four words of the 16-byte record (NV_DISP_NOTIFIER layout), for the trace.
-    fn record(&self, fb: &FakeFb, mem: &GuestMemory) -> Option<[u32; 4]> {
+    fn record(&self, io: &dyn RecordIo) -> Option<[u32; 4]> {
         let mut b = [0u8; 16];
-        let ok = if self.target == 1 {
-            fb.read(self.addr, &mut b)
-        } else {
-            mem.read(self.addr, &mut b)
-        };
-        ok.then(|| std::array::from_fn(|i| u32::from_le_bytes(b[4 * i..4 * i + 4].try_into().unwrap())))
+        io.read(*self, 0, &mut b)
+            .then(|| std::array::from_fn(|i| u32::from_le_bytes(b[4 * i..4 * i + 4].try_into().unwrap())))
     }
 
-    fn read32(&self, fb: &FakeFb, mem: &GuestMemory) -> Option<u32> {
+    fn read32(&self, io: &dyn RecordIo) -> Option<u32> {
         let mut b = [0u8; 4];
-        let ok = if self.target == 1 {
-            fb.read(self.addr, &mut b)
-        } else {
-            mem.read(self.addr, &mut b)
-        };
-        ok.then(|| u32::from_le_bytes(b))
+        io.read(*self, 0, &mut b).then(|| u32::from_le_bytes(b))
     }
 
-    fn write(&self, fb: &mut FakeFb, mem: &GuestMemory, off: u64, data: &[u8]) -> bool {
-        if self.target == 1 {
-            fb.write(self.addr + off, data)
-        } else {
-            mem.write(self.addr + off, data)
-        }
+    fn write(&self, io: &mut dyn RecordIo, off: u64, data: &[u8]) -> bool {
+        io.write(*self, off, data)
     }
 
     pub fn describe(&self) -> String {
@@ -1003,6 +1040,12 @@ impl Engine {
     /// Advance every active head to `now`: latch presentations, count frames, set
     /// `LAST_DATA`, and raise the vector when something became pending.
     pub fn catch_up(&mut self, now: u64, fb: &mut FakeFb, mem: &GuestMemory) {
+        self.catch_up_io(now, &mut DeviceIo { fb, mem });
+    }
+
+    /// [`Engine::catch_up`] through `io`: the display clock's path without the device mutex
+    /// passes its own (display-own-clock.md §2.5).
+    pub fn catch_up_io(&mut self, now: u64, io: &mut dyn RecordIo) {
         let snap = |e: &Self| {
             let i = e.irq();
             (i.dispatch(), i.awaken_win, i.awaken_other)
@@ -1036,8 +1079,8 @@ impl Engine {
                 }
                 for w in 0..self.windows.len() {
                     if self.windows[w].head == Some(h) {
-                        self.finish(w, fb, mem);
-                        self.try_latch(w, tick, tick_ns, false, fb, mem);
+                        self.finish(w, io);
+                        self.try_latch(w, tick, tick_ns, false, io);
                     }
                 }
                 let newly = self.with_irq(|i| {
@@ -1080,8 +1123,7 @@ impl Engine {
         tick: u64,
         tick_ns: u64,
         force: bool,
-        fb: &mut FakeFb,
-        mem: &GuestMemory,
+        io: &mut dyn RecordIo,
     ) -> bool {
         let win = &self.windows[w];
         let Some(f) = win.pending.front() else {
@@ -1107,8 +1149,18 @@ impl Engine {
             }
         }
         let (queued_ns, acquire) = (f.queued_ns, f.acquire);
+        // Every record this latch touches must be reachable on this path, or none is
+        // written: the latch waits for a path that reaches them all.
+        let reach = |m: Option<MemRef>, len: u64| m.is_none_or(|m| io.can(m, 0, len));
+        if !reach(acquire.map(|(m, _)| m), 4)
+            || !reach(self.windows[w].prev_release.map(|(m, _)| m), 16)
+            || !reach(f.notifier.map(|(m, _)| m), 16)
+            || !reach(self.windows[w].begun.map(|(m, _)| m), 4)
+        {
+            return false;
+        }
         if let Some((m, want)) = acquire {
-            let have = m.read32(fb, mem);
+            let have = m.read32(io);
             if have != Some(want) {
                 let win = &mut self.windows[w];
                 win.acquire_waits += 1;
@@ -1133,7 +1185,7 @@ impl Engine {
         // What the guest left in the records before the device writes them (the trace of
         // the first latches): how its driver resets a notifier and a semaphore.
         let before = |m: Option<MemRef>| {
-            m.and_then(|m| m.record(fb, mem))
+            m.and_then(|m| m.record(io))
                 .map_or("-".to_string(), |r| format!("[{:#x} {:#x} {:#x} {:#x}]", r[0], r[1], r[2], r[3]))
         };
         let seen = if self.windows[w].flips < 32 {
@@ -1151,8 +1203,8 @@ impl Engine {
         // nvkms-displayless.c:262-270; nvkms-api.h:677-690). The four-word record gets
         // the timestamp too (nvkms-headsurface.c:598-604), the payload last.
         if let Some((m, v)) = win.prev_release.take() {
-            m.write(fb, mem, 8, &stamp);
-            m.write(fb, mem, 0, &v.to_le_bytes());
+            m.write(io, 8, &stamp);
+            m.write(io, 0, &v.to_le_bytes());
         }
         win.prev_release = f.release;
         if let Some((m, _)) = f.notifier {
@@ -1164,14 +1216,14 @@ impl Engine {
                 };
             // A flip still BEGUN (two latches before a tick: immediate flips) is finished
             // now; this one finishes at the next tick, or at once without scanout.
-            self.finish(w, fb, mem);
+            self.finish(w, io);
             // Timestamp first, status last: a reader that sees BEGUN finds the timestamp
             // (NVKMS polls for it after the status, nvkms-sync.c:55-58).
-            m.write(fb, mem, 8, &stamp);
-            m.write(fb, mem, 0, &w0.to_le_bytes());
+            m.write(io, 8, &stamp);
+            m.write(io, 0, &w0.to_le_bytes());
             self.windows[w].begun = Some((m, w0));
             if !live {
-                self.finish(w, fb, mem);
+                self.finish(w, io);
             }
         }
         // AWAKEN follows the rule nvidia-drm models the hardware by
@@ -1217,11 +1269,17 @@ impl Engine {
     }
 
     /// The flip window `w` latched last has had its first frame: its notifier FINISHED.
-    fn finish(&mut self, w: usize, fb: &mut FakeFb, mem: &GuestMemory) {
-        if let Some((m, w0)) = self.windows[w].begun.take() {
-            let w0 = (w0 & !(3 << 30)) | NOTIFIER_FINISHED;
-            m.write(fb, mem, 0, &w0.to_le_bytes());
+    fn finish(&mut self, w: usize, io: &mut dyn RecordIo) {
+        let Some((m, w0)) = self.windows[w].begun else {
+            return;
+        };
+        // Unreachable on this path: owed until a path that reaches it.
+        if !io.can(m, 0, 4) {
+            return;
         }
+        self.windows[w].begun = None;
+        let w0 = (w0 & !(3 << 30)) | NOTIFIER_FINISHED;
+        m.write(io, 0, &w0.to_le_bytes());
     }
 
     fn resolve_at(
@@ -1325,8 +1383,9 @@ impl Engine {
         for w in 0..self.windows.len() {
             let live = self.windows[w].head.is_some_and(|h| self.heads[h].active);
             if !live {
-                self.finish(w, fb, mem);
-                while self.try_latch(w, 0, now, true, fb, mem) {}
+                let io = &mut DeviceIo { fb: &mut *fb, mem };
+                self.finish(w, io);
+                while self.try_latch(w, 0, now, true, io) {}
             }
         }
         // The core notifier.
@@ -1335,8 +1394,9 @@ impl Engine {
         if handle != 0 {
             let off = (((ctrl >> 4) & 0xFF) * 16) as u64;
             if let Some(m) = self.resolve_at(fb, handle, CHN_CORE, off, "core notifier") {
-                m.write(fb, mem, 8, &ptimer_stamp(now).to_le_bytes());
-                m.write(fb, mem, 0, &NOTIFIER_FINISHED.to_le_bytes());
+                let io = &mut DeviceIo { fb: &mut *fb, mem };
+                m.write(io, 8, &ptimer_stamp(now).to_le_bytes());
+                m.write(io, 0, &NOTIFIER_FINISHED.to_le_bytes());
                 self.core_notifier_writes += 1;
                 if self.core_notifier_writes <= 3 {
                     let line = format!(
@@ -1437,7 +1497,8 @@ impl Engine {
         let live = win.head.is_some_and(|h| self.heads[h].active);
         if immediate || !live {
             let tick = win.head.map_or(0, |h| self.heads[h].ticks);
-            while self.try_latch(w, tick, now, true, fb, mem) {}
+            let io = &mut DeviceIo { fb: &mut *fb, mem };
+            while self.try_latch(w, tick, now, true, io) {}
         }
         self.sync_ticker();
         self.signal();
@@ -1916,6 +1977,7 @@ mod tests {
         let c = n.clone();
         t.set_driver(Arc::new(move || {
             c.fetch_add(1, Ordering::Relaxed);
+            true
         }));
         t.set_head(0, 1_000_000, now_ns());
         t.set_vblank(0, true);
@@ -1927,5 +1989,39 @@ mod tests {
         }
         assert!(n.load(Ordering::Relaxed) >= 5);
         assert_eq!(t.driven.load(Ordering::Relaxed), n.load(Ordering::Relaxed));
+    }
+
+    /// With a driver, a tick raises the vector only while the display's interrupt line is
+    /// asserted after it (C64: a leaf raised with nothing pending in the FE was never
+    /// acknowledged, and every MSI re-arm sent it again).
+    #[test]
+    fn the_clock_raises_only_an_asserted_line() {
+        use std::sync::atomic::AtomicU64;
+        let intr = IntrShared::new();
+        let t = Arc::new(Ticker::default());
+        let asserted = Arc::new(AtomicBool::new(false));
+        let n = Arc::new(AtomicU64::new(0));
+        let (a, c) = (asserted.clone(), n.clone());
+        t.set_driver(Arc::new(move || {
+            c.fetch_add(1, Ordering::Relaxed);
+            a.load(Ordering::Relaxed)
+        }));
+        t.set_head(0, 1_000_000, now_ns());
+        t.set_want(0, true);
+        t.attach(intr.clone(), 76);
+        let wait_for = |k: u64| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while n.load(Ordering::Relaxed) < k && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            assert!(n.load(Ordering::Relaxed) >= k, "the clock did not tick");
+        };
+        wait_for(5);
+        assert_eq!(t.raised.load(Ordering::Relaxed), 0, "ticks with the line low raise nothing");
+        asserted.store(true, Ordering::Relaxed);
+        let k = n.load(Ordering::Relaxed);
+        wait_for(k + 3);
+        assert!(t.raised.load(Ordering::Relaxed) > 0, "an asserted line is raised");
+        t.set_want(0, false);
     }
 }

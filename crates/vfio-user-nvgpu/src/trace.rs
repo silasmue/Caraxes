@@ -68,6 +68,9 @@ pub struct Trace {
     reads: [u64; 9],
     writes: [u64; 9],
     unnamed: BTreeMap<u64, u64>,
+    /// Every trapped BAR0 access by (dword offset, write): the count and the register's
+    /// name, for the exit summary's busiest offsets (what a guest polls).
+    bar0: std::collections::HashMap<(u64, bool), (u64, String)>,
     /// Trapped BAR1 and BAR2 (region 3) accesses per MiB of the BAR, by (region, MiB,
     /// write): where a guest driver's CPU traffic through the apertures lands (the BAR1
     /// pool covers only its first MiBs).
@@ -114,6 +117,7 @@ impl Trace {
             reads: [0; 9],
             writes: [0; 9],
             unnamed: BTreeMap::new(),
+            bar0: std::collections::HashMap::new(),
             by_mib: BTreeMap::new(),
             accesses: Accesses::parse(std::env::var("CARAXES_TRACE_ACCESSES").ok().as_deref())?,
             flush_each: std::env::var("CARAXES_TRACE_FLUSH").as_deref() != Ok("0"),
@@ -142,6 +146,13 @@ impl Trace {
         }
         if region == 0 && note.is_none() {
             *self.unnamed.entry(offset & !3).or_insert(0) += 1;
+        }
+        if region == 0 {
+            let e = self.bar0.entry((offset & !3, dir == Dir::Write)).or_insert_with(|| {
+                // The register's name (the note's first word), kept once per offset.
+                (0, note.and_then(|n| n.split_whitespace().next()).unwrap_or("").to_string())
+            });
+            e.0 += 1;
         }
         if region == 1 || region == 3 {
             *self.by_mib.entry((region, offset >> 20, dir == Dir::Write)).or_insert(0) += 1;
@@ -213,6 +224,22 @@ impl Trace {
                 top.join(" ")
             ));
         }
+        if !self.bar0.is_empty() {
+            let mut v: Vec<_> = self.bar0.iter().collect();
+            v.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+            let top: Vec<String> = v
+                .iter()
+                .take(24)
+                .map(|((off, w), (n, name))| {
+                    format!("{off:#x} {}{}{}:{n}", if *w { "W" } else { "R" }, if name.is_empty() { "" } else { " " }, name)
+                })
+                .collect();
+            s.push_str(&format!(
+                "bar0 trapped accesses by offset (busiest first, of {} offset-direction pairs): {}\n",
+                v.len(),
+                top.join(", ")
+            ));
+        }
         if !self.unnamed.is_empty() {
             s.push_str("bar0 offsets without a name in the register map (offset: accesses):\n");
             for (off, n) in self.unnamed.iter().take(64) {
@@ -237,7 +264,14 @@ mod tests {
             t.access(super::Dir::Write, 1, 0x0230_0004, &[0], None);
         }
         t.access(super::Dir::Read, 3, 0x10, &[0; 4], None);
+        t.access(super::Dir::Read, 0, 0x0011_0008, &[0; 4], Some("GSP_IRQSTAT captured"));
+        t.access(super::Dir::Read, 0, 0x0011_0008, &[0; 4], Some("GSP_IRQSTAT"));
+        t.access(super::Dir::Write, 0, 0x9402, &[0; 2], None);
         let s = t.summary();
+        assert!(
+            s.contains("bar0 trapped accesses by offset (busiest first, of 2 offset-direction pairs): 0x110008 R GSP_IRQSTAT:2, 0x9400 W:1"),
+            "{s}"
+        );
         assert!(s.contains("bar1 trapped accesses by MiB of the BAR (busiest first, of 1 MiB-direction pairs): 35 MiB W:3"), "{s}");
         assert!(s.contains("bar3 trapped accesses by MiB of the BAR (busiest first, of 1 MiB-direction pairs): 0 MiB R:1"), "{s}");
     }

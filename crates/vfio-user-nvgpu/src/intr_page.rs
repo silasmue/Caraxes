@@ -318,7 +318,13 @@ struct State {
     /// When an enabled vector was last seen pending with no ack or MSI since (watchdog).
     stale_since: Option<Instant>,
     logged: u32,
+    /// Trapped stores traced since the last reset or the switch to exact mode (the first
+    /// [`STORES_TRACED`] of each, for a driver's (re-)initialisation).
+    stores_traced: u32,
 }
+
+/// Trapped stores traced after each reset (and after the switch to exact mode).
+const STORES_TRACED: u32 = 256;
 
 /// Counters for the exit summary.
 #[derive(Default)]
@@ -431,6 +437,7 @@ impl IntrPage {
                 again: [0; LEAVES],
                 stale_since: None,
                 logged: 0,
+                stores_traced: 0,
             }),
             expected: std::array::from_fn(|_| AtomicU32::new(0)),
             exact: AtomicBool::new(false),
@@ -573,6 +580,11 @@ impl IntrPage {
         };
         st.again = [0; LEAVES];
         st.stale_since = None;
+        st.stores_traced = 0;
+        if exact {
+            self.shared
+                .note("intr page: reset in exact mode: leaves, leaf and top enables 0 until the guest's stores".into());
+        }
         for off in (0..PAGE).step_by(4) {
             self.pmc.word(off).store(0, Ordering::Relaxed);
             self.tree.word(off).store(0, Ordering::Relaxed);
@@ -644,6 +656,7 @@ impl IntrPage {
             // so the registers' own values and semantics hold from here; the enables start
             // at their reset value (dev_vm.h:61, :65).
             st.model.leaf_en = [0; LEAVES];
+            st.stores_traced = 0;
             let m = "intr page: the guest's stores to the interrupt tree trap (read-only mapping): exact register values from now on".to_string();
             eprintln!("vfio-user-nvgpu: {m}");
             self.shared.note(m);
@@ -699,6 +712,19 @@ impl IntrPage {
         }
         self.publish(&st.model);
         let edge = rearm_by_set && !rearm && st.model.top() != 0;
+        if st.stores_traced < STORES_TRACED {
+            st.stores_traced += 1;
+            let m = &st.model;
+            let en: Vec<String> = m.leaf_en.iter().map(|e| format!("{e:x}")).collect();
+            self.shared.note(format!(
+                "intr page: store {} at tree {rel:#x} = {v:#x}: top {:#x} top_en {:#x}, leaf enables [{}], pending [{}]",
+                st.stores_traced,
+                m.top(),
+                m.top_en,
+                en.join(" "),
+                m.leaf.iter().map(|l| format!("{l:x}")).collect::<Vec<_>>().join(" ")
+            ));
+        }
         let mut msi = false;
         if edge || rearm {
             std::sync::atomic::fence(Ordering::SeqCst);
