@@ -163,6 +163,28 @@ struct CeState {
     remap_components: u32,
     /// A transfer run in slices ([`CE_SLICE`]): how far it got.
     progress: Option<CeProgress>,
+    /// A transfer running on the device CE (devce.rs): the push it waits for.
+    device_wait: Option<DeviceWait>,
+}
+
+/// The device-CE push a LAUNCH_DMA waits for, and the FB ranges it writes.
+#[derive(Clone)]
+struct DeviceWait {
+    key: CeKey,
+    seq: u32,
+    ranges: Vec<(u64, u64)>,
+    engine: crate::devce::SharedEngine,
+}
+
+impl std::fmt::Debug for DeviceWait {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "DeviceWait {{ push {}, {} range(s) }}",
+            self.seq,
+            self.ranges.len()
+        )
+    }
 }
 
 /// The LAUNCH_DMA a sliced transfer belongs to: its value and geometry.
@@ -3143,7 +3165,126 @@ impl Registry {
             let row_at = |base: u64, pitch: u32, line: u64| {
                 base.checked_add(if multi { line * pitch as u64 } else { 0 })
             };
+            let what = if remap { "memset" } else { "memcopy" };
+            // The device CE (devce.rs): a large transfer's bytes on the device-owned host copy
+            // engine, submitted once and waited for through the held replay (the vfio-user
+            // loop never waits for it). The guest's semaphore follows as on the CPU path; a
+            // failed or refused device CE leaves the transfer to the CPU, never an RC.
+            let mut on_device = None;
+            if let Some(w) = c.device_wait.take().filter(|w| w.key == key) {
+                let polled = w
+                    .engine
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .poll(mem.fb, w.seq);
+                match polled {
+                    crate::devce::Poll::Done => {
+                        for &(pa, len) in &w.ranges {
+                            mem.fb.note_range_changed(pa, len);
+                        }
+                        on_device = Some(w.seq);
+                    }
+                    crate::devce::Poll::Pending => {
+                        let seq = w.seq;
+                        c.device_wait = Some(w);
+                        return Ok(CeOutcome::Sliced(format!(
+                            "ce {what} of {bytes} bytes waits for device CE push {seq} [host]"
+                        )));
+                    }
+                    crate::devce::Poll::Failed(why) => {
+                        parts.push(format!("device CE: {why}; this transfer runs on the CPU"));
+                        c.progress = None;
+                    }
+                }
+            } else if c.progress.is_none() && bytes >= crate::devce::MIN_BYTES {
+                if let Some(engine) = mem.fb.device_ce() {
+                    let mut e = engine.lock().unwrap_or_else(|e| e.into_inner());
+                    if e.off().is_none() {
+                        let w = e.window();
+                        let plan =
+                            (|| -> Result<(Vec<crate::devce::Op>, Vec<(u64, u64)>), String> {
+                                let (mut from, mut to) = (Vec::new(), Vec::new());
+                                for line in 0..lines {
+                                    let s_at = row_at(src, c.pitch_in, line).ok_or("overflow")?;
+                                    let d_at = row_at(dst, c.pitch_out, line).ok_or("overflow")?;
+                                    if !remap {
+                                        from.extend(ce_pieces(
+                                            mem,
+                                            root,
+                                            src_phys,
+                                            c.src_phys,
+                                            s_at,
+                                            bytes_per_line,
+                                            fb_range,
+                                        )?);
+                                    }
+                                    to.extend(ce_pieces(
+                                        mem,
+                                        root,
+                                        dst_phys,
+                                        c.dst_phys,
+                                        d_at,
+                                        bytes_per_line,
+                                        fb_range,
+                                    )?);
+                                }
+                                let ops = if remap {
+                                    let r = crate::devce::Remap {
+                                        const_a: c.remap_const_a,
+                                        const_b: c.remap_const_b,
+                                        components: c.remap_components,
+                                    };
+                                    crate::devce::plan_fill(
+                                        &w,
+                                        mem.fb,
+                                        &to,
+                                        remap_elem(c)?.len() as u64,
+                                        r,
+                                    )?
+                                } else {
+                                    crate::devce::plan_copy(&w, mem.fb, &from, &to)?
+                                };
+                                // The written FB ranges, merged where contiguous.
+                                let mut ranges: Vec<(u64, u64)> = Vec::new();
+                                for &(t, n) in &to {
+                                    if let Target::Fb(pa) = t {
+                                        match ranges.last_mut() {
+                                            Some((a, l)) if *a + *l == pa => *l += n as u64,
+                                            _ => ranges.push((pa, n as u64)),
+                                        }
+                                    }
+                                }
+                                Ok((ops, ranges))
+                            })();
+                        if let Ok((ops, ranges)) = plan {
+                            match e.submit(mem.fb, &ops) {
+                                Ok(seq) => {
+                                    drop(e);
+                                    c.device_wait = Some(DeviceWait {
+                                        key,
+                                        seq,
+                                        ranges,
+                                        engine,
+                                    });
+                                    return Ok(CeOutcome::Sliced(format!(
+                                        "ce {what} of {bytes} bytes submitted to the device CE as push {seq} ({} op(s)) [host]",
+                                        ops.len()
+                                    )));
+                                }
+                                Err(why) if why.contains("busy") => {
+                                    return Ok(CeOutcome::Sliced(format!(
+                                        "ce {what} of {bytes} bytes waits for the device CE (busy) [host]"
+                                    )));
+                                }
+                                Err(_) => {}
+                            }
+                        }
+                    }
+                }
+            }
             let (mut line, mut offset) = match c.progress.take() {
+                // Done on the device CE: nothing left for the CPU.
+                _ if on_device.is_some() => (lines, 0),
                 Some(p) if p.key == key => (p.line, p.offset),
                 _ => {
                     if bytes <= CE_VALIDATE_WHOLE {
@@ -3239,8 +3380,8 @@ impl Registry {
                 format!("va {dst:#x}")
             };
             parts.push(format!(
-                "ce {} {bytes} bytes -> {dst_desc} [guest]",
-                if remap { "memset" } else { "memcopy" }
+                "ce {what} {bytes} bytes -> {dst_desc} [guest{}]",
+                on_device.map_or(String::new(), |seq| format!(", device CE push {seq}"))
             ));
         }
         // BAR1 WC stores must be visible before a CPU/GPU waiter observes completion.
@@ -3322,22 +3463,17 @@ fn ce_pieces(
     }
     let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
     let pieces = if physical {
-        let mut out = Vec::new();
-        let mut done = 0;
-        while done < len {
-            let at = address + done;
-            let n = (4096 - (at & 4095)).min(len - done);
-            out.push((
-                if mode & 3 == 0 {
-                    Target::Fb(at)
-                } else {
-                    Target::Sys(at)
-                },
-                n as usize,
-            ));
-            done += n;
+        // A physical range is contiguous: one piece, checked whole below.
+        let t = if mode & 3 == 0 {
+            Target::Fb(address)
+        } else {
+            Target::Sys(address)
+        };
+        if len == 0 {
+            Vec::new()
+        } else {
+            vec![(t, len as usize)]
         }
-        out
     } else {
         mem.pieces(root, address, len)?
     };
@@ -3951,6 +4087,260 @@ mod tests {
                 .unwrap() as u32,
             0xAABB_CCDD
         );
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A device-CE double (devce.rs `Engine`): a push completes after `delay` polls, when it
+    /// runs its operations on the store behind the model's back, as the host engine would;
+    /// with `fail` its first poll reports a failure and the engine stays off.
+    struct TestEngine {
+        window: crate::devce::Window,
+        delay: u32,
+        fail: bool,
+        polls: u32,
+        seq: u32,
+        running: Option<(u32, Vec<crate::devce::Op>)>,
+        submitted: usize,
+        off: Option<String>,
+        /// Whether a done push writes its bytes (off for the timing test's 1 GiB).
+        execute: bool,
+    }
+
+    impl TestEngine {
+        fn shared(
+            len: u64,
+            delay: u32,
+            fail: bool,
+        ) -> std::sync::Arc<std::sync::Mutex<TestEngine>> {
+            std::sync::Arc::new(std::sync::Mutex::new(TestEngine {
+                window: crate::devce::Window {
+                    guest_base: 0,
+                    len,
+                    dva: 1 << 32,
+                },
+                delay,
+                fail,
+                polls: 0,
+                seq: 0,
+                running: None,
+                submitted: 0,
+                off: None,
+                execute: true,
+            }))
+        }
+    }
+
+    impl crate::devce::Engine for TestEngine {
+        fn window(&self) -> crate::devce::Window {
+            self.window
+        }
+        fn submit(&mut self, _fb: &mut FakeFb, ops: &[crate::devce::Op]) -> Result<u32, String> {
+            if let Some(w) = &self.off {
+                return Err(w.clone());
+            }
+            if self.running.is_some() {
+                return Err("device CE busy".into());
+            }
+            self.seq += 1;
+            self.polls = 0;
+            self.submitted += 1;
+            self.running = Some((self.seq, ops.to_vec()));
+            Ok(self.seq)
+        }
+        fn poll(&mut self, fb: &mut FakeFb, seq: u32) -> crate::devce::Poll {
+            use crate::devce::{Op, Poll};
+            if self.fail {
+                self.running = None;
+                self.off = Some("push timed out (test)".into());
+                return Poll::Failed("push timed out (test)".into());
+            }
+            self.polls += 1;
+            if self.polls < self.delay {
+                return Poll::Pending;
+            }
+            let (s, ops) = self.running.take().expect("a push runs");
+            assert_eq!(s, seq);
+            if !self.execute {
+                return Poll::Done;
+            }
+            let pa = |dva: u64| self.window.guest_base + (dva - self.window.dva);
+            for op in ops {
+                match op {
+                    Op::Fill {
+                        dst,
+                        elements,
+                        remap,
+                    } => {
+                        let comp = ((remap.components >> 16) & 3) as usize + 1;
+                        let ncomp = ((remap.components >> 24) & 3) as usize + 1;
+                        let mut elem = Vec::new();
+                        for k in 0..ncomp {
+                            let v = if (remap.components >> (4 * k)) & 7 == 5 {
+                                remap.const_b
+                            } else {
+                                remap.const_a
+                            };
+                            elem.extend_from_slice(&v.to_le_bytes()[..comp]);
+                        }
+                        let bytes: Vec<u8> = elem
+                            .iter()
+                            .copied()
+                            .cycle()
+                            .take(elements as usize * elem.len())
+                            .collect();
+                        fb.write_behind(pa(dst), &bytes);
+                    }
+                    Op::Copy { src, dst, len } => {
+                        let mut b = vec![0u8; len as usize];
+                        assert!(fb.read(pa(src), &mut b));
+                        fb.write_behind(pa(dst), &b);
+                    }
+                }
+            }
+            Poll::Done
+        }
+        fn off(&self) -> Option<String> {
+            self.off.clone()
+        }
+    }
+
+    fn fill_const(dst: u64, elements: u32, value: u32) -> Vec<u32> {
+        let mut pb = physical_fill(dst, elements);
+        pb[3] = value;
+        pb
+    }
+
+    fn doorbell_until_done(fb: &mut FakeFb, sys: &GuestMemory, reg: &mut Registry) -> usize {
+        let mut runs = 0;
+        loop {
+            reg.doorbell(&mut GpuMem { fb, sys }, 9);
+            runs += 1;
+            if reg.blocked_software_channels().is_empty() {
+                return runs;
+            }
+            assert_eq!(
+                sys.read_u32(0x4000_1004),
+                Some(0),
+                "released before the end"
+            );
+            assert!(runs < 256, "never finished");
+        }
+    }
+
+    /// A large fill runs on the device CE: submitted once, waited for through the held
+    /// replay, its bytes written by the engine, the semaphore released and GPGet advanced
+    /// only after the engine is done.
+    #[test]
+    fn a_large_fill_runs_on_the_device_ce_and_completes_after_it() {
+        let mut pb = physical_fill(0x30_0000, 1 << 18);
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("devce-fill", &pb);
+        reg.software_fb_range = Some((0, 64 << 20));
+        let engine = TestEngine::shared(48 << 20, 4, false);
+        fb.set_device_ce(Some(engine.clone()));
+        let runs = doorbell_until_done(&mut fb, &sys, &mut reg);
+        assert_eq!(runs, 5, "one submit, three pending polls, the done poll");
+        assert_eq!(engine.lock().unwrap().submitted, 1);
+        assert_eq!(sys.read_u32(0x4000_1004), Some(1));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        assert_eq!(
+            fb.read_u64(0x30_0000 + (1 << 20) - 8).unwrap() as u32,
+            0xAABB_CCDD
+        );
+        std::fs::remove_file(path).ok();
+    }
+
+    /// Condition 3 of the review: a page-table page inside a large device-CE fill. The
+    /// cached walk of that table sees the fill (its leaves are gone), as it would after a
+    /// CPU write.
+    #[test]
+    fn a_device_ce_fill_over_a_page_table_drops_the_cached_walk() {
+        let mut pb = fill_const(0x80_0000, 1 << 16, 0);
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("devce-walk", &pb);
+        reg.software_fb_range = Some((0, 64 << 20));
+        // A second tree at 0x80_0000 whose PT page 0x80_4000 maps 8 VRAM pages.
+        let (root, pd2, pd1, pd0, pt) = (0x80_0000u64, 0x80_1000, 0x80_2000, 0x80_3000, 0x80_4000);
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 16 * 0x80 + 8, vid(pt));
+        for k in 0..8u64 {
+            fb.write_u64(pt + 8 * k, (((0x100000 + k * 0x1000) >> 12) << 8) | 1);
+        }
+        fb.walk_update(None, Target::Fb(root), false, 1 << 16);
+        let leaves = |fb: &FakeFb| fb.with_walk(Target::Fb(root), |c| c.leaf_count()).unwrap();
+        assert_eq!(leaves(&fb), 8);
+        fb.set_device_ce(Some(TestEngine::shared(48 << 20, 2, false)));
+        doorbell_until_done(&mut fb, &sys, &mut reg);
+        assert_eq!(fb.read_u64(pt).unwrap(), 0, "the engine cleared the table");
+        fb.walk_update(None, Target::Fb(root), false, 1 << 16);
+        assert_eq!(leaves(&fb), 0, "the cached walk re-read the cleared table");
+        std::fs::remove_file(path).ok();
+    }
+
+    /// Condition 5: a device CE that fails leaves the transfer to the CPU, with one note,
+    /// and no RC of the guest channel; the engine stays off for later transfers.
+    #[test]
+    fn a_failed_device_ce_falls_back_to_the_cpu_without_an_rc() {
+        let mut pb = physical_fill(0x30_0000, 1 << 18);
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("devce-fail", &pb);
+        reg.software_fb_range = Some((0, 64 << 20));
+        let engine = TestEngine::shared(48 << 20, 1, true);
+        fb.set_device_ce(Some(engine.clone()));
+        doorbell_until_done(&mut fb, &sys, &mut reg);
+        assert_eq!(sys.read_u32(0x4000_1004), Some(1));
+        assert_eq!(
+            fb.read_u64(0x30_0000 + (1 << 20) - 8).unwrap() as u32,
+            0xAABB_CCDD
+        );
+        let events = reg.take_software_events();
+        assert!(
+            events.iter().all(|e| e.failure.is_none()),
+            "no RC for a device-internal failure"
+        );
+        assert!(engine.lock().unwrap().off.is_some());
+        std::fs::remove_file(path).ok();
+    }
+
+    /// Condition 2: with the device CE, no call of the software CE holds the loop longer
+    /// than the slice bound, even for a 1 GiB fill the engine takes long to finish.
+    #[test]
+    fn a_device_ce_transfer_never_holds_the_loop_longer_than_the_slice_bound() {
+        let (_, sys, path, root) = world("devce-bound");
+        let mut fb = FakeFb::new(2 << 30);
+        let engine = TestEngine::shared(2 << 30, 20, false);
+        engine.lock().unwrap().execute = false;
+        fb.set_device_ce(Some(engine.clone()));
+        let mut gm = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let mut ce = CeState {
+            offset_out: (0, 0x1000_0000),
+            line_length_in: 1 << 28,
+            remap_const_a: 0x1234_5678,
+            remap_components: 0x0003_0004,
+            ..Default::default()
+        };
+        let bound = CE_SLICE + std::time::Duration::from_millis(10);
+        let mut calls = 0;
+        loop {
+            let t = std::time::Instant::now();
+            let r =
+                Registry::launch_dma(&mut ce, &mut gm, root, 0x2582, 1, None, CE_SLICE).unwrap();
+            assert!(t.elapsed() <= bound, "a call took {:?}", t.elapsed());
+            calls += 1;
+            if let CeOutcome::Done(note) = r {
+                assert!(note.contains("device CE push 1"), "{note}");
+                break;
+            }
+            assert!(calls < 64);
+        }
+        assert_eq!(calls, 21);
+        assert_eq!(engine.lock().unwrap().submitted, 1);
         std::fs::remove_file(path).ok();
     }
 

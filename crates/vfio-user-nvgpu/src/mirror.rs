@@ -1274,6 +1274,10 @@ pub struct Mirror {
     /// 2026-09-23 `d-ce-token`). `CARAXES_MEMOP_INVALIDATE=0` falls back to the (no-op)
     /// `DMA_INVALIDATE_TLB` for A/B comparison.
     invalidator: Option<Invalidator>,
+    /// The device-owned host copy engine of the software CE's large transfers (devce.rs),
+    /// shared with the FB store; built once at the first doorbell.
+    device_ce: Option<Arc<Mutex<crate::devce::DeviceCe>>>,
+    device_ce_tried: bool,
     memop_invalidate: bool,
     /// `CARAXES_MIRROR_GR_SHADOW=1`: run GR channels on a host-managed **shadow VAS**
     /// (`shadow.rs`, D17 route 4 stage 1) — the host RM owns the GR context there and the
@@ -1443,6 +1447,8 @@ impl Mirror {
             doorbell: None,
             events: None,
             invalidator: None,
+            device_ce: None,
+            device_ce_tried: false,
             memop_invalidate: std::env::var("CARAXES_MEMOP_INVALIDATE").as_deref() != Ok("0"),
             shadow_probe,
             bare_ce: std::env::var("CARAXES_MIRROR_BARE_CE").as_deref() == Ok("1"),
@@ -1687,7 +1693,7 @@ impl Mirror {
         gm: &mut GpuMem,
         root: Option<u64>,
     ) -> Vec<String> {
-        let (base, end, reservation) = (self.base, self.end, self.reservation);
+        let (base, end, reservation) = (self.base, self.leaf_end(), self.reservation);
         let descs = self.descs();
         let mut out = Vec::new();
         // The exclusions follow the guest's live channels (`exclusions_of`).
@@ -2294,6 +2300,7 @@ impl Mirror {
                 }
             }
         }
+        let leaf_end = self.leaf_end();
         let sp = self.shadows.get_mut(&root).expect("built");
         sp.exclude = new_b;
         sp.set_b_stamp = None;
@@ -2306,7 +2313,7 @@ impl Mirror {
             gm.fb,
             gm.sys,
             self.base,
-            self.end,
+            leaf_end,
             self.reservation,
             &exclude,
             &descs,
@@ -4275,6 +4282,53 @@ impl Mirror {
         ))
     }
 
+    /// The end of the guest FB a guest leaf may map: the device's private pages at the top
+    /// of the reservation (the device CE's and the invalidator's page tables and rings,
+    /// devce.rs `PRIVATE_AT`) are no guest memory.
+    fn leaf_end(&self) -> u64 {
+        self.end - crate::devce::PRIVATE_AT
+    }
+
+    /// Build the device CE once (devce.rs) and hand it to the FB store. A refusal leaves the
+    /// software CE on the CPU, with one line.
+    pub fn ensure_device_ce(&mut self, fb: &mut FakeFb) {
+        if self.device_ce_tried {
+            return;
+        }
+        self.device_ce_tried = true;
+        let mut h = self.hm.lock().unwrap();
+        let Some((host_base, host_end)) = h.reservation().map(|r| (r.base, r.end())) else {
+            return;
+        };
+        let built = crate::devce::DeviceCe::new(
+            &mut h,
+            fb,
+            (self.base, self.end),
+            (host_base, host_end),
+            self.reservation,
+            crate::board::host_class_of(self.chip.channel.gpfifo),
+            crate::board::host_class_of(self.chip.channel.copy),
+        );
+        drop(h);
+        match built {
+            Ok((ce, notes)) => {
+                for n in notes {
+                    eprintln!("vfio-user-nvgpu: {n}");
+                    self.intr.note(n);
+                }
+                let ce = Arc::new(Mutex::new(ce));
+                let shared: crate::devce::SharedEngine = ce.clone();
+                fb.set_device_ce(Some(shared));
+                self.device_ce = Some(ce);
+            }
+            Err(e) => {
+                let line = format!("device CE: not built ({e}); the software CE stays on the CPU");
+                eprintln!("vfio-user-nvgpu: {line}");
+                self.intr.note(line);
+            }
+        }
+    }
+
     fn ensure_invalidator(&mut self, fb: &mut FakeFb, notes: &mut Vec<String>) {
         if let Some(why) = self.raw_refusal() {
             notes.push(format!("invalidator: raw physical invalidator refused for {why}; shadow VAS invalidation remains active"));
@@ -5120,6 +5174,10 @@ impl Mirror {
             let mut h = self.hm.lock().unwrap();
             notes.push(inv.free(&mut h));
         }
+        if let Some(ce) = self.device_ce.take() {
+            let mut h = self.hm.lock().unwrap();
+            notes.push(ce.lock().unwrap_or_else(|e| e.into_inner()).free(&mut h));
+        }
         if let Some((h, map)) = self.doorbell.take() {
             drop(map);
             let r = self.hm.lock().unwrap().free_object(h);
@@ -5166,7 +5224,10 @@ impl Mirror {
             },
             self.hold_summary(),
             self.extents.summary()
-        )
+        ) + &self
+            .device_ce
+            .as_ref()
+            .map_or(String::new(), |c| format!("; {}", c.lock().unwrap_or_else(|e| e.into_inner()).summary()))
     }
 }
 

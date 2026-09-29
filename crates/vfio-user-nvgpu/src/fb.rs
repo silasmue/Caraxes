@@ -952,6 +952,9 @@ pub struct FakeFb {
     /// `CARAXES_BAR2_MEMFD=1`: guest BAR2 as a memfd (bar2area.rs); the FB pages mapped
     /// through BAR2 live there ([`Self::backing`]).
     bar2: Option<Box<crate::bar2area::Bar2Area>>,
+    /// The device-owned host copy engine that moves the software CE's large transfers
+    /// (devce.rs), when the mirror built one; shared with the mirror, which frees it.
+    device_ce: Option<crate::devce::SharedEngine>,
     /// The guest's page tables are in the GMMU v3 format (Hopper and Blackwell,
     /// `gmmu-v3-57bit`): the walks below hand over to [`crate::gmmu_v3`]; false keeps the
     /// v2 walker of this file.
@@ -983,8 +986,92 @@ impl FakeFb {
             bar1_pt: RefCell::new(None),
             pool: RefCell::new(None),
             bar2: None,
+            device_ce: None,
             mmu_v3: false,
         }
+    }
+
+    /// The device-owned host copy engine for the software CE's large transfers (devce.rs).
+    pub fn device_ce(&self) -> Option<crate::devce::SharedEngine> {
+        self.device_ce.clone()
+    }
+
+    /// Hand the software CE a device-owned copy engine (`None`: CPU only again).
+    pub fn set_device_ce(&mut self, engine: Option<crate::devce::SharedEngine>) {
+        self.device_ce = engine;
+    }
+
+    /// Whether `[pa, pa + len)` lives in the store at its own address, where a host engine
+    /// may read or write it directly (devce.rs): inside the FB, no page of it in the BAR2
+    /// memfd, none moved by the BAR1 pool.
+    pub fn plain_vram(&self, pa: u64, len: u64) -> bool {
+        if len == 0 || pa.checked_add(len).is_none_or(|end| end > self.size) {
+            return false;
+        }
+        if let Some(a) = self.bar2.as_deref() {
+            if (pa >> 12..=(pa + len - 1) >> 12).any(|p| a.backing(p << 12).is_some()) {
+                return false;
+            }
+        }
+        let pool = self.pool.borrow();
+        if let Some(t) = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty()) {
+            let mut moved = false;
+            t.for_each_piece(pa, len as usize, |hpa, off, _| {
+                moved |= hpa != pa + off as u64
+            });
+            if moved {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// `[pa, pa + len)` changed behind the device: a host engine wrote it (devce.rs).
+    /// [`Self::note_pages_changed`] for a range: the walk caches re-read its pages, the BAR
+    /// TLB and the watched dwords drop what they held there, the BAR1 pool forgets its
+    /// copies of those pages.
+    pub fn note_range_changed(&self, pa: u64, len: u64) {
+        if len == 0 {
+            return;
+        }
+        let (first, last) = (pa >> 12, (pa + len - 1) >> 12);
+        let within = |p: u64| p >= first && p <= last;
+        if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
+            if pt.table_pages.iter().any(|p| within(*p)) {
+                pt.walk_dirty = true;
+            }
+        }
+        if let Some(p) = self.pool.borrow_mut().as_mut() {
+            p.note_table_write(first, last);
+            let pages: Vec<u64> = (first..=last).collect();
+            p.note_pages_unknown(&pages);
+        }
+        if self.watched_pages.borrow().iter().any(|p| within(*p)) {
+            self.watched.borrow_mut().retain(|k, _| !within(k >> 12));
+        }
+        {
+            let mut tp = self.bar_tlb_pages.borrow_mut();
+            if tp.iter().any(|p| within(*p)) {
+                tp.clear();
+                self.bar_tlb.borrow_mut().clear();
+                let (h, m, f) = self.bar_tlb_stats.get();
+                self.bar_tlb_stats.set((h, m, f + 1));
+            }
+        }
+        for c in self.walks.borrow_mut().values_mut() {
+            for p in first..=last {
+                if c.watches(p) {
+                    c.mark_dirty(p);
+                }
+            }
+        }
+    }
+
+    /// Write the store behind the model's back, as a host engine does (tests of devce.rs):
+    /// no watch, cache or pool sees it until [`Self::note_range_changed`].
+    #[cfg(test)]
+    pub fn write_behind(&mut self, pa: u64, data: &[u8]) {
+        self.store.write(pa, data);
     }
 
     /// Select the page-table format of the chip (`ChipData::gmmu.mmu_format`):

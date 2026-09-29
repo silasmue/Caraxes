@@ -678,7 +678,12 @@ impl Dispatcher {
         // Every route of a guest doorbell ends here: activity for the host clock boost
         // (hostboost.rs; one relaxed load while a renewal is owed).
         crate::hostboost::activity();
-        self.channels.software_fb_range = self.fb_layout.map_or(self.reservation, |l| l.reservation);
+        // The device's private pages at the top of the reservation (devce.rs `PRIVATE_AT`:
+        // the device CE's and the invalidator's tables and rings) are no guest memory.
+        self.channels.software_fb_range = self
+            .fb_layout
+            .map_or(self.reservation, |l| l.reservation)
+            .map(|(b, e)| (b, e.saturating_sub(crate::devce::PRIVATE_AT).max(b)));
         let software_runs = self.channels.software_runs;
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
         if self.channels.software_runs == software_runs {
@@ -737,6 +742,10 @@ impl Dispatcher {
         via_host_token: bool,
     ) -> Vec<String> {
         self.channels.note_rung(gm, chid);
+        // The software CE's host copy engine (devce.rs), built once with the host at hand.
+        if let Some(m) = self.mirror.as_mut() {
+            m.ensure_device_ce(gm.fb);
+        }
         // The guest's scheduling switches (rc.rs, the one set of flags): a channel that is
         // off and not on a host mirror runs nothing; the doorbell is held until the
         // channel is enabled. A mirrored channel's host twin was switched off on the host
