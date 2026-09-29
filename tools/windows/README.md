@@ -28,6 +28,7 @@ SYSTEM through the QEMU guest agent; stock Windows and driver components only (P
 | `present-probe.ps1` | D3D11 flip-model swap chain on a window: windowed, exclusive fullscreen, windowed; fps and frame statistics per phase; `-Seconds N` windowed only for N s (signed-in user's session: CH-build `run44.py upack`) |
 | `soak-media.ps1` | the display soak's media load (signed-in session): Edge plays local 1080p60 H.264 and VP9 clips in loops with a dropped-frame overlay, a YouTube video, a WebGL page on ANGLE's Vulkan backend; logs the GPU engines' utilization and nvidia-smi's decoder use; decode seen and no TDR = PASS |
 | `cuda-loop.ps1` | cuda-probe.ps1 round after round for `-Minutes` (the soak's CUDA load) |
+| `dxgk-etw.ps1` | `-Action start` a DxgKrnl ETW session (all keywords) into C:\etw\dxgk.etl, `-Action stop` it and summarise the events (names by count, TDR/timeout/reset events) from tracerpt's CSV |
 | `display-mode.ps1` | the modes EnumDisplaySettings lists, a change to `-Width`x`-Height` and back (signed-in user's session) |
 | `steam-3dmark.ps1` | `-Install` Steam silently, `-Prefer` NVIDIA GPU for 3DMark, `-Collect` result scores |
 

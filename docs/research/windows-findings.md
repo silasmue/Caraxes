@@ -945,3 +945,19 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   after ~10 s).
 - Memory model: the pool (BAR1 pages mapped to host BAR1) and the memfd (BAR2 pages in a
   memfd) are memory-model paths; the display fix is independent of the VRAM layout.
+
+## Cloud Hypervisor, step 9: the pool stall is no stuck channel (2026-09-29, C59, C59b)
+
+- **Repro:** ch15 + pool, both runs: DWM at ~47 s, flips at 60 fps then its 500 ms cadence,
+  TDR 2.1-2.2 s after the last flip (C59 82.5 s, C59b 78.1 s). 0 host Xid.
+- **Not the display:** no flip waited on its acquire (the 0.5 s note never fired); vblank
+  enabled and the clock at 60 Hz up to the TDR.
+- **Not a stuck channel:** `channels` (USERD GPGet vs GPPut, every second up to the TDR): none
+  behind at 76.6 and 77.6 s; chid 19 (GR) briefly at 75.7 s, then caught up.
+- **The KMD's paging channel** (chid 15, software executor) ran 6536 GPFIFO entries in the
+  last 2.1 s: ~181 paging ops (small CE memsets/copies into page tables around FB
+  0x3dbxxxxx, a TLB invalidate and a semaphore release each). The device's share is small:
+  145 shadow plans, 9 ms in all (max 2.1 ms); paging batches p90 8.4 ms, max 362 ms.
+- **Open:** what the KMD times out on. Next: a DxgKrnl ETW trace across the TDR
+  (tools/windows/dxgk-etw.ps1) names the node and the fence.
+- Memory model: the pool (BAR1 pages mapped to host BAR1 windows).
