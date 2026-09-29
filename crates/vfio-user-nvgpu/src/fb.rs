@@ -20,6 +20,9 @@ use crate::guestmem::GuestMemory;
 
 const PAGE: u64 = 4096;
 const MIB: u64 = 1 << 20;
+/// The BAR2 walk's entry among the walks' live table pages (`FakeFb::live_tables`); the
+/// walks are keyed by their root's FB address, never this.
+const BAR2_WALK_KEY: u64 = u64::MAX;
 
 /// The device-owned top of a reservation: the BAR2 and BAR1 root page directories
 /// (`bar2PdeBase`, `bar1PdeBase` of the static info), kept 2 MiB so the usable range
@@ -1097,6 +1100,10 @@ pub struct FakeFb {
     /// root's FB address (a sysmem root with bit 63): a guest write to one of its table
     /// pages marks that page dirty, and the next update re-reads only the dirty pages.
     walks: RefCell<std::collections::BTreeMap<u64, crate::ptcache::WalkCache>>,
+    /// The live BAR2 pages among each walk's table pages, as of the walk's tables
+    /// generation and the BAR2 live generation ([`Self::bar2_sync_tables`]): key, the two
+    /// generations, the pages. The BAR2 walk's own under [`BAR2_WALK_KEY`].
+    live_tables: RefCell<HashMap<u64, (u64, u64, Vec<u64>)>>,
     /// The state trapped status reads are answered from without the device lock
     /// (fastread.rs): a write to the BAR2 flush page's FB page drops its copy.
     fast: Option<std::sync::Arc<crate::fastread::FastReads>>,
@@ -1161,6 +1168,7 @@ impl FakeFb {
             outside: Outside::default(),
             pte_kinds: RefCell::new(std::collections::BTreeMap::new()),
             walks: RefCell::new(std::collections::BTreeMap::new()),
+            live_tables: RefCell::new(HashMap::new()),
             fast: None,
             table_epoch: Cell::new(0),
             bar_tlb: RefCell::new(HashMap::new()),
@@ -1732,12 +1740,39 @@ impl FakeFb {
             return false;
         };
         let t0 = std::time::Instant::now();
-        // The table pages of every cache (a few hundred), kept where they are live: cheaper
-        // than asking every cache about every live page.
-        let mut keys: Vec<u64> = a.table_pages();
-        for c in self.walks.borrow().values() {
-            keys.extend(c.watched_pages());
+        // The table pages of every cache, kept where they are live. A walk's live list is
+        // listed again only when its table pages or the BAR2 live set changed since (SotTR
+        // run E: 110 live of thousands of watched pages at each of 212840 invalidates, 446 us
+        // each); the other sets are small and listed every time.
+        let live_gen = a.live_generation();
+        let mut memo = self.live_tables.borrow_mut();
+        let (mut reused, mut listed) = (0u64, 0u64);
+        let mut keys: Vec<u64> = Vec::new();
+        let mut live_of = |key: u64, gen: u64, pages: &mut dyn Iterator<Item = u64>| {
+            match memo.get(&key) {
+                Some((g, l, live)) if *g == gen && *l == live_gen => {
+                    reused += 1;
+                    keys.extend_from_slice(live);
+                }
+                _ => {
+                    listed += 1;
+                    let live: Vec<u64> = pages.filter(|&k| a.is_live(k)).collect();
+                    keys.extend_from_slice(&live);
+                    memo.insert(key, (gen, live_gen, live));
+                }
+            }
+        };
+        if let Some(gen) = a.tables_generation() {
+            live_of(BAR2_WALK_KEY, gen, &mut a.table_pages().into_iter());
         }
+        let walks = self.walks.borrow();
+        for (&root, c) in walks.iter() {
+            live_of(root, c.tables_generation(), &mut c.watched_pages());
+        }
+        memo.retain(|k, _| *k == BAR2_WALK_KEY || walks.contains_key(k));
+        drop(walks);
+        drop(memo);
+        let from_walks = keys.len();
         if let Some(pt) = self.bar1_pt.borrow().as_ref() {
             keys.extend(pt.table_pages.iter().copied());
         }
@@ -1745,7 +1780,10 @@ impl FakeFb {
             keys.extend(p.tracked_pages());
         }
         keys.extend(self.bar_tlb_pages.borrow().iter().copied());
-        keys.retain(|&k| a.is_live(k));
+        // The walks' pages are live already; the rest is checked here.
+        let mut rest = keys.split_off(from_walks);
+        rest.retain(|&k| a.is_live(k));
+        keys.extend(rest);
         keys.sort_unstable();
         keys.dedup();
         crate::dlock::work("BAR2 table sync", "table page keys".into(), t0.elapsed());
@@ -1764,6 +1802,8 @@ impl FakeFb {
         let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys), &view);
         drop(walks);
         a.stats.table_syncs += 1;
+        a.stats.table_key_lists_reused += reused;
+        a.stats.table_key_lists_listed += listed;
         a.stats.table_syncs_owed += u64::from(a.flush_pending());
         a.stats.table_sync_pages += keys.len() as u64;
         a.stats.table_sync_ns += t0.elapsed().as_nanos() as u64;

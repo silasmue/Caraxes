@@ -1095,6 +1095,10 @@ pub struct Bar2Stats {
     pub table_syncs: u64,
     pub table_syncs_owed: u64,
     pub table_sync_pages: u64,
+    /// The walks' live table page lists those syncs reused (the walk's table pages and the
+    /// BAR2 live set unchanged since) and listed again (fb.rs `bar2_sync_tables`).
+    pub table_key_lists_reused: u64,
+    pub table_key_lists_listed: u64,
     pub table_sync_ns: u64,
     /// The doorbell rule's sets as last computed per channel: how many times, and the most
     /// live pages one held; the most live table pages of a channel left to the invalidate.
@@ -1358,6 +1362,12 @@ impl Bar2Area {
     /// Whether page `page` is a table page of the BAR2 walk.
     pub fn watches_table(&self, page: u64) -> bool {
         self.cache.borrow().as_ref().is_some_and(|c| c.watches(page))
+    }
+
+    /// The BAR2 walk's tables generation (ptcache.rs `WalkCache::tables_generation`):
+    /// equal generations, equal table pages. `None` before the walk exists.
+    pub fn tables_generation(&self) -> Option<u64> {
+        self.cache.borrow().as_ref().map(|c| c.tables_generation())
     }
 
     /// The table pages of the BAR2 walk.
@@ -2013,7 +2023,7 @@ impl Bar2Area {
             format!("{} ({} us)", s.by_point[x as usize], s.point_ns[x as usize] / 1000)
         };
         format!(
-            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates: {} table sync(s) of {} live table page(s) ({} us), {} of them with a flush owed left to the next engine start; channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
+            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates: {} table sync(s) of {} live table page(s) ({} us; walks' live lists {} reused, {} listed), {} of them with a flush owed left to the next engine start; channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
             p(Point::FlushRead),
             p(Point::FbFlush),
             s.fb_flushes,
@@ -2025,6 +2035,8 @@ impl Bar2Area {
             s.table_syncs,
             s.table_sync_pages,
             s.table_sync_ns / 1000,
+            s.table_key_lists_reused,
+            s.table_key_lists_listed,
             s.table_syncs_owed,
             s.observe_sets,
             s.observe_pages_max,

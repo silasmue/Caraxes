@@ -5361,6 +5361,41 @@ mod tests {
         assert!(w.b.fb.tables_dirty(Target::Fb(DB_BASE + 0x30_0000)));
     }
 
+    /// The walks' live table pages (fb.rs `bar2_sync_tables`): an invalidate with the walks'
+    /// table pages and the BAR2 live set unchanged reuses the lists and syncs the same pages
+    /// (a guest write to a table page through BAR2 still reaches VRAM); once a page left
+    /// BAR2 the lists are made again, without it.
+    #[test]
+    fn an_invalidate_reuses_the_walks_live_table_pages_while_nothing_changed() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, true, y_userd, inst, true);
+        let pt = w.pt;
+        let r = w.b.regs;
+        let s0 = w.stats();
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s1 = w.stats();
+        let pages = s1.table_sync_pages - s0.table_sync_pages;
+        assert!(pages >= 1);
+        assert!(s1.table_key_lists_listed > s0.table_key_lists_listed);
+        let pte = ((DB_BASE + 0x70_0000) >> 12 << 8) | 1;
+        w.guest.store_word(4, 2, pte);
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s2 = w.stats();
+        assert_eq!(s2.table_sync_pages - s1.table_sync_pages, pages, "the same pages");
+        assert_eq!(s2.table_key_lists_listed, s1.table_key_lists_listed, "nothing listed again");
+        assert!(s2.table_key_lists_reused > s1.table_key_lists_reused);
+        assert_eq!(w.vram(pt + 16), pte);
+        // The guest unmaps the table page's BAR2 page (4): the sync that follows the BAR2
+        // tables takes it out of the live set, and the next one lists again without it.
+        w.b.fb.write_u64(DB_BASE + 0x9000 + 8 * 4, 0);
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s3 = w.stats();
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s4 = w.stats();
+        assert!(s4.table_key_lists_listed > s3.table_key_lists_listed);
+        assert_eq!(s4.table_sync_pages - s3.table_sync_pages, pages - 1, "pt is no longer live");
+    }
+
     /// A BAR2 page re-pointed at the invalidate's table sync: what the guest wrote through
     /// it reaches VRAM before the page leaves the mapping, though no scan covered it.
     #[test]

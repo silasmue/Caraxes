@@ -241,8 +241,11 @@ guest's tables. So no other page needs to trap.
    So the invalidate is the sync point of the page tables: with no flush owed it compares and
    writes back exactly the live table pages the device follows (the walks of the guest roots,
    the BAR2 and BAR1 tables, the pool's area walk; `FakeFb::bar2_sync_tables`), and a BAR2 page
-   that the walk re-points is written back before it leaves the mapping. A flush owed stays owed
-   (rule 3). Only while a host VA space walks the guest's own tables (a mirror VAS,
+   that the walk re-points is written back before it leaves the mapping. Each walk's list of
+   its live table pages is kept while the walk's table pages (its tables generation) and the
+   BAR2 live set (the remap generation) stay as they were; SotTR run E listed thousands of
+   watched pages to find about 110 live ones at each of 212840 invalidates (446 us each).
+   A flush owed stays owed (rule 3). Only while a host VA space walks the guest's own tables (a mirror VAS,
    `Mirror::walks_guest_tables`) is the invalidate a full sync. A doorbell syncs only what its
    channel could observe (rule 4),
    page tables excluded; `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`, a full sync at every doorbell,
