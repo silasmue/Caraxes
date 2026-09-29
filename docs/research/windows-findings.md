@@ -1266,3 +1266,29 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   through BAR2. The device agent's 1c31cac2 syncs the memfd's table pages before every re-plan;
   it is not yet run with the memfd on.
 - Memory model: the memfd (BAR2) and the BAR1 pool change it; the rest is the unified model.
+
+## Cloud Hypervisor, step 20: Sunshine streams (2026-09-29, C83-C87)
+
+- **C83** (lf18-perf5, BAR1 pool 32 MiB): the session capture took 8.1 s. The first Moonlight
+  video came, then the KMD reset the GPU after 82 s.
+  - The perf5 slice clock read its continuation flag twice per pass, so the paging channel's
+    budget stops resumed only at the next doorbell: 2.7 s and 3.1 s (264.8-270.7 s).
+  - The KMD's teardown came at 270.90 and the FLR at 270.98.
+  - The one hint withdrawal (vectors 4, 7) belongs to that teardown.
+- **C84** (lf21, same bug) hung in Sunshine's 8th probe capture after the guest's last work on
+  a mirrored GR channel (chid 20). A read-only ETL extraction of mine took a full vCPU for
+  6.5 min during it; no guest-side extraction during tests since.
+- **C86** (lf22: slice flag once b224ecbe, fence carved once per region 0e6ed0dd) streamed
+  15 min, first video after 9.5 s.
+  - GR/CE shadow builds: mean 82 ms, max 198 ms (C83: 176/448).
+  - Moonlight: 28.2 FPS over a mostly static desktop.
+- **C87** (lf23: + deferred Initialize off the lock f1985978, memset pattern df1a812f;
+  8 vCPUs, Sunshine min_threads 8):
+  - First video after 5.1 s; session capture 5.3 s; probe captures 1.8 s. 6 budget stops at
+    boot (C86: 2313).
+  - Present probe (D3D11 flip-model windowed 960x540, sync interval 1, 180 s) during the
+    stream: 59.9 fps, 0 failed presents.
+  - Windows put the swap chain on the MPO overlay (window 4), which latched 59.2-60.0 flips/s.
+  - Moonlight: 54.8 FPS incoming/decoded/rendered over the 3.5 min (29 s of it static), host
+    latency 11.9 ms, network latency 41 ms (C86: 2 ms; guest CPU load under x264).
+- Memory model: BAR1 pool 32 MiB (C83-C87); the rest is the unified model.
