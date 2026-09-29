@@ -1229,6 +1229,15 @@ impl BootModel {
         self.regs.mmu_invalidate
     }
 
+    /// Whether `off` is one of the MMU invalidate registers (the two PDB words and the
+    /// trigger): a write there is part of an invalidate whose trigger the guest polls.
+    pub fn is_mmu_invalidate_register(&self, off: u64) -> bool {
+        matches!(
+            self.reg(off),
+            Some(Reg::MmuInvalidatePdb | Reg::MmuInvalidateUpperPdb | Reg::MmuInvalidate)
+        )
+    }
+
     fn reg(&self, off: u64) -> Option<Reg> {
         let r = &self.regs;
         Some(match off {
@@ -1390,9 +1399,12 @@ impl BootModel {
             // TRIGGER (bit 31) reads back as done (fb-model.md §4d), except while a held
             // invalidate's shadow plan is still being applied (invgate.rs, execution.md §8):
             // the guest polls it before its map call returns.
+            // The BAR1 pool's moves left from the invalidate count as well (bar1pool.rs
+            // `poll_sliced`, bar1-pool.md §14; device.rs ran the next slice before this).
             Some(Reg::MmuInvalidate) => {
-                let busy = self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy());
-                (self.mmu_invalidate.2 & !(1 << 31)) | if busy { 1 << 31 } else { 0 }
+                let held = self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy());
+                let pool = self.fb.pool_mut().as_ref().is_some_and(|p| p.batch_pending());
+                (self.mmu_invalidate.2 & !(1 << 31)) | if held || pool { 1 << 31 } else { 0 }
             }
             // Write-only doorbell (`clc361.h:33`); reads return 0.
             Some(Reg::UsermodeDoorbell) => 0,

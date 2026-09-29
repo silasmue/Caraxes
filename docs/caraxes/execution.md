@@ -462,8 +462,8 @@ clock's per-tick work takes the display engine's lock and never D.
 - Counters: the mirror line's `held rings: ...` part; the device-lock holds by holder
   (`dlock.rs`) at exit: count, total, p50/p99 bounds, max per holder, and the longest holds.
 - Still waiting under D: the preparation path (`submit` false), the trapped GPPut store's barrier
-  (`gp_put_barrier`), the software MEM_OP hold, the pool's barriers (pool rework). The first
-  doorbell's build moved off D in §9.2.
+  (`gp_put_barrier`), the software MEM_OP hold. The first doorbell's build moved off D in §9.2;
+  the pool's barrier holds rings instead (§9.5, bar1-pool.md §15).
 - Tests: `ringgate::tests` (a ring waits for its root's jobs and holds only; the completer wakes
   on a poke while rings are held), `dlock::tests`.
 
@@ -519,3 +519,26 @@ clock's per-tick work takes the display engine's lock and never D.
 - Tests: `mbuild::tests` (the TSG cell: the first build makes it, the next join, a refusal leaves
   it empty; the preemption check is claimed once; the GPPut write-back only over the clear; the
   counters), `dlock::tests` (tags of a long hold, the work table).
+
+### 9.5 The BAR1 pool (2026-09-29, bar1-pool.md §13-§15)
+
+- Under D:
+  - the poll's decision;
+  - the GPU check, with no worker drain;
+  - the moves in slices of about 500 us behind the invalidate trigger;
+  - the barrier's start (idle check, ring holds, preempt jobs queued) and its end (re-sync
+    plans, ring releases queued).
+- Waits for the worker: at most 50 us per poll (in-flight jobs, the barrier's preempts, its
+  re-sync), except with the invalidate page (as its held invalidate). The worker releases the
+  held rings itself.
+- Still under D: each slice's copies.
+- Next, within the order above (D, then the pool's lock, the display lock, `hm`, worker
+  internals): the copies on a pool mover thread that never takes D.
+  - The pool state goes behind its own lock.
+  - A page in transit stays at home for every device path; a device write to it marks it for a
+    second copy.
+  - The mover commits the remap switch under the pool lock.
+  - A commit that changes a record page the display core pinned tells the display core (pool
+    lock, then display lock, never the reverse).
+- `RingGate::clear_holds` at `Mirror::reset`: a reset drops the holds of a batch that went with
+  the model.
