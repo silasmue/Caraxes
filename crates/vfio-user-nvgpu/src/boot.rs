@@ -61,6 +61,17 @@ fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 {
     }
 }
 
+/// The cached answer of `BootModel::bar2_observed` for one channel: the memory it could
+/// observe (as of `stamp`: its generation, VAS root, the walk's leaf and table generations,
+/// the set-B stamp) and the live BAR2 memfd pages among it (as of `live_gen`).
+struct ObserveEntry {
+    stamp: [u64; 5],
+    pieces: Vec<(Target, u64)>,
+    tables: Vec<u64>,
+    live_gen: u64,
+    pages: Vec<u64>,
+}
+
 /// What an L2 cache-operation register does when the guest starts it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum L2Op {
@@ -68,7 +79,10 @@ enum L2Op {
     FlushDirty,
     /// `L2_SYSMEM_INVALIDATE`: invalidate the lines caching system memory.
     SysmemInvalidate,
-    /// FB_FLUSH, PEERMEM_INVALIDATE, CLEAN_COMPTAGS: completed without a host operation.
+    /// `NV_UFLUSH_FB_FLUSH`, the sysmembar: a BAR2 memfd sync point (bar2area.rs
+    /// `Point::FbFlush`), completed without a host operation.
+    FbFlush,
+    /// PEERMEM_INVALIDATE, CLEAN_COMPTAGS: completed without a host operation.
     Local,
 }
 
@@ -116,6 +130,8 @@ pub struct BootModel {
     mmu_invalidate: (u32, u32, u32),
     /// Last value written to each L2 cache-operation register (busy bits masked on read).
     l2_ops: BTreeMap<u64, u32>,
+    /// The BAR2 memfd's doorbell rule: what each channel could observe (`bar2_observed`).
+    bar2_observe: std::collections::HashMap<u32, ObserveEntry>,
     /// The high word the last `NV_PTIMER_TIME_1` read returned, until the next `TIME_0`
     /// read (the torn-read guard of [`BootModel::ptimer_read`]).
     ptimer_hi: Option<u64>,
@@ -249,6 +265,7 @@ impl BootModel {
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
             mmu_invalidate: (0, 0, 0),
             l2_ops: BTreeMap::new(),
+            bar2_observe: Default::default(),
             ptimer_hi: None,
             l2_op_counts: (0, 0, 0),
             bar2_block: 0,
@@ -962,18 +979,24 @@ impl BootModel {
         }
     }
 
-    /// The work of a flush point (the flush read, the MMU invalidate, the GSP
-    /// command-queue doorbell): the BAR2 memfd sync, then the BAR1 pool's untracked pages.
-    /// It settles a deferred flush read, counted by `cause`.
-    fn flush_point(&mut self, mem: &GuestMemory, cause: crate::bar2area::Settle) {
+    /// The work of a flush point (bar2area.rs `Point`: a flush, the MMU invalidate, the GSP
+    /// command-queue doorbell, a doorbell or the clock settling an owed flush): the BAR2
+    /// memfd sync, then the BAR1 pool's untracked pages. It settles an owed flush.
+    fn flush_point(&mut self, mem: &GuestMemory, point: crate::bar2area::Point) {
         let root = self.bar_root(3);
-        self.fb.bar2_sync(root, Some(mem));
+        let t0 = std::time::Instant::now();
+        if self.fb.bar2_sync(root, Some(mem)) {
+            let ns = t0.elapsed().as_nanos() as u64;
+            if let Some(a) = self.fb.bar2_area_mut() {
+                a.count_point(point, ns);
+            }
+        }
         crate::bar1pool::sync_untracked(&mut self.fb);
-        self.fb.bar2_flush_settled(cause);
+        self.fb.bar2_flush_settled(point.settle());
     }
 
-    /// Settle a deferred flush read if its sync is owed (a doorbell, the flush clock);
-    /// returns whether one was.
+    /// Settle a deferred flush if its sync is owed (a doorbell, the flush clock); returns
+    /// whether one was.
     pub fn settle_deferred_flush(
         &mut self,
         mem: &GuestMemory,
@@ -982,8 +1005,20 @@ impl BootModel {
         if !self.fb.bar2_flush_pending() {
             return false;
         }
-        self.flush_point(mem, cause);
+        self.flush_point(mem, crate::bar2area::Point::of(cause));
         true
+    }
+
+    /// A write of `NV_UFLUSH_FB_FLUSH` with PENDING (bar2area.rs `Point::FbFlush`): with the
+    /// BAR2 memfd, what the guest wrote through BAR2 must reach the GPU. As a flush read, it
+    /// marks the sync owed when flushes defer (the next hand-over or the flush clock settles
+    /// it), else syncs now.
+    fn fb_flush(&mut self, mem: &GuestMemory) -> Option<String> {
+        if self.fb.bar2_area_mut()?.defer_fb_flush() {
+            return Some("fb flush: BAR2 memfd sync owed (settled at the next hand-over)".into());
+        }
+        self.flush_point(mem, crate::bar2area::Point::FbFlush);
+        Some("fb flush: BAR2 memfd synced".into())
     }
 
     /// A trapped BAR1/BAR3 access: walk the guest's page tables in the fake FB.
@@ -1008,7 +1043,7 @@ impl BootModel {
             // (bar2area.rs `DeferredFlush`, docs/caraxes/display-pacing.md).
             self.fb.bar2_note_trapped();
             if !self.fb.bar2_defer_flush() {
-                self.flush_point(mem, crate::bar2area::Settle::SyncPoint);
+                self.flush_point(mem, crate::bar2area::Point::FlushRead);
             }
         }
         let held = if write && bar == 1 {
@@ -1087,7 +1122,7 @@ impl BootModel {
 
     /// A ring of pool token `token` through its ioeventfd (device.rs `doorbell_tokens`).
     pub fn doorbell_token(&mut self, mem: &GuestMemory, token: u32) -> Vec<String> {
-        self.bar2_doorbell_sync(mem);
+        self.bar2_before_ring(mem, Some(token));
         let mut gm = crate::channel::GpuMem {
             fb: &mut self.fb,
             sys: mem,
@@ -1235,6 +1270,7 @@ impl BootModel {
             o if o == r.usermode_doorbell => Reg::UsermodeDoorbell,
             o if o == self.ptimer_base() + PTIMER_TIME_0 => Reg::PtimerTime0,
             o if o == self.ptimer_base() + PTIMER_TIME_1 => Reg::PtimerTime1,
+            o if o == r.fb_flush => Reg::L2Op(L2Op::FbFlush),
             o if o == r.l2_flush_dirty => Reg::L2Op(L2Op::FlushDirty),
             o if r.l2_sysmem_invalidate.contains(&o) => Reg::L2Op(L2Op::SysmemInvalidate),
             o if r.l2_ops_local.contains(&o) => Reg::L2Op(L2Op::Local),
@@ -1297,7 +1333,9 @@ impl BootModel {
             L2Op::FlushDirty => L2Flush::WriteBack,
             // The host RM promotes a sysmem invalidate to an evict (kmemsysCacheOp_GM200).
             L2Op::SysmemInvalidate => L2Flush::Invalidate,
-            L2Op::Local => return format!("l2 {op:?}: complete (no host operation)"),
+            L2Op::FbFlush | L2Op::Local => {
+                return format!("l2 {op:?}: complete (no host operation)")
+            }
         };
         if self.exec.is_none() {
             return format!("l2 {op:?}: complete (no host execution, no cache behind the model)");
@@ -1462,7 +1500,13 @@ impl BootModel {
                 self.bar2_block = v;
                 // BAR2 (re)bound: its tables are live from here on.
                 let root = self.bar_root(3);
-                self.fb.bar2_sync(root, Some(mem));
+                let t0 = std::time::Instant::now();
+                if self.fb.bar2_sync(root, Some(mem)) {
+                    let ns = t0.elapsed().as_nanos() as u64;
+                    if let Some(a) = self.fb.bar2_area_mut() {
+                        a.count_point(crate::bar2area::Point::Bar2Bind, ns);
+                    }
+                }
             }
             Some(Reg::MmuInvalidatePdb) => self.mmu_invalidate.0 = v,
             Some(Reg::MmuInvalidateUpperPdb) => self.mmu_invalidate.1 = v,
@@ -1475,11 +1519,14 @@ impl BootModel {
             Some(Reg::L2Op(op)) => {
                 self.l2_ops.insert(off, v);
                 if v & 1 != 0 {
+                    if op == L2Op::FbFlush {
+                        notes.extend(self.fb_flush(mem));
+                    }
                     notes.push(self.l2_op(op));
                 }
             }
             Some(Reg::UsermodeDoorbell) => {
-                self.bar2_doorbell_sync(mem);
+                self.bar2_before_ring(mem, Some(v));
                 // A channel's work submit token (kernel_fifo_tu102.c:75-130): a mirrored
                 // channel rings the host doorbell (E5b part 2), the others run their
                 // pending GPFIFO entries against the FB store and guest RAM (E5a).
@@ -1545,8 +1592,10 @@ impl BootModel {
                         notes.extend(self.gsp_started(mem));
                     }
                     Some(BootEvent::CmdQueueDoorbell { libos_args_pa: pa }) => {
-                        // An RPC may name memory the guest filled through BAR2.
-                        self.flush_point(mem, crate::bar2area::Settle::SyncPoint);
+                        // An RPC may name memory the guest filled through BAR2, and on a
+                        // GSP system the runlist submits are RPCs (bar2area.rs
+                        // `Point::GspQueueHead`).
+                        self.flush_point(mem, crate::bar2area::Point::GspQueueHead);
                         self.doorbells += 1;
                         self.libos_args_pa = Some(pa);
                         notes.push(format!(
@@ -1586,8 +1635,17 @@ impl BootModel {
             // The BAR1 area's untracked pages (bar1pool.rs `sync_untracked`): the
             // replicas' guest writes reach their pages as tracked writes, and a
             // table page still in the pool is re-read by the walks below. Settles
-            // a deferred flush read.
-            self.flush_point(mem, crate::bar2area::Settle::SyncPoint);
+            // a deferred flush read. With the memfd and no flush owed, the table pages
+            // only (`FakeFb::bar2_sync_tables`, bar2-memfd.md §3 rule 2): the MMU re-reads
+            // tables from here on; data reaches VRAM at its own hand-over.
+            let host_walks = self.ctrl.mirror.as_ref().is_some_and(|m| m.walks_guest_tables());
+            if self.fb.bar2_area().is_some() && !self.fb.bar2_flush_pending() && !host_walks {
+                let root = self.bar_root(3);
+                self.fb.bar2_sync_tables(root, Some(mem));
+                crate::bar1pool::sync_untracked(&mut self.fb);
+            } else {
+                self.flush_point(mem, crate::bar2area::Point::MmuInvalidate);
+            }
             // The guest changed page tables in VRAM through BAR1; drain the WC
             // buffers before the host TLB invalidate so RM re-walks fresh tables.
             self.fb.flush();
@@ -1656,20 +1714,143 @@ impl BootModel {
         notes
     }
 
-    /// `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`: a BAR2 memfd sync before every doorbell (the
-    /// reference for the rule that the guest's flush and invalidate are enough,
-    /// docs/caraxes/bar2-memfd.md §3).
+    /// The BAR2 memfd before a doorbell of the channels `chids` (docs/caraxes/bar2-memfd.md
+    /// §3, rule 4): a channel doorbell (`NV_VIRTUAL_FUNCTION_DOORBELL`, turing/tu102/
+    /// dev_vm.h:229) is where an engine starts to consume, so everything the rung channels
+    /// could observe must be in VRAM first, flushed or not (the card orders a doorbell after
+    /// the BAR writes posted before it; a driver that flushes by a read the device does not
+    /// trap, nouveau's FB-address-0 read, is covered as well).
     ///
-    /// A flush read whose sync is still owed is settled here first: the channel may fetch
-    /// what the guest wrote before the doorbell (bar2-memfd.md §3, rule 3).
-    fn bar2_doorbell_sync(&mut self, mem: &GuestMemory) {
+    /// - A flush whose sync is still owed is settled first, in full (rule 3).
+    /// - `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`: a full sync (the reference setting).
+    /// - Otherwise only the live pages the channels could observe are compared and written
+    ///   back ([`Self::bar2_observed`]); none, no sync.
+    fn bar2_doorbell_sync(&mut self, mem: &GuestMemory, chids: &[u32]) {
         if self.settle_deferred_flush(mem, crate::bar2area::Settle::Doorbell) {
             return;
         }
         if self.fb.bar2_area().is_some_and(|a| a.sync_doorbell) {
             let root = self.bar_root(3);
             self.fb.bar2_sync(root, Some(mem));
+            return;
         }
+        let mut keys = Vec::new();
+        let mut unknown = false;
+        for &chid in chids {
+            match self.bar2_observed(chid) {
+                Some(k) => keys.extend(k),
+                None => unknown = true,
+            }
+        }
+        if unknown {
+            keys = self.fb.bar2_area().map(|a| a.live_keys()).unwrap_or_default();
+        } else {
+            keys.sort_unstable();
+            keys.dedup();
+        }
+        if let Some(a) = self.fb.bar2_area_mut() {
+            a.note_doorbell(keys.len(), unknown);
+        }
+        if !keys.is_empty() {
+            self.fb.bar2_sync_pages(Some(mem), &keys);
+        }
+    }
+
+    /// [`Self::bar2_doorbell_sync`] for a doorbell write of `token` (the channels it rings,
+    /// `Dispatcher::doorbell_targets`), or for the token-less doorbell (`None`: the channels
+    /// with newly published GPFIFO entries). Nothing without the BAR2 memfd.
+    fn bar2_before_ring(&mut self, mem: &GuestMemory, token: Option<u32>) {
+        if self.fb.bar2_area().is_none() {
+            return;
+        }
+        let chids = match token {
+            Some(t) => self.ctrl.doorbell_targets(t),
+            None => {
+                let gm = crate::channel::GpuMem {
+                    fb: &mut self.fb,
+                    sys: mem,
+                };
+                self.ctrl.pending_channels(&gm)
+            }
+        };
+        self.bar2_doorbell_sync(mem, &chids);
+    }
+
+    /// The live BAR2 memfd pages channel `chid` could observe (the doorbell rule,
+    /// docs/caraxes/bar2-memfd.md §3, rule 4), ascending; `None` when the device cannot name
+    /// the channel's memory (no such channel, no VAS root, no cached walk of it): then every
+    /// live page counts. Its memory is
+    ///
+    /// - what the channel reads through its VAS: every leaf of the guest's tables under its
+    ///   root (ptcache.rs `WalkCache::observable`), less the shadow's set-B ranges (the
+    ///   promoted context buffers the host builds itself; mirror.rs `shadow_exclusions`).
+    ///   The GPFIFO is among them wherever it lives: `NV_RAMFC_GP_BASE` is a VA
+    ///   (maxwell/gm107/dev_ram.h:72-73), and so are the pushbuffers;
+    /// - what the card reads by physical address at a doorbell: USERD (`NV_RAMFC_USERD`,
+    ///   turing/tu102/dev_ram.h:29-30, GP_PUT at :62), the instance block with RAMFC and the
+    ///   method buffer (channel.rs `Channel::structures`). The runlist names the instance
+    ///   block and USERD by physical address (`NV_RAMRL_ENTRY_CHAN_USERD_TARGET`, :46-50);
+    ///   the runlist memory itself is GSP-RM's, which no guest writes.
+    /// - The page tables (`NV_RAMIN_PAGE_DIR_BASE`, gm107/dev_ram.h:58-66, and every
+    ///   directory below it) are read by physical address too, but the card is bound to a
+    ///   changed entry only after an MMU invalidate (rule 2), and every invalidate syncs the
+    ///   live table pages (`FakeFb::bar2_sync_tables`). The walk's table pages are kept
+    ///   here for the count of what the invalidate covers (`note_observe_set`).
+    ///
+    /// The ranges are cached per channel while the channel, its root, the walk's leaves and
+    /// table pages and the set-B ranges stay; the pages while the live set stays as well.
+    fn bar2_observed(&mut self, chid: u32) -> Option<Vec<u64>> {
+        let reg = &self.ctrl.channels;
+        let ch = reg.channel(chid)?;
+        let Some(Target::Fb(root)) = reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) else {
+            return None;
+        };
+        let (walk_gen, tables_gen) = self
+            .fb
+            .with_walk(Target::Fb(root), |c| (c.generation(), c.tables_generation()))?;
+        let excl = self.ctrl.mirror.as_ref().and_then(|m| m.shadow_exclusions(root));
+        let stamp = [
+            ch.generation,
+            root,
+            walk_gen,
+            tables_gen,
+            excl.map_or(0, |(g, _)| g),
+        ];
+        let live_gen = self.fb.bar2_area()?.live_generation();
+        if let Some(e) = self.bar2_observe.get(&chid).filter(|e| e.stamp == stamp) {
+            if e.live_gen == live_gen {
+                return Some(e.pages.clone());
+            }
+        } else {
+            let exclude = excl.map_or(&[][..], |(_, r)| r);
+            let (mut pieces, tables) = self
+                .fb
+                .with_walk(Target::Fb(root), |c| c.observable(exclude))
+                .flatten()?;
+            pieces.extend(ch.structures.iter().copied());
+            if let Some(u) = ch.userd {
+                pieces.push((u, USERD_SIZE as u64));
+            }
+            self.bar2_observe.insert(
+                chid,
+                ObserveEntry {
+                    stamp,
+                    pieces,
+                    tables,
+                    live_gen: u64::MAX,
+                    pages: Vec::new(),
+                },
+            );
+        }
+        let area = self.fb.bar2_area_mut()?;
+        let e = self.bar2_observe.get_mut(&chid).expect("just checked or inserted");
+        // Page tables are not in the doorbell's set: the card re-reads them only after an
+        // MMU invalidate (rule 2), which syncs every live table page itself.
+        e.pages = area.observed(&e.pieces, &[]);
+        e.live_gen = live_gen;
+        let tables = area.observed(&[], &e.tables).len();
+        area.note_observe_set(e.pages.len(), tables);
+        Some(e.pages.clone())
     }
 
     /// A doorbell the usermode page's reactor took (um_page.rs): the channel its value names
@@ -1680,7 +1861,7 @@ impl BootModel {
     /// rung and the notes.
     pub fn doorbell_from_page(&mut self, mem: &GuestMemory, hint: Option<u32>) -> (usize, Vec<String>) {
         if let Some(v) = hint {
-            self.bar2_doorbell_sync(mem);
+            self.bar2_before_ring(mem, Some(v));
             let mut gm = crate::channel::GpuMem {
                 fb: &mut self.fb,
                 sys: mem,
@@ -1714,7 +1895,7 @@ impl BootModel {
     /// A token-less doorbell from the ioeventfd path (device.rs): ring every channel with
     /// newly published GPFIFO entries (`Dispatcher::doorbell_pending`).
     pub fn doorbell_pending(&mut self, mem: &GuestMemory) -> Vec<String> {
-        self.bar2_doorbell_sync(mem);
+        self.bar2_before_ring(mem, None);
         let mut gm = crate::channel::GpuMem {
             fb: &mut self.fb,
             sys: mem,
@@ -1825,7 +2006,7 @@ impl BootModel {
                         rpc::FN_GSP_RM_CONTROL
                             if msg.payload.len() >= v::RM_CONTROL_PARAMS_SIZE + 4 =>
                         {
-                            v::RM_CONTROL_PARAMS + size_at(v::RM_CONTROL_PARAMS_SIZE)
+                            crate::ver::rm_control().params + size_at(v::RM_CONTROL_PARAMS_SIZE)
                         }
                         rpc::FN_GSP_RM_ALLOC
                             if msg.payload.len() >= v::RM_ALLOC_PARAMS_SIZE + 4 =>
@@ -1958,7 +2139,9 @@ impl BootModel {
                         Some((rpc::NV_OK, crate::ver::static_info_for_guest(info)))
                     }
                     rpc::FN_GSP_RM_CONTROL => {
-                        // rpc_gsp_rm_control_v03_00 (docs/caraxes/gsp-abi-610.md).
+                        // rpc_gsp_rm_control_v03_00 (docs/caraxes/gsp-abi-610.md) in the
+                        // guest's frame: the params at 40, or at 24 for 570.144
+                        // (crate::ver::RmControlFrame).
                         let p = &msg.payload;
                         let w =
                             |o: usize| u32::from_le_bytes(p[o..o + 4].try_into().unwrap_or([0; 4]));
@@ -1967,7 +2150,8 @@ impl BootModel {
                             w(v::RM_CONTROL_CMD),
                             w(v::RM_CONTROL_PARAMS_SIZE) as usize,
                         );
-                        let at = v::RM_CONTROL_PARAMS;
+                        let frame = crate::ver::rm_control();
+                        let at = frame.params;
                         let params = p.get(at..at + size).unwrap_or(&[]);
                         let t_ctl = crate::profile::on().then(std::time::Instant::now);
                         // Controls only newer chips' kernels send come from the chip first
@@ -2034,17 +2218,17 @@ impl BootModel {
                         reply.resize(at, 0);
                         let st = v::RM_CONTROL_STATUS;
                         reply[st..st + 4].copy_from_slice(&a.status.to_le_bytes());
-                        if cmd & v::CMD_GSS_LEGACY_BIT != 0 {
+                        if let (true, Some(f)) =
+                            (cmd & v::CMD_GSS_LEGACY_BIT != 0, frame.rmctrl_flags)
+                        {
                             // GSS legacy: the guest caches the reply by its rmctrlFlags
                             // (rpc.c:10899-10905 of 615): CACHEABLE for the proven static
                             // answers when CARAXES_LEGACY_CACHEABLE=1, 0 for the rest and
                             // by default (nvml.rs `legacy_reply_flags`); with the flag the
-                            // access right is written 0.
+                            // access right is written 0. A 570 frame has no such field.
                             let flags = crate::nvml::legacy_reply_flags(cmd, a.status);
-                            let f = v::RM_CONTROL_RMCTRL_FLAGS;
                             reply[f..f + 4].copy_from_slice(&flags.to_le_bytes());
-                            if flags != 0 {
-                                let r = v::RM_CONTROL_RMCTRL_ACCESS_RIGHT;
+                            if let (true, Some(r)) = (flags != 0, frame.access_right) {
                                 reply[r..r + 4].copy_from_slice(&0u32.to_le_bytes());
                                 notes.push(format!("ctrl {cmd:#x}: reply rmctrlFlags {flags:#x} (the guest caches it)"));
                             }
@@ -2073,7 +2257,31 @@ impl BootModel {
                             .get(at..at + size)
                             .or_else(|| msg.slot_payload.get(at..at + size))
                             .unwrap_or(&[]);
+                        // A guest whose parameters for this class differ from the layout
+                        // the device handles (a 570.144 guest's channel and VA space
+                        // allocations): translated here, and the answer back below.
+                        let translated = crate::ver::alloc_params_to_device(h_class, params);
+                        let params: &[u8] = translated.as_deref().unwrap_or(params);
                         let h_client = w(v::RM_ALLOC_H_CLIENT);
+                        // hObject 0 (NV01_NULL_OBJECT): RM assigns the handle before the
+                        // class sees the request and returns it in the reply
+                        // (`Dispatcher::assign_handle`); a root class names the client.
+                        let is_root = h_class == v::NV01_ROOT
+                            || h_class == v::NV01_ROOT_NON_PRIV
+                            || h_class == v::NV01_ROOT_CLIENT;
+                        let assigned = (h_object == 0)
+                            .then(|| self.ctrl.assign_handle(h_client, h_class))
+                            .flatten();
+                        let (h_client, h_object) = match assigned {
+                            Some(h) if is_root => (h, h),
+                            Some(h) => (h_client, h),
+                            None => (h_client, h_object),
+                        };
+                        if let Some(h) = assigned {
+                            notes.push(format!(
+                                "alloc {h_class:#x} with hObject 0: handle {h:#x} assigned (RM's clientAssignResourceHandle)"
+                            ));
+                        }
                         let t_alloc = crate::profile::on().then(std::time::Instant::now);
                         // The event-buffer classes the 615 event import allocates on GSP
                         // (gspmem.rs) are checked against the registered memory first.
@@ -2160,7 +2368,17 @@ impl BootModel {
                         reply.resize(at, 0);
                         let st = v::RM_ALLOC_STATUS;
                         reply[st..st + 4].copy_from_slice(&a.status.to_le_bytes());
-                        let mut out = a.params;
+                        if assigned.is_some() && a.status == rpc::NV_OK {
+                            // The assigned handle goes back in the reply's header.
+                            let o = v::RM_ALLOC_H_OBJECT;
+                            reply[o..o + 4].copy_from_slice(&h_object.to_le_bytes());
+                            if is_root {
+                                let c = v::RM_ALLOC_H_CLIENT;
+                                reply[c..c + 4].copy_from_slice(&h_client.to_le_bytes());
+                            }
+                        }
+                        let mut out = crate::ver::alloc_params_to_guest(h_class, &a.params)
+                            .unwrap_or(a.params);
                         out.resize(size, 0);
                         reply.extend_from_slice(&out);
                         Some((a.status, reply))
@@ -2809,6 +3027,33 @@ impl BootModel {
                         "guest ABI: ERROR the guest's RMARGS at {rmargs:#x} carry the 615 magic \"GSP \"; this device is pinned to guest ABI {} with the 610 transport (unset CARAXES_GUEST_ABI and --guest-abi, or pin 615)",
                         crate::ver::guest()
                     ));
+                    return notes;
+                }
+            }
+            // Message queue v0: GSP-RM links the queues at its init from RMARGS, sends
+            // GSP_INIT_DONE and serves what the CPU queued before it started, without a
+            // doorbell. nouveau queues GSP_SET_SYSTEM_INFO and SET_REGISTRY before it boots
+            // GSP and then only polls for GSP_INIT_DONE (Linux 7.2.7
+            // nvkm/subdev/gsp/rm/r535/gsp.c `r535_gsp_init`, :1782-1795); the doorbells it
+            // rang then found no libos arguments yet. So the queues link here when the
+            // command queue already holds elements, whose first frame tells 570 from 610;
+            // an empty queue (nova-core and the 610 kernel send after the boot) still links
+            // at the first doorbell.
+            if self.queues.is_none() {
+                match self.cmd_queue_write_ptr(mem, pa) {
+                    Ok(w) if w != 0 => {
+                        notes.push(format!(
+                            "queues: {w} element slot(s) queued before GSP-RM started: linked now, as GSP-RM does at its init"
+                        ));
+                        self.libos_args_pa = Some(pa);
+                        notes.extend(self.service_queues(mem, pa));
+                    }
+                    Ok(_) => notes.push(
+                        "queues: command queue empty at GSP start; they link at the first doorbell".into(),
+                    ),
+                    Err(e) => notes.push(format!(
+                        "queues: not linked at GSP start ({e}); they link at the first doorbell"
+                    )),
                 }
             }
             return notes;
@@ -2819,6 +3064,33 @@ impl BootModel {
             Err(e) => notes.push(format!("queues (v2): {e}")),
         }
         notes
+    }
+
+    /// Message queue v0: the command queue's `writePtr` as the CPU left it (its
+    /// `msgqTxHeader` through RMARGS' queue arguments), without linking or writing
+    /// anything. 0 on a fresh boot means nothing is queued: GSP-RM's read pointer starts at 0.
+    fn cmd_queue_write_ptr(&self, mem: &GuestMemory, libos_args_pa: u64) -> Result<u32, String> {
+        use crate::ver::v610::{MQ_CMD_QUEUE_OFFSET, MQ_PAGE_TABLE_ENTRY_COUNT, MQ_SHARED_MEM_PA};
+        let mut probe = Vec::new();
+        let rmargs = Self::find_rmargs(mem, libos_args_pa, &mut probe)?;
+        let shared = mem.read_u64(rmargs + MQ_SHARED_MEM_PA).ok_or("RMARGS not mapped")?;
+        let count = mem.read_u32(rmargs + MQ_PAGE_TABLE_ENTRY_COUNT).unwrap_or(0);
+        let cmd_off = mem.read_u64(rmargs + MQ_CMD_QUEUE_OFFSET).unwrap_or(0);
+        if count == 0 || count > 4096 || cmd_off >= count as u64 * 4096 {
+            return Err(format!("implausible queue arguments: {count} pages, commands at {cmd_off:#x}"));
+        }
+        let pages = QueueMemory::read_page_table(mem, shared, count)
+            .ok_or("queue page table not mapped")?;
+        let qm = QueueMemory::new(mem, &pages);
+        let mut raw = [0u8; 32];
+        if !qm.read(cmd_off, &mut raw) {
+            return Err(format!("command queue header at {cmd_off:#x} not readable"));
+        }
+        let h = crate::msgq::TxHeader::parse(&raw);
+        if h.version != 0 || h.msg_size != 0x1000 || h.msg_count == 0 || h.write_ptr >= h.msg_count {
+            return Err(format!("command queue header not initialized: {h:?}"));
+        }
+        Ok(h.write_ptr)
     }
 
     /// The RMARGS region among the libos init arguments at `libos_args_pa`.
@@ -3258,10 +3530,31 @@ mod tests {
         let name = &payload[1260..1260 + 64];
         let name = &name[..name.iter().position(|&c| c == 0).expect("NUL-terminated")];
         assert!(std::str::from_utf8(name).unwrap().contains("RTX 2070"), "{name:?}");
+        // A control in the 570.144 frame (nouveau's r570 path): the params at 24, and the
+        // reply the same frame with the status at 12 (crate::ver::RmControlFrame::V570).
+        // 0x20800A36 is chip info for a 570 guest; its PCI ids sit at 12 of the params.
+        let mut ctl = vec![0u8; crate::ver::v570::RM_CONTROL_PARAMS + 88];
+        for (o, x) in [
+            (v::RM_CONTROL_H_CLIENT, crate::ctrl::INTERNAL_CLIENT),
+            (v::RM_CONTROL_H_OBJECT, 0xCA7A_0003),
+            (v::RM_CONTROL_CMD, 0x2080_0A36),
+            (v::RM_CONTROL_STATUS, 0xFFFF_FFFF),
+            (v::RM_CONTROL_PARAMS_SIZE, 88),
+        ] {
+            ctl[o..o + 4].copy_from_slice(&x.to_le_bytes());
+        }
+        send(&mut cmd, rpc::FN_GSP_RM_CONTROL, &ctl);
+        b.write32(queue_head, 0, &mem).unwrap();
+        let (function, len, reply) = status(3);
+        assert_eq!((function, len), (rpc::FN_GSP_RM_CONTROL, 32 + 24 + 88));
+        let at = |o: usize| u32::from_le_bytes(reply[o..o + 4].try_into().unwrap());
+        assert_eq!(at(v::RM_CONTROL_CMD), 0x2080_0A36);
+        assert_eq!(at(v::RM_CONTROL_STATUS), rpc::NV_OK);
+        assert_eq!(at(24 + 12), 0x1F02_10DE, "chip info's PCI ids at 12 of the params");
         // Unbind: UNLOADING_GUEST_DRIVER (newLevel 0), reply, MAILBOX0 bit 31.
         send(&mut cmd, crate::gsprpc::FN_UNLOADING_GUEST_DRIVER, &[0u8; 8]);
         b.write32(queue_head, 0, &mem).unwrap();
-        assert_eq!(status(3).0, crate::gsprpc::FN_UNLOADING_GUEST_DRIVER);
+        assert_eq!(status(4).0, crate::gsprpc::FN_UNLOADING_GUEST_DRIVER);
         assert_ne!(b.read32(gsp + falcon::MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, 0);
         // Booter Unload, then the re-probe: fresh queues from the CPU, a new Booter Load.
         b.write32(sec2 + falcon::MAILBOX0, 0xff, &mem);
@@ -3278,6 +3571,137 @@ mod tests {
         assert_eq!(status(1).0, rpc::EV_GSP_INIT_DONE);
         let _ = std::fs::remove_file(path);
         first
+    }
+
+    /// nouveau's order (Linux 7.2.7 r570 path): GSP_SET_SYSTEM_INFO and SET_REGISTRY are
+    /// queued and the doorbell rung before the GSP mailboxes carry the libos arguments, then
+    /// FWSEC, the mailboxes, Booter Load, and only polling for GSP_INIT_DONE. The queues link
+    /// at the Booter Load (GSP-RM's init), the first element's frame chooses 570, and the
+    /// sequencer and GSP_INIT_DONE are in the status queue without a further doorbell.
+    #[test]
+    fn nouveau_570_queues_before_the_boot_link_at_booter_load() {
+        use crate::msgq::tests::queue_fixture;
+        use crate::ver::{GuestAbi, TestGuest};
+        let _g = TestGuest::pin(None);
+        let f = crate::fixture::rtx2070();
+        let (mem, pages, base, path) = queue_fixture("nouveau570-early");
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(1 << 30), f.identity(1 << 30));
+        let (gsp, sec2, queue_head) = (0x0011_0000u64, 0x0084_0000u64, 0x0011_0C00u64);
+        let (libos, rmargs) = (base + 0x90000, base + 0x91000);
+        let id8 = |s: &str| s.bytes().fold(0u64, |a, c| (a << 8) | c as u64);
+        assert!(mem.write(libos, &id8("LOGINIT").to_le_bytes()));
+        assert!(mem.write(libos + 32, &id8("RMARGS").to_le_bytes()));
+        assert!(mem.write(libos + 40, &rmargs.to_le_bytes()));
+        assert!(mem.write(rmargs, &base.to_le_bytes()));
+        assert!(mem.write(rmargs + 8, &129u32.to_le_bytes()));
+        assert!(mem.write(rmargs + 16, &0x1000u64.to_le_bytes()));
+        assert!(mem.write(rmargs + 24, &0x41000u64.to_le_bytes()));
+        let mut cmd = crate::msgq::TxHeader::standard(0x40000);
+        let qm = QueueMemory::new(&mem, &pages);
+        assert!(qm.write(0x1000, &cmd.encode()));
+        // Two pre-610 (0x30) elements, as r535/rpc.c frames them, and their doorbells.
+        for (seq, (function, len)) in [(rpc::FN_GSP_SET_SYSTEM_INFO, 928usize), (rpc::FN_SET_REGISTRY, 8)]
+            .into_iter()
+            .enumerate()
+        {
+            let total = 0x30 + 32 + len;
+            let mut raw = vec![0u8; total.div_ceil(8) * 8];
+            raw[0x24..0x28].copy_from_slice(&(seq as u32).to_le_bytes());
+            raw[0x28..0x2c].copy_from_slice(&1u32.to_le_bytes());
+            let h = RpcHeader {
+                header_version: 0x0300_0000,
+                signature: u32::from_le_bytes(*b"VRPC"),
+                length: (32 + len) as u32,
+                function,
+                rpc_result: 0xFFFF_FFFF,
+                rpc_result_private: 0xFFFF_FFFF,
+                sequence: seq as u32,
+                u: 0,
+            };
+            raw[0x30..0x50].copy_from_slice(&h.encode());
+            if function == rpc::FN_SET_REGISTRY {
+                raw[0x50] = 8; // an empty PACKED_REGISTRY_TABLE: size 8, 0 entries
+            }
+            let sum = crate::msgq::checksum32(&raw);
+            raw[0x20..0x24].copy_from_slice(&sum.to_le_bytes());
+            let at = 0x1000 + cmd.entry_off as u64 + cmd.write_ptr as u64 * 0x1000;
+            assert!(qm.write(at, &raw));
+            cmd.write_ptr += 1;
+            assert!(qm.write_u32(0x1000 + 16, cmd.write_ptr));
+            let notes = b.write32(queue_head, 0, &mem).unwrap();
+            assert!(notes.iter().any(|n| n.contains("not linked")), "{notes:?}");
+        }
+        // FWSEC is left out; the mailboxes, then Booter Load on SEC2.
+        b.write32(gsp + falcon::MAILBOX0, libos as u32, &mem);
+        b.write32(gsp + falcon::MAILBOX1, (libos >> 32) as u32, &mem);
+        b.write32(sec2 + falcon::MAILBOX0, 0x7654_3000, &mem);
+        b.write32(sec2 + falcon::MAILBOX1, 0, &mem);
+        let notes = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("queued before GSP-RM started")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.contains("GSP_SET_SYSTEM_INFO") && n.contains("checksum ok")), "{notes:?}");
+        assert_eq!(crate::ver::guest(), GuestAbi::V570, "chosen by the first element's frame");
+        let status = |slot: u64| {
+            let mut e = vec![0u8; 0x1000];
+            assert!(qm.read(0x42000 + slot * 0x1000, &mut e));
+            RpcHeader::parse(&e[0x30..]).function
+        };
+        assert_eq!(status(0), crate::ver::v570::EV_GSP_RUN_CPU_SEQUENCER);
+        assert_eq!(status(1), rpc::EV_GSP_INIT_DONE);
+        // An empty command queue at the Booter Load keeps the doorbell link (nova-core's order,
+        // `nova_570_boot_through_the_queue`).
+        //
+        // Allocations with hObject 0 (nouveau's user-channel objects): RM assigns the handle
+        // and returns it in the reply; a root with 0 gets a client handle.
+        let mut alloc = |seq: u32, h_client: u32, h_parent: u32, class: u32, params: usize| {
+            let mut body = vec![0u8; v::RM_ALLOC_PARAMS + params];
+            for (o, x) in [
+                (v::RM_ALLOC_H_CLIENT, h_client),
+                (v::RM_ALLOC_H_PARENT, h_parent),
+                (v::RM_ALLOC_H_OBJECT, 0),
+                (v::RM_ALLOC_H_CLASS, class),
+                (v::RM_ALLOC_PARAMS_SIZE, params as u32),
+            ] {
+                body[o..o + 4].copy_from_slice(&x.to_le_bytes());
+            }
+            let total = 0x30 + 32 + body.len();
+            let mut raw = vec![0u8; total.div_ceil(8) * 8];
+            raw[0x24..0x28].copy_from_slice(&seq.to_le_bytes());
+            raw[0x28..0x2c].copy_from_slice(&1u32.to_le_bytes());
+            let h = RpcHeader {
+                header_version: 0x0300_0000,
+                signature: u32::from_le_bytes(*b"VRPC"),
+                length: (32 + body.len()) as u32,
+                function: rpc::FN_GSP_RM_ALLOC,
+                rpc_result: 0xFFFF_FFFF,
+                rpc_result_private: 0xFFFF_FFFF,
+                sequence: seq,
+                u: 0,
+            };
+            raw[0x30..0x50].copy_from_slice(&h.encode());
+            raw[0x50..0x50 + body.len()].copy_from_slice(&body);
+            let sum = crate::msgq::checksum32(&raw);
+            raw[0x20..0x24].copy_from_slice(&sum.to_le_bytes());
+            let at = 0x1000 + cmd.entry_off as u64 + cmd.write_ptr as u64 * 0x1000;
+            assert!(qm.write(at, &raw));
+            cmd.write_ptr += 1;
+            assert!(qm.write_u32(0x1000 + 16, cmd.write_ptr));
+            b.write32(queue_head, 0, &mem).unwrap()
+        };
+        let reply = |slot: u64| {
+            let mut e = vec![0u8; 0x1000];
+            assert!(qm.read(0x42000 + slot * 0x1000, &mut e));
+            let at = |o: usize| u32::from_le_bytes(e[0x50 + o..0x54 + o].try_into().unwrap());
+            (at(v::RM_ALLOC_H_CLIENT), at(v::RM_ALLOC_H_OBJECT), at(v::RM_ALLOC_STATUS))
+        };
+        let notes = alloc(2, 0, 0, v::NV01_ROOT, 120);
+        assert!(notes.iter().any(|n| n.contains("handle 0xc1d00000 assigned")), "{notes:?}");
+        assert_eq!(reply(2), (0xc1d0_0000, 0xc1d0_0000, rpc::NV_OK));
+        alloc(3, 0xc1d0_0000, 0xc1d0_0000, v::NV01_DEVICE_0, 56);
+        assert_eq!(reply(3), (0xc1d0_0000, 0xcaf0_0000, rpc::NV_OK));
+        alloc(4, 0xc1d0_0000, 0xcaf0_0000, v::NV20_SUBDEVICE_0, 4);
+        assert_eq!(reply(4), (0xc1d0_0000, 0xcaf0_0001, rpc::NV_OK), "the next free handle");
+        let _ = std::fs::remove_file(path);
     }
 
     /// A 610 guest (OpenRM 610.57.04) on message queue v0: RMARGS without the 615 magic and
@@ -4347,6 +4771,336 @@ mod tests {
         assert!(!b.fb.bar2_flush_pending());
         assert_eq!(b.fb.bar2_area().unwrap().stats().syncs, syncs0 + 1);
         assert!(b.fb.bar2_area().unwrap().summary().contains("flush reads sync at once"));
+    }
+
+    /// The BAR2 memfd's sync points (bar2area.rs `Point`, docs/caraxes/bar2-memfd.md §1):
+    /// `NV_UFLUSH_FB_FLUSH` with PENDING syncs (without the deferral) or marks the sync owed
+    /// (with it), and completes; a write without PENDING does nothing.
+    #[test]
+    fn an_fb_flush_is_a_bar2_sync_point() {
+        use crate::bar2area::Point;
+        let mem = GuestMemory::new();
+        let (mut b, x, guest) = memfd_model(false);
+        let r = b.regs;
+        assert_eq!(r.fb_flush, 0x7_0000, "NV_UFLUSH_FB_FLUSH, gm107/dev_flush.h:30");
+        guest.store_word(2, 0, 0xF1);
+        b.write32(r.fb_flush, 0, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x), 0, "no PENDING, no flush");
+        let notes = b.write32(r.fb_flush, 1, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("BAR2 memfd synced")), "{notes:?}");
+        assert_eq!(vram_u64(&b, x), 0xF1);
+        assert_eq!(b.read32(r.fb_flush), Some(0), "PENDING and OUTSTANDING read 0");
+        let s = b.fb.bar2_area().unwrap().stats();
+        assert_eq!((s.fb_flushes, s.by_point[Point::FbFlush as usize]), (1, 1));
+        // With the deferral: owed, settled by the next hand-over (here the clock).
+        let (mut b, x, guest) = memfd_model(true);
+        guest.store_word(2, 0, 0xF2);
+        let notes = b.write32(r.fb_flush, 1, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("owed")), "{notes:?}");
+        assert!(b.fb.bar2_flush_pending());
+        assert_eq!(vram_u64(&b, x), 0);
+        assert!(b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock));
+        assert_eq!(vram_u64(&b, x), 0xF2);
+        assert!(b.fb.bar2_area().unwrap().summary().contains("1 NV_UFLUSH_FB_FLUSH write(s)"));
+    }
+
+    /// The MMU invalidate, the GSP command-queue head (where the CPU's runlist submits
+    /// arrive as RPCs on a GSP system) and the BAR2 bind are full sync points, each counted.
+    #[test]
+    fn the_invalidate_the_gsp_queue_head_and_the_bar2_bind_sync() {
+        use crate::bar2area::Point;
+        let mem = GuestMemory::new();
+        let (mut b, x, guest) = memfd_model(true);
+        let r = b.regs;
+        let point = |b: &BootModel, p: Point| b.fb.bar2_area().unwrap().stats().by_point[p as usize];
+        // With no flush owed the invalidate syncs table pages only: x (data) waits.
+        guest.store_word(2, 0, 0x11);
+        b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x), 0);
+        assert_eq!(point(&b, Point::MmuInvalidate), 0);
+        assert_eq!(b.fb.bar2_area().unwrap().stats().table_syncs, 1);
+        // A flush read (the trapped page) owes a sync: the invalidate settles it in full.
+        let mut d = [0u8; 4];
+        b.bar_access(&mem, 3, 0x1f000, &mut d, false);
+        assert!(b.fb.bar2_flush_pending());
+        b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x), 0x11);
+        assert_eq!(point(&b, Point::MmuInvalidate), 1);
+        guest.store_word(2, 0, 0x22);
+        let head = b.gsp_queue_registers().unwrap().cmd_head;
+        assert_eq!(head, 0x11_0c00, "NV_PGSP_QUEUE_HEAD(0), tu102/dev_gsp.h:38");
+        b.write32(head, 0, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x), 0x22);
+        assert_eq!(point(&b, Point::GspQueueHead), 1);
+        guest.store_word(2, 0, 0x33);
+        let v = b.bar2_block;
+        b.write32(r.bar2_block, v, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x), 0x33);
+        assert_eq!(point(&b, Point::Bar2Bind), 1);
+    }
+
+    /// The doorbell rule's world (docs/caraxes/bar2-memfd.md §3, rule 4): `memfd_model`
+    /// (BAR2 page 2 -> FB `x`) plus BAR2 page 3 -> `z` and, with `pt_in_bar2`, BAR2 page 4
+    /// -> the channel VAS's page table `pt`; a VAS rooted at `root` mapping VA 0x1000_0000
+    /// -> `y` (never behind BAR2) and, with `maps_x`, VA 0x1000_1000 -> `x`; channel 5 in
+    /// it with USERD at `userd` and its instance block at `inst`. `walk`: the device holds
+    /// a cached walk of the root (a shadow would).
+    struct DoorbellWorld {
+        b: BootModel,
+        guest: crate::bar2area::SharedView,
+        mem: GuestMemory,
+        x: u64,
+        z: u64,
+        pt: u64,
+    }
+
+    const DB_BASE: u64 = 0x400_0000;
+
+    fn doorbell_world(maps_x: bool, pt_in_bar2: bool, userd: u64, inst: u64, walk: bool) -> DoorbellWorld {
+        use nvrm_sys::RmAbi;
+        type Abi = nvrm_sys::V610;
+        let mem = GuestMemory::new();
+        let (mut b, x, guest) = memfd_model(true);
+        // Settle the flush the model's set-up left standing, so only the rule acts below.
+        b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock);
+        let base = DB_BASE;
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        let (z, y) = (base + 0x11_0000, base + 0x40_0000);
+        let (root, pd2, pd1, pd0, pt) = (
+            base + 0x30_0000,
+            base + 0x30_1000,
+            base + 0x30_2000,
+            base + 0x30_3000,
+            base + 0x30_4000,
+        );
+        b.fb.write_u64(root, vid(pd2));
+        b.fb.write_u64(pd2, vid(pd1));
+        b.fb.write_u64(pd1, vid(pd0));
+        b.fb.write_u64(pd0 + 16 * 0x80 + 8, vid(pt));
+        b.fb.write_u64(pt, pte(y));
+        if maps_x {
+            b.fb.write_u64(pt + 8, pte(x));
+        }
+        let bar2_pt = base + 0x9000;
+        b.fb.write_u64(bar2_pt + 8 * 3, pte(z));
+        if pt_in_bar2 {
+            b.fb.write_u64(bar2_pt + 8 * 4, pte(pt));
+        }
+        let (bar2, _) = b.layout.bar_roots().unwrap();
+        assert!(b.fb.bar2_sync(Some(bar2), Some(&mem)));
+        if walk {
+            b.fb.walk_update(Some(&mem), Target::Fb(root), false, 1 << 16);
+        }
+        let reg = &mut b.ctrl.channels;
+        reg.record_alloc(1, 0x10, 0x20, v::FERMI_VASPACE_A, &[]);
+        let mut pd = [0u8; 24];
+        pd[0..8].copy_from_slice(&root.to_le_bytes());
+        pd[8..12].copy_from_slice(&1u32.to_le_bytes());
+        pd[16..20].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_set_page_directory(1, &pd);
+        let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let put = |p: &mut [u8], o: usize, v: &[u8]| p[o..o + v.len()].copy_from_slice(v);
+        let chid = 5u32;
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags, &((1u32 << 21) | (chid << 8)).to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_hVASpace, &0x20u32.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoOffset, &0x1000_0000u64.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoEntries, &32u32.to_le_bytes());
+        for (off, pa) in [
+            (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_userdMem, userd),
+            (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_instanceMem, inst),
+        ] {
+            put(&mut p, off + v::MEM_DESC_BASE, &pa.to_le_bytes());
+            put(&mut p, off + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_FBMEM.to_le_bytes());
+        }
+        reg.record_alloc(1, 0x10, 0x40, 0xC46F, &p).unwrap();
+        assert_eq!(reg.channel(chid).unwrap().structures, vec![(Target::Fb(inst), 0x1000)]);
+        DoorbellWorld { b, guest, mem, x, z, pt }
+    }
+
+    impl DoorbellWorld {
+        /// A trapped doorbell of channel 5 (its guest token: ChID 5, runlist 0).
+        fn ring(&mut self) {
+            let at = self.b.regs.usermode_doorbell;
+            self.b.write32(at, 5, &self.mem).unwrap();
+        }
+        fn stats(&self) -> crate::bar2area::Bar2Stats {
+            self.b.fb.bar2_area().unwrap().stats()
+        }
+        fn vram(&self, pa: u64) -> u64 {
+            vram_u64(&self.b, pa)
+        }
+    }
+
+    /// A doorbell with no flush owed syncs only what its channel could observe: the page its
+    /// VAS maps behind BAR2 reaches VRAM, another BAR2 page does not.
+    #[test]
+    fn a_doorbell_syncs_the_pages_its_channel_maps() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(true, false, y_userd, inst, true);
+        let (x, z) = (w.x, w.z);
+        w.guest.store_word(2, 0, 0xA1);
+        w.guest.store_word(3, 0, 0xB1);
+        w.ring();
+        assert_eq!((w.vram(x), w.vram(z)), (0xA1, 0), "x is in the channel's VAS, z is not");
+        let s = w.stats();
+        assert_eq!(
+            (s.doorbells_checked, s.doorbells_clean, s.doorbells_unknown, s.doorbell_syncs, s.doorbell_compared),
+            (1, 0, 0, 1, 1)
+        );
+        assert!(!w.b.fb.bar2_flush_pending());
+        assert!(w.b.fb.bar2_area().unwrap().summary().contains("1 partial sync(s) (1 page compare(s)"));
+    }
+
+    /// Nothing the channel could observe is behind BAR2: no sync at its doorbell. Once its
+    /// VAS maps a BAR2 page (a new walk generation), the next doorbell syncs that page.
+    #[test]
+    fn a_doorbell_with_nothing_observable_behind_bar2_does_not_sync() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, false, y_userd, inst, true);
+        let (x, z) = (w.x, w.z);
+        w.guest.store_word(2, 0, 0xA2);
+        w.guest.store_word(3, 0, 0xB2);
+        w.ring();
+        let s = w.stats();
+        assert_eq!((s.doorbells_checked, s.doorbells_clean, s.doorbell_syncs), (1, 1, 0));
+        assert_eq!((w.vram(x), w.vram(z)), (0, 0));
+        // The guest maps x in the channel's VAS; the invalidate (no flush owed) syncs the
+        // table pages only, and the walk follows (here: the model's walk update, as the
+        // shadow's resync does). Data waits for its hand-over.
+        let pt = DB_BASE + 0x30_4000;
+        w.b.fb.write_u64(pt + 8, ((x >> 12) << 8) | 1);
+        let r = w.b.regs;
+        w.b.write32(r.mmu_invalidate, 0x8000_0005, &w.mem).unwrap();
+        assert_eq!((w.vram(x), w.vram(z)), (0, 0));
+        w.b.fb.walk_update(Some(&w.mem), Target::Fb(DB_BASE + 0x30_0000), false, 1 << 16);
+        w.guest.store_word(2, 1, 0xA3);
+        w.guest.store_word(3, 1, 0xB3);
+        w.ring();
+        assert_eq!((w.vram(x), w.vram(x + 8), w.vram(z + 8)), (0xA2, 0xA3, 0));
+        assert_eq!(w.stats().doorbell_syncs, 1);
+    }
+
+    /// USERD and the instance block are read by physical address (NV_RAMFC_USERD,
+    /// NV_RAMIN): behind BAR2 they are synced at the channel's doorbell, even when its VAS
+    /// maps neither.
+    #[test]
+    fn a_doorbell_syncs_its_channels_userd_and_instance_block() {
+        let mut w = doorbell_world(false, false, DB_BASE + 0x11_0000, DB_BASE + 0x10_0000, true);
+        let (x, z) = (w.x, w.z);
+        // GP_PUT (NV_RAMUSERD_GP_PUT, word 35) through BAR2, and a word of the instance block.
+        w.guest.store_word(3, 0x8C / 8, 7u64 << 32);
+        w.guest.store_word(2, 0, 0xC1);
+        w.ring();
+        assert_eq!(w.vram(z + 0x88) >> 32, 7);
+        assert_eq!(w.vram(x), 0xC1);
+        let s = w.stats();
+        assert_eq!((s.doorbell_syncs, s.doorbell_compared), (1, 2));
+    }
+
+    /// The channel's page tables are read by physical address (NV_RAMIN_PAGE_DIR_BASE and
+    /// the entries below it), but only after an MMU invalidate is the card bound to the new
+    /// entries (rule 2): a page-table page behind BAR2 is not in the doorbell's set, and
+    /// the invalidate with no flush owed syncs exactly the live table pages (the BAR2
+    /// tables and the channel's), not data. The set reports the table pages it left out.
+    #[test]
+    fn page_tables_behind_bar2_reach_vram_at_the_invalidate_not_the_doorbell() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, true, y_userd, inst, true);
+        let (pt, z) = (w.pt, w.z);
+        assert_eq!(w.b.fb.backing(pt), crate::fb::Backing::Bar2Memfd(0x4000));
+        assert!(w.b.fb.device_table_page(pt >> 12), "the walk of the channel's root reads it");
+        assert!(!w.b.fb.device_table_page(z >> 12));
+        let pte = ((DB_BASE + 0x70_0000) >> 12 << 8) | 1;
+        w.guest.store_word(4, 2, pte);
+        w.guest.store_word(3, 0, 0xB4);
+        w.ring();
+        let s = w.stats();
+        assert_eq!((s.doorbells_clean, s.doorbell_syncs), (1, 0), "nothing for the doorbell");
+        assert_eq!((s.observe_pages_max, s.observe_tables_max), (0, 1));
+        assert_eq!(w.vram(pt + 16), 0);
+        let r = w.b.regs;
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        assert_eq!(w.vram(pt + 16), pte, "the table page at the invalidate");
+        assert_eq!(w.vram(z), 0, "data waits for its hand-over");
+        let s = w.stats();
+        assert_eq!(s.table_syncs, 1);
+        assert!(s.table_sync_pages >= 1);
+        // The walk re-reads the written table page (marked dirty by the sync).
+        assert!(w.b.fb.tables_dirty(Target::Fb(DB_BASE + 0x30_0000)));
+    }
+
+    /// A BAR2 page re-pointed at the invalidate's table sync: what the guest wrote through
+    /// it reaches VRAM before the page leaves the mapping, though no scan covered it.
+    #[test]
+    fn a_page_leaving_bar2_at_a_table_sync_is_written_back_first() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, false, y_userd, inst, true);
+        let z = w.z;
+        w.guest.store_word(3, 0, 0xC5);
+        // The guest unmaps BAR2 page 3 (a device write of the BAR2 PTE, as PRAMIN would).
+        w.b.fb.write_u64(DB_BASE + 0x9000 + 8 * 3, 0);
+        let r = w.b.regs;
+        w.b.write32(r.mmu_invalidate, 0x8000_0007, &w.mem).unwrap();
+        assert!(matches!(w.b.fb.backing(z), crate::fb::Backing::Store));
+        assert_eq!(w.vram(z), 0xC5);
+        assert_eq!(w.stats().table_syncs, 1);
+    }
+
+    /// A channel whose memory the device cannot name (no cached walk of its root) could
+    /// observe anything: every live page is synced at its doorbell.
+    #[test]
+    fn a_doorbell_of_a_channel_the_device_cannot_name_syncs_every_live_page() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, false, y_userd, inst, false);
+        let (x, z) = (w.x, w.z);
+        w.guest.store_word(2, 0, 0xD1);
+        w.guest.store_word(3, 0, 0xD2);
+        w.ring();
+        assert_eq!((w.vram(x), w.vram(z)), (0xD1, 0xD2));
+        let s = w.stats();
+        assert_eq!((s.doorbells_unknown, s.doorbell_syncs, s.doorbell_compared), (1, 1, 2));
+    }
+
+    /// The token-less doorbell (ioeventfd) applies the rule to the channels it rings: those
+    /// with GPFIFO entries published since their last doorbell.
+    #[test]
+    fn the_tokenless_doorbell_syncs_for_the_pending_channels() {
+        let (userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(true, false, userd, inst, true);
+        let x = w.x;
+        w.guest.store_word(2, 0, 0xE1);
+        w.b.doorbell_pending(&w.mem);
+        assert_eq!(w.vram(x), 0, "no channel pending, none rung");
+        assert_eq!(w.stats().doorbells_checked, 1);
+        // One (zero, a NOP control) GPFIFO entry published: channel 5 is pending.
+        w.b.fb.write(userd + 0x8C, &1u32.to_le_bytes());
+        w.b.doorbell_pending(&w.mem);
+        assert_eq!(w.vram(x), 0xE1);
+        assert_eq!(w.stats().doorbell_syncs, 1);
+    }
+
+    /// vm10-boot8's failure: a channel whose USERD page is behind the BAR2 memfd (the guest
+    /// cleared it through BAR2) and whose GPPut the guest writes through the BAR1 pool,
+    /// straight into VRAM. The device must see that GPPut: the channel is pending, rung, and
+    /// its entry runs (GPGet 1); the stale memfd copy said GPPut 0 and nothing ran.
+    #[test]
+    fn a_gp_put_written_beside_the_bar2_memfd_is_seen_at_the_doorbell() {
+        let (userd, inst) = (DB_BASE + 0x11_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, false, userd, inst, true);
+        assert!(matches!(w.b.fb.backing(userd), crate::fb::Backing::Bar2Memfd(_)));
+        // The guest's BAR2 clear of USERD, handed over (the channel's RPC syncs it).
+        w.guest.write(0x3000 + 0x40, &[0u8; 0x60]);
+        let r = w.b.regs;
+        w.b.write32(r.mmu_invalidate, 0x8000_0005, &w.mem).unwrap();
+        // GPPut 1 through BAR1 into VRAM (a NOP control entry at GPFIFO VA 0x1000_0000).
+        w.b.fb.write_behind(userd + 0x8C, &1u32.to_le_bytes());
+        assert_eq!(w.b.ctrl.channels.channel_gp_get(5), Some(0));
+        w.b.doorbell_pending(&w.mem);
+        assert_eq!(w.b.ctrl.channels.channel_gp_get(5), Some(1), "the entry ran");
+        let mut p = [0u8; 4];
+        w.b.fb.read_raw(userd + 0x8C, &mut p);
+        assert_eq!(u32::from_le_bytes(p), 1, "no sync wrote the stale GPPut back");
     }
 
     /// The GPPut barrier's decision (display-e.md §9): a store that covers USERD + 0x8C of

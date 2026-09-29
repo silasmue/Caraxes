@@ -45,6 +45,18 @@ pub fn fresh_generation() -> u64 {
     NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
+/// [`WalkCache::observable`]: memory as `(start, bytes)`, and table page numbers.
+pub type Observable = (Vec<(Target, u64)>, Vec<u64>);
+
+/// `t` moved on by `by` bytes.
+fn offset(t: Target, by: u64) -> Target {
+    match t {
+        Target::Fb(pa) => Target::Fb(pa + by),
+        Target::Sys(pa) => Target::Sys(pa + by),
+        t => t,
+    }
+}
+
 /// Reads `n` consecutive qwords of a page table.
 pub trait TableReader {
     fn block(&self, table: Target, n: usize) -> Option<Vec<u64>>;
@@ -216,6 +228,19 @@ pub struct WalkCache {
     /// A fresh stamp ([`fresh_generation`]) at creation and at every update that changed a
     /// unit's leaves: equal generations, equal leaves ([`Self::generation`]).
     generation: u64,
+    /// The same for the set of table pages ([`Self::tables_generation`]).
+    tables_generation: u64,
+    /// The XOR of [`page_mix`] over the table pages: equal sets, equal values (an update
+    /// that drops and re-adds a unit's pages leaves it as it was).
+    uses_hash: u64,
+}
+
+/// A 64-bit mix of a page number (splitmix64's finaliser) for [`WalkCache::uses_hash`].
+fn page_mix(p: u64) -> u64 {
+    let mut z = p.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
 }
 
 impl WalkCache {
@@ -238,6 +263,8 @@ impl WalkCache {
             added: Vec::new(),
             dropped: false,
             generation: fresh_generation(),
+            tables_generation: fresh_generation(),
+            uses_hash: 0,
         }
     }
 
@@ -246,6 +273,12 @@ impl WalkCache {
     /// clip of a global buffer's set-B exclusion) is reused while it stands.
     pub fn generation(&self) -> u64 {
         self.generation
+    }
+
+    /// The generation of the set of table pages: it changes whenever the set does (a
+    /// directory entry that now names another table), even when no leaf changed.
+    pub fn tables_generation(&self) -> u64 {
+        self.tables_generation
     }
 
     /// A guest write of `data` at FB address `pa` (inside watched page `page`): patch the
@@ -347,6 +380,7 @@ impl WalkCache {
         if let Target::Fb(pa) = t {
             let s = self.uses.entry(pa >> 12).or_default();
             if s.is_empty() {
+                self.uses_hash ^= page_mix(pa >> 12);
                 self.added.push(pa >> 12);
             }
             s.insert(u);
@@ -358,6 +392,7 @@ impl WalkCache {
             s.remove(&u);
             if s.is_empty() {
                 self.uses.remove(&page);
+                self.uses_hash ^= page_mix(page);
                 self.dropped = true;
             }
         }
@@ -367,6 +402,7 @@ impl WalkCache {
     /// sysmem or when `full` is asked for (the always-resync reference), otherwise only the
     /// dirty table pages. Returns the units whose leaves may have changed.
     pub fn update(&mut self, r: &dyn TableReader, full: bool) -> Update {
+        let tables_before = self.uses_hash;
         self.reads = 0;
         self.added.clear();
         self.dropped = false;
@@ -379,6 +415,7 @@ impl WalkCache {
             self.units.clear();
             self.dropped |= !self.uses.is_empty();
             self.uses.clear();
+            self.uses_hash = 0;
             self.dirty.clear();
             self.raw.clear();
             self.leaves = 0;
@@ -424,6 +461,9 @@ impl WalkCache {
         }
         if full || !changed.is_empty() {
             self.generation = fresh_generation();
+        }
+        if self.uses_hash != tables_before {
+            self.tables_generation = fresh_generation();
         }
         let uses = &self.uses;
         self.raw.retain(|p, _| uses.contains_key(p));
@@ -555,6 +595,7 @@ impl WalkCache {
         for p in &pages {
             let s = self.uses.entry(*p).or_default();
             if s.is_empty() {
+                self.uses_hash ^= page_mix(*p);
                 self.added.push(*p);
             }
             s.insert(Use::Unit(va));
@@ -677,6 +718,54 @@ impl WalkCache {
         }
     }
 
+    /// What an engine running in this tree could read (the BAR2 memfd's doorbell rule,
+    /// docs/caraxes/bar2-memfd.md §3): every leaf's memory outside the VA ranges `exclude`
+    /// (sorted or not), as `(start, bytes)`, and every table page (4 KiB page number) the
+    /// MMU reads by physical address (NV_RAMIN_PAGE_DIR_BASE and the directory entries,
+    /// gm107/dev_ram.h:58-66). `None` when the cache cannot say: never built, a table in
+    /// sysmem (unwatched), or truncated at `max_leaves`.
+    pub fn observable(&self, exclude: &[(u64, u64)]) -> Option<Observable> {
+        if !self.built || self.sys_tables || self.truncated {
+            return None;
+        }
+        let mut ex: Vec<(u64, u64)> = exclude.iter().copied().filter(|(lo, hi)| lo < hi).collect();
+        ex.sort_unstable();
+        // Merged, so that the ends ascend as well (the partition point below).
+        let mut merged: Vec<(u64, u64)> = Vec::with_capacity(ex.len());
+        for (lo, hi) in ex {
+            match merged.last_mut() {
+                Some(last) if lo <= last.1 => last.1 = last.1.max(hi),
+                _ => merged.push((lo, hi)),
+            }
+        }
+        let ex = merged;
+        let mut pieces = Vec::new();
+        for (va, t, size, _) in self.units.values().flat_map(|u| u.leaves.iter()) {
+            let (lo, hi) = (*va, va + size);
+            let mut at = lo;
+            // The parts of [lo, hi) outside every excluded range.
+            let first = ex.partition_point(|(_, xhi)| *xhi <= lo);
+            for &(xlo, xhi) in &ex[first..] {
+                if xlo >= hi {
+                    break;
+                }
+                if xlo > at {
+                    pieces.push((offset(*t, at - lo), xlo - at));
+                }
+                at = at.max(xhi);
+                if at >= hi {
+                    break;
+                }
+            }
+            if at < hi {
+                pieces.push((offset(*t, at - lo), hi - at));
+            }
+        }
+        let mut tables: Vec<u64> = self.uses.keys().copied().collect();
+        tables.sort_unstable();
+        Some((pieces, tables))
+    }
+
     /// Every cached leaf, ascending by unit (tests and the full-walk comparison).
     pub fn all_leaves(&self) -> Vec<Leaf> {
         self.units.values().flat_map(|u| u.leaves.iter().copied()).collect()
@@ -727,6 +816,54 @@ mod tests {
         m.w(0x14000 + 8 * 3, pte(0x20000));
         m.w(0x15000 + 8, pte(0x40000));
         m
+    }
+
+    /// What an engine in the tree could read (the BAR2 memfd's doorbell rule): the leaves
+    /// outside the excluded VA ranges, cut where the ranges cut them, and every table page;
+    /// the table generation moves with the set of table pages, not with a leaf.
+    #[test]
+    fn observable_memory_is_the_leaves_outside_the_exclusions_and_the_tables() {
+        let m = tree();
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        assert!(c.observable(&[]).is_none(), "never built");
+        c.update(&m, false);
+        let sorted = |mut p: Vec<(Target, u64)>| {
+            p.sort_by_key(|(t, _)| match t {
+                Target::Fb(a) | Target::Sys(a) => *a,
+                _ => 0,
+            });
+            p
+        };
+        // VA 0x3000 -> 0x20000 (a 4 KiB PTE), VA 0x10000 -> 0x40000 (a 64 KiB PTE).
+        let (pieces, tables) = c.observable(&[]).unwrap();
+        assert_eq!(sorted(pieces), vec![(Target::Fb(0x20000), 0x1000), (Target::Fb(0x40000), 0x1_0000)]);
+        assert_eq!(tables, vec![0x10, 0x11, 0x12, 0x13, 0x14, 0x15]);
+        // Two overlapping ranges, unsorted: [0x12000, 0x16000) is cut out of the big page.
+        let (pieces, _) = c.observable(&[(0x13000, 0x16000), (0x12000, 0x14000)]).unwrap();
+        assert_eq!(
+            sorted(pieces),
+            vec![
+                (Target::Fb(0x20000), 0x1000),
+                (Target::Fb(0x40000), 0x2000),
+                (Target::Fb(0x46000), 0xA000)
+            ]
+        );
+        let (pieces, tables) = c.observable(&[(0, u64::MAX)]).unwrap();
+        assert!(pieces.is_empty() && tables.len() == 6, "the tables stay");
+        // A new PTE in a watched table: new leaves, the same tables.
+        let (g, tg) = (c.generation(), c.tables_generation());
+        m.w(0x14000 + 8 * 5, pte(0x21000));
+        c.mark_dirty(0x14);
+        c.update(&m, false);
+        assert_ne!(c.generation(), g);
+        assert_eq!(c.tables_generation(), tg);
+        // A small page table for unit 1: a new table page.
+        m.w(0x13000 + 16 + 8, vid(0x16000));
+        m.w(0x16000, pte(0x30000));
+        c.mark_dirty(0x13);
+        c.update(&m, false);
+        assert_ne!(c.tables_generation(), tg);
+        assert!(c.observable(&[]).unwrap().1.contains(&0x16));
     }
 
     #[test]

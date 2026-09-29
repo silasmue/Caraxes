@@ -371,6 +371,10 @@ pub fn lookup(table: &[(&str, u32)], name: &str) -> Option<u32> {
 // RM classes (sdk/class/*.h). The chip's own channel and copy classes are chip data.
 
 pub const NV01_ROOT: u32 = 0x0;
+/// The other root classes (sdk/class/cl0001.h, cl0041.h): a client allocated by an
+/// unprivileged or an in-kernel caller.
+pub const NV01_ROOT_NON_PRIV: u32 = 0x1;
+pub const NV01_ROOT_CLIENT: u32 = 0x41;
 pub const NV01_DEVICE_0: u32 = 0x80;
 pub const NV20_SUBDEVICE_0: u32 = 0x2080;
 pub const NV01_EVENT_KERNEL_CALLBACK_EX: u32 = 0x7E;
@@ -773,6 +777,19 @@ pub const CMD_GPU_GET_PES_INFO: u32 = 0x2080_0168;
 pub const GR_ROUTED_SIZE: usize = 24;
 pub const GR_ROUTED_ARG: usize = 16;
 pub const GR_ROUTED_OUT: usize = 20;
+/// The Fermi-era GPC, TPC and ZCULL mask queries on the subdevice (sdk/ctrl/ctrl2080/
+/// ctrl2080gpu.h), which the RM answers as `GR_GET_GPC_MASK`, `GR_GET_TPC_MASK` and
+/// `GR_GET_ZCULL_MASK` (subdevice_ctrl_gpu_kernel.c:1829-1976 of 615): {gpcMask} (4 bytes),
+/// {gpcId, tpcMask} and {gpcId, zcullMask} (8 bytes each). A GSP client that owns no
+/// static GR info asks GSP for them (nouveau's r570 path at GSP init, Linux 7.2.7
+/// nvkm/subdev/gsp/rm/r570/gr.c:15-52).
+pub const CMD_GPU_GET_FERMI_GPC_INFO: u32 = 0x2080_0137;
+pub const CMD_GPU_GET_FERMI_TPC_INFO: u32 = 0x2080_0138;
+pub const CMD_GPU_GET_FERMI_ZCULL_INFO: u32 = 0x2080_0139;
+pub const FERMI_GPC_INFO_SIZE: usize = size_of::<ffi::NV2080_CTRL_GPU_GET_FERMI_GPC_INFO_PARAMS>();
+pub const FERMI_TPC_INFO_SIZE: usize = size_of::<ffi::NV2080_CTRL_GPU_GET_FERMI_TPC_INFO_PARAMS>();
+pub const FERMI_ZCULL_INFO_SIZE: usize =
+    size_of::<ffi::NV2080_CTRL_GPU_GET_FERMI_ZCULL_INFO_PARAMS>();
 // `GPU_GET_PES_INFO` and the public `GR_GET_GLOBAL_SM_ORDER` are host calls: their
 // layouts are the HOST driver's and live in hostabi.rs (`HostLayouts`), chosen at run
 // time. What follows is the guest's side.
@@ -1236,6 +1253,7 @@ pub const TSG_ENGINE_TYPE: usize =
 /// (src/nvidia/inc/kernel/vgpu/rm_plugin_shared_code.h:66-67).
 pub const MEM_DESC_BASE: usize = offset_of!(ffi::NV_MEMORY_DESC_PARAMS, base);
 pub const MEM_DESC_ADDRESS_SPACE: usize = offset_of!(ffi::NV_MEMORY_DESC_PARAMS, addressSpace);
+pub const MEM_DESC_SIZE: usize = offset_of!(ffi::NV_MEMORY_DESC_PARAMS, size);
 pub const ADDR_SYSMEM: u32 = 1;
 pub const ADDR_FBMEM: u32 = 2;
 
@@ -1642,7 +1660,7 @@ mod tests {
             (0, 8, 16, 20)
         );
         assert_eq!((TSG_HVASPACE, TSG_ENGINE_TYPE), (8, 12));
-        assert_eq!((MEM_DESC_BASE, MEM_DESC_ADDRESS_SPACE), (0, 16));
+        assert_eq!((MEM_DESC_BASE, MEM_DESC_SIZE, MEM_DESC_ADDRESS_SPACE), (0, 8, 16));
         assert_eq!(
             size_of::<ffi::NV2080_CTRL_GPU_GET_INFO_V2_PARAMS>(),
             580,

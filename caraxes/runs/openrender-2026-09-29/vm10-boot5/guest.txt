@@ -1,0 +1,315 @@
+[    0.000000] Linux version 7.2.7-nova (silas@manacor) (clang version 22.1.8, GNU ld (GNU Binutils) 2.47) #2 SMP PREEMPT_DYNAMIC Tue Sep 29 07:06:04 CEST 2026
+[    0.051408] Console: colour dummy device 80x25
+[    0.176326] pid_max: default: 32768 minimum: 301
+[    0.272251] iommu: Default domain type: Translated
+[    0.283317] NetLabel:  unlabeled traffic allowed by default
+[    0.324664] PCI: CLS 0 bytes, default 64
+[    0.370717] virtio_blk virtio0: 1/0/0 default/read/poll queues
+[    0.380627] virtio_blk virtio1: 1/0/0 default/read/poll queues
+[    0.427768]   No soundcards found.
+[    0.438337] VFS: Mounted root (ext4 filesystem) on device 253:1.
+[    0.537161] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB
+[    0.697292] systemd[1]: Queued start job for default target graphical.target.
+[[0;32m  OK  [0m] Started [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
+CARAXES-CHECK begin 2026-09-29T06:21:15+00:00 7.2.7-nova
+CARAXES-CHECK firmware
+CARAXES-CHECK R1 probe
+/etc/modprobe.d/caraxes-openrender.conf:1:# Caraxes openrender guest: openrender-check.sh loads nouveau itself
+/etc/modprobe.d/caraxes-openrender.conf:2:blacklist nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:5:blacklist nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:6:blacklist lbm-nouveau
+/lib/modprobe.d/nvidia-graphics-drivers.conf:8:alias nouveau off
+/lib/modprobe.d/nvidia-graphics-drivers.conf:9:alias lbm-nouveau off
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:5:blacklist nouveau
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:6:blacklist lbm-nouveau
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:8:alias nouveau off
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf:9:alias lbm-nouveau off
+modprobe nouveau rc=0
+[    4.044852] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    4.044853] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x4c00
+[    4.044853] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x4d00
+[    4.044854] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    4.044855] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x4b00
+[    4.061284] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" loaded - 1280 byte(s)
+[    4.061289] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.061290] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.061291] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.061291] nouveau 0000:00:04.0: gsp: 	binSize          : 1280
+[    4.061292] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x100
+[    4.061295] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x200
+[    4.061295] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x300
+[    4.061296] nouveau 0000:00:04.0: gsp: blDesc
+[    4.061297] nouveau 0000:00:04.0: gsp: 	startTag         : 0xfd
+[    4.061298] nouveau 0000:00:04.0: gsp: 	dmemLoadOff      : 0x0
+[    4.061300] nouveau 0000:00:04.0: gsp: 	codeOff          : 0x0
+[    4.061301] nouveau 0000:00:04.0: gsp: 	codeSize         : 0x200
+[    4.061301] nouveau 0000:00:04.0: gsp: 	dataOff          : 0x200
+[    4.061302] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x100
+[    4.061306] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.061306] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.061307] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.061309] nouveau 0000:00:04.0: gsp: 	binSize          : 4352
+[    4.061310] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.061311] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x64
+[    4.061312] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x1000
+[    4.061573] nouveau 0000:00:04.0: gsp: created debugfs GSP-RM logging entries
+[    4.061757] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" loaded - 1280 byte(s)
+[    4.061759] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.061760] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.061760] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.061761] nouveau 0000:00:04.0: gsp: 	binSize          : 1280
+[    4.061762] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x100
+[    4.061762] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x200
+[    4.061763] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x300
+[    4.061764] nouveau 0000:00:04.0: gsp: blDesc
+[    4.061764] nouveau 0000:00:04.0: gsp: 	startTag         : 0xfd
+[    4.061765] nouveau 0000:00:04.0: gsp: 	dmemLoadOff      : 0x0
+[    4.061766] nouveau 0000:00:04.0: gsp: 	codeOff          : 0x0
+[    4.061766] nouveau 0000:00:04.0: gsp: 	codeSize         : 0x200
+[    4.061767] nouveau 0000:00:04.0: gsp: 	dataOff          : 0x200
+[    4.061768] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x100
+[    4.061770] nouveau 0000:00:04.0: gsp: acquired gsp falcon
+[    4.061829] nouveau 0000:00:04.0: gsp:fwsec-frts: resetting
+[    4.062529] nouveau 0000:00:04.0: gsp:fwsec-frts: loading
+[    4.062610] nouveau 0000:00:04.0: gsp: imem 0000fe00 <- 00000200 bytes at 00000000
+[    4.065850] nouveau 0000:00:04.0: gsp: flcnBlDmemDesc
+[    4.065852] nouveau 0000:00:04.0: gsp: 	reserved      : 0x00000000 0x00000000 0x00000000 0x00000000
+[    4.065854] nouveau 0000:00:04.0: gsp: 	signature     : 0x00000000 0x00000000 0x00000000 0x00000000
+[    4.065855] nouveau 0000:00:04.0: gsp: 	ctxDma        : 4
+[    4.065855] nouveau 0000:00:04.0: gsp: 	codeDmaBase   : 0x11710c000
+[    4.065856] nouveau 0000:00:04.0: gsp: 	nonSecCodeOff : 0x0
+[    4.065857] nouveau 0000:00:04.0: gsp: 	nonSecCodeSize: 0x100
+[    4.065858] nouveau 0000:00:04.0: gsp: 	secCodeOff    : 0x100
+[    4.065859] nouveau 0000:00:04.0: gsp: 	secCodeSize   : 0x100
+[    4.065859] nouveau 0000:00:04.0: gsp: 	codeEntryPoint: 0x0
+[    4.065860] nouveau 0000:00:04.0: gsp: 	dataDmaBase   : 0x11710c200
+[    4.065861] nouveau 0000:00:04.0: gsp: 	dataSize      : 0x100
+[    4.065861] nouveau 0000:00:04.0: gsp: 	argc          : 0x00000000
+[    4.065862] nouveau 0000:00:04.0: gsp: 	argv          : 0x00000000
+[    4.065909] nouveau 0000:00:04.0: gsp: dmem 00000000 <- 00000054 bytes at 00000000
+[    4.066513] nouveau 0000:00:04.0: gsp:fwsec-frts: booting
+[    4.066665] nouveau 0000:00:04.0: gsp: mbox 00000000 00000000
+[    4.066667] nouveau 0000:00:04.0: gsp:fwsec-frts: booted
+[    4.066668] nouveau 0000:00:04.0: gsp: released gsp falcon
+[    4.066752] nouveau 0000:00:04.0: gsp: fwsec-frts: WPR2 @ 01ffe000 - 01ffeff0
+[    4.067070] nouveau 0000:00:04.0: gsp: acquired sec2 falcon
+[    4.067170] nouveau 0000:00:04.0: sec2(gsp):booter-load: patching sigs:1 size:16
+[    4.067542] nouveau 0000:00:04.0: sec2(gsp):booter-load: patch idx:0 src:0000003c dst:00008700
+[    4.067547] nouveau 0000:00:04.0: sec2(gsp):booter-load: resetting
+[    4.068210] nouveau 0000:00:04.0: sec2(gsp):booter-load: loading
+[    4.068290] nouveau 0000:00:04.0: sec2(gsp): imem 00000000 <- 00000100 bytes at 00000000
+[    4.069922] nouveau 0000:00:04.0: sec2(gsp): imem 00000100 <- 00008400 bytes at 00000100
+[    4.284885] nouveau 0000:00:04.0: sec2(gsp): dmem 00000000 <- 00006200 bytes at 00008500
+[    4.433648] nouveau 0000:00:04.0: sec2(gsp):booter-load: booting
+[    4.433906] nouveau 0000:00:04.0: sec2(gsp): mbox 00000000 00000001
+[    4.433908] nouveau 0000:00:04.0: sec2(gsp):booter-load: booted
+[    4.433909] nouveau 0000:00:04.0: gsp: released sec2 falcon
+[    4.433983] nouveau 0000:00:04.0: gsp: seq: 00000000 00000000
+[    4.434157] nouveau 0000:00:04.0: gsp: fb region 0: 0000000069800000-00000000a95fffff rsvd:0000000000000000 perf:00000001 comp:1 iso:1 prot:0
+[    4.434160] nouveau 0000:00:04.0: gsp: fb region 1: 00000000a9600000-00000000a97fffff rsvd:0000000000200000 perf:00000001 comp:0 iso:1 prot:0
+[    4.434162] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800137 params_size:4
+[    4.434278] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800138 params_size:8
+[    4.434332] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800138 params_size:8
+[    4.434385] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800138 params_size:8
+[    4.434436] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800a5c params_size:2068
+[    4.434492] nouveau 0000:00:04.0: gsp:  0: engineIdx  50 pmcIntrMask 00000000 stall 000000c0 nonStall 00000001
+[    4.434494] nouveau 0000:00:04.0: gsp:  1: engineIdx   4 pmcIntrMask 00000000 stall 000000c1 nonStall 00000002
+[    4.434496] nouveau 0000:00:04.0: gsp:  2: engineIdx   1 pmcIntrMask 00000000 stall 000000c2 nonStall 00000003
+[    4.434497] nouveau 0000:00:04.0: gsp:  3: engineIdx  59 pmcIntrMask 00000000 stall 00000040 nonStall 00000000
+[    4.434498] nouveau 0000:00:04.0: gsp:  4: engineIdx  60 pmcIntrMask 00000000 stall 00000041 nonStall 00000000
+[    4.434499] nouveau 0000:00:04.0: gsp:  5: engineIdx  61 pmcIntrMask 00000000 stall 000000c3 nonStall 00000000
+[    4.434500] nouveau 0000:00:04.0: gsp:  6: engineIdx  84 pmcIntrMask 00000000 stall 000000c4 nonStall 00000004
+[    4.434501] nouveau 0000:00:04.0: gsp:  7: engineIdx  17 pmcIntrMask 00000000 stall 000000c5 nonStall 00000005
+[    4.434502] nouveau 0000:00:04.0: gsp:  8: engineIdx  18 pmcIntrMask 00000000 stall 000000c6 nonStall 00000006
+[    4.434503] nouveau 0000:00:04.0: gsp:  9: engineIdx  19 pmcIntrMask 00000000 stall 000000c7 nonStall 00000007
+[    4.434504] nouveau 0000:00:04.0: gsp: 10: engineIdx  65 pmcIntrMask 00000000 stall 000000c8 nonStall 00000008
+[    4.434505] nouveau 0000:00:04.0: gsp: 11: engineIdx  38 pmcIntrMask 00000000 stall 000000c9 nonStall 00000009
+[    4.434506] nouveau 0000:00:04.0: gsp: 12: engineIdx  66 pmcIntrMask 00000000 stall 000000ca nonStall 0000000a
+[    4.434506] nouveau 0000:00:04.0: gsp: 13: engineIdx  67 pmcIntrMask 00000000 stall 000000cb nonStall 0000000b
+[    4.434507] nouveau 0000:00:04.0: gsp: 14: engineIdx   2 pmcIntrMask 00000000 stall 0000009c nonStall 00000000
+[    4.766504] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xc1d00000 new obj:0xc1d00000
+[    4.766509] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[    4.766564] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xc1d00000 new obj:0xde1d0000
+[    4.766566] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[    4.766608] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 new obj:0x5d1d0000
+[    4.766610] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[    4.766651] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 new obj:0x90f10000
+[    4.766653] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[    4.766696] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[    4.766919] nouveau 0000:00:04.0: drm: VRAM: 8192 MiB
+[    4.766921] nouveau 0000:00:04.0: drm: GART: 536870912 MiB
+[    4.766934] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20801112 params_size:3212
+[    4.767099] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20802a08 params_size:4
+[    4.767153] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x208001b0 params_size:1284
+[    5.156463] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xc1d00001
+[    5.156468] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[    5.156530] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xde1d0000
+[    5.156532] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[    5.156570] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x5d1d0000
+[    5.156572] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[    5.156608] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x90f10000
+[    5.156610] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[    5.184481] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 ctrl cmd:0x90f10106 params_size:184
+[    5.184539] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0xf1f00000
+[    5.184541] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[    5.184595] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800a32 params_size:1664
+[    5.184984] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20801206 params_size:40
+[    5.185062] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   13.035530] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xf1f00000 new obj:0x97000000
+[   13.035536] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   13.035590] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x97000000 free
+[   13.035648] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xf1f00000 free
+[   13.038328] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[   13.038378] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[   13.038415] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[   13.038453] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free
+[   13.039829] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 new obj:0xf1f00001
+[   13.039831] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   13.039887] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00001 ctrl cmd:0xa06f0104 params_size:4
+[   13.039930] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00001 ctrl cmd:0xa06f0103 params_size:2
+[   13.062809] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 new obj:0xf1f00002
+[   13.062812] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   13.062881] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00002 ctrl cmd:0xa06f0104 params_size:4
+[   13.062926] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00002 ctrl cmd:0xa06f0103 params_size:2
+[   13.063255] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00002 new obj:0x0004c5b5
+[   13.063257] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   13.063301] nouveau 0000:00:04.0: drm: MM: using COPY for buffer copies
+[   13.063478] [drm] Initialized nouveau 1.4.2 for 0000:00:04.0 on minor 0
+CARAXES-CHECK R2 accel
+[    4.766919] nouveau 0000:00:04.0: drm: VRAM: 8192 MiB
+[    4.766921] nouveau 0000:00:04.0: drm: GART: 536870912 MiB
+[   13.063301] nouveau 0000:00:04.0: drm: MM: using COPY for buffer copies
+crw-rw----  1 root video  226,   0 Sep 29 06:21 card0
+crw-rw----  1 root render 226, 128 Sep 29 06:21 renderD128
+/sys/class/drm/card0: DRIVER=nouveau PCI_CLASS=30000 PCI_ID=10DE:1F02 PCI_SUBSYS_ID=1458:4011 PCI_SLOT_NAME=0000:00:04.0 MODALIAS=pci:v000010DEd00001F02sv00001458sd00004011bc03sc00i00 
+/sys/class/drm/renderD128: DRIVER=nouveau PCI_CLASS=30000 PCI_ID=10DE:1F02 PCI_SUBSYS_ID=1458:4011 PCI_SLOT_NAME=0000:00:04.0 MODALIAS=pci:v000010DEd00001F02sv00001458sd00004011bc03sc00i00 
+nouveau dev=0000:00:04.0 unique=0000:00:04.0
+nouveau dev=0000:00:04.0 unique=0000:00:04.0
+nouveau dev=0000:00:04.0 unique=0000:00:04.0
+CARAXES-CHECK packages
+CARAXES-CHECK R3 nvk
+	deviceName         = NVIDIA GeForce RTX 2070 (NVK TU106)
+	driverID           = DRIVER_ID_MESA_NVK
+	driverName         = NVK
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+CARAXES-CHECK R4-R5 vk-offscreen
+device 0: NVIDIA GeForce RTX 2070 (NVK TU106), 10de:1f02, driver NVK (Mesa 25.2.8-0ubuntu0.24.04.2), id 24
+device 1: llvmpipe (LLVM 20.1.2, 256 bits), 10005:0000, driver llvmpipe (Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)), id 13
+step A clear+copy: 4.12 ms, 0 of 65536 pixels wrong: PASS
+step B draw+copy: 1.79 ms, triangle 20808, background 44728, other 0 pixels: PASS
+wrote /var/tmp/vk-offscreen.ppm
+vk-offscreen: PASS
+vk-offscreen rc=0
+CARAXES-CHECK R6 headless scenes
+CARAXES-CHECK R7 egl surfaceless
+OpenGL core profile renderer: zink Vulkan 1.4(NVIDIA GeForce RTX 2070 (NVK TU106) (MESA_NVK))
+OpenGL compatibility profile renderer: zink Vulkan 1.4(NVIDIA GeForce RTX 2070 (NVK TU106) (MESA_NVK))
+eglinfo rc=0
+CARAXES-CHECK dmesg-after
+[  118.161773] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[  118.161863] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[  118.162356] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[  118.164696] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[  118.164699] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  118.165944] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[  118.165946] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  121.012172] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xf1f00005
+[  121.012177] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[  121.012303] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 ctrl cmd:0xa06f0104 params_size:4
+[  121.012559] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 ctrl cmd:0xa06f0103 params_size:2
+[  121.013143] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0x00000000
+[  121.013164] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  121.013722] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0x00000000
+[  121.013732] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  121.167682] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xc1d00007
+[  121.167687] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[  121.167750] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xde1d0000
+[  121.167752] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[  121.167792] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0x5d1d0000
+[  121.167794] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[  121.167837] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0042
+[  121.167839] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[  121.198438] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[  121.198538] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0045
+[  121.198541] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[  121.198648] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[  125.488228] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 new obj:0xdada0046
+[  125.488233] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[  125.488283] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[  125.488328] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[  129.642404] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0xbef4003d
+[  129.642410] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[  129.642486] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0xbef400c0
+[  129.642488] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[  130.006698] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef400c0 free
+[  130.009808] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef4003d free
+[  130.011502] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[  130.012805] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[  130.017010] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 free
+[  130.030414] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[  130.030495] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0046 free
+[  130.030570] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 free
+[  130.041754] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 free
+[  130.041831] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 free
+[  130.041872] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 free
+[  130.041919] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 free
+[  130.061010] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[  130.062280] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[  130.068002] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 free
+[  130.070541] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  130.070597] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x90f10000 free
+[  130.070648] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 free
+[  130.070689] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 free
+[  130.070729] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 free
+[  130.070948] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  130.071001] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x90f10000 free
+[  130.071057] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 free
+[  130.071103] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 free
+[  130.071148] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 free
+[  130.071511] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  130.071569] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x90f10000 free
+[  130.071617] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 free
+[  130.071662] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 free
+[  130.071707] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 free
+[  130.071962] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  130.072028] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x90f10000 free
+[  130.072085] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 free
+[  130.072129] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 free
+[  130.072174] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 free
+[  130.072420] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  130.072469] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x90f10000 free
+[  130.072516] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 free
+[  130.072565] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 free
+[  130.072608] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 free
+[  130.073549] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  130.073611] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[  130.073659] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[  130.073702] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[  130.073746] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free
+CARAXES-CHECK unbind
+unbind rc=0
+[  132.214661] nouveau 0000:00:04.0: gsp: 	dataSize      : 0x100
+[  132.214662] nouveau 0000:00:04.0: gsp: 	argc          : 0x00000000
+[  132.214663] nouveau 0000:00:04.0: gsp: 	argv          : 0x00000000
+[  132.214723] nouveau 0000:00:04.0: gsp: dmem 00000000 <- 00000054 bytes at 00000000
+[  132.215449] nouveau 0000:00:04.0: gsp:fwsec-sb: booting
+[  132.215667] nouveau 0000:00:04.0: gsp: mbox 00000000 00000000
+[  132.215670] nouveau 0000:00:04.0: gsp:fwsec-sb: booted
+[  132.215672] nouveau 0000:00:04.0: gsp: released gsp falcon
+[  132.215747] nouveau 0000:00:04.0: gsp: acquired sec2 falcon
+[  132.215857] nouveau 0000:00:04.0: sec2(gsp):booter-unload: patching sigs:1 size:16
+[  132.216373] nouveau 0000:00:04.0: sec2(gsp):booter-unload: patch idx:0 src:0000003c dst:00004e00
+[  132.216383] nouveau 0000:00:04.0: sec2(gsp):booter-unload: resetting
+[  132.217206] nouveau 0000:00:04.0: sec2(gsp):booter-unload: loading
+[  132.217315] nouveau 0000:00:04.0: sec2(gsp): imem 00000000 <- 00000100 bytes at 00000000
+[  132.219671] nouveau 0000:00:04.0: sec2(gsp): imem 00000100 <- 00004b00 bytes at 00000100
+[  132.398066] nouveau 0000:00:04.0: sec2(gsp): dmem 00000000 <- 00004d00 bytes at 00004c00
+[  132.538667] nouveau 0000:00:04.0: sec2(gsp):booter-unload: booting
+[  132.538873] nouveau 0000:00:04.0: sec2(gsp): mbox 00000000 000000ff
+[  132.538875] nouveau 0000:00:04.0: sec2(gsp):booter-unload: booted
+[  132.538876] nouveau 0000:00:04.0: gsp: released sec2 falcon
+CARAXES-CHECK end
+[[0;32m  OK  [0m] Stopped [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.

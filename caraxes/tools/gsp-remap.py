@@ -19,6 +19,13 @@ Used for GspStaticConfigInfo 610.57.04 -> 570.144, the reply nova-core reads
   gsp-remap.py caraxes/abi/gsp-610.57.04 caraxes/abi/gsp-570.144 GspStaticConfigInfo \\
       --elem fbRegionInfoParams.fbRegion=NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO \\
       --out crates/vfio-user-nvgpu/src/ver/v570/static_info.rs
+and, both ways, for the RM alloc parameters of a 570.144 guest (nouveau's r570 path) whose
+layout differs from 610.57.04's (docs/research/open-render-2026-09-29.md):
+  gsp-remap.py caraxes/abi/gsp-570.144 caraxes/abi/gsp-610.57.04 NV_CHANNEL_ALLOC_PARAMS \\
+      --out crates/vfio-user-nvgpu/src/ver/v570/channel_up.rs
+  gsp-remap.py caraxes/abi/gsp-610.57.04 caraxes/abi/gsp-570.144 NV_CHANNEL_ALLOC_PARAMS \\
+      --out crates/vfio-user-nvgpu/src/ver/v570/channel_down.rs
+  (the same for NV_VASPACE_ALLOCATION_PARAMETERS into vaspace_up.rs and vaspace_down.rs)
 """
 
 import argparse
@@ -44,6 +51,17 @@ def load(snapshot):
                 version = line.split(":", 1)[1].strip()
                 break
     return rows, version
+
+
+def alloc_classes(snapshot, struct):
+    """{(class id, name)} of the classes.tsv rows whose alloc_params is `struct`."""
+    path = os.path.join(snapshot, "classes.tsv")
+    if not os.path.exists(path):
+        return set()
+    with open(path) as f:
+        lines = [l for l in f if not l.startswith("#")]
+    return {(int(r["id"], 16), r["name"]) for r in csv.DictReader(lines, delimiter="\t")
+            if r["alloc_params"] == struct}
 
 
 def children(fields, prefix):
@@ -132,7 +150,7 @@ def main():
         "",
         f"/// sizeof({a.struct}) in {vb}.",
         f"pub const SIZE: usize = {size_b};",
-        f"/// sizeof({a.struct}) in {va}, the layout the device builds.",
+        f"/// sizeof({a.struct}) in {va}, the layout the table reads.",
         f"pub const FROM_SIZE: usize = {size_a};",
         "",
         "/// (from offset, to offset, length, first field of the run).",
@@ -150,6 +168,15 @@ def main():
     lines.append("pub const ZEROED: &[&str] = &[")
     lines += [f'    "{z}",' for z in zeroed]
     lines.append("];")
+    # The classes whose RM alloc parameters are this struct (classes.tsv of either snapshot),
+    # so a caller can tell which allocations the table applies to.
+    classes = sorted(alloc_classes(a.frm, a.struct) | alloc_classes(a.to, a.struct))
+    if classes:
+        lines.append("")
+        lines.append(f"/// The classes allocated with `{a.struct}` (classes.tsv of {va} and {vb}).")
+        lines.append("pub const CLASSES: &[u32] = &[")
+        lines += [f"    0x{cid:04X}, // {name}" for cid, name in classes]
+        lines.append("];")
     # The offsets a reader of the TO layout needs, as constants (top-level fields).
     lines.append("")
     lines.append(f"/// Offsets of the top-level fields in {vb}.")

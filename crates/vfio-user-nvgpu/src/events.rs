@@ -103,7 +103,9 @@ pub fn rc_triggered(layout: RcLayout, nv2080_engine_type: u32, chid: u32, except
     b
 }
 
-// rpc_os_error_log_v17_00 (g_rpc-structures.h:1533-1540; 272 bytes in both).
+// rpc_os_error_log_v17_00 (g_rpc-structures.h:1533-1540; 272 bytes in 570, 610 and 615).
+// The offsets are 610's and 615's; 570.144 has preemptiveRemovalPreviousXid last and the
+// other fields 4 bytes lower (crate::ver::v570::OEL_*).
 pub const OS_ERROR_LOG_SIZE: usize = 272;
 pub const OEL_EXCEPT_TYPE: usize = 0;
 pub const OEL_RUNLIST_ID: usize = 8;
@@ -113,15 +115,33 @@ pub const OEL_ERR_STRING_LEN: usize = 0x100;
 
 /// An Xid for the guest's log (`_kgspRpcOsErrorLog`, kernel_gsp.c:849-885, prints
 /// "NVRM: Xid (PCI:...): N, pid=..., name=..., `<errString>`" through
-/// kernel_rc.c:388-400). The string carries guest facts only, never a host Xid line.
+/// kernel_rc.c:388-400; nouveau's r535 path prints "Xid:%d %s",
+/// `nvkm/subdev/gsp/rm/r535/gsp.c`). The string carries guest facts only, never a host Xid
+/// line. Laid out as the guest ABI in force has it.
 pub fn os_error_log(except_type: u32, runlist_id: u32, chid: u32, text: &str) -> Vec<u8> {
+    os_error_log_for(crate::ver::guest(), except_type, runlist_id, chid, text)
+}
+
+/// [`os_error_log`] for a given guest ABI.
+pub fn os_error_log_for(
+    guest: crate::ver::GuestAbi,
+    except_type: u32,
+    runlist_id: u32,
+    chid: u32,
+    text: &str,
+) -> Vec<u8> {
+    use crate::ver::{v570, GuestAbi};
+    let (runlist, ch, err) = match guest {
+        GuestAbi::V570 => (v570::OEL_RUNLIST_ID, v570::OEL_CHID, v570::OEL_ERR_STRING),
+        _ => (OEL_RUNLIST_ID, OEL_CHID, OEL_ERR_STRING),
+    };
     let mut b = vec![0u8; OS_ERROR_LOG_SIZE];
     put32(&mut b, OEL_EXCEPT_TYPE, except_type);
-    put32(&mut b, OEL_RUNLIST_ID, runlist_id);
-    put32(&mut b, OEL_CHID, chid);
+    put32(&mut b, runlist, runlist_id);
+    put32(&mut b, ch, chid);
     let t = text.as_bytes();
     let n = t.len().min(OEL_ERR_STRING_LEN - 1);
-    b[OEL_ERR_STRING..OEL_ERR_STRING + n].copy_from_slice(&t[..n]);
+    b[err..err + n].copy_from_slice(&t[..n]);
     b
 }
 
@@ -208,10 +228,40 @@ mod tests {
         assert_eq!(&a[..44], &b[..44], "the shared prefix");
         assert_eq!(u32::from_le_bytes(b[RC_CHID..RC_CHID + 4].try_into().unwrap()), 7);
         assert_eq!(u32::from_le_bytes(b[RC_EXCEPT_TYPE..RC_EXCEPT_TYPE + 4].try_into().unwrap()), 31);
-        let e = os_error_log(31, 0, 7, "MMU fault");
+        let e = os_error_log_for(crate::ver::GuestAbi::V615, 31, 0, 7, "MMU fault");
         assert_eq!(e.len(), OS_ERROR_LOG_SIZE);
         assert_eq!(&e[OEL_ERR_STRING..OEL_ERR_STRING + 9], b"MMU fault");
         assert_eq!(e[OS_ERROR_LOG_SIZE - 1], 0, "terminated");
+    }
+
+    /// The OS error log as each guest ABI lays it out, against the measured snapshots:
+    /// 570.144 has `runlistId` at 4, `chid` at 8 and the string at 12.
+    #[test]
+    fn os_error_log_follows_the_measured_layouts() {
+        use crate::ver::GuestAbi;
+        let field = |tsv: &str, f: &str| -> usize {
+            let key = format!("rpc_os_error_log_v17_00.{f}");
+            tsv.lines()
+                .map(|l| l.split('\t').collect::<Vec<_>>())
+                .find(|c| c[0] == key)
+                .map(|c| c[3].parse().unwrap())
+                .unwrap_or_else(|| panic!("{key}"))
+        };
+        for (g, tsv) in [
+            (GuestAbi::V570, include_str!("../../../caraxes/abi/gsp-570.144/layouts.tsv")),
+            (GuestAbi::V610, include_str!("../../../caraxes/abi/gsp-610.57.04/layouts.tsv")),
+            (GuestAbi::V615, include_str!("../../../caraxes/abi/gsp-615.71.09/layouts.tsv")),
+        ] {
+            let e = os_error_log_for(g, 31, 3, 7, "MMU fault");
+            let at = |f: &str| {
+                let o = field(tsv, f);
+                u32::from_le_bytes(e[o..o + 4].try_into().unwrap())
+            };
+            assert_eq!((at("exceptType"), at("runlistId"), at("chid")), (31, 3, 7), "{g:?}");
+            let s = field(tsv, "errString");
+            assert_eq!(&e[s..s + 9], b"MMU fault", "{g:?}");
+            assert_eq!(at("preemptiveRemovalPreviousXid"), 0, "{g:?}");
+        }
         assert_eq!(resume_done(false), vec![0; 8]);
     }
 

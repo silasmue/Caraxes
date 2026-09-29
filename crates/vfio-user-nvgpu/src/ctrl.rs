@@ -101,6 +101,10 @@ pub struct Dispatcher {
     /// (hClient, hObject) → class, for every alloc the device acknowledged. Handles are
     /// per client in RM, so the guest kernel's clients may reuse each other's numbers.
     objects: BTreeMap<(u32, u32), u32>,
+    /// The resource handle generator of each client (`handleGenIdx`, rs_client.c) and the
+    /// client handle generator (`assign_handle`).
+    handle_gen: BTreeMap<u32, u32>,
+    client_handle_gen: u32,
     deferred_context: deferred_context::State,
     /// PCI ids of the emulated function (config space).
     pub pci_device_id: u32,
@@ -258,6 +262,8 @@ impl Dispatcher {
             host,
             chip,
             objects,
+            handle_gen: BTreeMap::new(),
+            client_handle_gen: 0,
             deferred_context: deferred_context::State::default(),
             pci_device_id: id.pci.device_id(),
             pci_sub_device_id: id.pci.sub_device_id(),
@@ -292,6 +298,44 @@ impl Dispatcher {
         }
     }
 
+    /// The handle RM gives an allocation whose `hObject` is 0 (`NV01_NULL_OBJECT`), as
+    /// resserv assigns it before the class sees the request (`clientAssignResourceHandle`,
+    /// rs_client.c:985-1005 of 570.144): a resource gets the next free handle of its
+    /// client's generator, `RS_UNIQUE_HANDLE_BASE` + (index mod `RS_UNIQUE_HANDLE_RANGE`)
+    /// (0xcaf00000 and 0x80000, resserv/rs_client.h:37-38; `clientGenResourceHandle`
+    /// :948-980); a client (the root classes) the next free one from
+    /// `RS_CLIENT_HANDLE_BASE` 0xC1D00000 within `RS_CLIENT_HANDLE_MAX` 0x100000
+    /// (resserv.h:135, 152). `None` when the range is used up (RM:
+    /// NV_ERR_INSUFFICIENT_RESOURCES). nouveau's r535/r570 path allocates the objects a
+    /// user channel carries with handle 0 (vm10-boot4: two copy objects on one NVK channel).
+    pub fn assign_handle(&mut self, h_client: u32, h_class: u32) -> Option<u32> {
+        const RS_UNIQUE_HANDLE_BASE: u32 = 0xcaf0_0000;
+        const RS_UNIQUE_HANDLE_RANGE: u32 = 0x0008_0000;
+        const RS_CLIENT_HANDLE_BASE: u32 = 0xc1d0_0000;
+        const RS_CLIENT_HANDLE_MAX: u32 = 0x0010_0000;
+        if matches!(h_class, NV01_ROOT | v::NV01_ROOT_NON_PRIV | v::NV01_ROOT_CLIENT) {
+            for _ in 0..RS_CLIENT_HANDLE_MAX {
+                let h = RS_CLIENT_HANDLE_BASE + self.client_handle_gen % RS_CLIENT_HANDLE_MAX;
+                self.client_handle_gen = self.client_handle_gen.wrapping_add(1);
+                if !self.objects.keys().any(|&(c, _)| c == h) {
+                    return Some(h);
+                }
+            }
+            return None;
+        }
+        let idx = self.handle_gen.entry(h_client).or_insert(0);
+        for _ in 0..RS_UNIQUE_HANDLE_RANGE {
+            let h = RS_UNIQUE_HANDLE_BASE + *idx % RS_UNIQUE_HANDLE_RANGE;
+            *idx = idx.wrapping_add(1);
+            if !self.objects.contains_key(&(h_client, h))
+                && self.channels.engine_object(h_client, h).is_none()
+            {
+                return Some(h);
+            }
+        }
+        None
+    }
+
     /// The dispatcher of a device holding the VRAM reservation `r` (`FbLayout::reservation`).
     pub fn with_reservation(mut self, r: Option<(u64, u64)>) -> Self {
         self.reservation = r;
@@ -312,6 +356,32 @@ impl Dispatcher {
 
     pub fn take_host(&mut self) -> Option<Box<dyn HostRm>> {
         self.host.take()
+    }
+
+    /// The guest channels a doorbell write of `token` rings ([`Self::doorbell`]), without
+    /// ringing them: the pool token's channel, else the channel the value names and the
+    /// channel whose host token it also is (`route_token`). For the BAR2 memfd's doorbell
+    /// rule, which must know them before the ring (boot.rs `bar2_doorbell_sync`).
+    pub fn doorbell_targets(&self, token: u32) -> Vec<u32> {
+        if let Some(p) = self.channels.tokens.as_ref().filter(|p| p.contains(token)) {
+            return p.chid(token).into_iter().collect();
+        }
+        let host_owner = self
+            .mirror
+            .as_ref()
+            .and_then(|m| m.chid_of_host_token(token));
+        let route = route_token(&self.channels, token, host_owner);
+        std::iter::once(route.chid).chain(route.also).collect()
+    }
+
+    /// The channels with GPFIFO entries published since their last doorbell, which the
+    /// token-less doorbell rings ([`Self::doorbell_pending`]).
+    pub fn pending_channels(&self, gm: &crate::channel::GpuMem) -> Vec<u32> {
+        let chids: Vec<u32> = self.channels.channels().map(|c| c.chid).collect();
+        chids
+            .into_iter()
+            .filter(|c| self.channels.pending(gm, *c))
+            .collect()
     }
 
     /// A doorbell write: a channel the mirror takes runs on the physical GPU (created
@@ -2291,8 +2361,24 @@ impl Dispatcher {
                     put32(&mut b, o + v::INTR_ENTRY_VECTOR_STALL, e.vector_stall);
                     put32(&mut b, o + v::INTR_ENTRY_VECTOR_NONSTALL, e.vector_nonstall);
                 }
-                for &(cat, mask) in &t.subtrees {
-                    put64(&mut b, v::INTR_SUBTREE_MAP + v::INTR_SUBTREE_MAP_ENTRY * cat, mask);
+                if crate::ver::guest() == crate::ver::GuestAbi::V570 {
+                    // 570.144: one (subtreeStart, subtreeEnd) byte pair per category at
+                    // 2052, 0xFF for none (ver::v570::INTR_SUBTREE_MAP).
+                    use crate::ver::v570 as g;
+                    b.resize(b.len().max(g::INTR_TABLE_SIZE), 0);
+                    for c in 0..7 {
+                        let o = g::INTR_SUBTREE_MAP + g::INTR_SUBTREE_MAP_ENTRY * c;
+                        b[o..o + 2].copy_from_slice(&[g::INTR_INVALID_SUBTREE; 2]);
+                    }
+                    for &(cat, mask) in &t.subtrees {
+                        let (start, end) = g::subtree_range(mask);
+                        let o = g::INTR_SUBTREE_MAP + g::INTR_SUBTREE_MAP_ENTRY * cat;
+                        b[o..o + 2].copy_from_slice(&[start, end]);
+                    }
+                } else {
+                    for &(cat, mask) in &t.subtrees {
+                        put64(&mut b, v::INTR_SUBTREE_MAP + v::INTR_SUBTREE_MAP_ENTRY * cat, mask);
+                    }
                 }
                 b.truncate(n);
                 Answer::ok(b, &t.label, format!("interrupt kernel table: {} entries", t.entries.len()))
@@ -2717,6 +2803,33 @@ mod tests {
         assert_eq!(d.bar_sizes, [64 << 20, 256 << 20, 32 << 20, 0x80]);
     }
 
+    /// A 570.144 guest reads the kernel interrupt table's subtree map as byte ranges at
+    /// 2052 (ver::v570); the entries are where 610 has them.
+    #[test]
+    fn the_570_kernel_table_has_subtree_ranges() {
+        use crate::ver::{v570, GuestAbi, TestGuest};
+        let _g = TestGuest::set(GuestAbi::V570);
+        let mut d = dispatcher(None);
+        let a = d.control(
+            INTERNAL_CLIENT,
+            0xCA7A_0003,
+            CMD_INTERNAL_INTR_GET_KERNEL_TABLE,
+            &[0u8; v570::INTR_TABLE_SIZE],
+        );
+        assert_eq!((a.status, a.params.len()), (NV_OK, 2068));
+        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 15);
+        let range = |cat: usize| {
+            let o = v570::INTR_SUBTREE_MAP + 2 * cat;
+            (a.params[o], a.params[o + 1])
+        };
+        // DEFAULT, RUNLIST and RUNLIST_NOTIFICATION have no subtree on TU106;
+        // ESCHED_DRIVEN_ENGINE 3, its notification 0, UVM_OWNED 1, UVM_SHARED 2.
+        assert_eq!(
+            (0..7).map(range).collect::<Vec<_>>(),
+            vec![(0xFF, 0xFF), (3, 3), (0, 0), (0xFF, 0xFF), (0xFF, 0xFF), (1, 1), (2, 2)]
+        );
+    }
+
     #[test]
     fn answers_have_the_request_size() {
         let mut d = dispatcher(None);
@@ -2758,8 +2871,9 @@ mod tests {
         );
         assert_eq!(a.params.len(), 2112);
         // Six milestone-1 entries plus the GR0/CE2-CE4 non-stall entries of E5b part 2,
-        // plus the display vector (display-ab.md) and NVDEC0/NVENC0 (video-engines.md).
-        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 13);
+        // plus the display vector (display-ab.md), NVDEC0/NVENC0 (video-engines.md) and
+        // NVDEC1/NVDEC2 (one vector per device-info runlist, open-render-2026-09-29.md).
+        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 15);
         assert_eq!(
             u64::from_le_bytes(a.params[2056 + 8..2056 + 16].try_into().unwrap()),
             0x8

@@ -220,7 +220,7 @@ NEW  caraxes/abi/gsp-615.71.09 (40c9cf4415acd13c)
 - GSP_FMC_BOOT_PARAMS: 88 -> 256 bytes (stable no -> yes)
 - GSP_SPDM_PARAMS: 24 -> 16 bytes (stable no -> yes)
 
-## Field offsets changed (laid-out structs) (12)
+## Field offsets changed (laid-out structs) (13)
 
 - GSP_ARGUMENTS_CACHED: (sizeof) offset 0 size 152 -> offset 0 size 184; messageQueueInitArguments offset 0 size 64 -> offset 16 size 64; messageQueueInitArguments.sharedMemPhysAddr offset 0 size 8 -> offset 24 size 8; messageQueueInitArguments.pageTableEntryCount offset 8 size 4 -> offset 68 size 4; messageQueueInitArguments.cmdQueueOffset offset 16 size 8 -> offset 32 size 8; messageQueueInitArguments.statQueueOffset offset 24 size 8 -> offset 40 size 8; ... 31 more
 - GSP_FMC_BOOT_PARAMS: (sizeof) offset 0 size 88 -> offset 0 size 256; initParams offset 0 size 4 -> offset 32 size 8; initParams.regkeys offset 0 size 4 -> offset 32 size 4; bootGspRmParams offset 8 size 32 -> offset 64 size 32; bootGspRmParams.target offset 8 size 4 -> offset 64 size 4; bootGspRmParams.gspRmDescSize offset 12 size 4 -> offset 68 size 4; ... 15 more [not used by the device]
@@ -232,6 +232,7 @@ NEW  caraxes/abi/gsp-615.71.09 (40c9cf4415acd13c)
 - GspStaticConfigInfo: (sizeof) offset 0 size 1600 -> offset 0 size 1608; bIsGc6Rtd3Allowed offset 1489 size 1 -> offset 1490 size 1; bIsGc8Rtd3Allowed offset 1490 size 1 -> offset 1491 size 1; bIsGcOffRtd3Allowed offset 1491 size 1 -> offset 1492 size 1; bIsGcoffLegacyAllowed offset 1492 size 1 -> offset 1493 size 1; bIsMigSupported offset 1493 size 1 -> offset 1494 size 1; ... 11 more
 - MESSAGE_QUEUE_INIT_ARGUMENTS: sharedMemPhysAddr offset 0 size 8 -> offset 8 size 8; pageTableEntryCount offset 8 size 4 -> offset 52 size 4; queueElementHdrSize offset 32 size 8 -> offset 32 size 4; queueElementSizeMin offset 40 size 8 -> offset 36 size 4; queueElementSizeMax offset 48 size 8 -> offset 40 size 4; queueHeaderAlign offset 56 size 4 -> offset 44 size 4; ... 3 more
 - NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS: flag offset 24 size 1 -> offset 26 size 1; targetTask added at offset 24 [not used by the device]
+- NV2080_CTRL_FB_GET_REMAPPED_BANKS_PARAMS: histogram.maxGroupCount removed (was offset 8); histogram.maxSpareGroupCount added at offset 8
 - NVB0CC_CTRL_INTERNAL_PERMISSIONS_INIT_PARAMS: (sizeof) offset 0 size 7 -> offset 0 size 6; bAdminProfilingPermitted removed (was offset 0); bDevProfilingPermitted offset 1 size 1 -> offset 0 size 1; bDevTracePermitted offset 2 size 1 -> offset 1 size 1; bCtxProfilingPermitted offset 3 size 1 -> offset 2 size 1; bVideoMemoryProfilingPermitted offset 4 size 1 -> offset 3 size 1; ... 2 more [not used by the device]
 - msgqTxHeader: version removed (was offset 0); writePtr removed (was offset 16); flags removed (was offset 20); rxHdrOff removed (was offset 24); entryOff offset 28 size 4 -> offset 16 size 4; versionMajor added at offset 0; ... 2 more
 
@@ -298,7 +299,7 @@ NEW  caraxes/abi/gsp-615.71.09 (40c9cf4415acd13c)
 - 0x208030A1 NV2080_CTRL_CMD_NVLINK_SET_BW_MODE_ASYNC: refused -> -
 - 0x90CD0102 NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET: - -> unhandled
 
-## Changes to what the device implements (26)
+## Changes to what the device implements (27)
 
 - Control params resized: 0x0073010C NV0073_CTRL_CMD_SYSTEM_GET_ACTIVE: NV0073_CTRL_SYSTEM_GET_ACTIVE_PARAMS 16 -> 20 bytes (gsp) [device: synthesized]
 - Control params resized: 0x20800A22 NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER: NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS 73760 -> 81952 bytes (gsp) [device: host-forwarded]
@@ -325,6 +326,7 @@ NEW  caraxes/abi/gsp-615.71.09 (40c9cf4415acd13c)
 - Field offsets changed (laid-out structs): GspFwWprMeta: padding removed (was offset 242); pagingConfig added at offset 242
 - Field offsets changed (laid-out structs): GspStaticConfigInfo: (sizeof) offset 0 size 1600 -> offset 0 size 1608; bIsGc6Rtd3Allowed offset 1489 size 1 -> offset 1490 size 1; bIsGc8Rtd3Allowed offset 1490 size 1 -> offset 1491 size 1; bIsGcOffRtd3Allowed offset 1491 size 1 -> offset 1492 size 1; bIsGcoffLegacyAllowed offset 1492 size 1 -> offset 1493 size 1; bIsMigSupported offset 1493 size 1 -> offset 1494 size 1; ... 11 more
 - Field offsets changed (laid-out structs): MESSAGE_QUEUE_INIT_ARGUMENTS: sharedMemPhysAddr offset 0 size 8 -> offset 8 size 8; pageTableEntryCount offset 8 size 4 -> offset 52 size 4; queueElementHdrSize offset 32 size 8 -> offset 32 size 4; queueElementSizeMin offset 40 size 8 -> offset 36 size 4; queueElementSizeMax offset 48 size 8 -> offset 40 size 4; queueHeaderAlign offset 56 size 4 -> offset 44 size 4; ... 3 more
+- Field offsets changed (laid-out structs): NV2080_CTRL_FB_GET_REMAPPED_BANKS_PARAMS: histogram.maxGroupCount removed (was offset 8); histogram.maxSpareGroupCount added at offset 8
 - Field offsets changed (laid-out structs): msgqTxHeader: version removed (was offset 0); writePtr removed (was offset 16); flags removed (was offset 20); rxHdrOff removed (was offset 24); entryOff offset 28 size 4 -> offset 16 size 4; versionMajor added at offset 0; ... 2 more
 
-Summary: 610.57.04 -> 615.71.09: 185 driver-side changes in 34 groups, 26 affecting what the device implements, 3 device-side changes; routed controls 829 -> 844, RPC functions 230 -> 232, events 41 -> 45, classes 222 -> 224.
+Summary: 610.57.04 -> 615.71.09: 186 driver-side changes in 34 groups, 27 affecting what the device implements, 3 device-side changes; routed controls 829 -> 844, RPC functions 230 -> 232, events 41 -> 45, classes 222 -> 224.

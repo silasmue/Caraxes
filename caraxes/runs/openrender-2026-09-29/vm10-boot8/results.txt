@@ -1,0 +1,1 @@
+result vk-offscreen.ppm: sha256 ok

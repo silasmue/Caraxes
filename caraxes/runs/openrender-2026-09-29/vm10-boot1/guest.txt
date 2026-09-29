@@ -1,0 +1,41 @@
+[    0.000000] Linux version 7.2.7-nova (silas@manacor) (clang version 22.1.8, GNU ld (GNU Binutils) 2.47) #2 SMP PREEMPT_DYNAMIC Tue Sep 29 07:06:04 CEST 2026
+[    0.063904] Console: colour dummy device 80x25
+[    0.192231] pid_max: default: 32768 minimum: 301
+[    0.294935] iommu: Default domain type: Translated
+[    0.306246] NetLabel:  unlabeled traffic allowed by default
+[    0.353643] PCI: CLS 0 bytes, default 64
+[    0.396802] virtio_blk virtio0: 1/0/0 default/read/poll queues
+[    0.412091] virtio_blk virtio1: 1/0/0 default/read/poll queues
+[    0.470839]   No soundcards found.
+[    0.493466] VFS: Mounted root (ext4 filesystem) on device 253:1.
+[    0.640973] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB
+[    0.866946] systemd[1]: Queued start job for default target graphical.target.
+[[0;32m  OK  [0m] Started [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.
+CARAXES-CHECK begin 2026-09-29T05:44:11+00:00 7.2.7-nova
+CARAXES-CHECK firmware
+CARAXES-CHECK R1 probe
+modprobe nouveau rc=1
+CARAXES-CHECK R2 accel
+ls: cannot access '/dev/dri': No such file or directory
+CARAXES-CHECK R3 nvk
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+CARAXES-CHECK R4-R5 vk-offscreen
+device 0: llvmpipe (LLVM 20.1.2, 256 bits), 10005:0000, driver llvmpipe (Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)), id 13
+vk-offscreen: no device for --driver nvk
+vk-offscreen rc=2
+CARAXES-CHECK dmesg-after
+[    0.192231] pid_max: default: 32768 minimum: 301
+[    0.294935] iommu: Default domain type: Translated
+[    0.306246] NetLabel:  unlabeled traffic allowed by default
+[    0.353643] PCI: CLS 0 bytes, default 64
+[    0.396802] virtio_blk virtio0: 1/0/0 default/read/poll queues
+[    0.412091] virtio_blk virtio1: 1/0/0 default/read/poll queues
+[    0.640973] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB
+[    0.866946] systemd[1]: Queued start job for default target graphical.target.
+CARAXES-CHECK unbind
+/usr/local/sbin/caraxes-check.sh: 43: cannot create /sys/bus/pci/drivers/nouveau/unbind: Directory nonexistent
+unbind rc=2
+CARAXES-CHECK end
+[[0;32m  OK  [0m] Stopped [0;1;39mfstrim.timer[0m - Discard unused filesystem blocks once a week.

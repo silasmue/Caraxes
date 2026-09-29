@@ -35,6 +35,14 @@ entry = [
     # table; the device raises them from the host's OS events on NVDEC0 and NVENC0.
     { mc = "NVDEC0", vector_stall = 200, vector_nonstall = 8 },
     { mc = "NVENC0", vector_stall = 201, vector_nonstall = 9 },
+    # NVDEC1 and NVDEC2 are FIFO device-info entries of the card without a falcon or a class
+    # (device-info.toml, docs/caraxes/fifo-device-info.md §5.1): the kernel table carries a
+    # vector for every engine of the device-info table, as the card's does. nouveau's r535/r570
+    # FIFO registers the non-stall vector of each runlist's first engine and fails without
+    # one (Linux 7.2.7 nvkm/engine/fifo/ga100.c:533-565, base.c:287-294; runlists 5 and 6).
+    # Nothing raises them: no channel can run on an engine without a class.
+    { mc = "NVDEC1", vector_stall = 202, vector_nonstall = 10 },
+    { mc = "NVDEC2", vector_stall = 203, vector_nonstall = 11 },
     # The display engine (docs/caraxes/display-ab.md): the kernel RM services it from
     # leaf 4 (intr_tu102.c:1191-1212, vectors 128-159); chips/tu106/display.toml
     # intr_vector. Nothing raises it before phase C.

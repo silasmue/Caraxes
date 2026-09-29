@@ -230,12 +230,15 @@ pub struct Registers {
     pub usermode_time_0: u64,
     pub usermode_time_1: u64,
     pub usermode_doorbell: u64,
+    /// `NV_UFLUSH_FB_FLUSH`, the sysmembar: a BAR2 memfd sync point (bar2area.rs
+    /// `Point::FbFlush`), completed without a host operation.
+    pub fb_flush: u64,
     /// `NV_UFLUSH_L2_FLUSH_DIRTY`.
     pub l2_flush_dirty: u64,
     /// `NV_UFLUSH_L2_SYSMEM_INVALIDATE` and its VF-window alias.
     pub l2_sysmem_invalidate: [u64; 2],
     /// The other cache-operation registers, completed without a host operation.
-    pub l2_ops_local: [u64; 4],
+    pub l2_ops_local: [u64; 3],
 }
 
 /// A value with the provenance label its answer carries (decision D9).

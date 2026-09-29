@@ -76,6 +76,16 @@ pub fn answer_control(
             format!("{what}: ok"),
         ));
     }
+    // A 570.144 guest names the same WAR on the subdevice (ver::v570; 610 reused the id).
+    if cmd == crate::ver::v570::CMD_INTERNAL_KGR_INIT_BUG4208224_WAR
+        && crate::ver::guest() == crate::ver::GuestAbi::V570
+    {
+        return Some(answer(
+            params.to_vec(),
+            "synthesized (NV_OK echo, nothing acted on: no host channel before part 2)",
+            "KGR_INIT_BUG4208224_WAR of 570.144 (no WAR channel run): ok".into(),
+        ));
+    }
     Some(match cmd {
         // The guest kernel's copy of its client's PERF_BOOST (cuCtxCreate: BOOST_TO_MAX |
         // CUDA, infinite; the clear at teardown; kern_perf_boost.c:100-122). NV_OK echo as
@@ -321,6 +331,27 @@ mod tests {
                 (a.status, a.params.as_slice()),
                 (NV_OK, &[1u8, 2, 3, 4][..])
             );
+        }
+    }
+
+    /// 0x20800A46 is the Bug 4208224 WAR for a 570.144 guest only (610 reused the id for
+    /// CHECK_CTS_ID_VALID, which the D rules refuse).
+    #[test]
+    fn the_570_war_id_is_acknowledged_for_a_570_guest_only() {
+        use crate::ver::{GuestAbi, TestGuest};
+        let f = crate::fixture::rtx2070();
+        let mut reg = Registry::new(f.chip.data().channel);
+        let war = crate::ver::v570::CMD_INTERNAL_KGR_INIT_BUG4208224_WAR;
+        {
+            let _g = TestGuest::set(GuestAbi::V570);
+            let a = answer_control(f.chip.data(), war, &[0], &mut reg, None).unwrap();
+            assert_eq!((a.status, a.params.as_slice()), (NV_OK, &[0u8][..]));
+            assert!(a.note.contains("570.144"), "{}", a.note);
+        }
+        for g in [GuestAbi::V610, GuestAbi::V615] {
+            let _g = TestGuest::set(g);
+            let a = answer_control(f.chip.data(), war, &[0], &mut reg, None);
+            assert!(a.is_none_or(|a| !a.note.contains("WAR")), "{g:?}: not the WAR");
         }
     }
 

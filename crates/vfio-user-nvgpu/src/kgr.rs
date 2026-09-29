@@ -79,7 +79,7 @@ pub use crate::ver::common::{
     PUB_SMIR_DATA, ROP_ELEM, ROP_PARAMS, SMIR_ELEM, SMIR_PARAMS, ZCULL_ELEM, ZCULL_PARAMS,
 };
 use crate::hostabi::{HostLayouts, SmOrderLayout};
-use crate::ver::common::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::ver::common::{self as v, NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
 // The floorsweeping masks and the SM order are laid out as the guest ABI in force has them
 // (`ver::layouts()`: 1336 or 1356 bytes per engine, nine or ten u16 per SM).
 
@@ -442,6 +442,77 @@ pub fn answer(
              ({grRouteInfo, gpcId, ppcMask}, ctrl2080gr.h:1810-1814), not the internal mask[64] layout"
                 .into(),
         ),
+        // The public mask queries a GSP client without static GR info sends to GSP
+        // (nouveau's r570 path: GPC and TPC info at GSP init, fatal on failure; Linux 7.2.7
+        // nvkm/subdev/gsp/rm/r570/gr.c:15-52). The RM answers each as the GR mask control
+        // of the same GPC (subdevice_ctrl_gpu_kernel.c:1829-1976 of 615), which the host
+        // serves from its own static info of the same silicon.
+        v::CMD_GPU_GET_FERMI_GPC_INFO => {
+            let mut p = vec![0u8; v::GR_ROUTED_SIZE];
+            match host_ok(host, v::CMD_GR_GET_GPC_MASK, &mut p) {
+                Ok(()) => {
+                    let gpc_mask = get32(&p, v::GR_ROUTED_ARG);
+                    let mut b = vec![0u8; v::FERMI_GPC_INFO_SIZE];
+                    put32(&mut b, 0, gpc_mask);
+                    ok(b, n, "host (GR_GET_GPC_MASK)", format!("fermi gpc info: gpcMask {gpc_mask:#x}"))
+                }
+                Err(e) => not_supported(
+                    n,
+                    "synthesized fallback (NOT_SUPPORTED: no GR mask source)",
+                    format!("fermi gpc info: not supported ({})", why(e)),
+                ),
+            }
+        }
+        v::CMD_GPU_GET_FERMI_TPC_INFO => {
+            let gpc = params.get(..4).map_or(0, |b| get32(b, 0));
+            let mut p = vec![0u8; v::GR_ROUTED_SIZE];
+            put32(&mut p, v::GR_ROUTED_ARG, gpc);
+            match host_ok(host, v::CMD_GR_GET_TPC_MASK, &mut p) {
+                Ok(()) => {
+                    let tpc_mask = get32(&p, v::GR_ROUTED_OUT);
+                    let mut b = vec![0u8; v::FERMI_TPC_INFO_SIZE];
+                    put32(&mut b, 0, gpc);
+                    put32(&mut b, 4, tpc_mask);
+                    ok(b, n, "host (GR_GET_TPC_MASK)", format!("fermi tpc info: gpc {gpc} tpcMask {tpc_mask:#x}"))
+                }
+                Err(e) => not_supported(
+                    n,
+                    "synthesized fallback (NOT_SUPPORTED: no GR mask source)",
+                    format!("fermi tpc info: gpc {gpc} not supported ({})", why(e)),
+                ),
+            }
+        }
+        v::CMD_GPU_GET_FERMI_ZCULL_INFO => {
+            let gpc = params.get(..4).map_or(0, |b| get32(b, 0));
+            let mut p = [0u8; 8];
+            put32(&mut p, 0, gpc);
+            match host_ok(host, v::CMD_GR_GET_ZCULL_MASK, &mut p) {
+                Ok(()) => {
+                    let mut b = vec![0u8; v::FERMI_ZCULL_INFO_SIZE];
+                    b[..8].copy_from_slice(&p);
+                    put32(&mut b, 0, gpc);
+                    ok(b, n, "host (GR_GET_ZCULL_MASK)", format!("fermi zcull info: gpc {gpc} zcullMask {:#x}", get32(&p, 4)))
+                }
+                Err(e) => not_supported(
+                    n,
+                    "synthesized fallback (NOT_SUPPORTED: no GR mask source)",
+                    format!("fermi zcull info: gpc {gpc} not supported ({})", why(e)),
+                ),
+            }
+        }
+        // The public ZCULL geometry, asked by a GSP client without static GR info (nouveau's
+        // r570 GR oneinit, fatal on failure: r570/gr.c:190-196): the host's answer for its
+        // GR0, the same struct.
+        CMD_GR_GET_ZCULL_INFO => {
+            match forward_elem(host, CMD_GR_GET_ZCULL_INFO, ZCULL_ELEM, 0, ZCULL_ELEM, ZCULL_ELEM) {
+                Ok(b) => ok(b, n, "host (GR_GET_ZCULL_INFO)", "zcull info from host".into()),
+                Err(e) => not_supported(
+                    n,
+                    "synthesized fallback (NOT_SUPPORTED: no GR source)",
+                    format!("zcull info: not supported ({})", why(e)),
+                ),
+            }
+        }
         CMD_INTERNAL_STATIC_KGR_GET_ZCULL_INFO => {
             // Tolerated: on NOT_SUPPORTED without MIG the status survives only until
             // the next control assigns it (kgr.c:1350-1365).
@@ -1212,6 +1283,55 @@ mod tests {
         );
         assert!(p[fs.elem..].iter().all(|&x| x == 0));
         assert!(a.label.starts_with("host"));
+    }
+
+    /// The public mask queries a GSP client without static GR info sends (nouveau's r570
+    /// path): answered from the GR mask controls of the same GPC as the RM does, the
+    /// request's gpcId echoed; the ZCULL geometry is the host's struct; no host, NOT_SUPPORTED.
+    #[test]
+    fn fermi_mask_queries_come_from_the_gr_masks() {
+        use crate::ver::common as v;
+        struct Gr;
+        impl HostRm for Gr {
+            fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
+                assert_eq!(class, NV20_SUBDEVICE_0);
+                match cmd {
+                    v::CMD_GR_GET_GPC_MASK => put32(p, v::GR_ROUTED_ARG, 0x7),
+                    v::CMD_GR_GET_TPC_MASK => {
+                        let g = get32(p, v::GR_ROUTED_ARG);
+                        put32(p, v::GR_ROUTED_OUT, 0x3f >> g);
+                    }
+                    v::CMD_GR_GET_ZCULL_MASK => put32(p, 4, 0x10 + get32(p, 0)),
+                    CMD_GR_GET_ZCULL_INFO => {
+                        for i in 0..10 {
+                            put32(p, 4 * i, 100 + i as u32);
+                        }
+                    }
+                    c => panic!("unexpected {c:#x}"),
+                }
+                NV_OK
+            }
+        }
+        let mut host: Box<dyn HostRm> = Box::new(Gr);
+        let a = answer(chip(), v::CMD_GPU_GET_FERMI_GPC_INFO, &[0u8; 4], Some(&mut host)).unwrap();
+        assert_eq!((a.status, get32(&a.params, 0), a.params.len()), (NV_OK, 0x7, 4));
+        let mut q = [0u8; 8];
+        put32(&mut q, 0, 2);
+        let a = answer(chip(), v::CMD_GPU_GET_FERMI_TPC_INFO, &q, Some(&mut host)).unwrap();
+        assert_eq!((a.status, get32(&a.params, 0), get32(&a.params, 4)), (NV_OK, 2, 0xf));
+        let a = answer(chip(), v::CMD_GPU_GET_FERMI_ZCULL_INFO, &q, Some(&mut host)).unwrap();
+        assert_eq!((a.status, get32(&a.params, 0), get32(&a.params, 4)), (NV_OK, 2, 0x12));
+        let a = answer(chip(), CMD_GR_GET_ZCULL_INFO, &[0u8; ZCULL_ELEM], Some(&mut host)).unwrap();
+        assert_eq!((a.status, a.params.len()), (NV_OK, 40));
+        assert_eq!((get32(&a.params, 0), get32(&a.params, 36)), (100, 109));
+        assert_eq!(
+            (v::FERMI_GPC_INFO_SIZE, v::FERMI_TPC_INFO_SIZE, v::FERMI_ZCULL_INFO_SIZE, ZCULL_ELEM),
+            (4, 8, 8, 40)
+        );
+        for cmd in [v::CMD_GPU_GET_FERMI_GPC_INFO, v::CMD_GPU_GET_FERMI_TPC_INFO, CMD_GR_GET_ZCULL_INFO] {
+            let a = answer(chip(), cmd, &[0u8; 8], None).unwrap();
+            assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "{cmd:#x} without a host");
+        }
     }
 
     /// A host with the given layouts: PES info and SM order sized as that driver

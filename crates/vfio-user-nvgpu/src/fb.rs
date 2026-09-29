@@ -1168,7 +1168,7 @@ impl FakeFb {
         if self.is_remapped(pa) || matches!(self.backing(pa), Backing::Bar2Memfd(_)) {
             // A BAR1 pool page or a page behind the BAR2 memfd: the guest writes it without
             // the device seeing it (`note_write` is bypassed), so a copy would go stale.
-            // Read the store (or the memfd, which is RAM) every time.
+            // Read it every time (VRAM with the unsynced BAR2 bytes over it).
             let mut b = [0u8; 4];
             return self.read(pa, &mut b).then(|| u32::from_le_bytes(b));
         }
@@ -1413,6 +1413,31 @@ impl FakeFb {
         self.bar2.as_deref()
     }
 
+    /// The BAR2 memfd, when on (its counters).
+    pub fn bar2_area_mut(&mut self) -> Option<&mut crate::bar2area::Bar2Area> {
+        self.bar2.as_deref_mut()
+    }
+
+    /// The doorbell rule's partial sync of the BAR2 memfd (bar2area.rs `Bar2Area::sync_pages`):
+    /// only the live pages among `keys` are compared and written back; the changed ones are
+    /// reported to the caches as at a full sync. Returns false when the memfd is off.
+    pub fn bar2_sync_pages(&mut self, sys: Option<&GuestMemory>, keys: &[u64]) -> bool {
+        let Some(a) = self.bar2.as_deref_mut() else {
+            return false;
+        };
+        let pool = self.pool.borrow();
+        let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
+        let tr = |pa: u64| table.map_or(pa, |t| t.translate(pa));
+        let r = a.sync_pages(&mut *self.store, sys, &tr, keys);
+        drop(pool);
+        if !r.dirty.is_empty() {
+            // The written-back bytes must reach VRAM before the doorbell is forwarded.
+            self.store.flush();
+        }
+        self.note_pages_changed(&r.dirty);
+        true
+    }
+
     /// A sync of the BAR2 memfd (bar2area.rs `Bar2Area::sync`): guest writes found by the
     /// dirty scan are written back to VRAM and reported to the caches, then the BAR2
     /// tables under `root` (the BAR2 page directory) are followed. Returns false when the
@@ -1432,6 +1457,68 @@ impl FakeFb {
         if !r.dirty.is_empty() {
             // The written-back bytes must reach VRAM before the GPU can be told to read
             // them (the RPC and invalidate paths that follow a sync).
+            self.store.flush();
+        }
+        self.note_pages_changed(&r.dirty);
+        true
+    }
+
+    /// Whether FB page `page` (4 KiB page number) is a table page a device cache follows
+    /// by physical address: a table of a cached guest walk (the shadows'), of the BAR2
+    /// walk, of the BAR1 walk or the BAR1 pool's area walk, a page the BAR TLB read, or a
+    /// replica home of the pool. Exactly the pages whose change `note_pages_changed` acts on
+    /// beyond dropping a copy.
+    pub fn device_table_page(&self, page: u64) -> bool {
+        self.walks.borrow().values().any(|c| c.watches(page))
+            || self.bar2.as_deref().is_some_and(|a| a.watches_table(page))
+            || self
+                .bar1_pt
+                .borrow()
+                .as_ref()
+                .is_some_and(|pt| pt.table_pages.contains(&page))
+            || self.pool.borrow().as_ref().is_some_and(|p| p.tracks_page(page))
+            || self.bar_tlb_pages.borrow().contains(&page)
+    }
+
+    /// The MMU invalidate's sync of the BAR2 memfd when no flush is owed (docs/caraxes/
+    /// bar2-memfd.md §3, rule 2): the MMU re-reads page tables from here on, so the live
+    /// pages that are table pages ([`Self::device_table_page`]) are compared and written
+    /// back, and the BAR2 tables followed (a page that leaves the mapping is written back
+    /// first). Data the guest wrote through BAR2 reaches VRAM at the hand-over that gives
+    /// it to an engine (a doorbell, a GSP command, a flush's owed sync). Returns false
+    /// when the memfd is off.
+    pub fn bar2_sync_tables(&mut self, root: Option<u64>, sys: Option<&GuestMemory>) -> bool {
+        let Some(a) = self.bar2.as_deref() else {
+            return false;
+        };
+        let t0 = std::time::Instant::now();
+        // The table pages of every cache (a few hundred), kept where they are live: cheaper
+        // than asking every cache about every live page.
+        let mut keys: Vec<u64> = a.table_pages();
+        for c in self.walks.borrow().values() {
+            keys.extend(c.watched_pages());
+        }
+        if let Some(pt) = self.bar1_pt.borrow().as_ref() {
+            keys.extend(pt.table_pages.iter().copied());
+        }
+        if let Some(p) = self.pool.borrow().as_ref() {
+            keys.extend(p.tracked_pages());
+        }
+        keys.extend(self.bar_tlb_pages.borrow().iter().copied());
+        keys.retain(|&k| a.is_live(k));
+        keys.sort_unstable();
+        keys.dedup();
+        let size = self.size;
+        let a = self.bar2.as_deref_mut().expect("checked");
+        let pool = self.pool.borrow();
+        let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
+        let tr = |pa: u64| table.map_or(pa, |t| t.translate(pa));
+        let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys));
+        a.stats.table_syncs += 1;
+        a.stats.table_sync_pages += keys.len() as u64;
+        a.stats.table_sync_ns += t0.elapsed().as_nanos() as u64;
+        drop(pool);
+        if !r.dirty.is_empty() {
             self.store.flush();
         }
         self.note_pages_changed(&r.dirty);
@@ -1572,21 +1659,44 @@ impl FakeFb {
         self.store.pages_touched()
     }
 
+    /// Read FB `[pa, pa + buf.len())` as the GPU would: VRAM where design H (bar1pool.rs)
+    /// puts each page (its pool page when remapped, else `pa`), with the bytes the guest
+    /// wrote through the BAR2 memfd since its last sync over it (bar2area.rs
+    /// `Bar2Area::read_merged`, bar2-memfd.md §3 rule 5): a page behind BAR2 may also be
+    /// written through the BAR1 pool or by a host engine (a channel's USERD: nouveau clears
+    /// it through BAR2 and writes GPPut through BAR1, the host PBDMA writes GPGet).
     pub fn read(&self, pa: u64, buf: &mut [u8]) -> bool {
+        self.read_with(pa, buf, false)
+    }
+
+    /// [`Self::read`] of page-table memory: a page behind the BAR2 memfd is read from the
+    /// memfd (RAM speed), which is exact for tables (bar2area.rs `Bar2Area::read_tables`).
+    pub fn read_table(&self, pa: u64, buf: &mut [u8]) -> bool {
+        self.read_with(pa, buf, true)
+    }
+
+    fn read_table_u64(&self, pa: u64) -> Option<u64> {
+        let mut b = [0u8; 8];
+        self.read_table(pa, &mut b).then(|| u64::from_le_bytes(b))
+    }
+
+    fn read_with(&self, pa: u64, buf: &mut [u8], tables: bool) -> bool {
         self.check('r', pa, buf.len());
         if pa + buf.len() as u64 > self.size {
             return false;
         }
-        // The BAR2 memfd (bar2area.rs) is keyed by the guest FB address and holds the
-        // guest's newest bytes of a page behind BAR2: it is asked first, with `pa`. Every
-        // other page is in the store where design H (bar1pool.rs) puts it: its pool page
-        // when remapped, else `pa` (bar2-memfd.md §8).
+        // The BAR2 memfd (bar2area.rs) is keyed by the guest FB address (`pa`); the store
+        // holds each page where design H puts it (bar2-memfd.md §8).
         let pool = self.pool.borrow();
         let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
         match (self.bar2.as_deref().filter(|a| a.has_live()), table) {
             (Some(a), t) => {
                 let tr = |x: u64| t.map_or(x, |t| t.translate(x));
-                a.read_through(&*self.store, &tr, pa, buf)
+                if tables {
+                    a.read_tables(&*self.store, &tr, pa, buf)
+                } else {
+                    a.read_merged(&*self.store, &tr, pa, buf)
+                }
             }
             (None, None) => self.store.read(pa, buf),
             (None, Some(t)) => t.for_each_piece(pa, buf.len(), |hpa, off, n| {
@@ -1670,7 +1780,7 @@ impl FakeFb {
     /// given, in guest RAM.
     fn table_u64(&self, sys: Option<&GuestMemory>, table: Target, off: u64) -> Option<u64> {
         match table {
-            Target::Fb(pa) => self.read_u64(pa + off),
+            Target::Fb(pa) => self.read_table_u64(pa + off),
             Target::Sys(pa) => sys?.read_u64(pa + off),
             _ => None,
         }
@@ -1809,7 +1919,7 @@ impl FakeFb {
     fn table_block(&self, sys: Option<&GuestMemory>, table: Target, n: usize) -> Option<Vec<u64>> {
         let mut b = vec![0u8; n * 8];
         let ok = match table {
-            Target::Fb(pa) => self.read(pa, &mut b),
+            Target::Fb(pa) => self.read_table(pa, &mut b),
             Target::Sys(pa) => sys?.read(pa, &mut b),
             _ => false,
         };
@@ -1930,7 +2040,7 @@ impl FakeFb {
                 pages.push(pa >> 12);
             }
         };
-        let Some(e3) = self.read_u64(root + 8 * ((va >> 47) & 3)) else {
+        let Some(e3) = self.read_table_u64(root + 8 * ((va >> 47) & 3)) else {
             return (Target::Unmapped { level: 3 }, pages);
         };
         let Some(pd2) = Self::next_table(e3) else {
@@ -2218,7 +2328,7 @@ impl FakeFb {
     fn cached_page<'c>(&self, cache: &'c mut TablePageCache, page: u64) -> &'c [u8; 4096] {
         cache.entry(page).or_insert_with(|| {
             let mut b = Box::new([0u8; 4096]);
-            self.read(page << 12, &mut b[..]);
+            self.read_table(page << 12, &mut b[..]);
             b
         })
     }
@@ -2229,7 +2339,7 @@ impl FakeFb {
         let Target::Fb(pa) = t else { return None };
         let a = pa + off;
         match cache {
-            None => self.read_u64(a),
+            None => self.read_table_u64(a),
             Some(c) => {
                 let p = self.cached_page(c, a >> 12);
                 let o = (a & 0xFFF) as usize;
@@ -2653,6 +2763,67 @@ mod tests {
         fb.bar2_sync(Some(root), None);
         assert_eq!(drift(&fb), (3, 1));
         assert!(fb.bar2_area().unwrap().summary().contains("FB 0x20000"));
+    }
+
+    /// A page behind the BAR2 memfd that another writer changes in VRAM (the guest through
+    /// the BAR1 pool, a host engine; vm10-boot8: nouveau clears a channel's USERD through
+    /// BAR2 and writes GPPut through BAR1, and the device read the stale memfd copy): the
+    /// device reads VRAM with the guest's unsynced BAR2 bytes over it, table reads keep the
+    /// memfd, and the sync writes back only what the guest wrote through BAR2.
+    #[test]
+    fn a_page_behind_bar2_reads_what_other_writers_put_in_vram() {
+        use crate::bar2area::{Bar2Area, Config};
+        let mut fb = FakeFb::new(1 << 20);
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        let (root, pd2, pd1, pd0, pt) = (0x10000, 0x11000, 0x12000, 0x13000, 0x14000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        fb.write_u64(pt + 8, pte(0x20000));
+        let cfg = Config {
+            traps: vec![0x1f000],
+            sync_doorbell: false,
+            defer_flush: true,
+            flush_page_memory: false,
+        };
+        let area = Bar2Area::create(0x20000, &cfg).unwrap();
+        let guest = area.mem.map_again().unwrap();
+        fb.set_bar2_area(area).unwrap();
+        assert!(fb.bar2_sync(Some(root), None));
+        assert_eq!(fb.backing(0x20000), Backing::Bar2Memfd(0x1000));
+        // The guest clears the page through BAR2 (as nouveau's USERD clear), synced.
+        guest.write(0x1000 + 0x80, &[0xEE; 16]);
+        fb.bar2_sync(Some(root), None);
+        assert_eq!(fb.read_u64(0x20088), Some(0xEEEE_EEEE_EEEE_EEEE));
+        // GPPut (+0x8C) through BAR1 straight into VRAM, GPGet (+0x88) by the host PBDMA:
+        // the device sees both, and a byte the guest writes through BAR2 before the next
+        // sync (+0x80) as well.
+        fb.store.write(0x2008C, &5u32.to_le_bytes());
+        fb.store.write(0x20088, &3u32.to_le_bytes());
+        guest.write(0x1000 + 0x80, &[0x11]);
+        let mut u = [0u8; 16];
+        assert!(fb.read(0x20080, &mut u));
+        assert_eq!(u32::from_le_bytes(u[8..12].try_into().unwrap()), 3, "GPGet from VRAM");
+        assert_eq!(u32::from_le_bytes(u[12..16].try_into().unwrap()), 5, "GPPut from VRAM");
+        assert_eq!(u[0], 0x11, "the unsynced BAR2 byte");
+        assert_eq!(u[1], 0xEE);
+        // A table read of the page keeps the memfd (tables have no other writer).
+        let mut t = [0u8; 4];
+        assert!(fb.read_table(0x2008C, &mut t));
+        assert_eq!(t, [0xEE; 4]);
+        // The sync writes back the BAR2 byte only: GPPut and GPGet in VRAM stay.
+        fb.bar2_sync(Some(root), None);
+        let mut v = [0u8; 16];
+        fb.read_raw(0x20080, &mut v);
+        assert_eq!((v[0], v[1]), (0x11, 0xEE));
+        assert_eq!(u32::from_le_bytes(v[8..12].try_into().unwrap()), 3);
+        assert_eq!(u32::from_le_bytes(v[12..16].try_into().unwrap()), 5);
+        // A page not behind BAR2 reads VRAM as before.
+        fb.store.write(0x30000, &[9]);
+        let mut w = [0u8; 1];
+        assert!(fb.read(0x30000, &mut w) && w[0] == 9);
     }
 
     #[test]
