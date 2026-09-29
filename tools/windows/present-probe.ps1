@@ -3,9 +3,10 @@
 # (DXGI_SWAP_EFFECT_FLIP_DISCARD) on a WinForms window, windowed, then exclusive fullscreen,
 # then windowed again; each phase clears every frame to a new colour and presents with sync
 # interval 1. Prints frames, time, rate and the swap chain's frame statistics per phase.
+# -Seconds N: windowed only, phases of -Frames frames for N seconds (a soak load).
 # Runs in the signed-in user's session (a scheduled task with an interactive principal), not
 # as SYSTEM: session 0 has no desktop to present to. Stock Windows components only.
-param([int]$Frames = 300)
+param([int]$Frames = 300, [int]$Seconds = 0)
 $ErrorActionPreference = "Stop"
 $src = @'
 using System; using System.Runtime.InteropServices; using System.Windows.Forms;
@@ -59,7 +60,7 @@ public static class Present {
       failed > 0 ? " (last 0x" + hrLast.ToString("x8") + ")" : "",
       sh < 0 ? "hr 0x" + sh.ToString("x8") : String.Format("present {0}, present refresh {1}, sync refresh {2}", s.PresentCount, s.PresentRefreshCount, s.SyncRefreshCount));
   }
-  public static string Run(int frames) {
+  public static string Run(int frames, int seconds) {
     var sb = new System.Text.StringBuilder();
     var form = new Form { Text = "caraxes present probe", Width = 960, Height = 540, StartPosition = FormStartPosition.CenterScreen };
     form.Show(); Application.DoEvents();
@@ -69,6 +70,12 @@ public static class Present {
     Check(D3D11CreateDeviceAndSwapChain(IntPtr.Zero, 1, IntPtr.Zero, 0, IntPtr.Zero, 0, 7, ref d, out swap, out dev, out level, out ctx), "D3D11CreateDeviceAndSwapChain");
     try {
       sb.AppendLine(String.Format("device feature level {0:x}, flip-discard swap chain, 2 buffers, B8G8R8A8", level));
+      if (seconds > 0) {
+        var end = DateTime.Now.AddSeconds(seconds); int n = 0;
+        while (DateTime.Now < end) { Console.WriteLine(Phase("windowed 960x540 #" + (++n), form, swap, dev, ctx, frames)); Console.Out.Flush(); }
+        sb.Append("PASS: D3D11 flip-model windowed presents for " + seconds + " s, " + n + " phase(s)");
+        return sb.ToString();
+      }
       sb.AppendLine(Phase("windowed 960x540", form, swap, dev, ctx, frames));
       Check(Fn<SetFullscreen>(swap, 10)(swap, 1, IntPtr.Zero), "SetFullscreenState(TRUE)");
       Check(Fn<ResizeBuffers>(swap, 13)(swap, 0, 0, 0, 0, 2), "ResizeBuffers(fullscreen)");
@@ -85,4 +92,4 @@ public static class Present {
 }
 '@
 Add-Type -TypeDefinition $src -Language CSharp -ReferencedAssemblies System.Windows.Forms
-[Present]::Run($Frames)
+[Present]::Run($Frames, $Seconds)
