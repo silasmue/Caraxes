@@ -1764,10 +1764,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .name("ce-slices".into())
             .spawn(move || {
                 while !stop.load(std::sync::atomic::Ordering::Acquire) {
-                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    // A run stopped at its budget continues after a short pause, in which the
+                    // accesses waiting for the device lock take it (Windows C81: the KMD's
+                    // paging channel is the critical path of a context creation; a 1 ms pause
+                    // after every 2 ms run idled a third of it).
+                    std::thread::sleep(if vfio_user_nvgpu::channel::ce_slices_pending() {
+                        std::time::Duration::from_micros(50)
+                    } else {
+                        std::time::Duration::from_millis(1)
+                    });
                     if vfio_user_nvgpu::channel::ce_slices_pending() {
-                        d.lock()
-                            .unwrap_or_else(PoisonError::into_inner)
+                        vfio_user_nvgpu::dlock::lock(&d, "software run continuation")
                             .continue_ce_slices();
                     }
                     // Guest RAM registered off the loop joins the table without waiting
