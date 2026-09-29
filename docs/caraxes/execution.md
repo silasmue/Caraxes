@@ -614,3 +614,26 @@ clock's per-tick work takes the display engine's lock and never D.
   wait for the worker; the pool's own rework).
 - Tests: `a_held_trigger_completes_when_the_worker_applied_its_root` (busy until the root's job
   is applied, no second trigger meanwhile, urgent while held), the page's existing tests.
+
+### 9.9 The posted doorbell (2026-09-29)
+
+- A trapped write of the usermode doorbell (`NOTIFY_CHANNEL_PENDING`) no longer takes D. The
+  vfio-user loop queues it in the ring gate (`RingGate::post`, one entry per token: a second write
+  of a queued token joins it, since a doorbell only makes the engine look at GPPut) and answers
+  at once. A trapped doorbell costs the guest one BAR0 exit, whatever the client does with its
+  token (a pool token the scan missed, a cached token, Windows).
+- The completer thread rings the queue under D, each write exactly as its trapped write was
+  handled (`Device::ring_posted`: `region_write` on BAR0, i.e. the trace, the BAR2 sync before
+  the ring, the ring, the steps after a BAR0 write).
+- Order: every other guest access rings the queue first, before its own work: every trapped
+  access (`SharedDevice::lock`), the eventfd readers, the page reactors (invalidate, usermode,
+  display kick). No access passes a doorbell the guest wrote before it, as on PCIe, where a read
+  or write does not pass a posted write. The card promises no more: a doorbell only makes the GPU
+  fetch the new entries eventually.
+- Counted: the exit summary's `posted doorbells` line (writes, joined, rung by the completer or by
+  a later access, queue time mean and max, deepest queue); the profile's "posted doorbell: posted
+  to rung" and "posted doorbell: rung (device time)"; the D holders "posted doorbells" and the
+  work key "posted doorbell rings".
+- Tests: `a_trapped_doorbell_is_posted_and_rung_before_the_next_access` (answered while D is
+  held elsewhere, rung by the next access first, joined writes, other registers not posted),
+  `a_posted_doorbell_wakes_the_completer_and_keeps_the_order`.

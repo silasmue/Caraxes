@@ -16,10 +16,17 @@
 //! Holds (`hold`, `release`): the BAR1 pool (bar1-pool.md) holds the rings of roots while
 //! it moves pages and has the worker release the hold after a host call it runs in order
 //! with the plans (a preempt), so no ring passes that call.
+//!
+//! Posted doorbells (execution.md §9.9): the vfio-user loop queues a trapped write of the
+//! usermode doorbell here without the device lock ([`RingGate::post`]) and answers the
+//! write at once; the completer rings the queue under the lock, and every other trapped
+//! access rings it first ([`RingGate::take_posted`]), so no access passes a doorbell the
+//! guest wrote before it.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Condvar, Mutex, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Default, Debug)]
 struct State {
@@ -27,8 +34,12 @@ struct State {
     next_token: u64,
     /// Rings held in the device now (the rings themselves are the mirror's).
     waiting: usize,
-    /// Moves at every event that can make a held ring ready: a job finished, a hold released.
+    /// Moves at every event that can make a held ring ready (a job finished, a hold
+    /// released) and at every posted doorbell.
     generation: u64,
+    /// Doorbell writes posted and not rung yet, in the guest's order, one per token.
+    posted: Vec<Posted>,
+    post: PostStats,
     stop: bool,
 }
 
@@ -37,6 +48,48 @@ struct State {
 pub struct RingGate {
     st: Mutex<State>,
     cv: Condvar,
+    /// `posted.len()`, for the check every trapped access makes without the gate's mutex.
+    posted_n: AtomicUsize,
+}
+
+/// A trapped doorbell write the vfio-user loop posted: the value written and when.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Posted {
+    pub token: u32,
+    pub at: Instant,
+}
+
+/// Counters of the posted doorbells for the exit summary.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PostStats {
+    /// Trapped doorbell writes posted, and those that joined a queued write of the same
+    /// token (one ring covers both: a doorbell only makes the engine look at GPPut).
+    pub writes: u64,
+    pub coalesced: u64,
+    /// Queued writes rung by the completer, and by a later guest access (trapped, an
+    /// eventfd, a shared page's reactor) before its own work.
+    pub by_completer: u64,
+    pub by_access: u64,
+    /// Time from the post to the start of its ring, in total and the longest.
+    pub queued_ns: u64,
+    pub queued_max_ns: u64,
+    pub max_depth: usize,
+}
+
+impl PostStats {
+    pub fn line(&self) -> String {
+        let rung = self.by_completer + self.by_access;
+        format!(
+            "posted doorbells (execution.md §9.9): {} trapped write(s) answered without the device lock, {} joined a queued write of the same token; {} rung by the completer, {} by a later guest access first (trapped, an eventfd or a page); queued {} us on average, longest {} us; deepest queue {}",
+            self.writes,
+            self.coalesced,
+            self.by_completer,
+            self.by_access,
+            self.queued_ns / rung.max(1) / 1000,
+            self.queued_max_ns / 1000,
+            self.max_depth
+        )
+    }
 }
 
 impl RingGate {
@@ -100,9 +153,59 @@ impl RingGate {
         self.st().waiting
     }
 
-    /// The completer's wait: until rings are held and the generation moved past `seen` (or
-    /// at most `max`, a safety tick). Returns the generation to pass next time, `None` once
-    /// stopped.
+    /// Post a trapped doorbell write of `token` at `at`. Returns false when a write of the
+    /// same token is queued already (its ring covers this one).
+    pub fn post(&self, token: u32, at: Instant) -> bool {
+        let mut st = self.st();
+        st.post.writes += 1;
+        if st.posted.iter().any(|p| p.token == token) {
+            st.post.coalesced += 1;
+            return false;
+        }
+        st.posted.push(Posted { token, at });
+        st.post.max_depth = st.post.max_depth.max(st.posted.len());
+        self.posted_n.store(st.posted.len(), Ordering::Release);
+        st.generation += 1;
+        self.cv.notify_all();
+        true
+    }
+
+    /// Whether doorbell writes are posted and not rung yet (no mutex).
+    pub fn has_posted(&self) -> bool {
+        self.posted_n.load(Ordering::Acquire) > 0
+    }
+
+    /// Take the posted doorbell writes to ring them, in the guest's order.
+    pub fn take_posted(&self) -> Vec<Posted> {
+        let mut st = self.st();
+        self.posted_n.store(0, Ordering::Release);
+        std::mem::take(&mut st.posted)
+    }
+
+    /// `rings` taken with [`Self::take_posted`] were rung, the first starting at `start`,
+    /// by a trapped access before its own work (`by_access`) or by the completer.
+    pub fn note_rung(&self, rings: &[Posted], start: Instant, by_access: bool) {
+        let mut st = self.st();
+        let n = rings.len() as u64;
+        if by_access {
+            st.post.by_access += n;
+        } else {
+            st.post.by_completer += n;
+        }
+        for p in rings {
+            let ns = start.saturating_duration_since(p.at).as_nanos() as u64;
+            st.post.queued_ns += ns;
+            st.post.queued_max_ns = st.post.queued_max_ns.max(ns);
+        }
+    }
+
+    pub fn post_stats(&self) -> PostStats {
+        self.st().post
+    }
+
+    /// The completer's wait: until rings are held or doorbells posted and the generation
+    /// moved past `seen` (or at most `max`, a safety tick). Returns the generation to pass
+    /// next time, `None` once stopped.
     pub fn wait_ready(&self, seen: u64, max: Duration) -> Option<u64> {
         let mut st = self.st();
         let end = std::time::Instant::now() + max;
@@ -110,7 +213,7 @@ impl RingGate {
             if st.stop {
                 return None;
             }
-            if st.waiting > 0 && st.generation != seen {
+            if (st.waiting > 0 || !st.posted.is_empty()) && st.generation != seen {
                 return Some(st.generation);
             }
             let now = std::time::Instant::now();
@@ -135,8 +238,13 @@ impl RingGate {
 /// The process's gate: one device per process, and a model rebuilt at a function-level
 /// reset keeps it, so the completer thread started once waits on the right one.
 pub fn global() -> std::sync::Arc<RingGate> {
+    global_ref().clone()
+}
+
+/// [`global`] without a reference count (the posted-doorbell check of every guest access).
+pub fn global_ref() -> &'static std::sync::Arc<RingGate> {
     static G: std::sync::OnceLock<std::sync::Arc<RingGate>> = std::sync::OnceLock::new();
-    G.get_or_init(|| std::sync::Arc::new(RingGate::default())).clone()
+    G.get_or_init(|| std::sync::Arc::new(RingGate::default()))
 }
 
 /// A ring the device holds: the shadow root the channel translates through (`None`: a
@@ -255,5 +363,37 @@ mod tests {
         t.join().unwrap();
         g.stop();
         assert_eq!(g.wait_ready(next, Duration::from_secs(5)), None);
+    }
+
+    /// A posted doorbell wakes the completer without a held ring; a second write of a queued
+    /// token joins it; the queue comes back in the guest's order and empties.
+    #[test]
+    fn a_posted_doorbell_wakes_the_completer_and_keeps_the_order() {
+        let g = Arc::new(RingGate::default());
+        let seen = g.wait_ready(u64::MAX, Duration::from_millis(1)).unwrap();
+        assert!(!g.has_posted());
+        let g2 = g.clone();
+        let t = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            let at = Instant::now();
+            assert!(g2.post(0x10009, at));
+            assert!(g2.post(0x1000a, at));
+            assert!(!g2.post(0x10009, at), "joins the queued write");
+        });
+        let t0 = Instant::now();
+        let next = g.wait_ready(seen, Duration::from_secs(5)).unwrap();
+        assert!(next != seen);
+        assert!(t0.elapsed() < Duration::from_secs(1));
+        t.join().unwrap();
+        assert!(g.has_posted());
+        let rings = g.take_posted();
+        assert_eq!(rings.iter().map(|p| p.token).collect::<Vec<_>>(), [0x10009, 0x1000a]);
+        assert!(!g.has_posted());
+        assert!(g.take_posted().is_empty());
+        g.note_rung(&rings, Instant::now(), false);
+        let s = g.post_stats();
+        assert_eq!((s.writes, s.coalesced, s.by_completer, s.by_access, s.max_depth), (3, 1, 2, 0, 2));
+        // After the take, a new write of the same token queues again.
+        assert!(g.post(0x10009, Instant::now()));
     }
 }
