@@ -1595,9 +1595,12 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         };
         Box::new(h) as Box<dyn vfio_user_nvgpu::poll::Hook>
     });
-    if fe.is_some() {
-        // The display clock advances the engine at its ticks (the guest's status reads
-        // no longer trap and so no longer do it).
+    if a.display {
+        // The display clock advances the engine at its ticks, as the card's display runs on
+        // its own clock: latches, a flip's FINISHED one frame later and LAST_DATA happen at
+        // the tick whether or not the guest reads a display register then (with the display
+        // page its status reads no longer trap at all; without it a KMD waiting for FINISHED
+        // in memory reads none either).
         let d = device.clone();
         vfio_user_nvgpu::display::engine::ticker().set_driver(Arc::new(move || {
             d.lock()

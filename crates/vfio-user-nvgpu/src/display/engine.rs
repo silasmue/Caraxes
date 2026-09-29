@@ -798,10 +798,12 @@ impl Engine {
     fn sync_ticker(&self) {
         let irq = self.irq();
         for (h, head) in self.heads.iter().enumerate() {
+            // A pending presentation, or a latched one whose FINISHED is owed at the next
+            // tick (`finish`): the clock must reach that tick without the guest's help.
             let flips = self
                 .windows
                 .iter()
-                .any(|w| w.head == Some(h) && !w.pending.is_empty());
+                .any(|w| w.head == Some(h) && (!w.pending.is_empty() || w.begun.is_some()));
             let want = head.active && (flips || irq.en[h] & LAST_DATA != 0);
             ticker().set_want(h, want);
             if self.paged() {
