@@ -321,10 +321,28 @@ struct State {
     /// Trapped stores traced since the last reset or the switch to exact mode (the first
     /// [`STORES_TRACED`] of each, for a driver's (re-)initialisation).
     stores_traced: u32,
+    /// The host engines' non-stall vectors ([`IntrPage::set_hint_vectors`]).
+    hint: [u32; LEAVES],
+    /// MSI re-arms that sent the MSI again for pending host hints only, with no ack of one
+    /// of them since ([`IntrPage::rearm`]).
+    hint_rearms: u32,
+    /// Host hints withdrawn from a handler that does not service them: their raises are
+    /// dropped until the guest acknowledges or enables them, a reset, or [`HINT_MUTE`].
+    muted: [u32; LEAVES],
+    muted_since: Option<Instant>,
+    withdrawals_logged: u32,
 }
 
 /// Trapped stores traced after each reset (and after the switch to exact mode).
 const STORES_TRACED: u32 = 256;
+
+/// Re-arms of pending host hints without an ack after which the handler counts as not
+/// servicing them ([`IntrPage::rearm`]). A handler that services a vector acknowledges it
+/// at its first pass; C74 and C78 re-armed 16-19 million times without one.
+const HINT_REARMS: u32 = 256;
+
+/// How long withdrawn host hints stay muted without a sign from the guest.
+const HINT_MUTE: Duration = Duration::from_secs(1);
 
 /// Counters for the exit summary.
 #[derive(Default)]
@@ -347,6 +365,9 @@ pub struct Stats {
     /// MSI re-arms (`NV_XVE_CYA_2`) taken without the device mutex, and the MSIs they sent.
     pub rearms: AtomicU64,
     pub msi_rearm: AtomicU64,
+    /// Host hints withdrawn at a re-arm, and their raises dropped while muted.
+    pub withdrawn: AtomicU64,
+    pub muted_raises: AtomicU64,
     /// Trapped accesses of the two pages served without the device mutex.
     pub routed: AtomicU64,
     pub odd: [AtomicU64; 7],
@@ -438,6 +459,11 @@ impl IntrPage {
                 stale_since: None,
                 logged: 0,
                 stores_traced: 0,
+                hint: [0; LEAVES],
+                hint_rearms: 0,
+                muted: [0; LEAVES],
+                muted_since: None,
+                withdrawals_logged: 0,
             }),
             expected: std::array::from_fn(|_| AtomicU32::new(0)),
             exact: AtomicBool::new(false),
@@ -483,14 +509,37 @@ impl IntrPage {
     /// interrupt service): the card sends its MSI again while an enabled interrupt is still
     /// pending. Exact mode does that; the tagged display leaves the retrigger to its watchdog
     /// as before. Needs no device mutex (docs/caraxes/display-own-clock.md §2.4).
+    ///
+    /// Host hints ([`Self::set_hint_vectors`]): the card raises an engine's non-stall vector
+    /// only for its own driver's work, while the host engines' non-stall events the device
+    /// forwards come for every client of the host GPU (C78: 128,200 of 129,504 with no
+    /// guest work waiting). A handler in its reset path neither acknowledges nor masks
+    /// them but re-arms, and the re-arm's MSI then livelocks the vCPU (C74, C78: 16-19
+    /// million MSIs, the Windows KMD's config save before its FLR never finished). When the
+    /// MSI would be for pending host hints only and the guest re-armed [`HINT_REARMS`]
+    /// times without acknowledging one, they are withdrawn and muted.
     pub fn rearm(&self) -> bool {
         bump(&self.stats.rearms);
         if !self.exact() {
             return false;
         }
-        let st = self.lock();
+        let mut st = self.lock();
         if st.model.top() & st.model.top_en == 0 {
             return false;
+        }
+        let live: [u32; LEAVES] = std::array::from_fn(|i| {
+            if st.model.top_en & (1 << (i / 2)) != 0 {
+                st.model.leaf[i] & st.model.leaf_en[i]
+            } else {
+                0
+            }
+        });
+        if (0..LEAVES).all(|i| live[i] & !st.hint[i] == 0) {
+            st.hint_rearms += 1;
+            if st.hint_rearms >= HINT_REARMS {
+                self.withdraw(&mut st, live);
+                return false;
+            }
         }
         drop(st);
         std::sync::atomic::fence(Ordering::SeqCst);
@@ -501,6 +550,55 @@ impl IntrPage {
             &self.stats.msi_refused
         });
         msi
+    }
+
+    /// The host engines' non-stall vectors (mirror.rs `hint_vectors`): notifications the
+    /// device forwards from the host, which [`Self::rearm`] may withdraw.
+    pub fn set_hint_vectors(&self, vectors: &[u32]) {
+        let mut st = self.lock();
+        st.hint = [0; LEAVES];
+        for &v in vectors.iter().filter(|&&v| v < 256) {
+            st.hint[(v / 32) as usize] |= 1 << (v % 32);
+        }
+    }
+
+    /// Withdraw the pending host hints `live` (the state lock held) and mute their raises.
+    fn withdraw(&self, st: &mut State, live: [u32; LEAVES]) {
+        let before = (st.model.top(), st.model.top_en, st.model.leaf, st.model.leaf_en);
+        for (i, &bits) in live.iter().enumerate() {
+            st.model.leaf[i] &= !bits;
+            st.again[i] &= !bits;
+            st.muted[i] |= bits;
+        }
+        st.muted_since = Some(Instant::now());
+        st.hint_rearms = 0;
+        st.stale_since = None;
+        self.publish(&st.model);
+        bump(&self.stats.withdrawn);
+        let n = self.stats.withdrawn.load(Ordering::Relaxed);
+        if st.withdrawals_logged < 8 || n % 100 == 0 {
+            st.withdrawals_logged += 1;
+            let hex = |a: &[u32; LEAVES]| a.iter().map(|x| format!("{x:x}")).collect::<Vec<_>>().join(" ");
+            let m = format!(
+                "intr page: withdrawal {n}: the guest re-armed the MSI {HINT_REARMS} times without acknowledging the pending host non-stall hint(s) [{}]; withdrawn and muted for {} ms or until the guest acknowledges or enables them (top {:#x} top_en {:#x}, pending [{}], leaf enables [{}])",
+                hex(&live),
+                HINT_MUTE.as_millis(),
+                before.0,
+                before.1,
+                hex(&before.2),
+                hex(&before.3),
+            );
+            eprintln!("vfio-user-nvgpu: {m}");
+            self.shared.note(m);
+        }
+    }
+
+    /// Unmute `bits` of leaf `i` (the guest acknowledged or enabled them).
+    fn unmute(st: &mut State, i: usize, bits: u32) {
+        st.muted[i] &= !bits;
+        if st.muted.iter().all(|&m| m == 0) {
+            st.muted_since = None;
+        }
     }
 
     /// A trapped access of the two pages served without the device mutex (the vfio-user
@@ -584,6 +682,9 @@ impl IntrPage {
             leaf_en: if exact { [0; LEAVES] } else { st.table_en },
             ..Model::default()
         };
+        st.hint_rearms = 0;
+        st.muted = [0; LEAVES];
+        st.muted_since = None;
         st.again = [0; LEAVES];
         st.stale_since = None;
         st.stores_traced = 0;
@@ -674,6 +775,11 @@ impl IntrPage {
                 st.model.leaf[i] &= !v;
                 acked = true;
                 bump(&self.stats.acks);
+                if v & st.hint[i] != 0 {
+                    // The handler services host hints.
+                    st.hint_rearms = 0;
+                    Self::unmute(&mut st, i, v);
+                }
                 let again = st.again[i] & v;
                 st.again[i] &= !again;
                 st.model.leaf[i] |= again;
@@ -684,6 +790,7 @@ impl IntrPage {
             }
             Some(i) if i < W_EN_CLEAR => {
                 st.model.leaf_en[i - W_EN_SET] |= v;
+                Self::unmute(&mut st, i - W_EN_SET, v);
                 rearm_by_set = true;
                 bump(&self.stats.en_set);
             }
@@ -884,10 +991,19 @@ impl IntrPage {
         // acked it; `IntrShared::raise` coalesces the same way while the guest has not
         // looked); it is remembered and pended again at its ack.
         let mut raise_msi = rearm;
+        if st.muted_since.is_some_and(|t| t.elapsed() >= HINT_MUTE) {
+            st.muted = [0; LEAVES];
+            st.muted_since = None;
+        }
         if self.shared.page_raised.swap(false, Ordering::AcqRel) {
             self.shared.page_msi.store(false, Ordering::Release);
             for i in 0..LEAVES {
-                let p = self.shared.take_pending(i) & !TAG;
+                let mut p = self.shared.take_pending(i) & !TAG;
+                // Withdrawn host hints (`rearm`): dropped while muted.
+                if p & st.muted[i] != 0 {
+                    p &= !st.muted[i];
+                    bump(&self.stats.muted_raises);
+                }
                 if p != 0 {
                     let newly = p & !st.model.leaf[i];
                     st.again[i] |= p & st.model.leaf[i];
@@ -1036,7 +1152,7 @@ impl IntrPage {
             .map(|(what, n)| format!("{} x {what}", l(n)))
             .collect();
         format!(
-            "intr page: {} scan(s) with work (slowest {:.1} us); guest stores applied: {} ack(s), {} LEAF_EN_SET, {} LEAF_EN_CLEAR, {} TOP_EN_SET, {} TOP_EN_CLEAR, {} trigger(s); {} raise fold(s) ({} coalesced while pending, {} pended again at the ack); MSIs: {} for raises, {} re-arms (a set store while a vector is pending), {} by the watchdog, {} at an MSI re-arm ({} re-arm(s)), {} not written (MSI off or no eventfd); {} trapped access(es) served without the device mutex; {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
+            "intr page: {} scan(s) with work (slowest {:.1} us); guest stores applied: {} ack(s), {} LEAF_EN_SET, {} LEAF_EN_CLEAR, {} TOP_EN_SET, {} TOP_EN_CLEAR, {} trigger(s); {} raise fold(s) ({} coalesced while pending, {} pended again at the ack); MSIs: {} for raises, {} re-arms (a set store while a vector is pending), {} by the watchdog, {} at an MSI re-arm ({} re-arm(s)), {} not written (MSI off or no eventfd); host non-stall hints withdrawn from a handler that re-armed without servicing them: {} ({} raise(s) muted); {} trapped access(es) served without the device mutex; {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
             l(&s.scans),
             l(&s.slow_ns_max) as f64 / 1000.0,
             l(&s.acks),
@@ -1054,6 +1170,8 @@ impl IntrPage {
             l(&s.msi_rearm),
             l(&s.rearms),
             l(&s.msi_refused),
+            l(&s.withdrawn),
+            l(&s.muted_raises),
             l(&s.routed),
             l(&s.cas_retries),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
@@ -1454,6 +1572,68 @@ mod tests {
         w(&p, LEAF, 0x10);
         assert!(!p.rearm(), "acked");
         assert!(p.summary().contains("1 at an MSI re-arm"), "{}", p.summary());
+    }
+
+    /// A host hint (a host engine's non-stall event) that the guest's handler re-arms
+    /// without servicing is withdrawn after `HINT_REARMS` re-arms and muted until the guest
+    /// enables it again (C74, C78: the Windows KMD's reset path, 16-19 million MSIs).
+    #[test]
+    fn rearm_withdraws_a_host_hint_the_handler_does_not_service() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        p.set_hint_vectors(&[4, 5]);
+        w(&p, LEAF_EN_SET, 0x30);
+        w(&p, TOP_EN_SET, 1);
+        assert!(shared.raise(4));
+        p.scan();
+        assert_eq!(count(&mut msi), 1);
+        for n in 1..HINT_REARMS {
+            assert!(p.rearm(), "re-arm {n}: the MSI again");
+        }
+        assert!(!p.rearm(), "withdrawn");
+        assert_eq!(load(&p, LEAF), 0, "no longer pending");
+        assert_eq!(p.stats.withdrawn.load(Ordering::Relaxed), 1);
+        count(&mut msi);
+        // Muted: a raise of the vector is dropped, one of the other hint is not.
+        assert!(shared.raise(4));
+        assert!(!p.scan().msi);
+        assert_eq!(load(&p, LEAF), 0);
+        assert_eq!(p.stats.muted_raises.load(Ordering::Relaxed), 1);
+        assert!(shared.raise(5));
+        assert!(p.scan().msi);
+        assert_eq!(load(&p, LEAF), 0x20);
+        w(&p, LEAF, 0x20);
+        // The guest enables the vector again: its raises count again.
+        w(&p, LEAF_EN_SET, 0x10);
+        assert!(shared.raise(4));
+        assert!(p.scan().msi);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert!(p.summary().contains("withdrawn from a handler that re-armed without servicing them: 1 (1 raise(s) muted)"), "{}", p.summary());
+    }
+
+    /// A handler that services the host hints is never withdrawn from, and a pending vector
+    /// of the device's own (the display's) is sent again at every re-arm as before.
+    #[test]
+    fn rearm_keeps_serviced_hints_and_device_vectors() {
+        let (p, shared, _msi, _wake) = page(Config::default());
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        p.set_hint_vectors(&[4]);
+        w(&p, LEAF_EN_SET, 0x10);
+        w(&p, LEAF_EN_SET + 16, 0x1000_0000);
+        w(&p, TOP_EN_SET, 0x5);
+        for _ in 0..2 * HINT_REARMS {
+            assert!(shared.raise(4));
+            p.scan();
+            assert!(p.rearm());
+            w(&p, LEAF, 0x10);
+        }
+        assert!(shared.raise(156));
+        p.scan();
+        for _ in 0..2 * HINT_REARMS {
+            assert!(p.rearm(), "the display's vector stays");
+        }
+        assert_eq!(load(&p, LEAF + 16), 0x1000_0000);
+        assert_eq!(p.stats.withdrawn.load(Ordering::Relaxed), 0);
     }
 
     /// Exact mode's watchdog leaves the guest's enables alone: a vector pending under a

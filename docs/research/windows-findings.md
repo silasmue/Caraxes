@@ -1187,3 +1187,28 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     reverted too (b4d8975d, not needed with this).
   - Test: a_displaced_flip_is_finished.
 - Memory model: none.
+
+## Cloud Hypervisor, step 17: the modeset back to 1080p resets the GPU (2026-09-29, C77)
+
+- **Symptom:** 1920x1080 -> 1280x720 succeeded (DISP_CHANGE 0 in 599 ms). The way back failed
+  (DISP_CHANGE -1 after 45 s). The display then stayed at 720p. Sunshine blocked in its
+  display-config call and Moonlight failed with error 4.
+- **At 720p no flip latched.** The head ticked (the vblank acks went on at 60 Hz), but window
+  updates 349-352 stayed armed for 4.4 s.
+  - The engine kept the window's last latch as a tick of the head's counter (32933). The
+    modeset started the counter over.
+  - MIN_PRESENT_INTERVAL held every flip until tick 32934 of the new raster, about 9 minutes.
+- **The restore:** the KMD detached the window (the pending flips latched at once), switched the
+  head off and powered the DP link down (DPCD 0x600 := 2, as in the working 720p modeset).
+  - Instead of training the link it then saved config space through the `NV_PCFG` mirror,
+    cleared bus master and reset the GPU (FLR, 16 ms after the head went off).
+  - The re-init brought the head back at 720p, blanked. The window channel got no kick for
+    the rest of the run (10 min). C75's FLR shows the same: 6 window kicks after it.
+- **Fix (32b1f25b):** a window drops its last latch when its head's clock restarts (a modeset)
+  and when it changes its owner head. Test: a_modeset_restarts_the_present_interval.
+- **Open:**
+  - After a KMD reset the desktop never flips on our windows again.
+  - The `NV_PCFG` mirror answers the BARs with their sizing masks (0xff000000,
+    0xf000000c/0xffffffff), not the programmed addresses. The KMD wrote them back after the
+    FLR, and CH kept BAR0 ("Failed moving device BAR").
+- Memory model: none.

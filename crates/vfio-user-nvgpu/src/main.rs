@@ -1200,6 +1200,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             )
             .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
             page.enable_vectors(&vectors);
+            page.set_hint_vectors(&vfio_user_nvgpu::mirror::hint_vectors(d));
             if profile::on() {
                 let p = page.clone();
                 profile::register_source(Box::new(move || {

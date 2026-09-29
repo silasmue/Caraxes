@@ -80,6 +80,24 @@ pub const ENGINES: &[(&str, u32)] = &[
     ("NVENC0", NOTIFIER_NVENC0),
 ];
 
+/// The guest non-stall vector of the forwarded engine `name` (an `MC_ENGINE_IDX` name of
+/// [`ENGINES`]) in the chip's interrupt table, if it has one.
+fn engine_vector(chip: &ChipData, name: &str) -> Option<u32> {
+    let mc = v::lookup(v::MC_ENGINE_IDX, name)?;
+    chip.interrupts
+        .entries
+        .iter()
+        .find(|e| e.mc_idx as u32 == mc)
+        .map(|e| e.vector_nonstall)
+        .filter(|&vector| vector != 0)
+}
+
+/// The guest vectors the host OS events of [`ENGINES`] raise: notifications of the host
+/// engines, which run every client of the host GPU (intr_page.rs `set_hint_vectors`).
+pub fn hint_vectors(chip: &ChipData) -> Vec<u32> {
+    ENGINES.iter().filter_map(|(name, _)| engine_vector(chip, name)).collect()
+}
+
 /// The video engine an `NV2080_ENGINE_TYPE` names (`NVENC0`.., `NVDEC0`..), if any.
 pub fn video_engine(engine_type: u32) -> Option<&'static str> {
     v::NV2080_ENGINE_TYPES
@@ -4578,18 +4596,9 @@ impl Mirror {
         let mut handles = Vec::new();
         let mut want: Vec<(&str, u32, u32)> = Vec::new();
         for (name, notifier) in ENGINES {
-            let mc = v::lookup(v::MC_ENGINE_IDX, name);
-            let vector = mc.and_then(|m| {
-                self.chip
-                    .interrupts
-                    .entries
-                    .iter()
-                    .find(|e| e.mc_idx as u32 == m)
-                    .map(|e| e.vector_nonstall)
-            });
-            match vector {
-                Some(vec) if vec != 0 => want.push((name, *notifier | EVENT_NONSTALL, vec)),
-                _ => notes.push(format!(
+            match engine_vector(self.chip, name) {
+                Some(vec) => want.push((name, *notifier | EVENT_NONSTALL, vec)),
+                None => notes.push(format!(
                     "events: {name} has no non-stall vector in the chip's interrupt table; its completions are not forwarded"
                 )),
             }
