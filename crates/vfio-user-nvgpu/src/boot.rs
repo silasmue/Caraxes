@@ -818,6 +818,22 @@ impl BootModel {
         let Some(cmd) = crate::display::engine::ticker().take_command() else {
             return;
         };
+        // `dump [path]`: window 0's scanout as a PNG (display/dump.rs), no event.
+        if let Some(rest) = cmd.trim().strip_prefix("dump") {
+            let path = match rest.trim() {
+                "" => crate::display::engine::ticker()
+                    .control_dir()
+                    .unwrap_or_default()
+                    .join(format!("scanout-{}.png", self.ctrl.channels.now_ns() / 1_000_000)),
+                p => std::path::PathBuf::from(p),
+            };
+            let note = match self.ctrl.display.dump_window(0, &self.fb, mem, &path) {
+                Ok(n) => n,
+                Err(e) => format!("display: dump refused: {e}"),
+            };
+            self.ctrl.display.notes.push(note);
+            return;
+        }
         let events = self.ctrl.display.connector_command(&cmd);
         let Some(mut queues) = self.queues.take() else {
             self.ctrl

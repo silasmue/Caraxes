@@ -342,6 +342,11 @@ impl Ticker {
         self.command_pending.load(Ordering::Acquire)
     }
 
+    /// The directory of the control file (the device's state directory).
+    pub fn control_dir(&self) -> Option<std::path::PathBuf> {
+        self.control.lock().unwrap().as_ref().and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    }
+
     pub fn take_command(&self) -> Option<String> {
         self.command_pending.store(false, Ordering::Release);
         self.command.lock().unwrap().take()

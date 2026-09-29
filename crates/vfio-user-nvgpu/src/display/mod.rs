@@ -22,6 +22,7 @@
 
 pub mod aux;
 pub mod edid;
+pub mod dump;
 pub mod engine;
 pub mod chan_page;
 pub mod fe_page;
@@ -1653,6 +1654,59 @@ impl Display {
             n.extend(p.take_notes());
         }
         n
+    }
+
+    /// Window `w`'s latched surface as a PNG at `path` (dump.rs): read through the FB store
+    /// or guest RAM, block-linear or pitch layout undone. Returns what was written.
+    pub fn dump_window(
+        &self,
+        w: usize,
+        fb: &FakeFb,
+        mem: &GuestMemory,
+        path: &std::path::Path,
+    ) -> Result<String, String> {
+        let win = self.engine.windows.get(w).ok_or_else(|| format!("no window {w}"))?;
+        let s = &win.latched;
+        let m = s.mem.ok_or_else(|| format!("window {w} scans out no surface"))?;
+        let (width, height) = (s.width as u64, s.height as u64);
+        if width == 0 || height == 0 || width > 16384 || height > 16384 {
+            return Err(format!("window {w}: surface {width}x{height}"));
+        }
+        dump::rgb(s.format, 0).ok_or_else(|| format!("window {w}: format {:#x} not decoded (32-bit RGB only)", s.format))?;
+        // Pitch layout: `pitch` in 64-byte units; block-linear: blocks of one GOB width.
+        let span = if s.pitch_layout {
+            s.pitch as u64 * 64 * height
+        } else {
+            let gob_rows = 8u64 << s.block_height_log2;
+            s.pitch as u64 * 512 * (height.div_ceil(gob_rows) << s.block_height_log2)
+        };
+        let mut raw = vec![0u8; span as usize];
+        let ok = if m.target == 1 { fb.read(m.addr, &mut raw) } else { mem.read(m.addr, &mut raw) };
+        if !ok {
+            return Err(format!("window {w}: {} bytes at {m:?} not readable", raw.len()));
+        }
+        let mut rgb = Vec::with_capacity((width * height * 3) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                let o = if s.pitch_layout {
+                    y * s.pitch as u64 * 64 + x * 4
+                } else {
+                    dump::block_linear_offset(x * 4, y, s.pitch as u64, s.block_height_log2)
+                } as usize;
+                let px = u32::from_le_bytes(raw[o..o + 4].try_into().unwrap());
+                rgb.extend_from_slice(&dump::rgb(s.format, px).unwrap_or_default());
+            }
+        }
+        let png = dump::png(width as u32, height as u32, &rgb);
+        std::fs::write(path, &png).map_err(|e| format!("{}: {e}", path.display()))?;
+        Ok(format!(
+            "display: window {w} surface {} {width}x{height} format {:#x} {} written to {} ({} bytes)",
+            if m.target == 1 { format!("fb {:#x}", m.addr) } else { format!("sys {:#x}", m.addr) },
+            s.format,
+            if s.pitch_layout { "pitch" } else { "block-linear" },
+            path.display(),
+            png.len()
+        ))
     }
 
     /// Notes of the engine not yet in the trace.
