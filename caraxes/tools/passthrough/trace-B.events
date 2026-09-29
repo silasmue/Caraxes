@@ -1,0 +1,18 @@
+# R4 pass B (.0 with x-no-mmap=on, x-no-kvm-msi=on, x-no-kvm-ioeventfd=on): every BAR and
+# config access of the card with its value, every MSI, the NVIDIA config-mirror quirk, resets.
+# qemutrace2gpu.py turns the log into the device's gpu-trace.log format.
+vfio_region_read
+vfio_region_write
+vfio_pci_read_config
+vfio_pci_write_config
+vfio_msi_interrupt
+vfio_intx_interrupt
+vfio_quirk_generic_mirror_*
+vfio_quirk_nvidia_*
+vfio_pci_reset*
+vfio_pci_hot_reset*
+vfio_msi_enable
+vfio_msi_disable
+vfio_msix_enable
+vfio_intx_enable
+vfio_ioeventfd_init

@@ -1,0 +1,14 @@
+# R4 pass A (BARs mmapped): low-rate vfio events only; the per-access events stay off.
+# Pattern per line, as QEMU's -trace events= reads it (hw/vfio/trace-events of QEMU 11.1.1).
+vfio_pci_reset*
+vfio_pci_hot_reset*
+vfio_check_*
+vfio_msi_enable
+vfio_msi_disable
+vfio_msix_enable
+vfio_intx_enable
+vfio_pci_load_rom
+vfio_region_mmap
+vfio_quirk_nvidia_*
+vfio_quirk_generic_mirror_*
+vfio_ioeventfd_init

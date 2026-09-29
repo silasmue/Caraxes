@@ -18,7 +18,8 @@ Passthrough is off the table for now (operator, 2026-09-23): the agent session i
 runs in VSCode on the desktop this card drives, so R1/R3 would kill the session that
 runs them. Before any passthrough: run the session over SSH in tmux from another machine,
 log the Wayland session out, and script the unbind/rebind with a timeout and a recovery
-path; write that plan into this file first.
+path; write that plan into this file first. That plan is R4 (2026-09-29, below, with
+`caraxes/tools/passthrough/`), for a weekend run by the operator; nothing of it has run.
 
 Risks by activity:
 
@@ -27,7 +28,7 @@ Risks by activity:
 | Synthetic device in QEMU (E0–E3) | none | software only; the "GPU" is a Rust process |
 | Forwarding guest RM RPCs to the host RM (E4+) | same as Leandro today: a misbehaving guest can trigger XIDs, channel resets or VRAM exhaustion; hostile-guest isolation is not established (`docs/SECURITY.md`) | keep the guest trusted; keep `LEA_ADMIN_PRIV` unset so the backend has no `CAP_SYS_ADMIN` |
 | Reading host BAR0 registers from userspace | blocked by `CONFIG_IO_STRICT_DEVMEM` while `nvidia` owns the BAR (EPERM/EINVAL) | do not work around it with a kernel module; use R1/R2/R3 |
-| Passing the real card to a VM (R1, R3) | the desktop stops; if the guest driver or the VM crashes mid-init, the card may need a function-level reset or a host reboot before `nvidia` rebinds cleanly; FWSEC/Booter run on real hardware exactly as during a normal host boot, so no additional firmware risk | do it from an SSH session, with the Wayland session logged out |
+| Passing the real card to a VM (R1, R3, R4) | the desktop stops; if the guest driver or the VM crashes mid-init, the card may need a function-level reset or a host reboot before `nvidia` rebinds cleanly; FWSEC/Booter run on real hardware exactly as during a normal host boot, so no additional firmware risk | do it from an SSH session, with the Wayland session logged out |
 | Writing to GSP/SEC2 falcon registers or WPR on the host | could hang GSP-RM (Xid 119/120), which needs a reboot | never done by this plan |
 
 ## E0: identity-only device (the smallest experiment)
@@ -1161,6 +1162,339 @@ only the usermode doorbell of its own throwaway channel.
 - **R3: complete MMIO trace of a real init.** As R1; the trace is the ground truth
   for the emulator's register model and orders the phase-5 accesses. It is the most
   valuable single artifact for the differential approach.
+
+## R4: real-card reference capture under passthrough (weekend)
+
+Planned 2026-09-29, not run. Opt-in, desktop off, every step run by the operator. Scripts:
+`caraxes/tools/passthrough/`. For R4 this replaces sections 2-4 of
+[passthrough-procedure.md](passthrough-procedure.md).
+
+**Why.**
+- On our device, Windows 11 with the stock 617.14 driver gets `TdrPayloadVSyncTimeout` about 5 s
+  after the desktop starts flipping (docs/research/windows-findings.md, CH steps 10-15). R4
+  records what the real TU106 answers, and when, with the same disk image.
+- The display audit (`/mnt/vmstore/caraxes/ref/display-audit-2026-09-29.md`) names the
+  suspects: no latch deadline before loadv, BEGUN written too early, GET := PUT at the kick.
+  R4 measures them on the card (M1, M2 in R4.4).
+- Secondary: the Linux 615 guest (NVKMS flips). By-product: R1/R3 (PROM reads, the real init
+  sequence) from the pass B boot.
+
+**Files** (`caraxes/tools/passthrough/`):
+
+| File | Does | Runs as |
+|---|---|---|
+| `pt-host.sh` | `status`, `check`, `to-vfio`, `restore`, `reset flr\|bus` | root (`status`/`check` read-only, also as user) |
+| `pt-vm.sh` | `prepare`, `preflight`, `cmdline`, `start`, `trace on\|off`, `mark`, `status`, `stop` | operator |
+| `pt-guest.py` | Windows guest over SSH: `wait`, `pnp`, `mode`, `clock`, `etw`, `etw-boot`, `dwm-restart`, `task`, `bench` | operator |
+| `pt-probe.py` | `capture`: reads the display registers through QEMU's vfio fd; `readout`: M1/M2 | root / operator |
+| `qemutrace2gpu.py` | QEMU vfio trace to the device's `gpu-trace.log` format | operator |
+| `trace-A.events`, `trace-B.events` | QEMU trace event lists of pass A and B | - |
+| `etw-boot.ps1`, `set-mode.ps1` | guest: DxgKrnl as an AutoLogger; display mode | guest admin / signed-in user |
+| `test_qemutrace2gpu.py`, `test_pt_probe.py` | unit tests on synthetic data (13 + 7) | - |
+
+**Verified on this host (2026-09-29; no VM with the card started):**
+- QEMU 11.1.1 `-device vfio-pci,help`: `x-no-mmap`, `x-no-kvm-msi`, `x-no-kvm-msix`,
+  `x-no-kvm-intx`, `x-no-kvm-ioeventfd`, `x-no-vfio-ioeventfd`, `x-no-geforce-quirks`, `rombar`,
+  `romfile`, `multifunction`. `x-no-mmap` covers every region of the device: stock QEMU cannot
+  trap BAR0 alone.
+- `-trace help`: `vfio_region_read` "(%s:region%d+0x%lx, %d) = 0x%lx", `vfio_region_write`
+  "(%s:region%d+0x%lx, 0x%lx, %d)", `vfio_msi_interrupt`, `vfio_pci_read_config`,
+  `vfio_pci_write_config`, `vfio_quirk_generic_mirror_read/write`,
+  `vfio_quirk_nvidia_bar0_msi_ack`, `vfio_pci_reset`, `vfio_pci_reset_flr`,
+  `vfio_pci_hot_reset(_result)`, `vfio_ioeventfd_init`, `vfio_rom_read`.
+- The log backend writes `<event> <fmt>` (installed `tracetool/backend/log.py`);
+  `-msg timestamp=on` prefixes host UTC with microseconds ("2026-09-29T16:35:10.596804Z ");
+  `-D FILE` takes it; QMP `trace-event-set-state` switches events at run time without `-trace`.
+  Checked on a device-less `-M none` QEMU; the full pass B command minus card, disk and TPM
+  parsed on a paused 256 MiB q35 (`-S`), with the events of `trace-B.events` enabled.
+- The NVIDIA quirk keeps BAR0 0x88000-0x88fff trapped even with mmap
+  (`vfio-nvidia-bar0-88000-mirror-quirk`); the 0x1800 mirror exists only with `x-vga`.
+- QMP `human-monitor-command "xp"` costs ~350 us per read, too slow for scan lines; so
+  `pt-probe.py` borrows QEMU's vfio device fd (`pidfd_getfd`, root under yama ptrace_scope 1)
+  and `pread`s BAR0 itself (tested on a child's file: ~0.6 us per call plus the card's read).
+- Sysfs, read-only: `2d:00.0` 10de:1f02 `nvidia`, reset_method "flr bus" (DevCap FLR+; "bus"
+  dates from before the siblings appeared, a bus reset needs all four); `.1` 10de:10f9
+  `snd_hda_intel` (ALSA card0); `.2` 10de:1ada `xhci_hcd` (D3hot); `.3` 10de:1adb `nvidia-gpu`
+  (D3hot, `ucsi_ccg` on it); `.1`-`.3` have no reset method. Group 28 is exactly these four.
+  Port `00:03.1`: reset_method `pm` (its `reset` resets the port, not the card; section 4 of
+  passthrough-procedure.md is wrong there), `reset_subordinate` present (the secondary bus reset
+  of the four). BARs 16 MiB / 256 MiB 64-bit / 32 MiB / I/O 128 B / ROM 512 KiB.
+- `vtcon1` "(M) frame buffer device" bound (nvidia-drm fbdev); `nvidia_drm` modeset=Y fbdev=Y;
+  `/usr/lib/modprobe.d/nvidia-utils.conf`: softdep nvidia post nvidia-uvm nvidia-drm;
+  `/etc/modprobe.d` empty. DRM nodes card1, renderD128.
+- No display manager: Hyprland starts from the tty1 login (`start-hyprland`, session 2).
+  **sshd is disabled and nothing listens on :22.** vfio modules not loaded. memlock limit of
+  `silas` 8 MiB (soft and hard). `kernel.sysrq=16`. Monitors: DP-1 VG27A and DP-3 MG279, both
+  2560x1440@144, both offer 1920x1080@60. `/mnt/vmstore` 89 GB free.
+
+### R4.1 Preconditions and safety
+
+Before the weekend (operator):
+- sshd: `sudo systemctl enable --now sshd`; log in from the second machine with a key; there
+  `tmux new -s r4`, detach (`C-b d`), `tmux attach -t r4`. Without this, no R4.
+- Unplug DP-3 (MG279) from the card: one head, as on our device.
+- The guest's update pause (`quiet.ps1 -Apply`, 7 days) must cover the weekend: renew it in
+  the last Caraxes Windows run before R4 (`run44.py pack quiet.ps1 -Apply`).
+- Optional input for the console: a USB keyboard on the card's USB-C port (function .2 goes
+  to the guest), or Moonlight to the guest's Sunshine.
+
+On the day, from SSH in tmux, in order:
+```sh
+tmux new -s r4
+P=/mnt/vmstore/caraxes/wt-passthrough/caraxes/tools/passthrough   # in every tmux window
+python3 /mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/CH-build/run44.py stop   # if a Windows run is up
+/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh down                        # Linux B, if up
+pgrep -a '^(vfio-user-nvgp|vhost-user-nvr|cloud-hypervis|qemu-system-x86)'          # must print nothing
+loginctl list-sessions                        # the tty1 wayland session (2 today)
+loginctl terminate-session 2                  # ends Hyprland, VSCode and the agent session
+systemctl --user stop pipewire.socket pipewire-pulse.socket pipewire.service pipewire-pulse.service wireplumber.service
+sudo $P/pt-host.sh check                      # must end with "check: ok"
+```
+- All Caraxes and Leandro VMs down: Windows (`run44.py stop`), every `tools/caraxes-vm.sh` VM
+  (`down` with its env), v1 VMs. `check` blocks on any `vfio-user-nvgpu`, `vhost-user-nvrm`,
+  `cloud-hypervisor`, `qemu-system-x86_64`, `crosvm` or `sunshine` process.
+- Nothing may hold the card: `check` lists every open file on `/dev/nvidia*`,
+  `/dev/dri/card1`, `/dev/dri/renderD128`, `/dev/snd/*C0*` and `/dev/vfio/28` (with sudo: all
+  users). By hand: `sudo fuser -v /dev/nvidia* /dev/dri/card1 /dev/dri/renderD128 /dev/snd/controlC0`.
+  Also blocking: a graphical session, a compositor, an active display manager or
+  `nvidia-persistenced`, a group other than the four functions.
+- A second tmux window watches the host: `sudo dmesg -w | grep -E --line-buffered 'vfio|AER|Xid|NVRM|2d:00|AMD-Vi'`.
+- RAM (31 GiB host): with the desktop and all VMs down about 25 GiB are available. One VM at a
+  time: 8 GiB guest RAM that VFIO pins (not swappable) plus ~0.5 GiB QEMU. `pt-vm.sh` refuses
+  below guest + 6 GiB available. Traces go to `/mnt/vmstore/caraxes/r4` (never `/tmp`, a
+  16 GB tmpfs); the converter streams (~40 MB RSS, ~100k lines/s). No builds during R4.
+- Stop rules: an AER or Xid flood on the host, MemAvailable under 4 GiB, a STUCK step. Then:
+  `$P/pt-vm.sh stop`, `sudo $P/pt-host.sh restore`, and the reboot path if needed.
+
+### R4.2 Host switch
+
+```sh
+sudo $P/pt-host.sh to-vfio                                        # root
+sudo prlimit --pid $$ --memlock=unlimited:unlimited && ulimit -l  # root, once per tmux shell: prints unlimited
+```
+- `to-vfio` runs `check` first (nothing changes on a block), then prints and does:
+  1. fbcon off the frame buffer (`vtcon1/bind` = 0, remembered in `/run/caraxes-pt`);
+  2. `modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia`, one by one with the refcount;
+  3. `.1`, `.2`, `.3` unbound from `snd_hda_intel`, `xhci_hcd`, `nvidia-gpu`;
+  4. `modprobe vfio-pci disable_idle_d3=1` (the functions stay in D0 while unused);
+  5. `driver_override` = vfio-pci and `drivers_probe` for all four;
+  6. `/dev/vfio/28` to the operator (QEMU runs as `silas`), then `status`.
+- Idempotent: steps already done print "ok (already)". Each kernel step runs in the background
+  with a timeout (30 s, module loads 120 s); a step still running is STUCK: the script prints
+  its kernel stack and the reboot path and stops. Root runs log to `/var/log/caraxes-pt-host.log`.
+- Back to the host (root): `sudo $P/pt-host.sh restore`: refuses while a VM holds
+  `/dev/vfio/28`; vfio-pci off and overrides cleared; `.1`-`.3` probed back; `modprobe nvidia`
+  and `nvidia_drm`; the kernel log since the start is scanned for `RmInitAdapter failed`, Xid,
+  "fallen off the bus", GSP errors; fbcon rebound. Then, at the console: log in on tty1,
+  `start-hyprland`; as `silas`: `systemctl --user start pipewire.socket pipewire-pulse.socket wireplumber.service`.
+- Failure paths:
+  - `check` blocks: nothing changed; fix the named item.
+  - A module stays in use: `to-vfio` stops; `sudo $P/pt-host.sh restore` reloads what went.
+  - `restore` reports INCOMPLETE (not on `nvidia`, or an error in the log): once
+    `sudo $P/pt-host.sh to-vfio && sudo $P/pt-host.sh reset bus && sudo $P/pt-host.sh restore`
+    (`reset bus` = `reset_subordinate` of 00:03.1; `reset flr` = FLR of `.0` only).
+  - Reboot fallback (STUCK, or restore failed twice): `sudo systemctl reboot`; after 3 min
+    without a reboot: `sudo sh -c 'echo 1 > /proc/sys/kernel/sysrq; echo s > /proc/sysrq-trigger; sleep 5; echo u > /proc/sysrq-trigger; sleep 5; echo b > /proc/sysrq-trigger'`;
+    no SSH: the reset button. Afterwards: tty1 login, `start-hyprland`, recreate the taps
+    caraxes6/caraxes7 (the first GPA launch after a reboot fails once).
+
+### R4.3 Pass A: native baseline (Windows, full speed)
+
+- VM (`$P/pt-vm.sh cmdline win A`): QEMU q35 + OVMF secboot + swtpm, as the maintenance boot of
+  `run-qemu-gpu.sh`. The kit's `win11.qcow2` under an overlay (`r4/win/r4.qcow2`; the base
+  stays as the Caraxes runs left it, and the overlay is refused once the base changes), copies
+  of `OVMF_VARS` and the TPM state. User net plus the tap caraxes7 with the CH runs' MAC (SSH
+  192.168.107.2). No emulated VGA, `-display none`: the card drives the monitor. All four
+  functions behind one `pcie-root-port`, `multifunction=on`, ROM BAR on (OVMF runs the card's
+  GOP). If QEMU cannot read the ROM (no picture before Windows, or a ROM error in `qemu.log`):
+  `PT_ROMFILE=/home/silas/git/Caraxes/caraxes/reference/rtx2070/rom.bin $P/pt-vm.sh start win A A1b`
+  (this card's ROM BAR capture, legacy and EFI images).
+- Captures. ETW is `tools/windows/dxgk-etw.ps1` of wt-win (DxgKrnl, all keywords, level 0xff,
+  the C61-C77 capture), so the CSVs compare; `etw-boot.ps1` is the same as an AutoLogger.
+  Every ETW start and stop takes a guest-host clock pair (`clock.txt`, +-rtt/2, ~1 ms).
+```sh
+$P/pt-vm.sh prepare win
+$P/pt-vm.sh start win A A1
+$P/pt-guest.py wait 900            # first boot with the card: PnP installs 617.14 for the new instance
+$P/pt-guest.py pnp                 # all 10DE functions OK; a pending restart: ssh Restart-Computer -Force, sleep 60, wait 900
+$P/pt-guest.py mode 1920 1080 60   # the raster of our EDID (CEA, 148.5 MHz)
+$P/pt-guest.py etw-boot arm && $P/pt-guest.py ssh Restart-Computer -Force
+sleep 60 && $P/pt-guest.py wait 900 && sleep 90 && $P/pt-guest.py etw-boot collect A1-boot   # boot to desktop + 90 s
+$P/pt-guest.py etw start && sleep 60 && $P/pt-guest.py etw stop A2-idle
+$P/pt-guest.py etw start && $P/pt-guest.py dwm-restart && sleep 30 && $P/pt-guest.py etw stop A3-dwm
+$P/pt-guest.py etw start && $P/pt-guest.py task present-probe.ps1 -Frames 600 --user --wait 300 && $P/pt-guest.py etw stop A4-present
+$P/pt-guest.py bench               # smoke, d3d12-probe, cuda-probe, present-probe -> bench-*.txt
+```
+- M1/M2 at full speed (R4.4) in pass A too: in a second window
+  `sudo python3 $P/pt-probe.py capture --seconds 60 -o /mnt/vmstore/caraxes/r4/runs/A1/probe-A.tsv`
+  while the first runs `$P/pt-guest.py dwm-restart` and the present-probe task.
+- Benchmarks (native baseline for the +-10 % target): D3D11 gate and D3D12 fence round trips
+  (`smoke`, `d3d12-probe`), CUDA launch cost and copy bandwidth (`cuda-probe`), present rate
+  and frame statistics windowed and exclusive fullscreen at 60 Hz (`present-probe`). Vulkan:
+  `vulkaninfo --summary` in `smoke` only (no Vulkan renderer in the pack). SotTR: only if it is
+  installed in the image (it is not today: no Steam); then its built-in benchmark at 1920x1080
+  from the console, with an ETW capture around it.
+- Host-visible numbers: `hostwatch.csv` in the run folder, 1 s: `vfio-msi` interrupts of
+  2d:00.0 per second (`/proc/interrupts`), QEMU CPU %, RSS, MemAvailable, trace size.
+  `$P/pt-vm.sh status` prints the last sample.
+- End: `$P/pt-vm.sh stop` (guest `Stop-Computer`, then ACPI, then QMP quit; host kernel lines
+  of the run in `host-kernel.log`).
+- Control (optional, high value): the same disk under Cloud Hypervisor with the card,
+  `$P/pt-vm.sh start win-ch A A5-ch`, then A2-A3. The failing runs' hypervisor with the real
+  card: a TDR here points at the hypervisor, not at our device. `pt-probe.py` works on its
+  vfio fds too.
+
+### R4.4 Pass B: the register dialogue
+
+- `.0` gets `x-no-mmap=on` (every BAR access traps to QEMU and is traced with its value),
+  `x-no-kvm-msi=on` (each MSI passes QEMU: `vfio_msi_interrupt` with a timestamp),
+  `x-no-kvm-ioeventfd=on` (otherwise the quirk turns repeated MSI re-arm writes to 0x88704,
+  `NV_XVE_CYA_2`, into a KVM ioeventfd and they leave the trace). Events: `trace-B.events`.
+  The card and trace arguments (the whole line: `$P/pt-vm.sh cmdline win B`):
+```sh
+-device pcie-root-port,id=rp1,bus=pcie.0,chassis=1,slot=1
+-device vfio-pci,host=0000:2d:00.0,bus=rp1,addr=00.0,multifunction=on,x-no-mmap=on,x-no-kvm-msi=on,x-no-kvm-ioeventfd=on
+-device vfio-pci,host=0000:2d:00.1,bus=rp1,addr=00.1 -device vfio-pci,host=0000:2d:00.2,bus=rp1,addr=00.2 -device vfio-pci,host=0000:2d:00.3,bus=rp1,addr=00.3
+-msg timestamp=on -D /mnt/vmstore/caraxes/r4/runs/B1/qemu-trace.log -trace events=$P/trace-B.events
+```
+- Size: the trace can only be filtered by time at the source. B1 traces from boot (R1/R3: GOP,
+  driver init, first flips); B2 boots untraced (`PT_TRACE_FROM=qmp`) and switches the
+  per-access events on for short windows only. Offsets are filtered afterwards by the
+  converter (presets: `display` 0x610000-0x6fffff, `ptimer` 0x9000-0x9fff, `usermode`
+  0x810000-0x81ffff, `intr` 0xb80000-0xbbffff, `cfgmirror` 0x88000-0x88fff, `flip` = all
+  five; `--range 9000-6dffff` is C73's `CARAXES_TRACE_ACCESSES=bar0:0x9000-0x6e0000`). The
+  watcher switches the per-access events off below 10 GiB free. Plan 1-5 GB for B1; compress
+  after the run (`zstd -T2 --rm`, the converter reads `.zst`).
+- Expected slowdown: every BAR access is a VM exit plus a `pread`/`pwrite` on the vfio fd plus
+  one log line, ~10-30 us (native: ~1 us per read, writes posted; our device: 23-27 us per
+  trap, c0/c1). MSIs gain ~10-50 us. BAR1 and BAR3 trap too: CPU access to VRAM through BAR1
+  drops to ~1 MB/s (cursor shapes, CPU uploads); GPU work is unaffected. Boot to desktop: a
+  few minutes. The KMD's PTIMER reads trap as on our device (~85 us each in the audit), so
+  its flip DDIs get long and its UPDATEs land late, as in C68-C73: pass B puts the real card
+  into the timing our device fails in. A flip stream without TDR here means the latch and
+  notifier semantics, not the trap latency, cause the TDR.
+```sh
+$P/pt-vm.sh start win B B1
+$P/pt-guest.py wait 1800
+$P/pt-vm.sh mark desktop && sleep 120 && $P/pt-vm.sh trace off
+$P/pt-vm.sh stop
+PT_TRACE_FROM=qmp $P/pt-vm.sh start win B B2
+$P/pt-guest.py wait 1800
+$P/pt-guest.py etw start
+$P/pt-vm.sh trace on && $P/pt-guest.py dwm-restart && sleep 20 && $P/pt-vm.sh trace off
+$P/pt-guest.py etw stop B2-dwm
+$P/pt-vm.sh stop
+```
+- Converter (unit-tested on a synthetic QEMU 11.1 log: format byte for byte, mirror merge,
+  filters, markers, time base, MSI rate):
+```sh
+RUN=/mnt/vmstore/caraxes/r4/runs/B2
+python3 $P/qemutrace2gpu.py $RUN/qemu-trace.log --preset flip --markers $RUN/markers.txt --names /mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/C73-lf12/gpu-trace.log -o $RUN/gpu-trace-flip.log
+python3 $P/qemutrace2gpu.py $RUN/qemu-trace.log --range 9000-6dffff -o $RUN/gpu-trace-c73range.log
+python3 $P/qemutrace2gpu.py /mnt/vmstore/caraxes/r4/runs/B1/qemu-trace.log --preset prom --preset pmc --no-events -o /mnt/vmstore/caraxes/r4/runs/B1/gpu-trace-prom.log
+python3 -m unittest discover -s $P -p 'test_*.py'     # 20 tests, synthetic data only
+```
+
+**M1 and M2 (display audit, 2026-09-29).** The Windows KMD gets its scan line by RPC
+(`SYSTEM_GET_SCANLINE`, answered inside GSP), so no BAR trace shows it. `pt-probe.py capture`
+reads, in a loop of a few us per register, `RG_DPCA(h)` 0x616330+0x800h (LINE_CNT 15:0, FRM_CNT
+31:16), `EVT_STAT_HEAD_TIMING(h)` 0x611800+4h (LAST_DATA bit 1, VBLANK bit 2) and window w's
+`PUT`/`GET` 0x690000+0x1000w / +4 (`--set full` adds window-immediate, core PUT/GET and
+`RM_INTR_STAT_HEAD_TIMING`), and logs every change with the line and frame of that moment. Read
+only; the reads bypass QEMU (not trapped, not in the pass B log). Run it in A1 and B2 while
+flips happen (`dwm-restart`, `present-probe`), 60 s each:
+```sh
+sudo python3 $P/pt-probe.py capture --seconds 60 -o /mnt/vmstore/caraxes/r4/runs/B2/probe-B.tsv
+python3 $P/pt-probe.py readout /mnt/vmstore/caraxes/r4/runs/B2/probe-B.tsv --flips 80
+```
+- M1a, the latch deadline: per window PUT change, the line of the write and the blank at which
+  GET reached PUT; readout prints "latch deadline F: ... -> F in (a, b]" (lines before the
+  latch line), the latch line itself (expected BLANK_START+1) and all flips. Pass B's late
+  UPDATEs give the late lines; the audit estimates ~85 lines (640 KiB mempool) at 1080p60.
+- M1b, LAST_DATA: the line at which `EVT_STAT` LAST_DATA sets (and VBLANK), min/median/max over
+  all frames, and how long the ISR takes to clear it. Expectation from the audit: LAST_DATA at
+  the fetch end, ~F lines before the latch, not at the blank.
+- M2a, GET while an UPDATE is pending: readout lists the GET values seen between the PUT write
+  and GET == PUT. The audit expects GET to stop before the UPDATE method (`STG1_STATE_WAIT_FOR_UPD`)
+  until the latch; our device sets GET := PUT at the kick. Cross-check with the KMD's own reads
+  in the B2 trace: `grep -E ' [RW] bar0 0x0069000[04]' $RUN/gpu-trace-flip.log`.
+- M2b, the notifier: BEGUN/FINISHED are DMA writes to guest memory, invisible to BAR traces and
+  the probe. The flip-queue log's completion timestamp (the PresentTimestamp the KMD reports
+  from the notifier; `FlipQLog complTS` in the audit's decoding) against the VSync interrupt
+  (`VSyncISR`) and the probe's latch times (host clock; guest offset from `clock.txt`) says
+  whether the card stamps the latch (BEGUN at the promotion) and which flip it retires when.
+  Decode the CSVs as the audit did (`/mnt/vmstore/caraxes/ref/etw/flipseq_ms.txt`).
+- Probe and trace on one clock: the probe's t=0 is its header's `start`;
+  `qemutrace2gpu.py --t0 <that start>` puts the pass B trace on the same origin.
+
+### R4.5 Pass C (optional): the Linux 615 guest
+
+- Guest: overlays on desktop-b's `rootfs.qcow2` and `games.qcow2` (Ubuntu 24.04, 615 open
+  driver, GNOME on Wayland as in `kick-smoke.sh`), the Leandro kernel and initrd, `seed.img`,
+  tap caraxes6 with desktop-b's MAC; `modprobe.blacklist=caraxes_dma_range` (the device's DMA
+  aid is not wanted on real hardware). NVKMS reads window `GET_LINE` 0x690208 itself, so its
+  scan line is in the trace.
+```sh
+$P/pt-vm.sh prepare linux
+$P/pt-vm.sh start linux A C1
+ssh -i /mnt/vmstore/leandro/vm/id_leandro -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null leandro@192.168.106.26 'nvidia-smi -L; sudo dmesg | grep -E "NVRM|nvidia-drm|Xid" | tail -n 20'
+ssh -i /mnt/vmstore/leandro/vm/id_leandro -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null leandro@192.168.106.26 'export DISPLAY=:0 XAUTHORITY=$(ls -t /run/user/1000/.mutter-Xwaylandauth.* | head -1); timeout 60 vkcube > /dev/null 2>&1; echo vkcube $?'
+$P/pt-vm.sh stop
+PT_TRACE_FROM=qmp $P/pt-vm.sh start linux B C2
+$P/pt-vm.sh trace on && ssh -i /mnt/vmstore/leandro/vm/id_leandro -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null leandro@192.168.106.26 'export DISPLAY=:0 XAUTHORITY=$(ls -t /run/user/1000/.mutter-Xwaylandauth.* | head -1); timeout 10 vkcube > /dev/null 2>&1'; $P/pt-vm.sh trace off
+$P/pt-vm.sh stop
+```
+- The probe (`pt-probe.py capture`) during the vkcube run gives M1/M2 for NVKMS.
+
+### R4.6 What to compare
+
+| Item | Real card (R4) | Caraxes (C7x runs) |
+|---|---|---|
+| Window/core GET and PUT around a flip | probe (M2a); B2 trace 0x690000/4, 0x680000/4 | `gpu-trace.log`, the device's display events |
+| ASSY/ARMED readbacks around a flip | B2 trace, core ARMED 0x688000-0x68ffff (`--range 688000-68ffff`) | same range (C73: 0x68a280-0x68a360) |
+| Scan line and frame counter | probe `RG_DPCA` (Windows asks GSP; NVKMS reads `GET_LINE` 0x690208) | device clock, `SYSTEM_GET_SCANLINE` answers |
+| Latch line, deadline F, LAST_DATA line | probe readout (M1) | engine: latch at the tick, LAST_DATA with it |
+| PTIMER | B trace 0x9400/0x9410: reads per second, TIME_1/TIME_0/TIME_1 pattern, value vs host time | same offsets |
+| Interrupts | MSIs per second (`hostwatch.csv`; B: `E msi` lines and the converter's MSI rate); the ISR's reads after each MSI: `grep -A12 ' E msi ' $RUN/gpu-trace-flip.log` (0xb81000 tree, 0x611EC0 dispatch, 0x611C00 and 0x611800) | device MSI raises and the tree stores |
+| Notifier timing | ETW flip-queue log completion vs `VSyncISR`, the probe's latch times (M2b) | ETW of C68-C77, the device's notifier writes |
+| Flip DDI length, present IDs, TDR | ETW A1-A4, B2 | ETW C61-C77 |
+| Desktop and benchmarks | `bench-*.txt`, `hostwatch.csv` | Caraxes benchmark runs |
+
+### R4.7 Risks
+
+- Resets: `.0` has FLR; `.1`-`.3` have none, so QEMU hot-resets the slot (all four functions
+  are in the VM) and vfio-pci does a bus reset when the last one closes. Turing's GFW boot
+  re-runs devinit after a reset, and OVMF runs the GOP again. The USB-C pair (`.2` xHCI, `.3`
+  UCSI with `ucsi_ccg`) is the known weak spot: a failed `.3` rebind costs only USB-C PD
+  state on the host, never the desktop.
+- A host reboot is needed when: a driver step hangs in the kernel (STUCK); the card falls off
+  the bus (config reads 0xffffffff, AER fatal); `nvidia` fails `RmInitAdapter` after
+  `reset bus` (GSP/WPR2 state a guest left behind); host Xid 79/119/120 after restore.
+- Pass B may be too slow for a usable desktop (all BARs trapped). Then keep B to short traced
+  windows; a per-BAR no-mmap switch would need a local QEMU change (the operator's; QEMU
+  takes no AI-written code).
+- The probe reads display registers of a card a guest drives: read-only, status and channel
+  pointers only, the same registers the KMD reads; it keeps one host core busy while it runs.
+- Windows sees a new display adapter instance: PnP installs 617.14 from the driver store; the
+  overlay keeps all of it out of the Caraxes image.
+- Time budget:
+
+| Block | Time |
+|---|---|
+| Preconditions, logout, `check`, `to-vfio` | 30 min |
+| Pass A: first boot, mode, A1 (reboot), A2-A4, probe, bench | 75 min |
+| A5 Cloud Hypervisor control (optional) | 20 min |
+| Pass B: B1 from boot, B2 windows, probe, conversion | 60 min |
+| Pass C (optional) | 45 min |
+| Stop, `restore`, desktop back | 20 min |
+| Total | 3.5-4.5 h; the reboot fallback adds ~15 min |
+
+### R4.8 Open for the operator
+
+- sshd and the second machine (blocker, see R4.1).
+- DP-3 unplugged for R4, or two heads in the reference?
+- Is the probe (read-only BAR0 reads through QEMU's fd, as root) acceptable?
+- Pass C and A5 (Cloud Hypervisor control) this weekend or not; SotTR needs Steam in the image first.
 
 ## Guest preparation (once)
 

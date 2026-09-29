@@ -1,6 +1,12 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Passthrough procedure for R1/R3 (written, not run)
 
+> 2026-09-29: for R4 (and R1/R3 with it), sections 2-4 are replaced by
+> [experiments.md](experiments.md) R4 and `caraxes/tools/passthrough/`. Two corrections to
+> this file: the port 00:03.1 has reset_method `pm`, so its `reset` resets the port, not the
+> card (the secondary bus reset is its `reset_subordinate`); and QEMU's log trace backend
+> writes timestamps only with `-msg timestamp=on`.
+
 This is preparation only. Nothing in this file has been executed against the
 host driver, the card's registers, or the Wayland session. Every command below
 that changes host state is a **plan** for a future session run over SSH in
