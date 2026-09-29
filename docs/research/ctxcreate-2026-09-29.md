@@ -152,6 +152,33 @@ Slot 5, 1 GiB, lean VM; census trace on (5 cuCtxCreate per session), bench trace
 - new2-root-smoke (8fa5af25, root and user, next to SotTR): 0 Xid; root copies at native (h2d/d2h 16 MiB 1.31/1.30 ms, 256 MiB 13.0 GB/s, d2d 16 MiB 173 GB/s); root transformer 74.7k tokens/s, root ResNet-18 342 images/s (user 372); llama 1B does not load in the 1 GiB profile (as a user too: the model needs the 2 GiB profile) [R/new2-root-smoke/guest.txt].
 - cuMemAlloc and cuMemFree are not touched by these changes; their spread between sessions of one binary is up to 2× (base-bench2 against base-bench5, 64 MiB alloc 2.5 against 5.1 ms).
 
+## On train-2026-09-30 (the lf24 base, 991e3d86)
+
+- Taken:
+  - the admin copy channels of 83bfe733 (train 9b5ffe9f), without the Unix-only limit. The privilege level is the RM's own on every guest OS [615 tree: src/nvidia/src/kernel/gpu/fifo/kernel_channel.c:288-297], and a Windows KMD's channels are a kernel client's (KERNEL), so Windows keeps `application_copy_channel` unchanged;
+  - the gather cache 0fd0f3df (train 148165cd).
+- Not taken:
+  - the prefetch and the timing rows of 83bfe733. The build path it hooks moved to the worker, off the device lock, on lf24 (a883c6f2, f1985978): 16 conflict hunks in mirror.rs. Its gain above (303 -> 263 ms with 8fa5af25) is within about twice the session spread. A re-port is its own task;
+  - 8fa5af25: the pool barrier it narrows no longer waits for the worker under the device lock on lf24 (2a0dbb41, 0667070d), and it serves only the prefetch.
+- A/B on the train base [/mnt/vmstore/caraxes/runs-2026-09-30/train/NOTE.md, ab/]:
+  - setup: vm2-615, 1 GiB, trace off, bench-cu init ×20; no BAR1 pool, because beside the Windows VM the pool would break the host's BAR1 floor;
+  - binaries: train1 026b837d without the cache, train2 148165cd with it, lf24 as a control for the root copies.
+
+| Session | Binary | Beside | cuCtxCreate mean (fast / slow half), ms | gather alloc (profile) | root h2d / d2h 16 MiB, ms | Xid |
+|---|---|---|---|---|---|---|
+| A1 | train1 | Windows | 292 (227 / 345) | 876, 2396 ms | 1.42 / 1.41 | 0 |
+| B1 | train2 | Windows | 240 (207 / 274) | 867, 768 ms (486 from the cache) | 1.43 / 1.41 | 0 |
+| A2 | train1 | desktop-b | 316 (251 / 382) | 862, 2604 ms | 1.43 / 1.43 | 0 |
+| B2 | train2 | desktop-b | 256 (231 / 275) | 855, 818 ms (477 from the cache) | 1.51 / 1.42 | 0 |
+| L1 | lf24 | desktop-b | 259 (214 / 301) | 897, 2104 ms | 21.7 / 68.0 | 0 |
+
+- The cache:
+  - both same-load pairs favour it by 52-60 ms, mostly in the slow half of the alternating contexts;
+  - about 56 % of the gathers came from the cache, and the worker's gather time per session fell by 1.3-1.8 s;
+  - 0 descriptors cached at the exit.
+- L1 ran on a quieter card: the host's RM_ALLOC_MEMORY cost 0.63 ms mean there, against 1.5-2.8 ms in A1-B2.
+- Root copies on the lf24 base: 21.7 / 68.0 ms in the software executor, 1.41-1.51 ms mirrored (native 1.31).
+
 ## Open
 
 - The A/B above; the workload series with the new binary (llama, transformer, ResNet-18, NVENC) against series-p43.
