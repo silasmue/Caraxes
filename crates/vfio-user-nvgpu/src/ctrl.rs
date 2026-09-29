@@ -979,8 +979,8 @@ impl Dispatcher {
         let Some(m) = self.mirror.as_mut() else {
             return self.channels.doorbell_except(gm, token, &off);
         };
-        // A GR channel under CARAXES_MIRROR_GR_SHADOW runs on the host-managed shadow VAS
-        // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
+        // A mirrored channel runs on the host-managed shadow VAS of its root (D17 route 4,
+        // shadow.rs), built at its first doorbell.
         let host_doorbells = m.stats.doorbells;
         if m.is_shadow(&self.channels, chid) {
             let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
@@ -2282,10 +2282,10 @@ impl Dispatcher {
                 }
             }
         }
-        // The guest's server-reserved PDEs build the mirror VA space right away (mirror.rs
-        // `on_server_reserved_pdes`); its page-directory controls move or drop it.
+        // The guest's server-reserved PDEs are recorded (uvm.rs); the page-directory
+        // controls below move or drop a mirror VA space.
         if cmd == v::CMD_VASPACE_COPY_SERVER_RESERVED_PDES {
-            let a = crate::uvm::answer(
+            if let Some(a) = crate::uvm::answer(
                 self.chip,
                 cmd,
                 h_client,
@@ -2294,15 +2294,7 @@ impl Dispatcher {
                 &mut self.channels,
                 &mut self.uvm,
                 self.host.as_mut(),
-            );
-            if let Some(mut a) = a {
-                if let Some(m) = self.mirror.as_mut() {
-                    let notes = m.on_server_reserved_pdes(&self.channels, (h_client, h_object));
-                    if !notes.is_empty() {
-                        a.note.push_str("; mirror: ");
-                        a.note.push_str(&notes.join("; "));
-                    }
-                }
+            ) {
                 return a;
             }
         }
@@ -2332,11 +2324,7 @@ impl Dispatcher {
                         Some(crate::fb::Target::Fb(pa)) => Some(pa),
                         _ => None,
                     };
-                    let notes = m.on_page_directory(
-                        key,
-                        root,
-                        (cmd == v::CMD_DMA_SET_PAGE_DIRECTORY).then_some(params),
-                    );
+                    let notes = m.on_page_directory(key, root);
                     if !notes.is_empty() {
                         a.note.push_str("; mirror: ");
                         a.note.push_str(&notes.join("; "));

@@ -667,12 +667,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         fe_page::requested(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
     if ["CARAXES_SHADOW_USERD", "CARAXES_DEFERRED_API_CAPTURE", "CARAXES_DEFERRED_CONTEXT"].iter()
         .any(|key| std::env::var(key).as_deref() == Ok("1"))
-        && (!a.host_exec || !a.boot_model
-            || std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() != Ok("1")
-            || std::env::var("CARAXES_CE_SHADOW").as_deref() == Ok("0")
-            || std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1"))
+        && !a.host_exec
     {
-        bail!("private USERD/deferred API capture needs --host-exec, --boot-model and shadow-only GR/CE execution");
+        bail!("private USERD/deferred API capture needs --host-exec");
     }
     if std::env::var("CARAXES_DEFERRED_CONTEXT").as_deref() == Ok("1")
         && (std::env::var("CARAXES_SHADOW_USERD").as_deref() != Ok("1")
@@ -684,12 +681,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         if !a.reserve_vram || !a.host_exec || !a.boot_model {
             bail!("CARAXES_FB_ZERO_BASED=1 needs --reserve-vram, --host-exec and --boot-model");
         }
-        if std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() != Ok("1")
-            || std::env::var("CARAXES_CE_SHADOW").as_deref() == Ok("0")
-            || std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1")
-            || doorbell_ioeventfd
-        {
-            bail!("CARAXES_FB_ZERO_BASED=1 requires shadow GR/CE and refuses raw GR or token-less direct doorbells");
+        if doorbell_ioeventfd {
+            bail!("CARAXES_FB_ZERO_BASED=1 refuses token-less direct doorbells");
         }
         if vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
             bail!("CARAXES_FB_ZERO_BASED=1 does not support fixed BAR1 passthrough; use the BAR1 pool or trapped BAR1");
@@ -709,15 +702,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         if !a.reserve_vram || !a.host_exec || !a.boot_model {
             bail!("{}=slice needs --reserve-vram, --host-exec and --boot-model", compslice::ENV);
         }
-        let env = |k: &str| std::env::var(k).ok();
-        compslice::check_shadow_only(
-            compression,
-            env("CARAXES_MIRROR_GR_SHADOW").as_deref(),
-            env("CARAXES_CE_SHADOW").as_deref(),
-            env("CARAXES_MIRROR_GR").as_deref(),
-            doorbell_ioeventfd,
-        )
-        .map_err(anyhow::Error::msg)?;
+        compslice::check_shadow_only(compression, doorbell_ioeventfd).map_err(anyhow::Error::msg)?;
         eprintln!(
             "vfio-user-nvgpu: compression: {}=slice: the reservation is allocated compressed and the shadow maps compressible guest kinds on its pages (D16b)",
             compslice::ENV
@@ -759,17 +744,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=pool: use the token pool ({}=N) instead", tokens::TOKENS_ENV);
     }
     if bar1_pool.is_some() {
-        // Every GPU access must go through a translation the device controls: a host
-        // channel on an externally-owned VA space (CE without the shadow, or the replayed
-        // VAS of CARAXES_MIRROR_GR=1) walks the guest's own tables and would reach a page
-        // at its old place (docs/caraxes/bar1-pool.md, isolation and rules).
-        let env = |k: &str| std::env::var(k).ok();
-        if env("CARAXES_MIRROR_GR_SHADOW").as_deref() != Some("1")
-            || env("CARAXES_CE_SHADOW").as_deref() == Some("0")
-            || env("CARAXES_MIRROR_GR").as_deref() == Some("1")
-        {
-            bail!("CARAXES_BAR1_PASSTHROUGH=pool needs every host channel on a shadow VA space: CARAXES_MIRROR_GR_SHADOW=1, and neither CARAXES_CE_SHADOW=0 nor CARAXES_MIRROR_GR=1");
-        }
+        // Every GPU access goes through a translation the device controls: every host
+        // channel runs on a shadow VA space (docs/caraxes/bar1-pool.md, isolation and rules).
         if !a.reserve_vram || !a.boot_model || !a.host_exec {
             bail!("CARAXES_BAR1_PASSTHROUGH=pool needs --reserve-vram, --boot-model and host execution (the FB on the reserved VRAM)");
         }

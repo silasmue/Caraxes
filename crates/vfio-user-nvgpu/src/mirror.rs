@@ -617,12 +617,6 @@ pub const CMD_GET_MMU_FAULT_INFO: u32 = 0x906F_0106;
 pub const MMU_FAULT_INFO_SIZE: usize = 104;
 /// `NVC361_NOTIFY_CHANNEL_PENDING` inside the usermode page (clc361.h:33).
 const DOORBELL_OFFSET: usize = 0x90;
-/// `NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS`: hSubDevice @0, subDeviceId @4
-/// (ctrl90f1.h:65-72); the rest is the guest's (`ver::PDES_*`).
-const PDES_H_SUBDEVICE: usize = 0;
-const PDES_SUBDEVICE_ID: usize = 4;
-/// Levels handed to the host: root, PD2, PD1 (not the guest's PD0 of the reserved range).
-const PDES_LEVELS_HANDED_OVER: usize = 3;
 const NV_ERR_INVALID_ADDRESS: u32 = 0x1E;
 const PAGE: u64 = 4096;
 /// USERD offsets of GPGet and GPPut (`clc46f.h:61-62`).
@@ -856,11 +850,6 @@ impl crate::preempt::CtxswHost for LockedHost<'_> {
 struct HostVas {
     handle: u32,
     root: u64,
-    /// Built by replaying the guest's own VA-space controls (alloc parameters and
-    /// `COPY_SERVER_RESERVED_PDES`): the host RM then owns the server-reserved range
-    /// inside the guest's page-directory chain and can bind GR contexts. `false`: the
-    /// externally-owned form of host-exec.md (copy engines only).
-    replayed: bool,
 }
 
 /// The shadow VAS of one guest root, the set-B ranges excluded from it, and the guest
@@ -2030,21 +2019,6 @@ pub struct Mirror {
     /// This mirror's id among the USERD poller's watch list (`publish_userd_watch`).
     watch_id: u64,
     capture_deferred: bool,
-    /// Replay the guest's VA-space controls to make GR channels schedulable on the host
-    /// (off while the GR-context wall stands: GR runs in software, only CE on the host).
-    replay_vas: bool,
-    /// Run GR channels on the host and try the c2 promote (exec-formats.md §4.5).
-    mirror_gr: bool,
-    /// Run CUDA's copy-engine channels on the host (default); `CARAXES_MIRROR_CE=0`
-    /// keeps them on the software executor so a GR experiment is not blocked by the
-    /// CE first-launch stall (execution.md §6).
-    mirror_ce: bool,
-    /// Forward doorbells to host channels (real execution). Off by default: the CE path
-    /// hits the first-submission PBENTRY fault and GR the context wall (execution.md), so
-    /// channel work stays on the software executor over the VRAM store until those are
-    /// resolved; the VA-space, event and doorbell scaffolding is built either way so the
-    /// mirror is exercised. `CARAXES_MIRROR_CHANNELS=1` turns it on for measurements.
-    channels_enabled: bool,
     doorbell: Option<(u32, CpuMap)>,
     events: Option<Events>,
     /// The device's own privileged channel for `MEM_OP MMU_TLB_INVALIDATE` of the guest's
@@ -2060,17 +2034,6 @@ pub struct Mirror {
     device_ce: Option<Arc<Mutex<crate::devce::DeviceCe>>>,
     device_ce_tried: bool,
     memop_invalidate: bool,
-    /// `CARAXES_MIRROR_GR_SHADOW=1`: run GR channels on a host-managed **shadow VAS**
-    /// (`shadow.rs`, D17 route 4 stage 1) — the host RM owns the GR context there and the
-    /// guest's set-A is mirrored in at its own VAs. The GR launch experiment.
-    shadow_probe: bool,
-    /// `CARAXES_MIRROR_BARE_CE=1` (display-e.md): a bare copy-engine channel (no guest TSG,
-    /// the NVIDIA GL/EGL driver's CE channels) is mirrored in a host TSG of its own, keyed
-    /// by the channel's handle. Bare GR channels (the kernel's golden-context and WAR
-    /// channels) stay in software either way.
-    bare_ce: bool,
-    /// CE channels on the shadow VAS too (default with the GR shadow; `CARAXES_CE_SHADOW=0`).
-    ce_shadow: bool,
     /// One shadow VAS per guest root (per CUDA context: two processes use the same VAs
     /// for different pages, measured in the gpu gate's robustness stage), built at the
     /// first GR channel of that root and freed when its last channel and TSG are gone.
@@ -2198,12 +2161,8 @@ impl Mirror {
             return Err(format!("mirror guest reservation [{base:#x}, {end:#x}) is not the size of the host reservation [{host_base:#x}, {host_end:#x})"));
         }
         let translated = (base, end) != (host_base, host_end);
-        let shadow_probe = std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() == Ok("1");
-        let ce_shadow = std::env::var("CARAXES_CE_SHADOW").as_deref() != Ok("0");
-        let mirror_gr = std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1");
-        if translated && (!shadow_probe || !ce_shadow || mirror_gr) {
-            return Err("a translated FB reservation needs shadow-only host execution: CARAXES_MIRROR_GR_SHADOW=1, CARAXES_CE_SHADOW!=0, and CARAXES_MIRROR_GR!=1".into());
-        }
+        // Every host channel runs on a shadow VA space (`is_shadow`): no host channel walks
+        // the guest's own tables, which a translated or compressed reservation needs.
         if translated && crate::device::doorbell_ioeventfd_requested() {
             return Err("a translated FB reservation refuses the token-less doorbell ioeventfd; use trapped or token-pool doorbells so shadow routing is enforced".into());
         }
@@ -2213,9 +2172,6 @@ impl Mirror {
             Some(g) => {
                 crate::compslice::check_shadow_only(
                     crate::compslice::Mode::Slice,
-                    shadow_probe.then_some("1"),
-                    (!ce_shadow).then_some("0"),
-                    mirror_gr.then_some("1"),
                     crate::device::doorbell_ioeventfd_requested(),
                 )?;
                 if base.abs_diff(host_base) % crate::compslice::COMPR_PAGE != 0 {
@@ -2258,23 +2214,12 @@ impl Mirror {
             userd_cursor: 0,
             watch_id: crate::ptcache::fresh_generation(),
             capture_deferred: std::env::var("CARAXES_DEFERRED_API_CAPTURE").as_deref() == Ok("1"),
-            // GR channels on the host (the c2 experiment, exec-formats.md §4.5): the
-            // replayed shared-management VAS plus a second `GPU_PROMOTE_CTX` on the host
-            // channel carrying the guest's own recorded entries. Off by default (the GR
-            // context wall); `CARAXES_MIRROR_GR=1` turns it and the VAS replay on.
-            replay_vas: mirror_gr,
-            mirror_gr,
-            mirror_ce: std::env::var("CARAXES_MIRROR_CE").as_deref() != Ok("0"),
-            channels_enabled: std::env::var("CARAXES_MIRROR_CHANNELS").as_deref() == Ok("1"),
             doorbell: None,
             events: None,
             invalidator: None,
             device_ce: None,
             device_ce_tried: false,
             memop_invalidate: std::env::var("CARAXES_MEMOP_INVALIDATE").as_deref() != Ok("0"),
-            shadow_probe,
-            bare_ce: std::env::var("CARAXES_MIRROR_BARE_CE").as_deref() == Ok("1"),
-            ce_shadow,
             shadows: BTreeMap::new(),
             map_budget: crate::shadow::MapBudget::from_env(),
             worker,
@@ -2451,11 +2396,8 @@ impl Mirror {
             .extent(fb, root, buffer_id, va, &|b, e| Self::host_ctx_size(hm, b, e))
     }
 
-    /// Whether `chid` is a GR channel the shadow path takes (`CARAXES_MIRROR_GR_SHADOW=1`).
+    /// Whether `chid` is a GR channel the shadow path takes.
     pub fn is_gr_shadow(&self, reg: &Registry, chid: u32) -> bool {
-        if !self.shadow_probe {
-            return false;
-        }
         let Some(ch) = reg.channel(chid) else {
             return false;
         };
@@ -2468,11 +2410,9 @@ impl Mirror {
                 .any(|(c, _)| *c == self.chip.channel.compute)
     }
 
-    /// Whether `chid` runs on the shadow VAS of its root: every GR channel under
-    /// `CARAXES_MIRROR_GR_SHADOW=1`, and every other channel the mirror takes (CUDA's copy
-    /// engines) too, so that no host channel walks the guest's unfiltered tables
-    /// (parallel.md §8.2, D17 stage 2; docs/caraxes/mapping.md §5).
-    /// `CARAXES_CE_SHADOW=0` keeps CE channels on the externally-owned VAS (the guest root).
+    /// Whether `chid` runs on the shadow VAS of its root: every GR channel, and every other
+    /// channel the mirror takes (CUDA's copy engines) too, so that no host channel walks the
+    /// guest's unfiltered tables (parallel.md §8.2, D17 stage 2; docs/caraxes/mapping.md §5).
     pub fn is_shadow(&self, reg: &Registry, chid: u32) -> bool {
         if self.is_gr_shadow(reg, chid) {
             return true;
@@ -2480,7 +2420,7 @@ impl Mirror {
         if let Some(c) = self.channels.get(&chid) {
             return c.shadow_root.is_some();
         }
-        self.shadow_probe && self.ce_shadow && self.eligible(reg, chid).is_ok()
+        self.eligible(reg, chid).is_ok()
     }
 
     /// Harvest private USERDs and find new submissions without requiring a trapped RAM
@@ -5046,20 +4986,16 @@ impl Mirror {
     /// Whether the registry's channel `chid` is one the mirror takes: a child of a
     /// guest TSG whose VA space has a known root inside the reservation.
     pub fn eligible(&self, reg: &Registry, chid: u32) -> Result<(u64, (u32, u32)), String> {
-        if !self.channels_enabled {
-            return Err("host channel execution off (CARAXES_MIRROR_CHANNELS=1 to enable); channel work runs on the software executor over the VRAM store".into());
-        }
         let ch = reg.channel(chid).ok_or("no such channel")?;
         let gr0 = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
         let bare = reg.tsg((ch.h_client, ch.h_parent)).is_none();
-        // A bare video channel (libnvidia-encode's and libnvcuvid's, under the device with
-        // no TSG and no VAS of its own) is mirrored in a host TSG of its own, as a bare CE
-        // channel is under CARAXES_MIRROR_BARE_CE.
+        // A bare copy-engine channel (no guest TSG: the NVIDIA GL/EGL driver's CE channels,
+        // display-e.md) and a bare video channel (libnvidia-encode's and libnvcuvid's, under
+        // the device with no TSG and no VAS of its own) are mirrored in a host TSG of their
+        // own. Bare GR channels (the kernel's golden-context and WAR channels) stay in
+        // software.
         let video = video_engine(ch.engine_type);
-        if bare
-            && video.is_none()
-            && !(self.bare_ce && ch.engine_type != gr0 && ch.engine_type != 0)
-        {
+        if bare && video.is_none() && (ch.engine_type == gr0 || ch.engine_type == 0) {
             return Err("bare channel (no TSG): stays with the software executor".into());
         }
         // Fail closed: a video channel carries only the chip's own video classes.
@@ -5111,14 +5047,9 @@ impl Mirror {
                 ch.engine_type, ch.alloc_flags
             ));
         }
-        if is_gr && !self.mirror_gr {
+        if is_gr {
             return Err(
                 "GR channel: a host GR context that agrees with the guest's promoted context is not established (cuda-path.md §4.1); stays with the software executor (the kernel-launch wall)".into(),
-            );
-        }
-        if !is_gr && !self.mirror_ce {
-            return Err(
-                "CE channel kept on the software executor (CARAXES_MIRROR_CE=0) for the GR experiment".into(),
             );
         }
         let key = reg
@@ -5228,7 +5159,7 @@ impl Mirror {
             return Err(format!("raw externally-owned VAS refused for {why}; use the shadow VAS path"));
         }
         if let Some(hv) = self.vas.get(&key) {
-            if hv.root == root || hv.replayed {
+            if hv.root == root {
                 return Ok(hv.handle);
             }
             notes.push(format!(
@@ -5279,156 +5210,9 @@ impl Mirror {
             HostVas {
                 handle,
                 root,
-                replayed: false,
             },
         );
         Ok(handle)
-    }
-
-    /// The guest sent `COPY_SERVER_RESERVED_PDES` on a fresh VA space: build the host
-    /// mirror now, the way the guest kernel builds it on GSP, by replaying the guest's
-    /// own controls with the guest's own addresses (all inside the reservation): the
-    /// `FERMI_VASPACE_A` parameters as sent, then `COPY_SERVER_RESERVED_PDES` with the
-    /// guest's PDE chain pages (root, PD2, PD1, PD0 of the server-reserved range).
-    /// The host RM adopts that chain as its own page levels (gpu_vaspace.c
-    /// `gvaspaceCopyServerReservedPdes`), so it maps its GR context buffers into the
-    /// reserved range through the guest's tables and `kchannelIsSchedulable` holds for
-    /// GR channels (a bare externally-owned VAS can never schedule GR from user space:
-    /// `bIsContextBound` is set only by the kernel-internal nv_gpu_ops path).
-    pub fn on_server_reserved_pdes(&mut self, reg: &Registry, key: (u32, u32)) -> Vec<String> {
-        if let Some(why) = self.raw_refusal() {
-            self.stats.refusals += 1;
-            return vec![format!("vaspace {:#x}/{:#x}: raw server-reserved PDE replay refused for {why}", key.0, key.1)];
-        }
-        // The replayed (shared-management) VA space is only needed to schedule GR
-        // channels on the host; while GR stays in software (the launch wall), the CE
-        // channels bind to an externally-owned mirror built at their first doorbell
-        // (host-exec.md §1), so nothing is replayed here.
-        let _ = reg;
-        if !self.replay_vas {
-            return Vec::new();
-        }
-        let mut notes = Vec::new();
-        let key = reg.resolve(key);
-        if let Some(hv) = self.vas.get(&key) {
-            if hv.replayed {
-                notes.push(format!(
-                    "vaspace {:#x}/{:#x}: host mirror {:#x} already replayed",
-                    key.0, key.1, hv.handle
-                ));
-                return notes;
-            }
-            self.drop_vas(key, &mut notes);
-        }
-        let (Some(vp), Some(pdes)) = reg.vas_replay(key) else {
-            notes.push(format!(
-                "vaspace {:#x}/{:#x}: no alloc parameters or PDE levels recorded; not mirrored",
-                key.0, key.1
-            ));
-            return notes;
-        };
-        let root = match reg.vas_root(key) {
-            Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => pa,
-            other => {
-                notes.push(format!(
-                    "vaspace {:#x}/{:#x}: root {other:?} is not in the reservation; not mirrored",
-                    key.0, key.1
-                ));
-                return notes;
-            }
-        };
-        let rd32 = |b: &[u8], o: usize| u32::from_le_bytes(b[o..o + 4].try_into().unwrap());
-        let rd64 = |b: &[u8], o: usize| u64::from_le_bytes(b[o..o + 8].try_into().unwrap());
-        // Every level page must lie in the reservation.
-        let n = (rd32(pdes, v::PDES_NUM_LEVELS) as usize).min(v::PDES_MAX_LEVELS);
-        for i in 0..n {
-            let pa = rd64(
-                pdes,
-                v::PDES_LEVELS + v::PDES_LEVEL_SIZE * i + v::PDES_LEVEL_PHYS_ADDRESS,
-            );
-            if pa < self.base || pa + PAGE > self.end {
-                notes.push(format!(
-                    "vaspace {:#x}/{:#x}: PDE level {i} page {pa:#x} outside the reservation; refused",
-                    key.0, key.1
-                ));
-                self.stats.refusals += 1;
-                return notes;
-            }
-        }
-        // The host kernel RM is itself a GSP client, so it reserves the same
-        // `[4 GiB, 4.5 GiB)` for its server as the guest kernel did
-        // (`gvaspaceReserveSplitVaSpace_IMPL`, gpu_vaspace.c:410-420) and hands the host
-        // GSP its own levels; this replay then hands the GSP the guest's root, PD2 and
-        // PD1 instead (the GSP adopts them, `gvaspaceCopyServerReservedPdes_IMPL`
-        // :4296-4333, and the channel's PDB becomes the guest root: b2 measured the
-        // GPFIFO fetched at a guest VA). The alloc parameters are the guest's, unchanged:
-        // adding `VA_INTERNAL_LIMIT` (b2b, run 10) makes the RM-internal range equal the
-        // server-reserved range (vaspace_api.c:370-375, :642-644), which leaves the host
-        // kernel no VA for the context buffers it maps at `TURING_COMPUTE_A` allocation
-        // (`NV_ERR_NO_MEMORY`, measured 2026-09-23). Only root/PD2/PD1 are handed over
-        // (exec-formats.md §4.5 set C); the host GSP brings its own PD0 for the range.
-        let (lo, hi) = (
-            rd64(pdes, v::PDES_VIRT_ADDR_LO),
-            rd64(pdes, v::PDES_VIRT_ADDR_HI),
-        );
-        let t = Instant::now();
-        let mut h = self.hm.lock().unwrap();
-        let device = h.device();
-        let mut vpb = vp.to_vec();
-        vpb.resize(vpb.len().max(40), 0);
-        let handle = match h.alloc_object(device, sys::FERMI_VASPACE_A, &mut vpb, "vaspace") {
-            Ok(x) => x,
-            Err(st) => {
-                notes.push(format!(
-                    "vaspace {:#x}/{:#x}: host FERMI_VASPACE_A with the guest's parameters (flags {:#x}): {}; not mirrored",
-                    key.0,
-                    key.1,
-                    rd32(vp, 4),
-                    status_name(st)
-                ));
-                self.stats.refusals += 1;
-                return notes;
-            }
-        };
-        let mut pb = pdes.to_vec();
-        pb[PDES_H_SUBDEVICE..PDES_H_SUBDEVICE + 4].copy_from_slice(&0u32.to_le_bytes());
-        pb[PDES_SUBDEVICE_ID..PDES_SUBDEVICE_ID + 4].copy_from_slice(&0u32.to_le_bytes());
-        let n = n.min(PDES_LEVELS_HANDED_OVER);
-        pb[v::PDES_NUM_LEVELS..v::PDES_NUM_LEVELS + 4].copy_from_slice(&(n as u32).to_le_bytes());
-        // PRIVILEGED (flags 0x14004, g_vaspace_api_nvoc.c), like DMA_SET_PAGE_DIRECTORY:
-        // one CAP_SYS_ADMIN window (D12; the fourth control under it, execution.md).
-        let st = h
-            .control_admin(handle, v::CMD_VASPACE_COPY_SERVER_RESERVED_PDES, &mut pb)
-            .unwrap_or(0xFFFF_FFFF);
-        if st != sys::NV_OK {
-            notes.push(format!(
-                "vaspace {:#x}/{:#x}: host COPY_SERVER_RESERVED_PDES ({n} levels, root {root:#x}): {}; the mirror falls back to the externally-owned form at the first doorbell",
-                key.0,
-                key.1,
-                status_name(st)
-            ));
-            let _ = h.free_object(handle);
-            self.stats.refusals += 1;
-            return notes;
-        }
-        drop(h);
-        notes.push(format!(
-            "vaspace {:#x}/{:#x}: host FERMI_VASPACE_A {handle:#x} with the guest's parameters unchanged (flags {:#x}, vaSize {:#x}), COPY_SERVER_RESERVED_PDES replayed ({n} levels: root {root:#x}, PD2, PD1; server range {lo:#x}..{hi:#x}) in {} us: the host GSP owns the server-reserved range in the guest's page-directory chain [host; guest addresses unchanged]",
-            key.0,
-            key.1,
-            rd32(vp, 4),
-            rd64(vp, 8),
-            t.elapsed().as_micros()
-        ));
-        self.vas.insert(
-            key,
-            HostVas {
-                handle,
-                root,
-                replayed: true,
-            },
-        );
-        notes
     }
 
     /// Before a channel joins or builds the host TSG under `key`: an entry that stands for
@@ -5549,11 +5333,6 @@ impl Mirror {
         // A bare CE channel (`bare_ce`) gets a host TSG of its own, keyed by its internal
         // TSG id (615) or its handle.
         let (tsg_key, bare, tsg_guest) = tsg_key_of(reg, &ch);
-        // The guest's recorded promote entries for this channel (c2 replay input).
-        let promote_entries: Vec<crate::channel::PromoteEntry> = reg
-            .promoted((ch.h_client, ch.h_object))
-            .map(|m| m.values().cloned().collect())
-            .unwrap_or_default();
         let engine = if bare {
             ch.engine_type
         } else {
@@ -5713,22 +5492,6 @@ impl Mirror {
             }
             if objects.is_empty() {
                 return Err("no engine object could be created on the host channel; GPFIFO_SCHEDULE needs one".into());
-            }
-            // c2 (exec-formats.md §4.5): a GR channel gets, after its compute object and
-            // before it is scheduled (the order the guest RM uses, `_kgrAlloc` ->
-            // `kgrobjPromoteContext`), a `GPU_PROMOTE_CTX` for the host channel with the
-            // guest's recorded entries. A refusal keeps the channel off the host: it would
-            // otherwise run with a context the guest never sees (b2: Xid 38).
-            if self.mirror_gr && objects.iter().any(|(c, _)| *c == self.chip.channel.compute) {
-                let (st, note) =
-                    promote_gr(&mut h, handle, &promote_entries, self.base, self.end);
-                notes.push(note);
-                if st != sys::NV_OK {
-                    return Err(format!(
-                        "c2 GPU_PROMOTE_CTX refused ({}): the GR channel stays with the software executor",
-                        status_name(st)
-                    ));
-                }
             }
             let mut sched = [1u8, 0, 0];
             let st = h.control(handle, CMD_GPFIFO_SCHEDULE, &mut sched);
@@ -6135,8 +5898,7 @@ impl Mirror {
     /// `MEM_OP` on a software channel; `None`: every page directory): the same on every
     /// mirror VA space rooted there. Default: `DMA_INVALIDATE_TLB` on the mirror VA
     /// space (for an externally-owned one the RM's walker root *is* the guest root after
-    /// `DMA_SET_PAGE_DIRECTORY`; for a replayed one it is the host kernel's own root,
-    /// exec-formats.md §4.4). Opt-in: a `MEM_OP` `MMU_TLB_INVALIDATE` of each distinct
+    /// `DMA_SET_PAGE_DIRECTORY`, exec-formats.md §4.4). Opt-in: a `MEM_OP` `MMU_TLB_INVALIDATE` of each distinct
     /// guest root from the invalidator channel (see `invalidator`). Returns how many.
     /// Whether a host VA space walks the guest's own page tables (a mirror VAS forwarded
     /// the guest's page directory): then the host MMU reads them from VRAM, and the BAR2
@@ -6717,16 +6479,9 @@ impl Mirror {
         }
     }
 
-    /// The guest's `DMA_SET_PAGE_DIRECTORY` (`params` as sent) or `UNSET` (`None`) on
-    /// `key` (resolved). A replayed mirror gets the same control on the host with the
-    /// guest's root (PRIVILEGED: one CAP_SYS_ADMIN window), as GSP would; an
-    /// externally-owned mirror rooted elsewhere is rebuilt at the next doorbell.
-    pub fn on_page_directory(
-        &mut self,
-        key: (u32, u32),
-        root: Option<u64>,
-        params: Option<&[u8]>,
-    ) -> Vec<String> {
+    /// The guest's `DMA_SET_PAGE_DIRECTORY` or `UNSET` (`root` `None`) on `key` (resolved):
+    /// an externally-owned mirror rooted elsewhere is rebuilt at the next doorbell.
+    pub fn on_page_directory(&mut self, key: (u32, u32), root: Option<u64>) -> Vec<String> {
         if let Some(why) = self.raw_refusal() {
             return vec![format!("vaspace {:#x}/{:#x}: raw page-directory forwarding refused for {why}", key.0, key.1)];
         }
@@ -6734,59 +6489,8 @@ impl Mirror {
         let Some(hv) = self.vas.get(&key) else {
             return notes;
         };
-        if !hv.replayed {
-            if !matches!(root, Some(r) if r == hv.root) {
-                self.drop_vas(key, &mut notes);
-            }
-            return notes;
-        }
-        let handle = hv.handle;
-        let h = self.hm.lock().unwrap();
-        let device = h.device();
-        match (root, params) {
-            (Some(r), Some(p)) => {
-                if r < self.base || r + PAGE > self.end {
-                    notes.push(format!(
-                        "vaspace {:#x}/{:#x}: root {r:#x} outside the reservation; not forwarded",
-                        key.0, key.1
-                    ));
-                    return notes;
-                }
-                let mut sp = p.to_vec();
-                sp.resize(SETPD_SIZE, 0);
-                sp[16..20].copy_from_slice(&handle.to_le_bytes());
-                sp[24..28].copy_from_slice(&1u32.to_le_bytes());
-                let st = h
-                    .control_admin(device, v::CMD_DMA_SET_PAGE_DIRECTORY, &mut sp)
-                    .unwrap_or(0xFFFF_FFFF);
-                notes.push(format!(
-                    "vaspace {:#x}/{:#x}: host DMA_SET_PAGE_DIRECTORY {r:#x} (guest's flags {:#x}) on mirror {handle:#x}: {} [host]",
-                    key.0,
-                    key.1,
-                    u32::from_le_bytes(p[12..16].try_into().unwrap_or([0; 4])),
-                    status_name(st)
-                ));
-                drop(h);
-                if st == sys::NV_OK {
-                    if let Some(hv) = self.vas.get_mut(&key) {
-                        hv.root = r;
-                    }
-                }
-            }
-            _ => {
-                let mut up = [0u8; 8];
-                up[0..4].copy_from_slice(&handle.to_le_bytes());
-                up[4..8].copy_from_slice(&1u32.to_le_bytes());
-                let st = h
-                    .control_admin(device, v::CMD_DMA_UNSET_PAGE_DIRECTORY, &mut up)
-                    .unwrap_or(0xFFFF_FFFF);
-                notes.push(format!(
-                    "vaspace {:#x}/{:#x}: host DMA_UNSET_PAGE_DIRECTORY on mirror {handle:#x}: {} [host]",
-                    key.0,
-                    key.1,
-                    status_name(st)
-                ));
-            }
+        if !matches!(root, Some(r) if r == hv.root) {
+            self.drop_vas(key, &mut notes);
         }
         notes
     }
@@ -7536,139 +7240,6 @@ impl Drop for ShadowWorker {
     }
 }
 
-/// Validate the guest-owned physical half of one `GPU_PROMOTE_CTX` entry before the
-/// privileged host control can see it. `physAttr` uses the public
-/// `NV2080_CTRL_GPU_INITIALIZE_CTX_APERTURE` bits 1:0 and GPU-cacheable bit 2. The mirror
-/// currently owns only the reservation's contiguous VIDMEM aperture; system-memory
-/// physical addresses require an explicit registered-descriptor translation and are not
-/// forwarded by this path.
-fn validate_promote_phys(
-    entry: &crate::channel::PromoteEntry,
-    base: u64,
-    end: u64,
-) -> Result<(), String> {
-    if entry.nonmapped && !entry.initialize {
-        return Err("bNonmapped without bInitialize is illegal".into());
-    }
-    let Some((pa, attr)) = entry.phys else {
-        return if entry.initialize {
-            Err("bInitialize has no physical address".into())
-        } else {
-            Ok(())
-        };
-    };
-    if !entry.initialize {
-        return Err(format!("physical address {pa:#x} without bInitialize"));
-    }
-    if entry.size == 0 {
-        return Err(format!("physical address {pa:#x} has zero size"));
-    }
-    if attr & !0x7 != 0 {
-        return Err(format!("physical attributes {attr:#x} contain unsupported bits"));
-    }
-    match attr & 0x3 {
-        0 => {
-            let limit = pa
-                .checked_add(entry.size)
-                .ok_or_else(|| format!("VIDMEM range {pa:#x}+{:#x} wraps", entry.size))?;
-            if pa < base || limit > end {
-                return Err(format!(
-                    "VIDMEM range [{pa:#x}, {limit:#x}) is outside the reservation [{base:#x}, {end:#x})"
-                ));
-            }
-            Ok(())
-        }
-        1 => Err(format!(
-            "COHERENT_SYSMEM physical range {pa:#x}+{:#x} has no registered-descriptor translation",
-            entry.size
-        )),
-        2 => Err(format!(
-            "NONCOHERENT_SYSMEM physical range {pa:#x}+{:#x} has no registered-descriptor translation",
-            entry.size
-        )),
-        _ => Err(format!("physical attributes {attr:#x} name an invalid aperture")),
-    }
-}
-
-/// c2 (exec-formats.md §4.5): `GPU_PROMOTE_CTX` for the host GR channel with the
-/// guest's recorded entries (VAs of every buffer, the reservation PAs with the
-/// initialize flag for MAIN and PATCH), so the host GSP initializes the guest's
-/// MAIN/PATCH at their PAs from its golden image and binds the guest's context VAs to
-/// the host channel, which walks the guest root. PRIVILEGED (flags 0x10244): one
-/// CAP_SYS_ADMIN window (D12; the fifth control under it, execution.md). Returns the
-/// status and its note; every PA handed over was checked against the reservation.
-fn promote_gr(
-    h: &mut HostMemory,
-    host_channel: u32,
-    entries: &[crate::channel::PromoteEntry],
-    base: u64,
-    end: u64,
-) -> (u32, String) {
-    if entries.is_empty() {
-        return (
-            0xFFFF_FFFF,
-            format!("chid mirror {host_channel:#x}: no recorded promote entries; GR context not promoted (c2)"),
-        );
-    }
-    for e in entries {
-        if let Err(why) = validate_promote_phys(e, base, end) {
-            return (
-                sys::NV_ERR_INVALID_ARGUMENT,
-                format!(
-                    "chid mirror {host_channel:#x}: c2 GPU_PROMOTE_CTX entry {} refused before the privileged host control: {why} [guest, isolation]",
-                    e.buffer_id
-                ),
-            );
-        }
-    }
-    let root = h.root();
-    let n = entries.len().min(v::PROMOTE_MAX_ENTRIES);
-    let mut p = vec![0u8; v::PROMOTE_PARAMS_SIZE];
-    let put32 = |b: &mut [u8], o: usize, v: u32| b[o..o + 4].copy_from_slice(&v.to_le_bytes());
-    let put64 = |b: &mut [u8], o: usize, v: u64| b[o..o + 8].copy_from_slice(&v.to_le_bytes());
-    // engineType GR0, hClient/hChanClient = host root, hObject = host channel.
-    put32(
-        &mut p,
-        v::PROMOTE_ENGINE_TYPE,
-        v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1),
-    );
-    put32(&mut p, 4, root);
-    put32(&mut p, v::PROMOTE_H_CHAN_CLIENT, root);
-    put32(&mut p, v::PROMOTE_H_OBJECT, host_channel);
-    put32(&mut p, v::PROMOTE_ENTRY_COUNT, n as u32);
-    let mut desc = Vec::new();
-    for (i, e) in entries.iter().take(n).enumerate() {
-        let o = v::PROMOTE_ENTRIES + v::PROMOTE_ENTRY_SIZE * i;
-        let (pa, attr) = e.phys.unwrap_or((0, 0));
-        put64(&mut p, o, pa);
-        put64(&mut p, o + 8, e.virt.unwrap_or(0));
-        put64(&mut p, o + 16, e.size);
-        put32(&mut p, o + 24, attr);
-        p[o + 28..o + 30].copy_from_slice(&e.buffer_id.to_le_bytes());
-        p[o + 30] = e.initialize as u8;
-        p[o + 31] = e.nonmapped as u8;
-        desc.push(format!(
-            "{}: pa {pa:#x} va {:#x} size {:#x}{}",
-            e.buffer_id,
-            e.virt.unwrap_or(0),
-            e.size,
-            if e.initialize { " init" } else { "" }
-        ));
-    }
-    let sub = h.subdevice();
-    let st = h
-        .control_admin(sub, v::CMD_GPU_PROMOTE_CTX, &mut p)
-        .unwrap_or(0xFFFF_FFFF);
-    (
-        st,
-        format!(
-            "chid mirror {host_channel:#x}: c2 GPU_PROMOTE_CTX(admin) engineType GR0 hObject = the host channel, {n} entries [{}] -> {} [host]",
-            desc.join("; "),
-            status_name(st)
-        ),
-    )
-}
-
 impl Drop for Mirror {
     fn drop(&mut self) {
         // The poller forgets this mirror's USERDs.
@@ -8093,61 +7664,6 @@ mod tests {
             reg.channel(32).unwrap(),
             gr0
         ));
-    }
-
-    /// The privileged context-promotion control receives only initialized VIDMEM ranges
-    /// wholly owned by this mirror. VA-only entries remain valid; system apertures need a
-    /// separate registered-descriptor translation and are refused by this path.
-    #[test]
-    fn promote_physical_entries_are_bounded_to_the_reservation() {
-        const BASE: u64 = 0x1_0000_0000;
-        const END: u64 = BASE + 0x20_0000;
-        let physical = |pa, size, attr| crate::channel::PromoteEntry {
-            buffer_id: 0,
-            phys: Some((pa, attr)),
-            size,
-            initialize: true,
-            ..Default::default()
-        };
-
-        assert!(validate_promote_phys(&physical(BASE, END - BASE, 0x4), BASE, END).is_ok());
-        assert!(validate_promote_phys(&physical(BASE + 0x1000, 0x8c00, 0), BASE, END).is_ok());
-        assert!(validate_promote_phys(
-            &crate::channel::PromoteEntry {
-                buffer_id: 9,
-                virt: Some(0x1_2000_0000),
-                ..Default::default()
-            },
-            BASE,
-            END
-        )
-        .is_ok());
-
-        for bad in [
-            physical(BASE - 1, 1, 0x4),
-            physical(END - 1, 2, 0x4),
-            physical(u64::MAX - 1, 4, 0x4),
-            physical(BASE, 0, 0x4),
-            physical(BASE, 0x1000, 0x5),
-            physical(BASE, 0x1000, 0x6),
-            physical(BASE, 0x1000, 0x3),
-            physical(BASE, 0x1000, 0x8),
-        ] {
-            assert!(validate_promote_phys(&bad, BASE, END).is_err(), "{bad:?}");
-        }
-
-        let mut missing = crate::channel::PromoteEntry {
-            buffer_id: 2,
-            initialize: true,
-            ..Default::default()
-        };
-        assert!(validate_promote_phys(&missing, BASE, END).is_err());
-        missing.initialize = false;
-        missing.nonmapped = true;
-        assert!(validate_promote_phys(&missing, BASE, END).is_err());
-        let mut uninitialized = physical(BASE, 0x1000, 0x4);
-        uninitialized.initialize = false;
-        assert!(validate_promote_phys(&uninitialized, BASE, END).is_err());
     }
 
     /// Global GR context sizes belong to host engine properties, not to a guest channel:

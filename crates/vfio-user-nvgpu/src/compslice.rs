@@ -148,25 +148,13 @@ pub fn requested() -> Result<Mode, String> {
 
 /// Invariant (b): compression only with shadow-only host execution. The guest writes
 /// compressible kinds with its own COMPTAGLINE into its page tables; a host channel that
-/// walks those tables (the replayed VAS of `CARAXES_MIRROR_GR=1`, a CE channel without the
-/// shadow) would use the guest's line, which indexes the host's global compbit store. The
-/// same condition as for a translated FB reservation (mirror.rs `Mirror::new`), from the
-/// raw values of `CARAXES_MIRROR_GR_SHADOW`, `CARAXES_CE_SHADOW`, `CARAXES_MIRROR_GR` and
-/// whether the token-less doorbell ioeventfd is requested.
-pub fn check_shadow_only(
-    mode: Mode,
-    gr_shadow: Option<&str>,
-    ce_shadow: Option<&str>,
-    mirror_gr: Option<&str>,
-    ioeventfd: bool,
-) -> Result<(), String> {
+/// walked those tables would use the guest's line, which indexes the host's global compbit
+/// store. Every host channel runs on a shadow VA space (mirror.rs `is_shadow`); what is
+/// left to refuse is the token-less doorbell ioeventfd (`ioeventfd`), as for a translated
+/// FB reservation (mirror.rs `Mirror::new`).
+pub fn check_shadow_only(mode: Mode, ioeventfd: bool) -> Result<(), String> {
     if mode == Mode::Off {
         return Ok(());
-    }
-    if gr_shadow != Some("1") || ce_shadow == Some("0") || mirror_gr == Some("1") {
-        return Err(format!(
-            "{ENV}=slice needs shadow-only host execution (no host channel may walk the guest's own page tables, whose COMPTAGLINE the guest writes): CARAXES_MIRROR_GR_SHADOW=1, CARAXES_CE_SHADOW!=0 and CARAXES_MIRROR_GR!=1"
-        ));
     }
     if ioeventfd {
         return Err(format!(
@@ -622,19 +610,13 @@ mod tests {
         assert!(parse(Some("on")).is_err());
     }
 
-    /// Invariant (b): refused unless GR and CE run on shadow VA spaces and no raw GR.
+    /// Invariant (b): refused with the token-less doorbell ioeventfd.
     #[test]
     fn compression_needs_shadow_only_execution() {
-        let ok = |g, c, m, io| check_shadow_only(Mode::Slice, g, c, m, io);
-        assert!(ok(Some("1"), None, None, false).is_ok());
-        assert!(ok(Some("1"), Some("1"), Some("0"), false).is_ok());
-        assert!(ok(None, None, None, false).is_err());
-        assert!(ok(Some("0"), None, None, false).is_err());
-        assert!(ok(Some("1"), Some("0"), None, false).is_err());
-        assert!(ok(Some("1"), None, Some("1"), false).is_err());
-        assert!(ok(Some("1"), None, None, true).is_err());
+        assert!(check_shadow_only(Mode::Slice, false).is_ok());
+        assert!(check_shadow_only(Mode::Slice, true).is_err());
         // Off: nothing is required.
-        assert!(check_shadow_only(Mode::Off, None, Some("0"), Some("1"), true).is_ok());
+        assert!(check_shadow_only(Mode::Off, true).is_ok());
     }
 
     #[test]
