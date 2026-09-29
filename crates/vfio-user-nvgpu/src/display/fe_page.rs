@@ -69,7 +69,7 @@ pub fn parse(v: Option<&str>, intr_page: bool, display: bool) -> Result<bool, St
     };
     if on && !intr_page {
         return Err(format!(
-            "{DISPLAY_PAGE_ENV}=1 needs CARAXES_INTR_PAGE=1: the page is a third area of its memfd and the interrupt page's reactor scans it"
+            "{DISPLAY_PAGE_ENV}=1 needs the interrupt page, which host execution runs: the page is a third area of its memfd and the interrupt page's reactor scans it"
         ));
     }
     if on && !display {
@@ -840,7 +840,7 @@ mod tests {
         assert_eq!(parse(Some("1"), true, true), Ok(true));
         assert!(parse(Some("1"), false, true)
             .unwrap_err()
-            .contains("CARAXES_INTR_PAGE"));
+            .contains("interrupt page"));
         assert!(parse(Some("1"), true, false)
             .unwrap_err()
             .contains("--display"));

@@ -68,7 +68,7 @@ pub fn parse(v: Option<&str>, intr_page: bool, boot_model: bool) -> Result<bool,
     };
     if on && !intr_page {
         return Err(format!(
-            "{INVALIDATE_PAGE_ENV}=1 needs CARAXES_INTR_PAGE=1 (its memfd and its reactor)"
+            "{INVALIDATE_PAGE_ENV}=1 needs the interrupt page, which host execution runs (its memfd and its reactor)"
         ));
     }
     if on && !boot_model {
@@ -485,7 +485,7 @@ mod tests {
         assert_eq!(parse(None, false, false), Ok(false));
         assert_eq!(parse(Some("0"), false, false), Ok(false));
         assert_eq!(parse(Some("1"), true, true), Ok(true));
-        assert!(parse(Some("1"), false, true).unwrap_err().contains("CARAXES_INTR_PAGE"));
+        assert!(parse(Some("1"), false, true).unwrap_err().contains("interrupt page"));
         assert!(parse(Some("1"), true, false).unwrap_err().contains("boot model"));
         assert!(parse(Some("yes"), true, true).is_err());
     }

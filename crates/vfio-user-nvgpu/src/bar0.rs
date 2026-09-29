@@ -185,7 +185,7 @@ pub struct Bar0 {
     served_captured: bool,
     boot: Option<BootModel>,
     notes: Vec<String>,
-    /// `CARAXES_INTR_PAGE=1`: page 0 and the interrupt tree's page are memory the guest
+    /// The interrupt page (host execution): page 0 and the interrupt tree's page are memory the guest
     /// maps (intr_page.rs); a trapped access there goes to that memory too.
     page: Option<std::sync::Arc<crate::intr_page::IntrPage>>,
     /// `CARAXES_DISPLAY_PAGE=1`: the display front-end page 0x611000 is memory too

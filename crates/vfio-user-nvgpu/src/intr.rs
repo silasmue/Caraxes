@@ -38,7 +38,7 @@ pub struct IntrShared {
     pub rc_events: AtomicU64,
     /// Lines the event thread wants in the trace (drained by the server thread).
     pub notes: Mutex<Vec<String>>,
-    /// The interrupt page (`CARAXES_INTR_PAGE=1`, intr_page.rs): when set, a raise does
+    /// The interrupt page (host execution, intr_page.rs): when set, a raise does
     /// not write the MSI itself but hands the vector to the reactor, which writes the
     /// page first and then the MSI.
     page: Mutex<Option<File>>,

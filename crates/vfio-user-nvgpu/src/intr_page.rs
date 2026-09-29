@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-//! The interrupt page (`CARAXES_INTR_PAGE=1`, docs/caraxes/intr-page.md).
+//! The interrupt page (on with host execution, docs/caraxes/intr-page.md).
 //!
 //! BAR0 page 0 (`NV_PMC`: boot constants and the latched `NV_PMC_INTR_EN_SET/CLEAR`) and
 //! the page of the VF CPU interrupt tree are offered to the client as sparse mmap areas of
@@ -38,29 +38,6 @@ use crate::intr::{
     TOP_EN_SET,
 };
 
-/// The switch.
-pub const INTR_PAGE_ENV: &str = "CARAXES_INTR_PAGE";
-/// Hybrid reactor: the longest blocking wait while the page is on, in milliseconds.
-pub const SLEEP_ENV: &str = "CARAXES_INTR_PAGE_SLEEP_MS";
-/// The retrigger watchdog's period in milliseconds (0: off).
-pub const RETRIGGER_ENV: &str = "CARAXES_INTR_PAGE_RETRIGGER_MS";
-
-/// Spin from this many microseconds before each display tick (display page only; 0 or
-/// unset: off), docs/caraxes/intr-page.md §11.4.
-pub const VBLANK_SPIN_ENV: &str = "CARAXES_INTR_PAGE_VBLANK_SPIN_US";
-
-/// `CARAXES_INTR_PAGE_VBLANK_SPIN_US`: microseconds, 0 to 16000.
-pub fn vblank_spin(v: Option<&str>) -> Result<u64, String> {
-    match v.map(str::trim).filter(|v| !v.is_empty()) {
-        None => Ok(0),
-        Some(v) => v
-            .parse::<u64>()
-            .ok()
-            .filter(|&us| us <= 16_000)
-            .ok_or_else(|| format!("{VBLANK_SPIN_ENV}={v:?}: microseconds, 0 to 16000")),
-    }
-}
-
 /// The page granularity of the sparse areas (the host's; checked at start).
 pub const PAGE: u64 = 4096;
 /// Shown in every leaf and in `TOP_EN_SET`; the guest never stores it.
@@ -78,7 +55,7 @@ const BOOT_OFFSETS: [u64; 3] = [
     crate::bar0::NV_PMC_BOOT_42,
 ];
 
-/// The configuration the environment asks for.
+/// The page's settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Config {
     /// Hybrid: the longest blocking wait (ms).
@@ -96,55 +73,10 @@ impl Default for Config {
     }
 }
 
-/// `CARAXES_INTR_PAGE` and its two settings; `None` when the page is off. A setting given
-/// without the switch is refused rather than ignored.
-pub fn requested() -> Result<Option<Config>, String> {
-    let get = |k: &str| std::env::var(k).ok();
-    parse(
-        get(INTR_PAGE_ENV).as_deref(),
-        get(SLEEP_ENV).as_deref(),
-        get(RETRIGGER_ENV).as_deref(),
-    )
-}
-
-pub fn parse(
-    on: Option<&str>,
-    sleep: Option<&str>,
-    retrigger: Option<&str>,
-) -> Result<Option<Config>, String> {
-    fn set(v: Option<&str>) -> Option<&str> {
-        v.map(str::trim).filter(|v| !v.is_empty())
-    }
-    let (on, sleep, retrigger) = (set(on), set(sleep), set(retrigger));
-    let on = match on.unwrap_or("0") {
-        "0" | "off" => false,
-        "1" | "on" => true,
-        v => return Err(format!("{INTR_PAGE_ENV}={v:?}: 0 or 1")),
-    };
-    if !on {
-        if sleep.is_some() || retrigger.is_some() {
-            return Err(format!(
-                "{SLEEP_ENV} or {RETRIGGER_ENV} is set but {INTR_PAGE_ENV} is off"
-            ));
-        }
-        return Ok(None);
-    }
-    let mut c = Config::default();
-    if let Some(v) = sleep {
-        c.sleep_ms = v
-            .parse::<u16>()
-            .ok()
-            .filter(|&ms| ms >= 1)
-            .map(i32::from)
-            .ok_or_else(|| format!("{SLEEP_ENV}={v:?}: milliseconds, 1 to 65535"))?;
-    }
-    if let Some(v) = retrigger {
-        let ms = v
-            .parse::<u64>()
-            .map_err(|_| format!("{RETRIGGER_ENV}={v:?}: milliseconds, a whole number"))?;
-        c.retrigger = (ms > 0).then(|| Duration::from_millis(ms));
-    }
-    Ok(Some(c))
+/// The page is on with host execution (every production launcher's `CARAXES_INTR_PAGE=1`
+/// until 2026-09-30) and off without: pure emulation keeps the trapped interrupt tree.
+pub fn requested(host_exec: bool) -> Option<Config> {
+    host_exec.then(Config::default)
 }
 
 /// The direct completion (docs/caraxes/launch-path.md): a raise from the host's event
@@ -159,7 +91,7 @@ pub fn direct_requested(v: Option<&str>, page_on: bool) -> Result<bool, String> 
     match v.map(str::trim).filter(|v| !v.is_empty()).unwrap_or("0") {
         "0" | "off" => Ok(false),
         "1" | "on" if page_on => Ok(true),
-        "1" | "on" => Err(format!("{DIRECT_ENV}=1 needs {INTR_PAGE_ENV}=1")),
+        "1" | "on" => Err(format!("{DIRECT_ENV}=1 needs the interrupt page (--host-exec)")),
         v => Err(format!("{DIRECT_ENV}={v:?}: 0 or 1")),
     }
 }
@@ -1221,9 +1153,6 @@ pub struct PageHook {
         Arc<crate::display::chan_page::ChanPage>,
         Arc<crate::display::chan_page::Driver>,
     )>,
-    /// `CARAXES_INTR_PAGE_VBLANK_SPIN_US`: spin from this long before each display tick
-    /// (docs/caraxes/intr-page.md §11.4); 0 off.
-    vblank_lead_ns: u64,
     /// From a display raise to the reactor's wake-up for it (a blocked reactor only).
     pub raise_wake: Arc<Mutex<crate::display::engine::Hist>>,
     wake: File,
@@ -1250,7 +1179,6 @@ impl PageHook {
                 inv: None,
                 um: None,
                 kicks: None,
-                vblank_lead_ns: 0,
                 raise_wake: Arc::new(Mutex::new(Default::default())),
                 wake,
                 iterations: 0,
@@ -1267,23 +1195,6 @@ impl PageHook {
     pub fn with_display(mut self, fe: Arc<crate::display::fe_page::FePage>) -> Self {
         self.fe = Some(fe);
         self
-    }
-
-    /// Spin from `lead_us` before each display tick until it is served (0: off).
-    pub fn with_vblank_spin(mut self, lead_us: u64) -> Self {
-        self.vblank_lead_ns = lead_us * 1000;
-        self
-    }
-
-    /// The vblank window: a display tick is due within the lead (the clock's next tick).
-    fn vblank_window(&self) -> bool {
-        if self.vblank_lead_ns == 0 || self.fe.is_none() {
-            return false;
-        }
-        let t = crate::display::engine::ticker();
-        t.next_due().is_some_and(|d| {
-            crate::display::engine::now_ns() + self.vblank_lead_ns >= d
-        })
     }
 
     /// Scan the MMU invalidate page and run `driver` for each trigger found.
@@ -1344,7 +1255,6 @@ impl crate::poll::Hook for PageHook {
         if let Some((p, d)) = &self.kicks {
             work |= crate::display::chan_page::poll(p, d.as_ref());
         }
-        work |= self.vblank_window();
         self.iterations = self.iterations.wrapping_add(1);
         if woken || self.iterations % TICK_ITERATIONS == 0 {
             let now = Instant::now();
@@ -1428,18 +1338,13 @@ mod tests {
         p.tree.word(reg).load(Ordering::Acquire)
     }
 
+    /// On with host execution, with the 1 ms sleep bound and the 10 ms retrigger watchdog.
     #[test]
-    fn switch_and_settings() {
-        assert_eq!(parse(None, None, None), Ok(None));
-        assert_eq!(parse(Some("0"), None, None), Ok(None));
-        assert_eq!(parse(Some("1"), None, None), Ok(Some(Config::default())));
-        let c = parse(Some("1"), Some("5"), Some("0")).unwrap().unwrap();
-        assert_eq!(c.sleep_ms, 5);
-        assert_eq!(c.retrigger, None);
-        assert!(parse(Some("yes"), None, None).is_err());
-        assert!(parse(None, Some("5"), None).unwrap_err().contains("is off"));
-        assert!(parse(Some("1"), Some("0"), None).is_err());
-        assert!(parse(Some("1"), None, Some("-3")).is_err());
+    fn the_page_follows_host_execution() {
+        assert_eq!(requested(false), None);
+        let c = requested(true).unwrap();
+        assert_eq!(c.sleep_ms, 1);
+        assert_eq!(c.retrigger, Some(Duration::from_millis(10)));
     }
 
     #[test]

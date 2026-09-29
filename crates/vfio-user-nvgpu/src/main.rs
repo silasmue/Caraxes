@@ -623,8 +623,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         );
     }
     let mut rpc_head = None;
-    // How the doorbell eventfds are read (docs/caraxes/doorbell-poll.md).
-    let poll = vfio_user_nvgpu::poll::requested().map_err(anyhow::Error::msg)?;
+    // How the doorbell eventfds are read (docs/caraxes/doorbell-poll.md): the knob, hybrid
+    // with host execution unless set.
+    let poll = vfio_user_nvgpu::poll::requested(a.host_exec).map_err(anyhow::Error::msg)?;
     if let Some(hold) = vfio_user_nvgpu::launch::configure_gate().map_err(anyhow::Error::msg)? {
         eprintln!(
             "vfio-user-nvgpu: intr gate: host non-stall events held up to {} ms while this device wrote no host doorbell for {} ms ({}, backlog item 5, docs/caraxes/launch-path.md)",
@@ -654,9 +655,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             tokens::TOKENS_ENV
         );
     }
-    // The interrupt page (docs/caraxes/intr-page.md): the guest's acks and enable writes
-    // land in memory and are seen only by a polling reactor.
-    let intr_page_config = intr_page::requested().map_err(anyhow::Error::msg)?;
+    // The interrupt page (docs/caraxes/intr-page.md), on with host execution: the guest's
+    // acks and enable writes land in memory and are seen only by a polling reactor.
+    let intr_page_config = intr_page::requested(a.host_exec);
     let intr_direct = intr_page::direct_requested(
         std::env::var(intr_page::DIRECT_ENV).ok().as_deref(),
         intr_page_config.is_some(),
@@ -708,20 +709,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             compslice::ENV
         );
     }
-    if intr_page_config.is_some() {
-        if poll.mode == vfio_user_nvgpu::poll::Mode::Off {
-            bail!(
-                "{}=1 needs {}=spin or hybrid: the guest's acks and enable writes in the page are seen only by the polling reactor (docs/caraxes/intr-page.md §5)",
-                intr_page::INTR_PAGE_ENV,
-                vfio_user_nvgpu::poll::POLL_ENV
-            );
-        }
-        if !a.boot_model {
-            bail!(
-                "{}=1 needs --boot-model (the interrupt tree lives in the boot model)",
-                intr_page::INTR_PAGE_ENV
-            );
-        }
+    if intr_page_config.is_some() && poll.mode == vfio_user_nvgpu::poll::Mode::Off {
+        bail!(
+            "{}=off: host execution runs the interrupt page, whose acks and enable writes only a polling reactor sees (docs/caraxes/intr-page.md §5); use hybrid or spin",
+            vfio_user_nvgpu::poll::POLL_ENV
+        );
     }
     // Refuse at start when a poll mode cannot pin its reader (no core to choose).
     let reactor = |name| {
@@ -1185,7 +1177,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 intr_shared.clone(),
                 cfg,
             )
-            .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
+            .map_err(|e| anyhow::anyhow!("intr page: {e}"))?;
             let vectors: Vec<u32> = d
                 .interrupts
                 .entries
@@ -1197,7 +1189,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 d.registers.intr_tree_size,
                 &vectors,
             )
-            .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
+            .map_err(|e| anyhow::anyhow!("intr page: {e}"))?;
             page.enable_vectors(&vectors);
             page.set_hint_vectors(&vfio_user_nvgpu::mirror::hint_vectors(d));
             if profile::on() {
@@ -1221,13 +1213,12 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             }
             bar0 = bar0.with_intr_page(page.clone());
             eprintln!(
-                "vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [{:#x}, {:#x}) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound {} ms, retrigger watchdog {}) ({}=1, docs/caraxes/intr-page.md)",
+                "vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [{:#x}, {:#x}) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound {} ms, retrigger watchdog {}) (host execution, docs/caraxes/intr-page.md)",
                 d.registers.intr_tree,
                 d.registers.intr_tree + intr_page::PAGE,
                 cfg.sleep_ms,
                 cfg.retrigger
                     .map_or("off".into(), |p| format!("{} ms", p.as_millis())),
-                intr_page::INTR_PAGE_ENV
             );
             Some(page)
         }
@@ -1360,10 +1351,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 );
             }
             let hook = match &fe {
-                Some(f) => hook.with_display(f.clone()).with_vblank_spin(
-                    intr_page::vblank_spin(std::env::var(intr_page::VBLANK_SPIN_ENV).ok().as_deref())
-                        .map_err(anyhow::Error::msg)?,
-                ),
+                Some(f) => hook.with_display(f.clone()),
                 None => hook,
             };
             Some(hook)
@@ -1709,18 +1697,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         ));
     }
     if page_hook.is_some() {
-        bail!(
-            "{}=1: no doorbell reactor to run the page in",
-            intr_page::INTR_PAGE_ENV
-        );
+        bail!("intr page: no doorbell reactor to run the page in");
     }
     if poll.mode != vfio_user_nvgpu::poll::Mode::Off {
         eprintln!(
-            "vfio-user-nvgpu: doorbell poll: {} reader ({}={}, {}={:?})",
+            "vfio-user-nvgpu: doorbell poll: {} reader ({}={}, pin {:?})",
             poll.mode.name(),
             vfio_user_nvgpu::poll::POLL_ENV,
             poll.mode.name(),
-            vfio_user_nvgpu::poll::POLL_CPU_ENV,
             poll.pin
         );
     }
