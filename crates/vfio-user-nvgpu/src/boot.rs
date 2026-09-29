@@ -1265,45 +1265,25 @@ impl BootModel {
         })
     }
 
-    /// Whether the BAR1 pool's poll after a trapped BAR0 write at `off` merges the
-    /// replicas (bar1pool.rs `poll_at`). Not after a write that only latches a value or
-    /// whose own handler merged just before the poll (docs/caraxes/bar1-pool.md §11):
-    /// - the MMU invalidate's PDB and upper PDB (latched; the trigger follows);
-    /// - the MMU invalidate trigger (its handler runs `sync_untracked` before the re-sync);
-    /// - the usermode doorbell (not a sync point, bar1-pool.md §10; its handler forwards
-    ///   the doorbell before the poll, so a merge there orders nothing for it);
-    /// - the PTIMER time registers (the write is dropped);
-    /// - the GSP command queue's head, `NV_PGSP_QUEUE_HEAD(0)` (the command-queue doorbell:
-    ///   its handler runs `sync_untracked` itself before the RPC, bar1-pool.md §12);
-    /// - the GSP status queue's tail, `NV_PGSP_MSGQ_TAIL(0)` (the guest's read pointer:
-    ///   it hands the device nothing to read).
-    ///
-    /// Every other BAR0 write (the L2 flushes and invalidates, the display, the other GSP
-    /// registers, anything unknown) merges, as before.
     /// The GSP queue pointer registers of this chip's firmware model, when it has them.
     pub fn gsp_queue_registers(&self) -> Option<crate::chip::QueueRegisters> {
         self.fw.queue_registers()
     }
 
+    /// Whether the BAR1 pool's poll after a trapped BAR0 write at `off` merges the
+    /// replicas (bar1pool.rs `poll_at`; docs/caraxes/bar1-pool.md §16). A replica is merged
+    /// before an engine starts to consume, as BAR2 data is (bar2-memfd.md §3 rule 3): at the
+    /// hand-overs that settle an owed flush (a channel doorbell, the GSP command queue, a BAR2
+    /// bind, the flush clock; boot.rs `flush_point`) and at an MMU invalidate for the table
+    /// replicas (`sync_untracked_tables`). Among the trapped BAR0 writes only a display
+    /// channel's `PUT` starts an engine the device models itself (the display engine reads its
+    /// pushbuffer's surfaces, notifiers and semaphores from the FB): the channels' USERD
+    /// pages [`crate::display::CORE_USERD`, `USERD_END`). Every other write (the display's
+    /// interrupt acks, the interrupt tree, L2 and FB flushes (the FB flush marks the owed
+    /// flush), the GSP falcon, PRAMIN, PTIMER, doorbells with their own path) merges nothing:
+    /// SotTR run E merged 8 replicas (600 us) after each of 54700 display interrupt acks.
     pub fn pool_merge_after(&self, off: u64) -> bool {
-        if self
-            .fw
-            .queue_registers()
-            .is_some_and(|q| off == q.cmd_head || off == q.msg_tail)
-        {
-            return false;
-        }
-        !matches!(
-            self.reg(off),
-            Some(
-                Reg::MmuInvalidatePdb
-                    | Reg::MmuInvalidateUpperPdb
-                    | Reg::MmuInvalidate
-                    | Reg::UsermodeDoorbell
-                    | Reg::PtimerTime0
-                    | Reg::PtimerTime1
-            )
-        )
+        (crate::display::CORE_USERD..crate::display::USERD_END).contains(&off)
     }
 
     /// Start the L2 cache operation `op` (the guest wrote `PENDING_BUSY`). With host

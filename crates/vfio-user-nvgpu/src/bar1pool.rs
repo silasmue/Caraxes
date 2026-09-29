@@ -502,6 +502,9 @@ pub struct PoolStats {
     pub in_flight_wait_us: u128,
     /// Holds that left a barrier's preempts or re-sync to the worker and the next poll (§15).
     pub barrier_parked: u64,
+    /// Polls after a trapped BAR0 write skipped: nothing due, and the write no merge point
+    /// (§16).
+    pub polls_skipped: u64,
     pub refs_us: u128,
     pub barrier_us: u128,
     pub move_us: u128,
@@ -615,6 +618,12 @@ struct Replica {
     home_dirty: bool,
     /// Merges since the home was last read (the sweep reads it every [`HOME_SWEEP`]).
     quiet: u32,
+    /// For the exit report (§16): merges, those that carried area writes home and home
+    /// changes to the area, and home reads.
+    merges: u64,
+    to_home: u64,
+    to_area: u64,
+    home_reads: u64,
 }
 
 impl Replica {
@@ -624,6 +633,10 @@ impl Replica {
             snap,
             home_dirty: false,
             quiet: 0,
+            merges: 0,
+            to_home: 0,
+            to_area: 0,
+            home_reads: 0,
         }
     }
 }
@@ -836,6 +849,29 @@ impl Bar1Pool {
 
     /// The retired area pages older than [`RETIRE_AGE`] at `now`, checked at most every
     /// [`RETIRE_SCAN`].
+    /// Whether a poll has anything to do besides a replica merge (docs/caraxes/bar1-pool.md
+    /// §16): a unit to walk (the guest wrote a BAR1 table page through a tracked path), a
+    /// paced retry, a table-page hazard, a replica to check again, a retired page to age, a
+    /// pooled table page to mark, or a batch to continue. A trapped BAR0 write that is no
+    /// merge point skips the poll without it (device.rs `after_bar0_write_in`).
+    pub fn work_due(&self, now: Instant) -> bool {
+        !self.dirty.is_empty()
+            || !self.dir_dirty.is_empty()
+            || self.hazard_dirty
+            || self.recheck_replicas
+            || self.batch.is_some()
+            || !self.pooled_tables.is_empty()
+            || ((!self.pending.is_empty() || !self.waiting.is_empty())
+                && self.last_retry.is_none_or(|t| now.duration_since(t) >= self.retry_every))
+            || (!self.retired.is_empty()
+                && self.last_age_scan.is_none_or(|t| now.duration_since(t) >= RETIRE_SCAN))
+    }
+
+    /// A poll skipped: nothing due and the BAR0 write no merge point.
+    pub fn note_poll_skipped(&mut self) {
+        self.stats.polls_skipped += 1;
+    }
+
     fn aged(&mut self, now: Instant) -> Vec<u64> {
         if self.retired.is_empty() || self.last_age_scan.is_some_and(|t| now.duration_since(t) < RETIRE_SCAN) {
             return Vec::new();
@@ -1041,7 +1077,7 @@ impl Bar1Pool {
         let s = &self.stats;
         let (pool0, len) = self.table.pool();
         format!(
-            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10); lazy move back: {} retired now, {} retired in all (no copy), {} re-lived (no copy), home {} for another page, {} relocated, {} aged out after {} ms; {} FB store window map(s) for moves; {} device-CE transfer(s) kept on the CPU by a pooled page ({} by a retired one) (§13); lock holds: {} batch(es) in more than one hold ({} hold(s) left the rest for the next poll, longest batch {} us), {} wait(s) for a shadow job in flight ({} left to the next poll, {} us of worker waits in all), {} hold(s) left a barrier to the worker, GPU checks {} ms, barriers {} ms, moves {} ms, re-syncs {} ms in all (§14, §15)",
+            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10); lazy move back: {} retired now, {} retired in all (no copy), {} re-lived (no copy), home {} for another page, {} relocated, {} aged out after {} ms; {} FB store window map(s) for moves; {} device-CE transfer(s) kept on the CPU by a pooled page ({} by a retired one) (§13); lock holds: {} batch(es) in more than one hold ({} hold(s) left the rest for the next poll, longest batch {} us), {} wait(s) for a shadow job in flight ({} left to the next poll, {} us of worker waits in all), {} hold(s) left a barrier to the worker, GPU checks {} ms, barriers {} ms, moves {} ms, re-syncs {} ms in all (§14, §15); {} poll(s) skipped after a BAR0 write with nothing due (§16)",
             pool0 + len,
             s.polls,
             s.units_walked,
@@ -1095,7 +1131,8 @@ impl Bar1Pool {
             s.refs_us / 1000,
             s.barrier_us / 1000,
             s.move_us / 1000,
-            s.resync_us / 1000
+            s.resync_us / 1000,
+            s.polls_skipped
         )
     }
 }
@@ -1636,6 +1673,10 @@ fn merge_replica(fb: &mut FakeFb, g: u64, last: bool) -> bool {
         // Its own writes home (just merged) are in the snapshot.
         r.home_dirty = false;
         r.quiet = if read_home { 0 } else { r.quiet + 1 };
+        r.merges += 1;
+        r.to_home += u64::from(!to_home.is_empty());
+        r.to_area += u64::from(!to_area.is_empty());
+        r.home_reads += u64::from(read_home);
     }
     !to_home.is_empty() || !to_area.is_empty()
 }
@@ -1664,6 +1705,75 @@ fn make_replica(fb: &mut FakeFb, g: u64, x: u64) {
     pool.replicas.insert(g, Replica::new(x, b));
     pool.index_homes();
     pool.stats.replicas += 1;
+}
+
+/// The replicas now, one line each, for the exit summary (docs/caraxes/bar1-pool.md §16):
+/// the area page, the home and where it lives (an alias: another area page holds it), the
+/// merges and how many carried area writes home or home changes to the area, the home
+/// reads, and what uses the home: a mirrored channel's USERD, the shadow roots whose walks
+/// map it and at which VA, a channel's GPFIFO among those VAs.
+pub fn replica_lines(b: &crate::boot::BootModel) -> Vec<String> {
+    let fb = &b.fb;
+    // (area page, home, the home's own area page, merges, to home, to area, home reads)
+    type Row = (u64, u64, Option<u64>, u64, u64, u64, u64);
+    let rows: Vec<Row> = {
+        let guard = fb.pool_mut();
+        let Some(p) = guard.as_ref() else { return Vec::new() };
+        p.replicas
+            .iter()
+            .map(|(g, r)| {
+                let home_g = p.table.slot_of(r.x);
+                (*g, r.x, home_g, r.merges, r.to_home, r.to_area, r.home_reads)
+            })
+            .collect()
+    };
+    let roots: Vec<u64> = b.ctrl.mirror.as_ref().map(|m| m.shadow_roots()).unwrap_or_default();
+    rows.into_iter()
+        .map(|(g, x, home_g, merges, to_home, to_area, home_reads)| {
+            let mut uses: Vec<String> = Vec::new();
+            for ch in b.ctrl.channels.channels() {
+                if let Some(Target::Fb(u)) = ch.userd {
+                    if u & !(PAGE - 1) == x {
+                        uses.push(format!("USERD of chid {}", ch.chid));
+                    }
+                }
+            }
+            for r in &roots {
+                let vas: Vec<u64> = fb
+                    .with_walk(Target::Fb(*r), |c| {
+                        c.leaves()
+                            .filter_map(|(va, t, size, _)| match t {
+                                Target::Fb(pa) if *pa <= x && x < pa + size => Some(va + (x - pa)),
+                                _ => None,
+                            })
+                            .take(4)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                for va in vas {
+                    let gpfifo = b.ctrl.channels.channels().find(|ch| {
+                        let len = u64::from(ch.gpfifo_entries) * 8;
+                        va >= ch.gpfifo_va && va < ch.gpfifo_va.saturating_add(len)
+                    });
+                    uses.push(match gpfifo {
+                        Some(ch) => format!("root {r:#x} VA {va:#x} (GPFIFO of chid {})", ch.chid),
+                        None => format!("root {r:#x} VA {va:#x}"),
+                    });
+                }
+            }
+            if uses.is_empty() {
+                uses.push("no shadow maps it, no channel's USERD".into());
+            }
+            format!(
+                "bar1 pool replica: area page {g:#x} mirrors FB {x:#x}{}; {merges} merge(s), {to_home} carried area writes home, {to_area} carried home changes to the area, {home_reads} home read(s); {}",
+                match home_g {
+                    Some(h) => format!(" (an alias: the page lives in the pool at area page {h:#x})"),
+                    None => " (its home is outside the pool)".into(),
+                },
+                uses.join(", ")
+            )
+        })
+        .collect()
 }
 
 /// The sync points of the pool's untracked pages: called where the guest orders its CPU
@@ -3912,6 +4022,40 @@ mod tests {
         assert!(!batch_pending(&fb));
         assert_eq!(fb.remap(y), pool0 + 0x2000);
         assert!(gpu.holds.borrow().is_empty());
+    }
+
+    /// §16: a trapped BAR0 write that is no merge point polls only when the pool has work
+    /// due: a BAR1 table page written through a tracked path, a retired page to age (at most
+    /// every RETIRE_SCAN), a paced retry; the replica report names each replica.
+    #[test]
+    fn the_pool_has_work_due_only_after_a_tracked_change_or_on_its_clocks() {
+        let (mut fb, pt, _) = setup();
+        let due = |fb: &FakeFb| fb.pool_mut().as_ref().unwrap().work_due(Instant::now());
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!due(&fb), "a quiet pool");
+        let x = BASE + 0x30_0000;
+        fb.write_u64(pt + 8, pte(x));
+        assert!(due(&fb), "a BAR1 PTE written through a tracked path");
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!due(&fb));
+        // Unmapped: retired; the age scan is due once RETIRE_SCAN passed since the last.
+        fb.write_u64(pt + 8, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(retired(&fb), 1);
+        assert!(due(&fb), "never scanned");
+        assert!(!poll(&mut fb, &mut NoGpu), "the scan finds nothing aged");
+        assert!(!due(&fb), "scanned just now");
+        fb.pool_mut().as_mut().unwrap().last_age_scan = Some(Instant::now() - RETIRE_SCAN);
+        assert!(due(&fb));
+        // An alias makes a replica; the report names it.
+        fb.write_u64(pt + 8, pte(x));
+        fb.write_u64(pt + 16, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(replicas(&fb), 1);
+        sync_untracked(&mut fb);
+        let r = fb.pool_mut().as_ref().unwrap().replicas.values().next().map(|r| (r.merges, r.x)).unwrap();
+        assert_eq!(r.1, x);
+        assert!(r.0 >= 1);
     }
 
     #[test]

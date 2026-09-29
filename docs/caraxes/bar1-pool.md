@@ -1002,3 +1002,51 @@ worker jobs now, behind the held rings of execution.md §9.1 (`PoolGpu::begin_ba
 
 `ringgate::tests::a_ring_waits_for_its_roots_jobs_and_holds_only` covers the reset.
 
+
+## 16. Merge points and the poll after a BAR0 write (2026-09-29)
+
+Records: SotTR run E (`/mnt/vmstore/caraxes/runs-2026-09-29/sottr-ab/E-lfpool-886a6041/gpu-exit.log`).
+
+**What run E shows.**
+- 525,235 sync points merged the replicas: 212,923 settled flushes (167,986 by the clock, 41,549 at
+  a doorbell, 3,388 at a sync point) and about 312,000 polls after trapped BAR0 writes. The
+  display's interrupt acks (0x61180c, 54,700 of them), 0x611858/5c, the L2 flush and sysmem
+  invalidate and others counted as flush points.
+- All 8 replicas at the end were aliases (the guest maps a page at two area pages). A merge
+  reads both pool pages over BAR1, about 600 us for 8 replicas.
+- 0 merges carried area writes home; 19,796 carried home changes to the area.
+- The poll after a BAR0 write ran 889,501 times, 87 us on average, 77 s in all
+  (device-lock work table).
+
+**The rule now** (`BootModel::pool_merge_after`, `Bar1Pool::work_due`):
+- A replica is merged where an engine starts to consume, as BAR2 data is (bar2-memfd.md §3
+  rule 3): at the hand-overs that settle an owed flush (a channel doorbell, the GSP command
+  queue, a BAR2 bind, the flush clock; boot.rs `flush_point`), and at an MMU invalidate for the
+  table replicas.
+- Among the trapped BAR0 writes only a display channel's `PUT` (the channels' USERD pages,
+  [0x680000, 0x6e0000)) is such a start, for the display engine the device models. No other
+  write merges: the interrupt acks, the interrupt tree, the L2 and FB flushes (the FB flush marks
+  the flush owed), the GSP falcon, PRAMIN, PTIMER.
+- The poll after a BAR0 write is skipped unless the write is a merge point or the pool has work
+  due: a unit whose tables a tracked write changed, a paced retry, a table-page hazard, a
+  replica to check again, a retired page to age (at most every `RETIRE_SCAN`), a pooled table
+  page, or a batch to continue.
+
+**Known gaps (as before this change, apart from the incidental merges it removes):**
+- A doorbell with no flush owed merges no replica: a write through a replica's area followed by
+  a doorbell alone reaches the home at the next settle (the clock, at most 1 ms after the next
+  flush read). Run E: no merge ever carried area writes home.
+- The home of an alias is another area page: the guest writes it directly, so no device-side
+  generation can tell that it did not change. A merge reads it every time.
+
+**Counters.**
+- Exit summary: `N poll(s) skipped after a BAR0 write with nothing due (§16)`.
+- One line per replica (`bar1 pool replica: ...`) with:
+  - its area page and home, and where the home lives;
+  - its merges, and how many carried a change each way;
+  - its home reads;
+  - what uses the home: a channel's USERD, the shadow roots and VAs that map it, a channel's
+    GPFIFO.
+
+**Tests.** `device::tests::the_pool_poll_merges_only_at_a_display_kick`,
+`bar1pool::tests::the_pool_has_work_due_only_after_a_tracked_change_or_on_its_clocks`.

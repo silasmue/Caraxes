@@ -1457,6 +1457,10 @@ impl Device {
                 s.push_str(&l);
                 s.push('\n');
             }
+            for l in crate::bar1pool::replica_lines(b) {
+                s.push_str(&l);
+                s.push('\n');
+            }
             let kinds = b.fb.pte_kinds();
             if !kinds.is_empty() {
                 // D16's comptag hold, or with compression per VM slice this VM's lines
@@ -1777,6 +1781,23 @@ impl Device {
             if let Some(b) = self.bar0.boot_mut() {
                 if b.fb.bar1_pool().is_some() {
                     let merge = b.pool_merge_after(offset);
+                    // Nothing due and no merge point: the poll would only find that out
+                    // (docs/caraxes/bar1-pool.md §16; SotTR run E: 889501 polls, 87 us each).
+                    let now = std::time::Instant::now();
+                    let skip = !merge && {
+                        let mut g = b.fb.pool_mut();
+                        match g.as_mut() {
+                            Some(p) if !p.work_due(now) => {
+                                p.note_poll_skipped();
+                                true
+                            }
+                            _ => false,
+                        }
+                    };
+                    if skip {
+                        self.after_write();
+                        return;
+                    }
                     let t0 = std::time::Instant::now();
                     crate::bar1pool::poll_model(b, &self.mem, merge, pace);
                     crate::dlock::work("BAR0 write", "BAR1 pool poll".into(), t0.elapsed());
@@ -1989,30 +2010,32 @@ mod tests {
             .contains("bar0 config-mirror writes: 2 (the MSI re-arm among them), no BAR1 pool poll after them"));
     }
 
-    /// The BAR1 pool's poll merges the replicas only after a flush point (bar1-pool.md
-    /// §11): not after the MMU invalidate's PDB, upper PDB and trigger (the trigger's
-    /// handler merged), the usermode doorbell or the PTIMER time; after the L2 operations,
-    /// the display, the GSP registers and anything else.
+    /// The BAR1 pool's poll after a trapped BAR0 write merges the replicas only at a display
+    /// channel's `PUT` (bar1-pool.md §16): the other engine starts merge at their own
+    /// hand-over (doorbell, GSP command queue, BAR2 bind, flush clock), and nothing else
+    /// merges: not the MMU invalidate's registers (the trigger merges the table replicas),
+    /// the doorbell, PTIMER, the GSP registers, the L2 and FB flushes, the display's
+    /// interrupt acks.
     #[test]
-    fn the_pool_poll_merges_only_after_a_flush_point() {
+    fn the_pool_poll_merges_only_at_a_display_kick() {
         let f = crate::fixture::rtx2070();
         let b = crate::boot::BootModel::new(
             f.chip,
             crate::fb::FbLayout::plain(4 << 30),
             f.identity(4 << 30),
         );
-        // The GSP command-queue head (its doorbell handler merges) and the status-queue
-        // tail (a read pointer).
         let q = b.gsp_queue_registers().expect("TU106 has the queue registers");
         assert_eq!((q.cmd_head, q.msg_tail), (0x11_0c00, 0x11_0c84));
         for off in [
             0xb8_30a0u64, 0xb8_30a4, 0xb8_30b0, 0xbb_0090, 0x9400, 0x9410, 0x11_0c00, 0x11_0c84,
+            0x7_0010, 0x7_0000, 0xb8_0f00, 0x11_0c80, 0x11_0c04, 0x61_180c, 0x61_1858, 0x70_c000,
         ] {
             assert!(!b.pool_merge_after(off), "{off:#x}");
         }
-        for off in [0x7_0010u64, 0x7_0000, 0xb8_0f00, 0x69_6000, 0x11_0c80, 0x11_0c04] {
+        for off in [0x68_0000u64, 0x69_6000, 0x6d_8000, 0x6d_ffff] {
             assert!(b.pool_merge_after(off), "{off:#x}");
         }
+        assert!(!b.pool_merge_after(0x6e_0000));
     }
 
     /// The MSI re-arm ioeventfd (intr-page.md §4): 4 bytes at `NV_PCFG` + `NV_XVE_CYA_2`
