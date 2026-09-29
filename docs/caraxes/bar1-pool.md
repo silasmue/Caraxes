@@ -1032,15 +1032,24 @@ Records: SotTR run E (`/mnt/vmstore/caraxes/runs-2026-09-29/sottr-ab/E-lfpool-88
   replica to check again, a retired page to age (at most every `RETIRE_SCAN`), a pooled table
   page, or a batch to continue.
 
-**Known gaps (as before this change, apart from the incidental merges it removes):**
-- A doorbell with no flush owed merges no replica: a write through a replica's area followed by
-  a doorbell alone reaches the home at the next settle (the clock, at most 1 ms after the next
-  flush read). Run E: no merge ever carried area writes home.
-- The home of an alias is another area page: the guest writes it directly, so no device-side
-  generation can tell that it did not change. A merge reads it every time.
+**At a doorbell** (`BootModel::pool_before_ring`, `bar1pool::merge_to_home`): on the card both
+BAR1 mappings of a page reach the same VRAM, so a write through a replica's area must reach the
+home before the rung channels' engines can see it.
+- The replicas whose home the rung channels could observe are merged home first. The set is the
+  doorbell rule's (bar2-memfd.md §3 rule 4): the channel's VAS leaves less set B, its instance
+  structures, its USERD. It is cached per channel with the stamp of its memory and the
+  replica set's generation.
+- A channel the device cannot name merges every replica.
+- One direction: the area is read and compared with the snapshot, and the changed words go
+  home. Home changes reach the area at the next full merge.
+- None seen: no read. A flush owed: the settle's full merge covers it.
+
+**What stays:** the home of an alias is another area page, which the guest writes directly, so
+no device-side generation can tell that it did not change. A full merge reads it every time.
 
 **Counters.**
-- Exit summary: `N poll(s) skipped after a BAR0 write with nothing due (§16)`.
+- Exit summary: `N poll(s) skipped after a BAR0 write with nothing due; D doorbell(s) merged R
+  replica(s) their channels see, H carried area writes home (§16)`.
 - One line per replica (`bar1 pool replica: ...`) with:
   - its area page and home, and where the home lives;
   - its merges, and how many carried a change each way;
@@ -1049,4 +1058,5 @@ Records: SotTR run E (`/mnt/vmstore/caraxes/runs-2026-09-29/sottr-ab/E-lfpool-88
     GPFIFO.
 
 **Tests.** `device::tests::the_pool_poll_merges_only_at_a_display_kick`,
-`bar1pool::tests::the_pool_has_work_due_only_after_a_tracked_change_or_on_its_clocks`.
+`bar1pool::tests::the_pool_has_work_due_only_after_a_tracked_change_or_on_its_clocks`,
+`boot::tests::a_doorbell_merges_the_replicas_its_channel_sees_home`.

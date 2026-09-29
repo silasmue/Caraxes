@@ -36,7 +36,7 @@ use std::time::{Duration, Instant};
 use crate::fb::{FakeFb, FbLayout, Target};
 use crate::guestmem::GuestMemory;
 
-const PAGE: u64 = 4096;
+pub const PAGE: u64 = 4096;
 const MIB: u64 = 1 << 20;
 /// The area is walked and tracked in 2 MiB units (one PD0 entry each).
 const UNIT: u64 = 2 * MIB;
@@ -505,6 +505,11 @@ pub struct PoolStats {
     /// Polls after a trapped BAR0 write skipped: nothing due, and the write no merge point
     /// (§16).
     pub polls_skipped: u64,
+    /// Doorbells that merged the replicas the rung channels see home (§16), the replica
+    /// merges they did, and those that carried area writes home.
+    pub ring_merges: u64,
+    pub ring_replicas: u64,
+    pub ring_to_home: u64,
     pub refs_us: u128,
     pub barrier_us: u128,
     pub move_us: u128,
@@ -680,6 +685,9 @@ pub struct Bar1Pool {
     pt_raw: crate::fb::TablePageCache,
     /// The home pages (4 KiB page numbers) of the replicas.
     replica_homes: HashSet<u64>,
+    /// Moves whenever the set of replicas or a replica's home changes (a doorbell's cached
+    /// set of the replicas its channel sees, boot.rs `pool_observed`).
+    replica_gen: u64,
     /// `(g, key(target))` of every refusal logged.
     reported: HashSet<(u64, u64)>,
     reported_release: HashSet<(u64, u64)>,
@@ -797,6 +805,7 @@ impl Bar1Pool {
             last: PollBreakdown::default(),
             pt_raw: HashMap::new(),
             replica_homes: HashSet::new(),
+            replica_gen: 0,
             reported: HashSet::new(),
             reported_release: HashSet::new(),
             rediff: BTreeSet::new(),
@@ -988,6 +997,17 @@ impl Bar1Pool {
 
     fn index_homes(&mut self) {
         self.replica_homes = self.replicas.values().map(|r| r.x >> 12).collect();
+        self.replica_gen += 1;
+    }
+
+    /// The replicas now, (area page, home), and the generation of that set (§16).
+    pub fn replica_set(&self) -> (u64, Vec<(u64, u64)>) {
+        (self.replica_gen, self.replicas.iter().map(|(g, r)| (*g, r.x)).collect())
+    }
+
+    /// Whether there are replicas.
+    pub fn has_replicas(&self) -> bool {
+        !self.replicas.is_empty()
     }
 
     /// A walk of the shadow started to read table pages `added` (4 KiB page numbers), or
@@ -1077,7 +1097,7 @@ impl Bar1Pool {
         let s = &self.stats;
         let (pool0, len) = self.table.pool();
         format!(
-            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10); lazy move back: {} retired now, {} retired in all (no copy), {} re-lived (no copy), home {} for another page, {} relocated, {} aged out after {} ms; {} FB store window map(s) for moves; {} device-CE transfer(s) kept on the CPU by a pooled page ({} by a retired one) (§13); lock holds: {} batch(es) in more than one hold ({} hold(s) left the rest for the next poll, longest batch {} us), {} wait(s) for a shadow job in flight ({} left to the next poll, {} us of worker waits in all), {} hold(s) left a barrier to the worker, GPU checks {} ms, barriers {} ms, moves {} ms, re-syncs {} ms in all (§14, §15); {} poll(s) skipped after a BAR0 write with nothing due (§16)",
+            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10); lazy move back: {} retired now, {} retired in all (no copy), {} re-lived (no copy), home {} for another page, {} relocated, {} aged out after {} ms; {} FB store window map(s) for moves; {} device-CE transfer(s) kept on the CPU by a pooled page ({} by a retired one) (§13); lock holds: {} batch(es) in more than one hold ({} hold(s) left the rest for the next poll, longest batch {} us), {} wait(s) for a shadow job in flight ({} left to the next poll, {} us of worker waits in all), {} hold(s) left a barrier to the worker, GPU checks {} ms, barriers {} ms, moves {} ms, re-syncs {} ms in all (§14, §15); {} poll(s) skipped after a BAR0 write with nothing due; {} doorbell(s) merged {} replica(s) their channels see, {} carried area writes home (§16)",
             pool0 + len,
             s.polls,
             s.units_walked,
@@ -1132,7 +1152,10 @@ impl Bar1Pool {
             s.barrier_us / 1000,
             s.move_us / 1000,
             s.resync_us / 1000,
-            s.polls_skipped
+            s.polls_skipped,
+            s.ring_merges,
+            s.ring_replicas,
+            s.ring_to_home
         )
     }
 }
@@ -1679,6 +1702,63 @@ fn merge_replica(fb: &mut FakeFb, g: u64, last: bool) -> bool {
         r.home_reads += u64::from(read_home);
     }
     !to_home.is_empty() || !to_area.is_empty()
+}
+
+/// A doorbell's merge (§16): the area writes of the replicas `gs` go home before the rung
+/// channels' engines can see the home (on the card both BAR1 mappings reach the same VRAM).
+/// One direction only: the area is read and compared with the snapshot, the changed words
+/// are written home; changes at home reach the area at the next full merge (a flush point).
+/// Returns whether anything was written.
+pub fn merge_to_home(fb: &mut FakeFb, gs: &[u64]) -> bool {
+    let mut wrote = false;
+    let mut merged = 0u64;
+    let mut carried = 0u64;
+    for g in gs {
+        let (p, x, mut snap, dirty_before) = {
+            let mut guard = fb.pool_mut();
+            let Some(pool) = guard.as_mut() else { return false };
+            let pool0 = pool.table.pool().0;
+            let Some(r) = pool.replicas.get_mut(g) else { continue };
+            (pool0 + g, r.x, std::mem::take(&mut r.snap), r.home_dirty)
+        };
+        let n = PAGE as usize;
+        let mut area = vec![0u8; n];
+        fb.read_raw(p, &mut area);
+        let mut runs: Vec<(usize, usize)> = Vec::new();
+        for o in (0..n).step_by(8) {
+            if area[o..o + 8] != snap[o..o + 8] {
+                match runs.last_mut() {
+                    Some((s, l)) if *s + *l == o => *l += 8,
+                    _ => runs.push((o, 8)),
+                }
+            }
+        }
+        for &(o, l) in &runs {
+            fb.write(x + o as u64, &area[o..o + l]);
+            snap[o..o + l].copy_from_slice(&area[o..o + l]);
+        }
+        merged += 1;
+        carried += u64::from(!runs.is_empty());
+        wrote |= !runs.is_empty();
+        let mut guard = fb.pool_mut();
+        let pool = guard.as_mut().expect("on");
+        if let Some(r) = pool.replicas.get_mut(g) {
+            r.snap = snap;
+            // Its own writes home are in the snapshot; a device write before them still
+            // makes the next full merge read the home.
+            r.home_dirty = dirty_before;
+            r.to_home += u64::from(!runs.is_empty());
+        }
+    }
+    if let Some(pool) = fb.pool_mut().as_mut() {
+        pool.stats.ring_merges += u64::from(merged > 0);
+        pool.stats.ring_replicas += merged;
+        pool.stats.ring_to_home += carried;
+    }
+    if wrote {
+        fb.flush();
+    }
+    wrote
 }
 
 /// The order in which a sync point merges the replicas: by home page, then area page.
