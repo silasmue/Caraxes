@@ -1695,7 +1695,10 @@ impl Bar2Area {
             &self.mem.view,
             only,
             &mut |key, off, bytes| match target_of(key) {
-                Target::Fb(pa) => store.write(tr(pa) + off as u64, bytes),
+                Target::Fb(pa) => {
+                    let _why = crate::fb::ReadWhy::Bar2WriteBack.scope();
+                    store.write(tr(pa) + off as u64, bytes)
+                }
                 Target::Sys(pa) => match sys {
                     Some(m) => {
                         m.write(pa + off as u64, bytes);

@@ -983,6 +983,14 @@ impl BootModel {
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
+            s.push(format!(
+                "vram store window maps by caller: {}",
+                crate::fb::vram_maps_by_why()
+                    .iter()
+                    .map(|(n, c)| format!("{n} {c}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
         }
         if self.fb.private_refused() > 0 {
             s.push(format!(
