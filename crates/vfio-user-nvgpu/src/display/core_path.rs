@@ -121,6 +121,10 @@ impl CoreIo<'_> {
 }
 
 impl RecordIo for CoreIo<'_> {
+    fn path(&self) -> &'static str {
+        "clock"
+    }
+
     fn can(&self, m: MemRef, off: u64, len: u64) -> bool {
         m.target != 1 || self.pin(m.addr + off, len).is_some()
     }

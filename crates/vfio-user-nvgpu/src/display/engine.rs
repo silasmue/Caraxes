@@ -143,6 +143,8 @@ const PRESENT_TIMESTAMP_MODE_ENABLE: u32 = 1 << 8;
 // RAMHT and context DMA objects (disp/v03_00/dev_disp.h NV_UDISP_*, NV_DMA_*).
 const HASH_LIMIT: u64 = 0x2000;
 const HASH_ENTRY: u64 = 8;
+/// Recent display events kept (`Engine::recent`).
+const RECENT: usize = 96;
 
 // -------------------------------------------------------------------------------------
 // The clock and the ticker thread.
@@ -545,6 +547,10 @@ pub trait RecordIo {
     }
     fn read(&self, m: MemRef, off: u64, buf: &mut [u8]) -> bool;
     fn write(&mut self, m: MemRef, off: u64, data: &[u8]) -> bool;
+    /// The path's name for the engine's recent events.
+    fn path(&self) -> &'static str {
+        "device"
+    }
 }
 
 /// The device path: the FB store and guest memory, under the device mutex.
@@ -764,6 +770,11 @@ pub struct Engine {
     pub core_ticks: u64,
     pub routed_reads: u64,
     pub routed_writes: u64,
+    /// The last latches, FINISHED writes, acquire waits and failed record writes with the
+    /// path that did them, for the trace at a reset and at exit (what the display did
+    /// before a TDR, whatever the trace's latch rule left out).
+    pub recent: VecDeque<String>,
+    pub record_write_failures: u64,
 }
 
 impl Engine {
@@ -783,6 +794,8 @@ impl Engine {
             core_ticks: 0,
             routed_reads: 0,
             routed_writes: 0,
+            recent: VecDeque::new(),
+            record_write_failures: 0,
         };
         for h in 0..MAX_HEADS {
             ticker().set_head(h, 0, 0);
@@ -799,6 +812,22 @@ impl Engine {
             return None;
         }
         (0..8u32).find(|&s| self.sor_owners[s as usize] & (1 << h) != 0)
+    }
+
+    /// One of the recent display events (`recent`), at display-clock time `ns`.
+    fn recent(&mut self, ns: u64, s: String) {
+        if self.recent.len() >= RECENT {
+            self.recent.pop_front();
+        }
+        self.recent.push_back(format!("{:.4} {s}", ns as f64 / 1e9));
+    }
+
+    /// Write a record on `io`; a failed write is counted and kept among the recent events.
+    fn put(&mut self, io: &mut dyn RecordIo, m: MemRef, off: u64, data: &[u8], ns: u64, what: &str) {
+        if !m.write(io, off, data) {
+            self.record_write_failures += 1;
+            self.recent(ns, format!("FAILED {what} write at {}+{off:#x} [{}]", m.describe(), io.path()));
+        }
     }
 
     pub(crate) fn note(&mut self, s: String) {
@@ -1184,6 +1213,15 @@ impl Engine {
                 let since = *win.acquire_since.get_or_insert(tick);
                 // Half a second, then every 2 s: the trace names a flip stuck on its acquire.
                 let waited = tick.saturating_sub(since);
+                if waited == 0 {
+                    let s = format!(
+                        "window {w}: flip waits for its acquire {} == {want:#x}, reads {} [{}]",
+                        m.describe(),
+                        have.map_or("nothing".into(), |v| format!("{v:#x}")),
+                        io.path()
+                    );
+                    self.recent(tick_ns, s);
+                }
                 if !force && (waited == 30 || (waited > 0 && waited % 120 == 0)) {
                     let line = format!(
                         "display: window {w}: flip queued {} ms ago waits {waited} ticks for its acquire semaphore {} == {want:#x}, reads {} [guest]",
@@ -1220,10 +1258,10 @@ impl Engine {
         // nvkms-displayless.c:262-270; nvkms-api.h:677-690). The four-word record gets
         // the timestamp too (nvkms-headsurface.c:598-604), the payload last.
         if let Some((m, v)) = win.prev_release.take() {
-            m.write(io, 8, &stamp);
-            m.write(io, 0, &v.to_le_bytes());
+            self.put(io, m, 8, &stamp, tick_ns, "release timestamp");
+            self.put(io, m, 0, &v.to_le_bytes(), tick_ns, "release");
         }
-        win.prev_release = f.release;
+        self.windows[w].prev_release = f.release;
         if let Some((m, _)) = f.notifier {
             let w0 = NOTIFIER_BEGUN
                 | if f.immediate {
@@ -1236,8 +1274,8 @@ impl Engine {
             self.finish(w, io);
             // Timestamp first, status last: a reader that sees BEGUN finds the timestamp
             // (NVKMS polls for it after the status, nvkms-sync.c:55-58).
-            m.write(io, 8, &stamp);
-            m.write(io, 0, &w0.to_le_bytes());
+            self.put(io, m, 8, &stamp, tick_ns, "notifier timestamp");
+            self.put(io, m, 0, &w0.to_le_bytes(), tick_ns, "notifier BEGUN");
             self.windows[w].begun = Some((m, w0));
             if !live {
                 self.finish(w, io);
@@ -1263,6 +1301,15 @@ impl Engine {
         win.last_latch_tick = Some(tick);
         win.flips += 1;
         let n = win.flips;
+        let short = format!(
+            "window {w} latch {n} at tick {tick}{} [{}]: surface {}, notifier {}, acquire {}",
+            if force { " (immediate)" } else { "" },
+            io.path(),
+            f.surface.mem.map_or("none".into(), |m| m.describe()),
+            f.notifier.map_or("none".into(), |(m, _)| m.describe()),
+            f.acquire.map_or("none".into(), |(m, v)| format!("{} == {v:#x}", m.describe())),
+        );
+        self.recent(tick_ns, short);
         if changed || n <= 32 || n % 600 == 0 {
             let s = &f.surface;
             let line = format!(
@@ -1296,7 +1343,10 @@ impl Engine {
         }
         self.windows[w].begun = None;
         let w0 = (w0 & !(3 << 30)) | NOTIFIER_FINISHED;
-        m.write(io, 0, &w0.to_le_bytes());
+        let now = now_ns();
+        self.put(io, m, 0, &w0.to_le_bytes(), now, "notifier FINISHED");
+        let n = self.windows[w].flips;
+        self.recent(now, format!("window {w} flip {n} FINISHED at {} [{}]", m.describe(), io.path()));
     }
 
     fn resolve_at(
@@ -1527,6 +1577,17 @@ impl Engine {
         }
         self.sync_ticker();
         self.signal();
+    }
+
+    /// The recent display events, one line each (the trace at a reset and at exit).
+    pub fn recent_lines(&self) -> Vec<String> {
+        let mut v = vec![format!(
+            "display recent: the last {} latches, FINISHED writes and acquire waits ({} record write(s) failed in all):",
+            self.recent.len(),
+            self.record_write_failures
+        )];
+        v.extend(self.recent.iter().map(|s| format!("display recent: {s}")));
+        v
     }
 
     /// Counters for the device summary and the trace.
@@ -1776,7 +1837,12 @@ mod tests {
             .unwrap();
         fb.read(0x50_0000 + 16, &mut b);
         assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED);
-        assert_eq!(lock(&engine).core_ticks, 2);
+        let e = lock(&engine);
+        assert_eq!(e.core_ticks, 2);
+        // The recent events name the path.
+        assert!(e.recent.iter().any(|s| s.contains("latch") && s.ends_with("[clock]: surface fb 0x810000, notifier fb 0x500010, acquire fb 0x600020 == 0x7")), "{:?}", e.recent);
+        assert!(e.recent.iter().any(|s| s.contains("FINISHED at fb 0x500010 [clock]")), "{:?}", e.recent);
+        assert_eq!(e.record_write_failures, 0);
     }
 
     /// FB records the store cannot share wait for the device path: the clock without the
