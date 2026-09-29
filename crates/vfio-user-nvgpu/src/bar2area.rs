@@ -1166,6 +1166,8 @@ pub struct VictimStats {
     pub stale: u64,
     pub dropped: u64,
     pub evicted: u64,
+    /// Entries dropped because no walk reads the page as a table any more.
+    pub unwalked: u64,
 }
 
 impl Victims {
@@ -1500,6 +1502,17 @@ impl Bar2Area {
     ) {
         let mut v = self.victims.borrow_mut();
         read_through(&self.remap, self.mem.view(), store, tr, pa, buf, Some((&mut v, epoch)));
+    }
+
+    /// FB page `page` (4 KiB page number) is no table of any cached walk any more: its
+    /// snapshot may go stale (the page may be reused as data another writer changes), so the
+    /// victim cache drops it.
+    pub fn forget_victim(&self, page: u64) {
+        let mut v = self.victims.borrow_mut();
+        if v.pages.remove(&page).is_some() {
+            v.stamp.remove(&page);
+            v.stats.unwalked += 1;
+        }
     }
 
     /// FB `[pa, pa + len)` changed in VRAM without the device knowing the bytes (a host
@@ -1983,8 +1996,8 @@ impl Bar2Area {
         let v = self.victims.borrow();
         let s = &v.stats;
         format!(
-            "victim cache (page tables that left BAR2): {} kept, entries loaded from it {} (from VRAM {}), reads served {}, {} stale at use, {} dropped by a write behind the device, {} evicted, {} held now",
-            s.kept, s.load_hits, s.load_misses, s.read_hits, s.stale, s.dropped, s.evicted, v.len()
+            "victim cache (page tables that left BAR2): {} kept, entries loaded from it {} (from VRAM {}), reads served {}, {} stale at use, {} dropped by a write behind the device, {} dropped when no walk read them any more, {} evicted, {} held now",
+            s.kept, s.load_hits, s.load_misses, s.read_hits, s.stale, s.dropped, s.unwalked, s.evicted, v.len()
         )
     }
 

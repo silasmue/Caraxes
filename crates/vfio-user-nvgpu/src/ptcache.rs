@@ -200,6 +200,9 @@ pub struct Update {
     /// shadow keeps them until the plan made from this update is applied: the BAR1 pool
     /// waits for that plan only when a page it moves lies in one (bar1-pool.md §14).
     pub removed: Vec<(u64, u64)>,
+    /// The table pages (4 KiB page numbers) it stopped watching in this update, sorted: the
+    /// victim cache drops their snapshots once no walk reads them (fb.rs `forget_victims`).
+    pub left: Vec<u64>,
     /// Nodes whose table lives in guest sysmem, re-read in this update (they cannot be
     /// watched; [`WalkCache::sys_uses`]).
     pub sys_nodes: usize,
@@ -241,6 +244,8 @@ pub struct WalkCache {
     dropped: bool,
     /// FB `(start, end)` of every leaf dropped during the running update ([`Update::removed`]).
     removed: Vec<(u64, u64)>,
+    /// The pages that left `uses` during the running update ([`Update::left`]).
+    left: Vec<u64>,
     /// A fresh stamp ([`fresh_generation`]) at creation and at every update that changed a
     /// unit's leaves: equal generations, equal leaves ([`Self::generation`]).
     generation: u64,
@@ -300,6 +305,7 @@ impl WalkCache {
             reread: false,
             added: Vec::new(),
             removed: Vec::new(),
+            left: Vec::new(),
             dropped: false,
             generation: fresh_generation(),
             tables_generation: fresh_generation(),
@@ -436,6 +442,7 @@ impl WalkCache {
                 self.uses.remove(&page);
                 self.uses_hash ^= page_mix(page);
                 self.dropped = true;
+                self.left.push(page);
             }
         }
     }
@@ -449,6 +456,7 @@ impl WalkCache {
         self.added.clear();
         self.dropped = false;
         self.removed.clear();
+        self.left.clear();
         let dirty_pages = self.dirty.len();
         let mut changed = BTreeSet::new();
         let full = full || !self.built;
@@ -464,6 +472,7 @@ impl WalkCache {
             self.dirs.clear();
             self.units.clear();
             self.dropped |= !self.uses.is_empty();
+            self.left.extend(self.uses.keys().copied());
             self.uses.clear();
             self.uses_hash = 0;
             self.dirty.clear();
@@ -535,6 +544,10 @@ impl WalkCache {
                 .collect();
             removed.retain(|r| !kept.contains(r));
         }
+        let mut left = std::mem::take(&mut self.left);
+        left.retain(|p| !uses.contains_key(p));
+        left.sort_unstable();
+        left.dedup();
         Update {
             full,
             changed: changed.into_iter().collect(),
@@ -543,6 +556,7 @@ impl WalkCache {
             added,
             dropped: self.dropped,
             removed: merge_ranges(removed),
+            left,
             sys_nodes,
         }
     }
