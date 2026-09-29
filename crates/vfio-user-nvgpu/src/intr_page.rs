@@ -572,6 +572,12 @@ impl IntrPage {
     pub fn reset(&self) {
         let mut st = self.lock();
         let exact = self.exact();
+        // Raised and not yet folded: gone with the rest of the interrupt state.
+        let dropped = self.shared.reset_pending();
+        if dropped.iter().any(|&p| p != 0) {
+            self.shared
+                .note(format!("intr page: reset: raised vectors dropped, per leaf: {dropped:x?}"));
+        }
         st.model = Model {
             // Exact mode: the enables' reset value (dev_vm.h:61, :65); else every vector of
             // the kernel table (the tagged display's lost-store rule, `scan`).
@@ -1420,9 +1426,13 @@ mod tests {
         assert!(p.scan().work);
         assert_eq!(load(&p, LEAF), 0x10);
         assert!(p.summary().contains("did not trap"));
-        // A reset keeps exact mode, with the enables at 0.
+        // A reset keeps exact mode, with the enables at 0, and drops a raise not yet folded
+        // (the page's reactor had not scanned since).
+        assert!(shared.raise(33));
         p.reset();
         assert!(p.exact());
+        assert!(!p.scan().msi, "the raise went with the reset");
+        assert_eq!(load(&p, LEAF + 4), 0);
         assert_eq!(load(&p, LEAF_EN_SET), 0);
     }
 
