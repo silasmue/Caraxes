@@ -830,12 +830,20 @@ impl Engine {
                 let was = self.with_irq(|i| std::mem::replace(&mut i.en[h], v));
                 self.sync_ticker();
                 (was != v).then(|| {
+                    // Only LAST_DATA is raised; other enables (RG_LINE_A 5:5, RG_LINE_B
+                    // 6:6, RG_SEM 16+i, dev_disp.h v03_00/v04_01) are named so a guest
+                    // that waits on one shows it.
                     format!(
-                        "display: head {h} vblank (LAST_DATA) interrupt {} [guest]",
+                        "display: head {h} vblank (LAST_DATA) interrupt {} [guest]; RM_INTR_EN_HEAD_TIMING {v:#x}{}",
                         if v & LAST_DATA != 0 {
                             "enabled"
                         } else {
                             "disabled"
+                        },
+                        if v & !LAST_DATA != 0 {
+                            format!(" (also {:#x}: not raised by this model)", v & !LAST_DATA)
+                        } else {
+                            String::new()
                         }
                     )
                 })

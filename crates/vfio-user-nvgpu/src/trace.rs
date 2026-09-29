@@ -23,6 +23,45 @@ pub enum Dir {
     Write,
 }
 
+/// Which region accesses get a trace line (`CARAXES_TRACE_ACCESSES`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Accesses {
+    None,
+    All,
+    /// BAR0 offsets in [lo, hi).
+    Bar0(u64, u64),
+}
+
+impl Accesses {
+    /// Unset or `1`: all; `0`: none; `bar0:<lo>-<hi>` (hex with 0x, or decimal): that
+    /// BAR0 range. Anything else is refused (fail closed: a typo must not trace nothing).
+    pub fn parse(v: Option<&str>) -> Result<Self> {
+        let num = |t: &str| match t.strip_prefix("0x") {
+            Some(h) => u64::from_str_radix(h, 16).ok(),
+            None => t.parse().ok(),
+        };
+        match v {
+            None | Some("1") => Ok(Accesses::All),
+            Some("0") => Ok(Accesses::None),
+            Some(r) => {
+                let range = r.strip_prefix("bar0:").and_then(|x| x.split_once('-'));
+                match range.and_then(|(lo, hi)| Some((num(lo)?, num(hi)?))) {
+                    Some((lo, hi)) if lo < hi => Ok(Accesses::Bar0(lo, hi)),
+                    _ => anyhow::bail!("CARAXES_TRACE_ACCESSES={r:?}: 0, 1 or bar0:<lo>-<hi>"),
+                }
+            }
+        }
+    }
+
+    fn wants(self, region: u32, offset: u64) -> bool {
+        match self {
+            Accesses::None => false,
+            Accesses::All => true,
+            Accesses::Bar0(lo, hi) => region == 0 && (lo..hi).contains(&offset),
+        }
+    }
+}
+
 pub struct Trace {
     out: Option<BufWriter<File>>,
     start: Instant,
@@ -32,7 +71,9 @@ pub struct Trace {
     /// `CARAXES_TRACE_ACCESSES=0`: count the region accesses but write no line per
     /// access (events are still written). Every trapped access otherwise formats and
     /// writes one line on the guest's MMIO round trip (docs/caraxes/mapping.md §6).
-    accesses: bool,
+    /// `CARAXES_TRACE_ACCESSES=bar0:<lo>-<hi>` writes the lines of BAR0 accesses in
+    /// [lo, hi) only (a diagnostic, e.g. the display block 0x610000-0x700000).
+    accesses: Accesses,
     /// `CARAXES_TRACE_FLUSH=0`: flush at event lines and at most every 100 ms instead of
     /// after every line (one write syscall per trapped access).
     flush_each: bool,
@@ -69,7 +110,7 @@ impl Trace {
             reads: [0; 9],
             writes: [0; 9],
             unnamed: BTreeMap::new(),
-            accesses: std::env::var("CARAXES_TRACE_ACCESSES").as_deref() != Ok("0"),
+            accesses: Accesses::parse(std::env::var("CARAXES_TRACE_ACCESSES").ok().as_deref())?,
             flush_each: std::env::var("CARAXES_TRACE_FLUSH").as_deref() != Ok("0"),
             last_flush: Instant::now(),
         })
@@ -97,7 +138,7 @@ impl Trace {
         if region == 0 && note.is_none() {
             *self.unnamed.entry(offset & !3).or_insert(0) += 1;
         }
-        if !self.accesses || self.out.is_none() {
+        if !self.accesses.wants(region, offset) || self.out.is_none() {
             return;
         }
         let name = REGION_NAMES.get(r).copied().unwrap_or("?");
@@ -152,5 +193,21 @@ impl Trace {
             }
         }
         s
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Accesses;
+
+    #[test]
+    fn access_filter_parses_and_selects() {
+        assert_eq!(Accesses::parse(None).unwrap(), Accesses::All);
+        assert_eq!(Accesses::parse(Some("0")).unwrap(), Accesses::None);
+        let a = Accesses::parse(Some("bar0:0x610000-0x700000")).unwrap();
+        assert_eq!(a, Accesses::Bar0(0x610000, 0x700000));
+        assert!(a.wants(0, 0x611d80) && !a.wants(0, 0x700000) && !a.wants(1, 0x611d80));
+        assert!(Accesses::parse(Some("bar0:0x10-0x10")).is_err());
+        assert!(Accesses::parse(Some("yes")).is_err());
     }
 }
