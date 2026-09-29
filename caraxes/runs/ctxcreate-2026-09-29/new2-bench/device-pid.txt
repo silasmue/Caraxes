@@ -1,0 +1,1 @@
+2620449 /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm2-615/gpu.sock --config /home/silas/git/Caraxes/caraxes/reference/rtx2070/config-space.txt --rom /home/silas/git/Ca

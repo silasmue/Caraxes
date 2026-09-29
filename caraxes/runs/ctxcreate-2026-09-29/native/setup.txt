@@ -1,0 +1,6 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  /home/silas/git/Caraxes/target/bench/bin/bench-cu
+e4dbcd8a49b50563827f9c9d9524d23206894cec143390f343e42c8d286a1555  /mnt/vmstore/caraxes/ctxcreate-2026-09-29/bin/census-cu
+2026-09-29T06:39:50+02:00
+51, 690 MHz, P5, 25 %, 1060 MiB
+4.45 3.26 2.28

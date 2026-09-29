@@ -1,0 +1,49 @@
+# census-cu e4dbcd8a49b50563, bench-cu c5b48cf1181bfcfc
+CUBIN bytes=4712 out=census.cubin
+# marker resource /sys/bus/pci/devices/0000:00:05.0/resource0 (timeout 240 env)
+=== census-cu init
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=13356.2 min_us=13356.2 max_us=13356.2
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=14039.4 min_us=14039.4 max_us=14039.4
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=13866.4 min_us=13866.4 max_us=13866.4
+=== census-cu ctx
+OP name=cuCtxCreate id=3 reps=5 per_rep=1 med_us=296617.8 min_us=200290.4 max_us=328111.3
+OP name=cuCtxDestroy id=4 reps=5 per_rep=1 med_us=132633.1 min_us=129149.2 max_us=141712.8
+=== census-cu ops
+OP name=idle_100ms id=1 reps=10 per_rep=1 med_us=100083.3 min_us=100065.5 max_us=100441.2
+OP name=cuMemAlloc_1M id=10 reps=20 per_rep=1 med_us=407.5 min_us=19.5 max_us=4789.3
+OP name=cuMemFree_1M id=11 reps=20 per_rep=1 med_us=534.8 min_us=37.0 max_us=4083.4
+OP name=cuMemAlloc_64M id=12 reps=10 per_rep=1 med_us=4626.9 min_us=2786.9 max_us=178349.7
+OP name=cuMemFree_64M id=13 reps=10 per_rep=1 med_us=3688.1 min_us=2839.6 max_us=6307.7
+OP name=cuMemHostAlloc_1M id=14 reps=10 per_rep=1 med_us=1992.0 min_us=32.7 max_us=8920.7
+OP name=cuMemFreeHost_1M id=15 reps=10 per_rep=1 med_us=1187.8 min_us=35.8 max_us=3001.9
+OP name=cuMemHostRegister_1M id=16 reps=10 per_rep=1 med_us=1807.9 min_us=1395.1 max_us=6052.8
+OP name=cuMemHostUnregister_1M id=17 reps=10 per_rep=1 med_us=1420.1 min_us=1106.8 max_us=1853.9
+OP name=launch_1_sync id=20 reps=20 per_rep=1 med_us=190.9 min_us=169.4 max_us=345.2
+OP name=launch_1000_sync id=21 reps=1000 per_rep=1000 med_us=10.6 min_us=10.1 max_us=577.7
+OP name=h2d_pinned_1M id=30 reps=10 per_rep=1 med_us=116.2 min_us=106.1 max_us=411.6
+OP name=d2h_pinned_1M id=31 reps=10 per_rep=1 med_us=151.8 min_us=140.4 max_us=2005.8
+OP name=d2d_1M id=32 reps=10 per_rep=1 med_us=231.0 min_us=188.5 max_us=955.3
+OP name=h2d_pageable_1M id=36 reps=10 per_rep=1 med_us=262.3 min_us=210.2 max_us=2888.4
+OP name=d2h_pageable_1M id=37 reps=10 per_rep=1 med_us=309.8 min_us=244.3 max_us=502.5
+OP name=h2d_pinned_16M id=33 reps=10 per_rep=1 med_us=1356.9 min_us=1338.9 max_us=1828.8
+OP name=d2h_pinned_16M id=34 reps=10 per_rep=1 med_us=1344.3 min_us=1341.2 max_us=1588.7
+OP name=d2d_16M id=35 reps=10 per_rep=1 med_us=334.8 min_us=309.4 max_us=2279.1
+OP name=cuStreamSynchronize_idle id=40 reps=20 per_rep=1 med_us=15.7 min_us=10.8 max_us=17.6
+OP name=cuEventRecord_Synchronize id=41 reps=20 per_rep=1 med_us=206.9 min_us=194.7 max_us=506.0
+OP name=cuModuleLoad_cubin id=50 reps=10 per_rep=1 med_us=308.1 min_us=289.6 max_us=1331.8
+OP name=cuModuleUnload id=51 reps=10 per_rep=1 med_us=33.0 min_us=17.1 max_us=37.3
+--- xid: 0
+=== bench-cu init
+INIT cuinit_ms=30.801 devget_ms=0.001 ctxcreate_ms=344.375 ctxdestroy_ms=182.008
+INIT cuinit_ms=37.818 devget_ms=0.000 ctxcreate_ms=474.528 ctxdestroy_ms=266.442
+INIT cuinit_ms=25.778 devget_ms=0.000 ctxcreate_ms=342.426 ctxdestroy_ms=166.081
+INIT cuinit_ms=17.277 devget_ms=0.000 ctxcreate_ms=276.138 ctxdestroy_ms=141.773
+INIT cuinit_ms=14.574 devget_ms=0.001 ctxcreate_ms=314.463 ctxdestroy_ms=161.854
+=== bench-cu churn
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=179.9 free_med_us=260.2 cycle_med_ms=51.422 total_ms=999.6
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=2826.1 free_med_us=2884.8 cycle_med_ms=49.885 total_ms=1030.9
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=334.3 free_med_us=295.6 cycle_med_ms=54.700 total_ms=1187.0
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=2930.1 free_med_us=2838.5 cycle_med_ms=48.640 total_ms=1050.2
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=231.5 free_med_us=527.1 cycle_med_ms=56.012 total_ms=1414.7
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=2933.1 free_med_us=2973.8 cycle_med_ms=56.698 total_ms=1118.5
+--- xid: 0

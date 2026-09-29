@@ -1,0 +1,16 @@
+vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: 5530 ring(s) by the reactor (815 after a blocking wait), 400 trapped, 5175 host doorbell(s); host events: 686 with no host doorbell waiting; by the age of the last host doorbell: 0 none yet, 36 < 1 ms, 187 < 100 ms, 568 older (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: lock: n 5930, mean 116.80 us, p10 0.5 us, p50 0.6 us, p90 1.5 us, p99 920.0 us, max 76141.0 us
+launch timing: dispatch: n 5175, mean 2.87 us, p10 0.3 us, p50 0.3 us, p90 1.9 us, p99 8.4 us, max 10810.1 us
+launch timing: ran-ahead check: n 5175, mean 0.09 us, p10 0.1 us, p50 0.1 us, p90 0.2 us, p99 0.5 us, max 8.0 us
+launch timing: plan: n 4775, mean 0.40 us, p10 0.3 us, p50 0.3 us, p90 0.8 us, p99 3.8 us, max 21.1 us
+launch timing: worker wait: n 4775, mean 0.13 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.4 us, max 182.0 us
+launch timing: BAR1 flush: n 4775, mean 0.07 us, p10 0.1 us, p50 0.1 us, p90 0.2 us, p99 0.4 us, max 9.7 us
+launch timing: USERD read: n 4775, mean 1.14 us, p10 1.0 us, p50 1.0 us, p90 1.5 us, p99 4.0 us, max 39.5 us
+launch timing: host doorbell write: n 5175, mean 333.96 us, p10 0.1 us, p50 0.1 us, p90 0.3 us, p99 4170.0 us, max 82264.6 us
+launch timing: tail after the host doorbell: n 5152, mean 1.79 us, p10 0.8 us, p50 0.9 us, p90 3.2 us, p99 12.1 us, max 105.0 us
+launch timing: ring to host doorbell (sum): n 5152, mean 340.71 us, p10 2.2 us, p50 2.3 us, p90 10.1 us, p99 4180.0 us, max 82269.4 us
+launch timing: host doorbell to the next ring: n 5926, mean 99009.91 us, p10 2.7 us, p50 8.7 us, p90 4497779.6 us, p99 4497779.6 us, max 4497779.6 us
+launch timing: host doorbell to the next host event: n 105, mean 73722.29 us, p10 580.0 us, p50 589474.1 us, p90 589474.1 us, p99 589474.1 us, max 589474.1 us
+launch timing: host event to raise: n 791, mean 5.15 us, p10 1.5 us, p50 3.7 us, p90 7.1 us, p99 33.5 us, max 336.4 us
+launch timing: raise to MSI: n 755, mean 617.60 us, p10 7.6 us, p50 13.5 us, p90 260.0 us, p99 9860.0 us, max 75529.0 us
