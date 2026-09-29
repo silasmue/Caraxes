@@ -23,9 +23,13 @@ One binary on dev (b2e0d749 + docs): the guest's ABI is detected at the GSP boot
 | short kernel | 6 µs | 11-13 µs | the one outlier |
 | vkmark / glmark2 (4000+ FPS micro-benchmarks) | 15973 / 12214 | ~5600 / ~4300 | 0.35 (per-frame overhead; not the game metric) |
 
-Windows lags: short kernel 59 µs, ResNet 0.66, NVENC 0.65-0.75.
-- Cause: QEMU traps every doorbell (no ioeventfd).
-- Next: the BAR2-memfd and interrupt-page A/B (P37).
+Windows lags: short kernel 59-76 µs, ResNet 0.66-0.7, NVENC 0.7-0.8. Cause: QEMU traps every doorbell (no ioeventfd).
+
+Windows A/B (P37/P38):
+- **BAR2 memfd:** context setup twice as fast (ResNet first step 63 → 30 s, NVENC init 4.8 → 0.6 s), but steady rates −40 %: the guest waits for the deferred flush. P38 tests sync-at-flush.
+- **Interrupt page:** breaks Windows (TDRs); probably its tag bit 31, which the KMD reads as a pending vector. Not a Windows default.
+
+Graphics: the vblank handler's display-page writes each ran an unrelated BAR1 pool merge (~110 µs). Fix 95f1af1 (branch vblank-2026-09-29) is built; the vkmark A/B follows after P38.
 
 ## What was wrong and is fixed on dev
 
@@ -52,6 +56,13 @@ Windows lags: short kernel 59 µs, ResNet 0.66, NVENC 0.65-0.75.
   - the device's own channel tables and rings (top 512 KiB of the reservation) were reachable as guest memory through the software CE, the shadow, BAR1/BAR2 and PRAMIN;
   - now refused on every path (8e621e0a).
 - **Defaults instead of switches:** host boost, LAUNCH_FAST=2, the display kick page (+11-26 % glmark2).
+
+## SotTR at 720p (your instruction: no balloon yet)
+
+- It does not help: the game fills VRAM by its budget, not by the resolution, and the NVKMS refusal came at 3883/4096 MiB again.
+- At 720p the benchmark kept rendering afterwards (GPU 88 %), with the stream frozen. ~60 s later the host logged **Xid 109 CTX SWITCH TIMEOUT** on the game's GR channel, then device lost and the game aborted.
+- New stability item: the host context probably runs without graphics preemption (GFXP), so long draws cannot be switched out. Analysis: docs/research/gr-preemption-2026-09-29.md, being written.
+- Evidence and screenshots: `sottr720-8e621e0a/`.
 
 ## Decisions for you
 
