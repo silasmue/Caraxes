@@ -89,8 +89,10 @@ Graphics: the vblank handler's display-page writes each ran an unrelated BAR1 po
 6. **GFXP (graphics preemption, the Linux Xid 109 fix) needs a VA decision.**
    - Built in the slice as you decided, P42 bound it at VAs ≥ 2^47, and the context-switch unit, which keeps only 47 bits, faulted on both VMs (host Xid 31). It is reverted.
    - The buffers must sit below 2^47 in a range no guest can map. Options:
-     - (a) the guest's own reserved server-RM range [4-4.5 GiB), which needs an RM-source check (being done);
-     - (d) the host RM allocates them in its own server range: structurally safe, but host VRAM outside the slice, ~6.6 MiB per GR context, capped per VM.
+     - ~~(a) the guest's reserved server-RM range~~: ruled out by the RM source (gvaspaceReserveSplitVaSpace always puts the host's own server range there in a base-0 shadow VAS);
+     - (c) host first fit per TSG with a VA fence on Linux too: worked on Windows in 20 runs, but not structurally collision-free;
+     - (d) the host RM allocates them in its own server range: structurally safe, but host VRAM outside the slice, ~6.6 MiB per GR context, capped per VM;
+     - (e, Windows only) the KMD's own pool VAs: does not help Linux.
    - Until then: **production = P41** (Windows runs without any patch, compute CTA/CILP parity on both OSes, graphics WFI).
 7. **Long-draw test:** proving the Xid 109 fix needs a synthetic guest draw of ~6 s. It provokes one host Xid and a ~4 s host-desktop freeze, so it waits for your go.
 
