@@ -503,6 +503,42 @@ pub fn vram_reads_by_why() -> Vec<(&'static str, u64, u64)> {
         .collect()
 }
 
+/// The software executor's translation cache (docs/caraxes/execution.md §9.7): `(root,
+/// VA page)` to the page's target, filled by [`FakeFb::translate_pages`] from walks that read
+/// only VRAM tables the device tracks, with the table pages recorded. A write to a recorded
+/// page flushes it (the BAR TLB's three hooks), and so does every MMU invalidate and every
+/// `MEM_OP` TLB invalidate the executor runs: the card lets an engine use cached translations
+/// until the next invalidate, and a guest that changes a PTE invalidates before an engine uses
+/// it, so writers the device cannot see (the BAR1 pool) are covered too. A walk through a
+/// sysmem table, a pooled or a private table page is not cached.
+#[derive(Default)]
+pub struct ExecTlb {
+    map: HashMap<(u64, u64), Target>,
+    pages: std::collections::HashSet<u64>,
+    pub hits: u64,
+    pub misses: u64,
+    pub flushes: u64,
+}
+
+/// Translations the executor TLB holds at most before it starts over.
+const EXEC_TLB_MAX: usize = 1 << 18;
+
+impl ExecTlb {
+    fn flush(&mut self) {
+        if !self.map.is_empty() || !self.pages.is_empty() {
+            self.map.clear();
+            self.pages.clear();
+            self.flushes += 1;
+        }
+    }
+
+    fn flush_if(&mut self, hit: impl Fn(u64) -> bool) {
+        if self.pages.iter().any(|p| hit(*p)) {
+            self.flush();
+        }
+    }
+}
+
 /// Counters of the VRAM store, for the exit summary.
 #[derive(Default, Debug, Clone)]
 pub struct VramStats {
@@ -1145,6 +1181,8 @@ pub struct FakeFb {
     bar_tlb_pages: RefCell<std::collections::HashSet<u64>>,
     bar_tlb_on: bool,
     pub bar_tlb_stats: Cell<(u64, u64, u64)>,
+    /// The software executor's translations ([`ExecTlb`], [`Self::translate_pages`]).
+    exec_tlb: RefCell<ExecTlb>,
     /// Watched dwords: `pa -> last value written or read`, kept current by `note_write`
     /// (every guest write to VRAM passes it), so that a hot reader such as the token-less
     /// doorbell scan (channel.rs `Registry::pending`, USERD GPPut of every channel) costs a
@@ -1196,6 +1234,7 @@ impl FakeFb {
             bar_tlb_pages: RefCell::new(std::collections::HashSet::new()),
             bar_tlb_on: std::env::var("CARAXES_BAR_TLB").as_deref() != Ok("0"),
             bar_tlb_stats: Cell::new((0, 0, 0)),
+            exec_tlb: RefCell::new(ExecTlb::default()),
             watched: RefCell::new(HashMap::new()),
             watched_pages: RefCell::new(std::collections::HashSet::new()),
             bar1_pt: RefCell::new(None),
@@ -1304,6 +1343,7 @@ impl FakeFb {
                 self.bar_tlb_stats.set((h, m, f + 1));
             }
         }
+        self.exec_tlb.borrow_mut().flush_if(within);
         for c in self.walks.borrow_mut().values_mut() {
             for p in first..=last {
                 if c.watches(p) {
@@ -1512,6 +1552,12 @@ impl FakeFb {
                 self.bar_tlb_stats.set((h, m, f + 1));
             }
         }
+        {
+            let mut e = self.exec_tlb.borrow_mut();
+            if !e.pages.is_empty() && (pa >> 12..=last).any(|p| e.pages.contains(&p)) {
+                e.flush();
+            }
+        }
         if let Some(a) = self.bar2.as_deref() {
             a.note_table_write(pa, data);
         }
@@ -1577,6 +1623,12 @@ impl FakeFb {
                 self.bar_tlb.borrow_mut().clear();
                 let (h, m, f) = self.bar_tlb_stats.get();
                 self.bar_tlb_stats.set((h, m, f + 1));
+            }
+        }
+        {
+            let mut e = self.exec_tlb.borrow_mut();
+            if pages.iter().any(|p| e.pages.contains(p)) {
+                e.flush();
             }
         }
         for c in self.walks.borrow_mut().values_mut() {
@@ -2219,7 +2271,8 @@ impl FakeFb {
     /// entries in one block per table, so a long range costs a few table reads instead of
     /// five uncached words per page, each of which could evict the window the previous one
     /// mapped (Windows C65: software CE memsets of several MB, 200-540 ms per doorbell under
-    /// the device lock; docs/caraxes/execution.md §9.3).
+    /// the device lock; docs/caraxes/execution.md §9.6). A unit whose pages the executor TLB
+    /// holds reads no table at all ([`ExecTlb`], §9.7).
     pub fn translate_pages(
         &self,
         sys: Option<&GuestMemory>,
@@ -2229,6 +2282,11 @@ impl FakeFb {
     ) -> Vec<(Target, usize)> {
         let mut out = Vec::new();
         let page_piece = |a: u64, done: u64| (0x1000 - (a & 0xFFF)).min(len - done);
+        let at = |t: Target, off: u64| match t {
+            Target::Fb(pa) => Target::Fb(pa + off),
+            Target::Sys(pa) => Target::Sys(pa + off),
+            other => other,
+        };
         if self.mmu_v3 {
             let mut done = 0u64;
             while done < len {
@@ -2247,6 +2305,7 @@ impl FakeFb {
             };
             self.table_block(sys, at, n)
         };
+        let rk = Self::watch_key(root);
         let mut done = 0u64;
         while done < len {
             let a = va + done;
@@ -2261,8 +2320,25 @@ impl FakeFb {
                 pieces.push((p, n));
                 d += n;
             }
-            // Directories PD3 -> PD0 (as `walk_in`).
-            let dirs = (|| -> Result<(u64, u64), Target> {
+            done = d;
+            // Every page cached (ExecTlb): no table read.
+            {
+                let mut e = self.exec_tlb.borrow_mut();
+                let hit: Option<Vec<Target>> = pieces
+                    .iter()
+                    .map(|&(p, _)| e.map.get(&(rk, p >> 12)).copied())
+                    .collect();
+                if let Some(ts) = hit {
+                    e.hits += pieces.len() as u64;
+                    for (&(p, n), t) in pieces.iter().zip(ts) {
+                        out.push((at(t, p & 0xFFF), n as usize));
+                    }
+                    continue;
+                }
+                e.misses += 1;
+            }
+            // Directories PD3 -> PD0 (as `walk_in`), and the tables read.
+            let dirs = (|| -> Result<(u64, u64, [Target; 4]), Target> {
                 let e3 = self
                     .table_u64(sys, root, 8 * ((a >> 47) & 3))
                     .ok_or(Target::Unmapped { level: 3 })?;
@@ -2280,34 +2356,41 @@ impl FakeFb {
                     self.table_u64(sys, pd0, 16 * idx0),
                     self.table_u64(sys, pd0, 16 * idx0 + 8),
                 ) {
-                    (Some(lo), Some(hi)) => Ok((lo, hi)),
+                    (Some(lo), Some(hi)) => Ok((lo, hi, [root, pd2, pd1, pd0])),
                     _ => Err(Target::Unmapped { level: 0 }),
                 }
             })();
+            // Per page: its target at offset 0 (what the TLB keeps), the tables read.
+            let mut bases: Vec<Target> = Vec::with_capacity(pieces.len());
+            let mut tables: Vec<Target> = Vec::new();
             match dirs {
-                Err(t) => out.extend(pieces.iter().map(|&(_, n)| (t, n as usize))),
-                Ok((lo, _)) if lo & 1 == 1 => {
+                Err(t) => bases.extend(pieces.iter().map(|_| t)),
+                Ok((lo, _, dt)) if lo & 1 == 1 => {
                     // A 2 MiB page: the low qword is a PTE.
-                    for &(p, n) in &pieces {
+                    tables.extend(dt);
+                    for &(p, _) in &pieces {
                         self.observe_pte(lo);
-                        out.push((Self::decode_pte(lo, p & 0x1F_FFFF), n as usize));
+                        bases.push(Self::decode_pte(lo, p & 0x1F_F000));
                     }
                 }
-                Ok((lo, hi)) => {
+                Ok((lo, hi, dt)) => {
+                    tables.extend(dt);
                     let small = Self::next_table(hi);
                     let big = Self::big_table(lo);
+                    tables.extend(small);
+                    tables.extend(big);
                     let first = (a >> 12) & 0x1FF;
                     let last = ((run_end - 1) >> 12) & 0x1FF;
                     let small_ptes = small.and_then(|t| run(t, first, (last - first + 1) as usize));
                     let (bfirst, blast) = (first >> 4, last >> 4);
                     let big_ptes = big.and_then(|t| run(t, bfirst, (blast - bfirst + 1) as usize));
-                    for &(p, n) in &pieces {
+                    for &(p, _) in &pieces {
                         let i = ((p >> 12) & 0x1FF) - first;
                         if let Some(pte) = small_ptes.as_ref().map(|s| s[i as usize]) {
-                            let t = Self::decode_pte(pte, p & 0xFFF);
+                            let t = Self::decode_pte(pte, 0);
                             if !matches!(t, Target::Unmapped { .. }) || big.is_none() {
                                 self.observe_pte(pte);
-                                out.push((t, n as usize));
+                                bases.push(t);
                                 continue;
                             }
                         }
@@ -2315,16 +2398,53 @@ impl FakeFb {
                         match big_ptes.as_ref().map(|b| b[bi as usize]) {
                             Some(pte) => {
                                 self.observe_pte(pte);
-                                out.push((Self::decode_pte(pte, p & 0xFFFF), n as usize));
+                                bases.push(Self::decode_pte(pte, p & 0xF000));
                             }
-                            None => out.push((Target::Unmapped { level: 0 }, n as usize)),
+                            None => bases.push(Target::Unmapped { level: 0 }),
                         }
                     }
                 }
             }
-            done = d;
+            for (&(p, n), &t) in pieces.iter().zip(&bases) {
+                out.push((at(t, p & 0xFFF), n as usize));
+            }
+            // Cached only from VRAM tables the device tracks: not through sysmem, the BAR1
+            // pool or the private pages.
+            let cacheable = !tables.is_empty()
+                && tables.iter().all(|t| match *t {
+                    Target::Fb(pa) => !self.is_remapped(pa) && !self.private_overlaps(pa & !0xFFF, 0x1000),
+                    _ => false,
+                });
+            if cacheable {
+                let mut e = self.exec_tlb.borrow_mut();
+                if e.map.len() + pieces.len() > EXEC_TLB_MAX {
+                    e.flush();
+                }
+                for (&(p, _), &t) in pieces.iter().zip(&bases) {
+                    if matches!(t, Target::Fb(_) | Target::Sys(_)) {
+                        e.map.insert((rk, p >> 12), t);
+                    }
+                }
+                for t in &tables {
+                    if let Target::Fb(pa) = *t {
+                        e.pages.insert(pa >> 12);
+                    }
+                }
+            }
         }
         out
+    }
+
+    /// An MMU invalidate or a `MEM_OP` TLB invalidate: the executor's cached translations go
+    /// ([`ExecTlb`]).
+    pub fn exec_tlb_flush(&self) {
+        self.exec_tlb.borrow_mut().flush();
+    }
+
+    /// The executor TLB's hits, misses (per 2 MiB unit walked) and flushes.
+    pub fn exec_tlb_stats(&self) -> (u64, u64, u64) {
+        let e = self.exec_tlb.borrow();
+        (e.hits, e.misses, e.flushes)
     }
 
     /// [`Self::translate`] through the BAR TLB: a hit costs no table read; a miss walks
@@ -3300,6 +3420,62 @@ mod tests {
             fb.translate_pages(None, Target::Fb(root), 0x40_0000, 0x3000),
             vec![(Target::Unmapped { level: 0 }, 0x1000); 3]
         );
+    }
+
+    /// The executor TLB (`ExecTlb`, execution.md §9.7): a unit translated again reads no
+    /// table; a write to one of its table pages, an MMU invalidate, and a `MEM_OP` invalidate
+    /// flush it, and the translation after the write sees the new PTE; a walk through a
+    /// sysmem table is never cached.
+    #[test]
+    fn the_executor_tlb_holds_until_a_table_write_or_an_invalidate() {
+        use std::os::fd::FromRawFd;
+        let mut fb = FakeFb::new(64 << 20);
+        let (root, pd2, pd1, pd0, pt) = (0x10000u64, 0x11000u64, 0x12000u64, 0x13000u64, 0x14000u64);
+        let vid = |addr: u64| ((addr >> 12) << 8) | 0b010;
+        let pte = |pa: u64| ((pa >> 12) << 8) | 1;
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        fb.write_u64(pt + 8 * 2, pte(0x20000));
+        fb.write_u64(pt + 8 * 3, pte(0x21000));
+        // Unit 1: its page table in guest sysmem.
+        fb.write_u64(pd0 + 16 + 8, ((0x3000u64 >> 12) << 8) | 0b100);
+        let name = std::ffi::CString::new("caraxes-tlb-test").unwrap();
+        // SAFETY: a plain syscall; the descriptor is checked and owned by the File.
+        let fd = unsafe { libc::memfd_create(name.as_ptr(), libc::MFD_CLOEXEC) };
+        assert!(fd >= 0);
+        // SAFETY: a fresh descriptor nothing else owns.
+        let ram = unsafe { std::fs::File::from_raw_fd(fd) };
+        ram.set_len(1 << 20).unwrap();
+        let mut mem = GuestMemory::new();
+        mem.map(0, 1 << 20, 0, &ram).unwrap();
+        assert!(mem.write(0x3000, &pte(0x30000).to_le_bytes()));
+        let r = Target::Fb(root);
+        let tr = |fb: &FakeFb, va: u64, len: u64| fb.translate_pages(Some(&mem), r, va, len);
+        let want = vec![(Target::Fb(0x20010), 0xFF0), (Target::Fb(0x21000), 0x20)];
+        assert_eq!(tr(&fb, 0x2010, 0x1010), want);
+        assert_eq!(fb.exec_tlb_stats(), (0, 1, 0));
+        assert_eq!(tr(&fb, 0x2010, 0x1010), want, "from the TLB");
+        assert_eq!(fb.exec_tlb_stats(), (2, 1, 0));
+        // A write to its page table flushes it; the next walk sees the new PTE.
+        fb.write_u64(pt + 8 * 3, pte(0x22000));
+        assert_eq!(fb.exec_tlb_stats().2, 1);
+        assert_eq!(tr(&fb, 0x3000, 0x1000), vec![(Target::Fb(0x22000), 0x1000)]);
+        // An invalidate flushes it as well.
+        assert_eq!(tr(&fb, 0x3000, 0x1000), vec![(Target::Fb(0x22000), 0x1000)]);
+        let (h, m, f) = fb.exec_tlb_stats();
+        fb.exec_tlb_flush();
+        assert_eq!(fb.exec_tlb_stats(), (h, m, f + 1));
+        assert_eq!(tr(&fb, 0x3000, 0x1000), vec![(Target::Fb(0x22000), 0x1000)]);
+        assert_eq!(fb.exec_tlb_stats().1, m + 1);
+        // A walk through the sysmem page table is not cached: every call walks, and a sysmem
+        // PTE change the device cannot see is followed.
+        let (_, m, _) = fb.exec_tlb_stats();
+        assert_eq!(tr(&fb, 0x20_0000, 0x1000), vec![(Target::Fb(0x30000), 0x1000)]);
+        assert!(mem.write(0x3000, &pte(0x31000).to_le_bytes()));
+        assert_eq!(tr(&fb, 0x20_0000, 0x1000), vec![(Target::Fb(0x31000), 0x1000)]);
+        assert_eq!(fb.exec_tlb_stats().1, m + 2);
     }
 
     #[test]

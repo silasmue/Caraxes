@@ -974,6 +974,10 @@ impl BootModel {
         s.push(format!(
             "bar tlb: {h} hit(s), {m} walk(s), {f} flush(es) by a table write (docs/caraxes/mapping.md §3)"
         ));
+        let (h, m, f) = self.fb.exec_tlb_stats();
+        s.push(format!(
+            "executor tlb: {h} page hit(s), {m} unit walk(s), {f} flush(es) by a table write or an invalidate (docs/caraxes/execution.md §9.7)"
+        ));
         if let (Some((fb0, len)), Some(st)) =
             (self.fb.bar1_passthrough(), self.fb.bar1_passthrough_stats())
         {
@@ -1684,6 +1688,8 @@ impl BootModel {
         let mut notes = Vec::new();
         self.mmu_invalidate.2 = v;
         if v & (1 << 31) != 0 {
+            // The executor's cached translations end at every invalidate (fb.rs `ExecTlb`).
+            self.fb.exec_tlb_flush();
             // NV_PFB_PRI_MMU_INVALIDATE_PDB: ADDR 31:4 in 4 KiB units, APERTURE
             // 1:0; UPPER_PDB adds bits 51:32 (fb-model.md §4d).
             let pdb = ((self.mmu_invalidate.0 as u64 >> 4) << 12)
