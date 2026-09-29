@@ -118,8 +118,11 @@ Isolation:
   a pointer-free compute BIND takes the SET's record-and-apply path (preempt.rs); a graphics
   BIND is acknowledged (the host mode comes from the build). P17's first-use gate,
   `bind_owned_gfxp`, `bind_owned_compute` and `confirm_gfx_wfi` are gone.
-- The slot VAs lie in a window from 2^48 that no guest allocator reaches and the shadow never
-  mirrors (shadow.rs `Layout::slot_window`): a guest leaf there is refused by name.
+- The slot VAs lie in a window from 2^47, right above the guest's VA range (the guest RM's
+  limit, the range the shadow mirrors); the shadow VA space is 2^48 for it (shadow.rs
+  `SHADOW_VA_SIZE`), and the window is never mirrored (shadow.rs `Layout::slot_window`): a
+  guest leaf there is refused by name. Run P40 on Linux: the first choice, 2^48, lay outside
+  the 2^47 shadow VA space (`0x1a` for every graphics TSG, all stayed WFI).
 - Teardown: BIND WFI, GET 0, unmap, free the virtual range, free the slot. No slot free: WFI
   and a WARN, never a failure towards the guest.
 - The mode log is step 0's (a GET per host GR TSG at its build and at its teardown).
