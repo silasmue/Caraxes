@@ -405,8 +405,9 @@ impl WindowSource for crate::hostmem::ReservationMapper {
     }
 }
 
-/// Why the device reads VRAM (the exit summary's split of the store's reads): a scoped tag
-/// the reading path sets ([`ReadWhy::scope`]); reads without one count as `other`.
+/// Why the device reads or writes VRAM (the exit summary's split of the store's reads and
+/// of its BAR1 window maps): a scoped tag the accessing path sets ([`ReadWhy::scope`]);
+/// accesses without one count as `other`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReadWhy {
     Other = 0,
@@ -418,18 +419,32 @@ pub enum ReadWhy {
     Bar2Load = 3,
     /// The BAR2 memfd's drift sample.
     Bar2Drift = 4,
+    /// A BAR2 memfd sync writing a page the guest changed back to VRAM.
+    Bar2WriteBack = 5,
+    /// `FakeFb::write` without another tag: the device's data writes.
+    DataWrite = 6,
 }
 
 /// Names of [`ReadWhy`] in its order.
-pub const READ_WHYS: [&str; 5] = ["other", "device data", "page tables", "BAR2 page loads", "BAR2 drift samples"];
+pub const READ_WHYS: [&str; 7] = [
+    "other",
+    "device data",
+    "page tables",
+    "BAR2 page loads",
+    "BAR2 drift samples",
+    "BAR2 write-backs",
+    "device data writes",
+];
 
 thread_local! {
     static READ_WHY: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Bytes and reads of the VRAM store by [`ReadWhy`] (all devices of the process).
-static READ_BYTES: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(0) }; 5];
-static READ_COUNT: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(0) }; 5];
+static READ_BYTES: [std::sync::atomic::AtomicU64; 7] = [const { std::sync::atomic::AtomicU64::new(0) }; 7];
+static READ_COUNT: [std::sync::atomic::AtomicU64; 7] = [const { std::sync::atomic::AtomicU64::new(0) }; 7];
+/// The store's BAR1 window maps by [`ReadWhy`] of the access that needed them.
+static MAP_COUNT: [std::sync::atomic::AtomicU64; 7] = [const { std::sync::atomic::AtomicU64::new(0) }; 7];
 
 /// Restores the previous tag when dropped.
 pub struct ReadWhyGuard(usize);
@@ -441,10 +456,29 @@ impl Drop for ReadWhyGuard {
 }
 
 impl ReadWhy {
-    /// Tag the VRAM reads of this thread until the guard is dropped.
+    /// Tag the VRAM accesses of this thread until the guard is dropped.
     pub fn scope(self) -> ReadWhyGuard {
         ReadWhyGuard(READ_WHY.with(|w| w.replace(self as usize)))
     }
+
+    /// [`Self::scope`] only where no other tag is set.
+    pub fn scope_if_untagged(self) -> ReadWhyGuard {
+        ReadWhyGuard(READ_WHY.with(|w| {
+            let old = w.get();
+            if old == ReadWhy::Other as usize {
+                w.set(self as usize);
+            }
+            old
+        }))
+    }
+}
+
+/// The store's BAR1 window maps by [`ReadWhy`]: `(name, maps)`.
+pub fn vram_maps_by_why() -> Vec<(&'static str, u64)> {
+    use std::sync::atomic::Ordering::Relaxed;
+    (0..READ_WHYS.len())
+        .map(|i| (READ_WHYS[i], MAP_COUNT[i].load(Relaxed)))
+        .collect()
 }
 
 /// The store's reads by [`ReadWhy`]: `(name, reads, bytes)`.
@@ -798,6 +832,8 @@ impl VramStore {
                 Ok(w) => {
                     st.maps += 1;
                     drop(st);
+                    let why = READ_WHY.with(|w| w.get());
+                    MAP_COUNT[why].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let mut ws = self.windows.borrow_mut();
                     ws.push(Slot {
                         win: w,
@@ -2006,6 +2042,7 @@ impl FakeFb {
         }
         self.filter.before_write(pa, data);
         self.note_write(pa, data);
+        let _why = ReadWhy::DataWrite.scope_if_untagged();
         // The same order as `read`: VRAM for the GPU at the address the BAR1 pool's remap
         // gives, and, when the BAR2 memfd is on, the memfd for the guest's BAR2 view by the
         // guest address, its key (write-through).
@@ -4175,6 +4212,40 @@ mod tests {
         assert_eq!(b, [0xFF, 0xFF, 7, 8]);
         let st = s.stats();
         assert_eq!((st.failed, st.map_failures, st.pinned), (1, 1, 1));
+    }
+
+    /// A window map counts for the tag of the access that needed it: a BAR2 write-back, a
+    /// device data write (an untagged write), a page-table read; a hit maps nothing.
+    #[test]
+    fn window_maps_count_by_the_caller_that_needed_them() {
+        let (base, end) = (0xE900_0000u64, 0x1_6900_0000u64);
+        let src = RamWindows {
+            max_len: usize::MAX,
+            pages: std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default())),
+            maps: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        };
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 2 << 20, 1);
+        let count = |name: &str| vram_maps_by_why().into_iter().find(|(n, _)| *n == name).unwrap().1;
+        let (wb, data, tables) = (count("BAR2 write-backs"), count("device data writes"), count("page tables"));
+        {
+            let _why = ReadWhy::Bar2WriteBack.scope();
+            s.write(base, &[1]);
+            s.write(base + 8, &[2]);
+        }
+        {
+            let _why = ReadWhy::DataWrite.scope_if_untagged();
+            s.write(base + (8 << 20), &[3]);
+        }
+        {
+            let _why = ReadWhy::Tables.scope();
+            let _inner = ReadWhy::DataWrite.scope_if_untagged();
+            let mut b = [0u8; 1];
+            s.read(base + (16 << 20), &mut b);
+        }
+        // Other tests of this process may map windows too: at least, never fewer.
+        assert!(count("BAR2 write-backs") > wb);
+        assert!(count("device data writes") > data);
+        assert!(count("page tables") > tables, "an inner untagged scope keeps the tag");
     }
 
     /// The BAR1 pool's own dma-buf mapping pinned in the VRAM store (bar1-pool.md §12):
