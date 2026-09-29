@@ -4459,6 +4459,14 @@ impl Mirror {
     /// `DMA_SET_PAGE_DIRECTORY`; for a replayed one it is the host kernel's own root,
     /// exec-formats.md §4.4). Opt-in: a `MEM_OP` `MMU_TLB_INVALIDATE` of each distinct
     /// guest root from the invalidator channel (see `invalidator`). Returns how many.
+    /// Whether a host VA space walks the guest's own page tables (a mirror VAS forwarded
+    /// the guest's page directory): then the host MMU reads them from VRAM, and the BAR2
+    /// memfd's invalidate syncs every live page, not only the tables the device walks
+    /// (boot.rs `mmu_invalidate_write`).
+    pub fn walks_guest_tables(&self) -> bool {
+        !self.vas.is_empty()
+    }
+
     pub fn invalidate_tlb(&mut self, fb: &mut FakeFb, pdb: Option<u64>) -> usize {
         if let Some(inv) = self.invalidator.as_mut() {
             let mut roots: Vec<u64> = self

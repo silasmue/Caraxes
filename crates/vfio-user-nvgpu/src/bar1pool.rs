@@ -671,6 +671,18 @@ impl Bar1Pool {
         p
     }
 
+    /// Whether the pool follows page `page` (4 KiB page number): a table page of its area
+    /// walk, or the home of a replica. The BAR2 memfd's table sync must report a change
+    /// of such a page (fb.rs `FakeFb::device_table_page`).
+    pub fn tracks_page(&self, page: u64) -> bool {
+        self.page_units.contains_key(&page) || self.replica_homes.contains(&page)
+    }
+
+    /// Every page [`Self::tracks_page`] holds true for.
+    pub fn tracked_pages(&self) -> impl Iterator<Item = u64> + '_ {
+        self.page_units.keys().chain(self.replica_homes.iter()).copied()
+    }
+
     /// A guest write reached FB pages `first..=last`: re-walk the units whose tables
     /// they hold. A unit's page table written: the whole unit; only a directory page (the
     /// root, PD2, PD1 and PD0 are shared by every unit of the area): its path first.

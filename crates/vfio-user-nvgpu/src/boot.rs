@@ -948,9 +948,11 @@ impl BootModel {
     /// memfd sync, then the BAR1 pool's untracked pages. It settles an owed flush.
     fn flush_point(&mut self, mem: &GuestMemory, point: crate::bar2area::Point) {
         let root = self.bar_root(3);
+        let t0 = std::time::Instant::now();
         if self.fb.bar2_sync(root, Some(mem)) {
+            let ns = t0.elapsed().as_nanos() as u64;
             if let Some(a) = self.fb.bar2_area_mut() {
-                a.count_point(point);
+                a.count_point(point, ns);
             }
         }
         crate::bar1pool::sync_untracked(&mut self.fb);
@@ -1447,9 +1449,11 @@ impl BootModel {
                 self.bar2_block = v;
                 // BAR2 (re)bound: its tables are live from here on.
                 let root = self.bar_root(3);
+                let t0 = std::time::Instant::now();
                 if self.fb.bar2_sync(root, Some(mem)) {
+                    let ns = t0.elapsed().as_nanos() as u64;
                     if let Some(a) = self.fb.bar2_area_mut() {
-                        a.count_point(crate::bar2area::Point::Bar2Bind);
+                        a.count_point(crate::bar2area::Point::Bar2Bind, ns);
                     }
                 }
             }
@@ -1580,8 +1584,17 @@ impl BootModel {
             // The BAR1 area's untracked pages (bar1pool.rs `sync_untracked`): the
             // replicas' guest writes reach their pages as tracked writes, and a
             // table page still in the pool is re-read by the walks below. Settles
-            // a deferred flush read.
-            self.flush_point(mem, crate::bar2area::Point::MmuInvalidate);
+            // a deferred flush read. With the memfd and no flush owed, the table pages
+            // only (`FakeFb::bar2_sync_tables`, bar2-memfd.md §3 rule 2): the MMU re-reads
+            // tables from here on; data reaches VRAM at its own hand-over.
+            let host_walks = self.ctrl.mirror.as_ref().is_some_and(|m| m.walks_guest_tables());
+            if self.fb.bar2_area().is_some() && !self.fb.bar2_flush_pending() && !host_walks {
+                let root = self.bar_root(3);
+                self.fb.bar2_sync_tables(root, Some(mem));
+                crate::bar1pool::sync_untracked(&mut self.fb);
+            } else {
+                self.flush_point(mem, crate::bar2area::Point::MmuInvalidate);
+            }
             // The guest changed page tables in VRAM through BAR1; drain the WC
             // buffers before the host TLB invalidate so RM re-walks fresh tables.
             self.fb.flush();
@@ -1722,12 +1735,16 @@ impl BootModel {
     ///   promoted context buffers the host builds itself; mirror.rs `shadow_exclusions`).
     ///   The GPFIFO is among them wherever it lives: `NV_RAMFC_GP_BASE` is a VA
     ///   (maxwell/gm107/dev_ram.h:72-73), and so are the pushbuffers;
-    /// - what the card reads by physical address: the page tables (`NV_RAMIN_PAGE_DIR_BASE`,
-    ///   gm107/dev_ram.h:58-66, and every directory below it), USERD (`NV_RAMFC_USERD`,
+    /// - what the card reads by physical address at a doorbell: USERD (`NV_RAMFC_USERD`,
     ///   turing/tu102/dev_ram.h:29-30, GP_PUT at :62), the instance block with RAMFC and the
     ///   method buffer (channel.rs `Channel::structures`). The runlist names the instance
     ///   block and USERD by physical address (`NV_RAMRL_ENTRY_CHAN_USERD_TARGET`, :46-50);
     ///   the runlist memory itself is GSP-RM's, which no guest writes.
+    /// - The page tables (`NV_RAMIN_PAGE_DIR_BASE`, gm107/dev_ram.h:58-66, and every
+    ///   directory below it) are read by physical address too, but the card is bound to a
+    ///   changed entry only after an MMU invalidate (rule 2), and every invalidate syncs the
+    ///   live table pages (`FakeFb::bar2_sync_tables`). The walk's table pages are kept
+    ///   here for the count of what the invalidate covers (`note_observe_set`).
     ///
     /// The ranges are cached per channel while the channel, its root, the walk's leaves and
     /// table pages and the set-B ranges stay; the pages while the live set stays as well.
@@ -1774,10 +1791,14 @@ impl BootModel {
                 },
             );
         }
-        let area = self.fb.bar2_area()?;
+        let area = self.fb.bar2_area_mut()?;
         let e = self.bar2_observe.get_mut(&chid).expect("just checked or inserted");
-        e.pages = area.observed(&e.pieces, &e.tables);
+        // Page tables are not in the doorbell's set: the card re-reads them only after an
+        // MMU invalidate (rule 2), which syncs every live table page itself.
+        e.pages = area.observed(&e.pieces, &[]);
         e.live_gen = live_gen;
+        let tables = area.observed(&[], &e.tables).len();
+        area.note_observe_set(e.pages.len(), tables);
         Some(e.pages.clone())
     }
 
@@ -4741,7 +4762,16 @@ mod tests {
         let (mut b, x, guest) = memfd_model(true);
         let r = b.regs;
         let point = |b: &BootModel, p: Point| b.fb.bar2_area().unwrap().stats().by_point[p as usize];
+        // With no flush owed the invalidate syncs table pages only: x (data) waits.
         guest.store_word(2, 0, 0x11);
+        b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x), 0);
+        assert_eq!(point(&b, Point::MmuInvalidate), 0);
+        assert_eq!(b.fb.bar2_area().unwrap().stats().table_syncs, 1);
+        // A flush read (the trapped page) owes a sync: the invalidate settles it in full.
+        let mut d = [0u8; 4];
+        b.bar_access(&mem, 3, 0x1f000, &mut d, false);
+        assert!(b.fb.bar2_flush_pending());
         b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
         assert_eq!(vram_u64(&b, x), 0x11);
         assert_eq!(point(&b, Point::MmuInvalidate), 1);
@@ -4884,18 +4914,19 @@ mod tests {
         let s = w.stats();
         assert_eq!((s.doorbells_checked, s.doorbells_clean, s.doorbell_syncs), (1, 1, 0));
         assert_eq!((w.vram(x), w.vram(z)), (0, 0));
-        // The guest maps x in the channel's VAS; the invalidate syncs everything and the
-        // walk follows (here: the model's walk update, as the shadow's resync does).
+        // The guest maps x in the channel's VAS; the invalidate (no flush owed) syncs the
+        // table pages only, and the walk follows (here: the model's walk update, as the
+        // shadow's resync does). Data waits for its hand-over.
         let pt = DB_BASE + 0x30_4000;
         w.b.fb.write_u64(pt + 8, ((x >> 12) << 8) | 1);
         let r = w.b.regs;
         w.b.write32(r.mmu_invalidate, 0x8000_0005, &w.mem).unwrap();
-        assert_eq!((w.vram(x), w.vram(z)), (0xA2, 0xB2));
+        assert_eq!((w.vram(x), w.vram(z)), (0, 0));
         w.b.fb.walk_update(Some(&w.mem), Target::Fb(DB_BASE + 0x30_0000), false, 1 << 16);
         w.guest.store_word(2, 1, 0xA3);
         w.guest.store_word(3, 1, 0xB3);
         w.ring();
-        assert_eq!((w.vram(x + 8), w.vram(z + 8)), (0xA3, 0));
+        assert_eq!((w.vram(x), w.vram(x + 8), w.vram(z + 8)), (0xA2, 0xA3, 0));
         assert_eq!(w.stats().doorbell_syncs, 1);
     }
 
@@ -4917,20 +4948,52 @@ mod tests {
     }
 
     /// The channel's page tables are read by physical address (NV_RAMIN_PAGE_DIR_BASE and
-    /// the entries below it): a page-table page behind BAR2 is synced at its doorbell.
+    /// the entries below it), but only after an MMU invalidate is the card bound to the new
+    /// entries (rule 2): a page-table page behind BAR2 is not in the doorbell's set, and
+    /// the invalidate with no flush owed syncs exactly the live table pages (the BAR2
+    /// tables and the channel's), not data. The set reports the table pages it left out.
     #[test]
-    fn a_doorbell_syncs_its_channels_page_tables() {
+    fn page_tables_behind_bar2_reach_vram_at_the_invalidate_not_the_doorbell() {
         let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
         let mut w = doorbell_world(false, true, y_userd, inst, true);
-        let pt = w.pt;
+        let (pt, z) = (w.pt, w.z);
         assert_eq!(w.b.fb.backing(pt), crate::fb::Backing::Bar2Memfd(0x4000));
+        assert!(w.b.fb.device_table_page(pt >> 12), "the walk of the channel's root reads it");
+        assert!(!w.b.fb.device_table_page(z >> 12));
         let pte = ((DB_BASE + 0x70_0000) >> 12 << 8) | 1;
         w.guest.store_word(4, 2, pte);
         w.guest.store_word(3, 0, 0xB4);
         w.ring();
-        assert_eq!(w.vram(pt + 16), pte);
-        assert_eq!(w.vram(w.z), 0, "z is not the channel's");
-        assert_eq!(w.stats().doorbell_compared, 1);
+        let s = w.stats();
+        assert_eq!((s.doorbells_clean, s.doorbell_syncs), (1, 0), "nothing for the doorbell");
+        assert_eq!((s.observe_pages_max, s.observe_tables_max), (0, 1));
+        assert_eq!(w.vram(pt + 16), 0);
+        let r = w.b.regs;
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        assert_eq!(w.vram(pt + 16), pte, "the table page at the invalidate");
+        assert_eq!(w.vram(z), 0, "data waits for its hand-over");
+        let s = w.stats();
+        assert_eq!(s.table_syncs, 1);
+        assert!(s.table_sync_pages >= 1);
+        // The walk re-reads the written table page (marked dirty by the sync).
+        assert!(w.b.fb.tables_dirty(Target::Fb(DB_BASE + 0x30_0000)));
+    }
+
+    /// A BAR2 page re-pointed at the invalidate's table sync: what the guest wrote through
+    /// it reaches VRAM before the page leaves the mapping, though no scan covered it.
+    #[test]
+    fn a_page_leaving_bar2_at_a_table_sync_is_written_back_first() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, false, y_userd, inst, true);
+        let z = w.z;
+        w.guest.store_word(3, 0, 0xC5);
+        // The guest unmaps BAR2 page 3 (a device write of the BAR2 PTE, as PRAMIN would).
+        w.b.fb.write_u64(DB_BASE + 0x9000 + 8 * 3, 0);
+        let r = w.b.regs;
+        w.b.write32(r.mmu_invalidate, 0x8000_0007, &w.mem).unwrap();
+        assert!(matches!(w.b.fb.backing(z), crate::fb::Backing::Store));
+        assert_eq!(w.vram(z), 0xC5);
+        assert_eq!(w.stats().table_syncs, 1);
     }
 
     /// A channel whose memory the device cannot name (no cached walk of its root) could

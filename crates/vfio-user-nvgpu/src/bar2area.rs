@@ -247,6 +247,16 @@ impl SharedView {
         unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), p, data.len()) };
     }
 
+    /// Whether page `page` holds exactly `snap`: one `memcmp` over the mapping, no copy (the
+    /// scans' test of a clean page, the common case).
+    pub fn page_eq(&self, page: u64, snap: &PageBuf) -> bool {
+        let p = self.at(page * PAGE, PAGE as usize);
+        // SAFETY: in bounds; both are 4096 readable bytes. The mapping is shared memory the
+        // guest may write concurrently: a torn compare only says "differs", and the copy
+        // that follows (`load_page`) decides.
+        unsafe { libc::memcmp(p.cast(), snap.as_ptr().cast(), PAGE as usize) == 0 }
+    }
+
     /// The 512 qwords of page `page`.
     pub fn load_page(&self, page: u64, out: &mut PageBuf) {
         let p = self.at(page * PAGE, PAGE as usize).cast::<u64>();
@@ -567,8 +577,9 @@ impl RemapTable {
         write_back: &mut dyn FnMut(u64, usize, &[u8]),
     ) -> Scan {
         let mut out = Scan::default();
-        let mut buf: Box<PageBuf> = Box::new([0; WORDS]);
-        let mut cmask: Box<PageBuf> = Box::new([0; WORDS]);
+        // Allocated at the first page that differs: a scan of clean pages is one memcmp
+        // per BAR2 page and nothing else.
+        let mut bufs: Option<(Box<PageBuf>, Box<PageBuf>)> = None;
         let mut keys: Vec<u64> = match only {
             Some(k) => k.iter().copied().filter(|k| self.live.contains_key(k)).collect(),
             None => self.live.keys().copied().collect(),
@@ -578,10 +589,19 @@ impl RemapTable {
         for key in keys {
             let l = self.live.get_mut(&key).expect("listed");
             let mut merged: Option<Box<PageBuf>> = None;
-            cmask.fill(0);
+            let mut cleared = false;
             for &va in &l.vas {
                 out.compared += 1;
-                mem.load_page(va, &mut buf);
+                if mem.page_eq(va, &l.snap) {
+                    continue;
+                }
+                let (buf, cmask) =
+                    bufs.get_or_insert_with(|| (Box::new([0; WORDS]), Box::new([0; WORDS])));
+                if !cleared {
+                    cmask.fill(0);
+                    cleared = true;
+                }
+                mem.load_page(va, buf);
                 if buf[..] == l.snap[..] {
                     continue;
                 }
@@ -601,6 +621,7 @@ impl RemapTable {
                 }
             }
             let Some(m) = merged else { continue };
+            let (_, cmask) = bufs.as_ref().expect("a page differed");
             if l.vas.len() > 1 {
                 for &va in &l.vas {
                     for i in (0..WORDS).filter(|&i| cmask[i] != 0) {
@@ -1040,6 +1061,17 @@ pub struct Bar2Stats {
     pub doorbell_dirty: u64,
     pub doorbell_ns: u64,
     pub doorbell_ns_max: u64,
+    /// Time in the full syncs by [`Point`], in nanoseconds.
+    pub point_ns: [u64; POINTS],
+    /// MMU invalidates that synced only the live table pages (no flush owed) and the pages.
+    pub table_syncs: u64,
+    pub table_sync_pages: u64,
+    pub table_sync_ns: u64,
+    /// The doorbell rule's sets as last computed per channel: how many times, and the most
+    /// live pages one held; the most live table pages of a channel left to the invalidate.
+    pub observe_sets: u64,
+    pub observe_pages_max: u64,
+    pub observe_tables_max: u64,
 }
 
 /// What one sync changed, for the FB's caches.
@@ -1136,6 +1168,24 @@ impl Bar2Area {
         !self.remap.is_empty()
     }
 
+    /// Whether page `page` is a table page of the BAR2 walk.
+    pub fn watches_table(&self, page: u64) -> bool {
+        self.cache.borrow().as_ref().is_some_and(|c| c.watches(page))
+    }
+
+    /// The table pages of the BAR2 walk.
+    pub fn table_pages(&self) -> Vec<u64> {
+        self.cache
+            .borrow()
+            .as_ref()
+            .map_or_else(Vec::new, |c| c.watched_pages().collect())
+    }
+
+    /// Whether FB page `page` (4 KiB page number) is mapped through BAR2 now.
+    pub fn is_live(&self, page: u64) -> bool {
+        self.remap.home(page).is_some()
+    }
+
     /// See [`RemapTable::generation`].
     pub fn live_generation(&self) -> u64 {
         self.remap.generation()
@@ -1187,9 +1237,18 @@ impl Bar2Area {
         out
     }
 
-    /// Count a full sync at `p`.
-    pub fn count_point(&mut self, p: Point) {
+    /// Count a full sync at `p` that took `ns`.
+    pub fn count_point(&mut self, p: Point, ns: u64) {
         self.stats.by_point[p as usize] += 1;
+        self.stats.point_ns[p as usize] += ns;
+    }
+
+    /// Count a doorbell set computed: `pages` live pages in it, `tables` live table pages
+    /// of the channel left to the invalidate.
+    pub fn note_observe_set(&mut self, pages: usize, tables: usize) {
+        self.stats.observe_sets += 1;
+        self.stats.observe_pages_max = self.stats.observe_pages_max.max(pages as u64);
+        self.stats.observe_tables_max = self.stats.observe_tables_max.max(tables as u64);
     }
 
     /// An `NV_UFLUSH_FB_FLUSH` write that started a flush: as a flush read
@@ -1322,9 +1381,25 @@ impl Bar2Area {
         sys: Option<&GuestMemory>,
         tr: Translate,
     ) -> SyncReport {
+        self.sync_only(store, fb_size, root, sys, tr, None)
+    }
+
+    /// [`Self::sync`] whose scan covers only the live pages among `only` (all for `None`):
+    /// the MMU invalidate's sync of the table pages ([`crate::fb::FakeFb::bar2_sync_tables`]).
+    /// A page that leaves the BAR2 mapping is written back first all the same
+    /// ([`Self::apply_work`]).
+    pub fn sync_only(
+        &mut self,
+        store: &mut dyn FbStore,
+        fb_size: u64,
+        root: Option<u64>,
+        sys: Option<&GuestMemory>,
+        tr: Translate,
+        only: Option<&[u64]>,
+    ) -> SyncReport {
         let t0 = std::time::Instant::now();
         let mut rep = SyncReport::default();
-        let scan = self.scan_back(store, sys, tr, None, &mut rep);
+        let scan = self.scan_back(store, sys, tr, only, &mut rep);
         self.stats.syncs += 1;
         self.stats.compared += scan.compared as u64;
         if let Some(root) = root {
@@ -1406,14 +1481,17 @@ impl Bar2Area {
         self.stats.bytes_written_back += scan.bytes as u64;
         self.stats.conflicts += scan.conflicts as u64;
         self.stats.sys_skipped += sys_skipped;
-        rep.dirty = scan.dirty.iter().copied().filter(|k| k & SYS == 0).collect();
+        let dirty: Vec<u64> = scan.dirty.iter().copied().filter(|k| k & SYS == 0).collect();
         if let Some(c) = self.cache.borrow_mut().as_mut() {
-            for &p in &rep.dirty {
+            for &p in &dirty {
                 if c.watches(p) {
                     c.mark_dirty(p);
                 }
             }
         }
+        rep.dirty.extend(dirty);
+        rep.dirty.sort_unstable();
+        rep.dirty.dedup();
         scan
     }
 
@@ -1450,7 +1528,7 @@ impl Bar2Area {
     /// Bring the BAR2 translation up to date with the tables rooted at `root`.
     fn follow_tables(
         &mut self,
-        store: &dyn FbStore,
+        store: &mut dyn FbStore,
         fb_size: u64,
         root: u64,
         sys: Option<&GuestMemory>,
@@ -1476,7 +1554,7 @@ impl Bar2Area {
                 let r = Reader {
                     remap: &self.remap,
                     mem: &self.mem.view,
-                    store,
+                    store: &*store,
                     tr,
                     fb_size,
                     sys,
@@ -1494,9 +1572,7 @@ impl Bar2Area {
             drop(guard);
             self.stats.walks += 1;
             crate::profile::window("bar2 memfd: table walks", 0);
-            for (u, leaves) in work {
-                self.apply_unit(u, &leaves, store, fb_size, sys, tr, rep);
-            }
+            self.apply_work(work, store, fb_size, sys, tr, rep);
             return;
         }
         let work: Vec<(u64, Vec<Leaf>)> = {
@@ -1509,7 +1585,7 @@ impl Bar2Area {
                 let r = Reader {
                     remap: &self.remap,
                     mem: &self.mem.view,
-                    store,
+                    store: &*store,
                     tr,
                     fb_size,
                     sys,
@@ -1524,26 +1600,47 @@ impl Bar2Area {
         };
         self.stats.walks += 1;
         crate::profile::window("bar2 memfd: table walks", 0);
-        for (u, leaves) in work {
-            self.apply_unit(u, &leaves, store, fb_size, sys, tr, rep);
-        }
+        self.apply_work(work, store, fb_size, sys, tr, rep);
     }
 
-    /// Re-point every BAR2 page of the 2 MiB unit at `unit` from its leaves.
-    #[allow(clippy::too_many_arguments)]
-    fn apply_unit(
+    /// Re-point the BAR2 pages of the changed units `work` from their leaves. What the guest
+    /// wrote through a BAR2 page that now maps another page is written back first (with a
+    /// full scan before it finds nothing; a restricted one may not have covered it).
+    fn apply_work(
         &mut self,
-        unit: u64,
-        leaves: &[Leaf],
-        store: &dyn FbStore,
+        work: Vec<(u64, Vec<Leaf>)>,
+        store: &mut dyn FbStore,
         fb_size: u64,
         sys: Option<&GuestMemory>,
         tr: Translate,
         rep: &mut SyncReport,
     ) {
-        if unit >= self.size {
-            return;
+        let wants: Vec<(u64, HashMap<u64, u64>)> = work
+            .iter()
+            .filter(|(u, _)| *u < self.size)
+            .map(|(u, leaves)| (*u, self.unit_want(*u, leaves, fb_size)))
+            .collect();
+        let mut leaving: Vec<u64> = Vec::new();
+        for (unit, want) in &wants {
+            let (first, end) = (unit / PAGE, (unit + UNIT).min(self.size) / PAGE);
+            for vp in first..end {
+                if let Some(old) = self.remap.target(vp) {
+                    if want.get(&vp) != Some(&old) {
+                        leaving.push(old);
+                    }
+                }
+            }
         }
+        if !leaving.is_empty() {
+            self.scan_back(store, sys, tr, Some(&leaving), rep);
+        }
+        for (unit, want) in wants {
+            self.apply_unit(unit, want, &*store, sys, tr, rep);
+        }
+    }
+
+    /// The page key each BAR2 page of the 2 MiB unit at `unit` should map, from its leaves.
+    fn unit_want(&self, unit: u64, leaves: &[Leaf], fb_size: u64) -> HashMap<u64, u64> {
         let first = unit / PAGE;
         let end = (unit + UNIT).min(self.size) / PAGE;
         let mut want: HashMap<u64, u64> = HashMap::new();
@@ -1568,6 +1665,21 @@ impl Bar2Area {
                 }
             }
         }
+        want
+    }
+
+    /// Re-point every BAR2 page of the 2 MiB unit at `unit` to `want`.
+    fn apply_unit(
+        &mut self,
+        unit: u64,
+        want: HashMap<u64, u64>,
+        store: &dyn FbStore,
+        sys: Option<&GuestMemory>,
+        tr: Translate,
+        rep: &mut SyncReport,
+    ) {
+        let first = unit / PAGE;
+        let end = (unit + UNIT).min(self.size) / PAGE;
         let Bar2Area {
             remap,
             mem,
@@ -1621,9 +1733,11 @@ impl Bar2Area {
 
     /// The sync points' part of the summary line.
     fn points_line(&self, s: &Bar2Stats) -> String {
-        let p = |x: Point| s.by_point[x as usize];
+        let p = |x: Point| {
+            format!("{} ({} us)", s.by_point[x as usize], s.point_ns[x as usize] / 1000)
+        };
         format!(
-            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; channel doorbells: {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
+            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates with no flush owed: {} table sync(s) of {} live table page(s) ({} us); channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
             p(Point::FlushRead),
             p(Point::FbFlush),
             s.fb_flushes,
@@ -1632,6 +1746,12 @@ impl Bar2Area {
             p(Point::Bar2Bind),
             p(Point::Doorbell),
             p(Point::Clock),
+            s.table_syncs,
+            s.table_sync_pages,
+            s.table_sync_ns / 1000,
+            s.observe_sets,
+            s.observe_pages_max,
+            s.observe_tables_max,
             s.doorbells_checked,
             s.doorbells_clean,
             s.doorbells_unknown,

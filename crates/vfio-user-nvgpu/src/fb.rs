@@ -1463,6 +1463,68 @@ impl FakeFb {
         true
     }
 
+    /// Whether FB page `page` (4 KiB page number) is a table page a device cache follows
+    /// by physical address: a table of a cached guest walk (the shadows'), of the BAR2
+    /// walk, of the BAR1 walk or the BAR1 pool's area walk, a page the BAR TLB read, or a
+    /// replica home of the pool. Exactly the pages whose change `note_pages_changed` acts on
+    /// beyond dropping a copy.
+    pub fn device_table_page(&self, page: u64) -> bool {
+        self.walks.borrow().values().any(|c| c.watches(page))
+            || self.bar2.as_deref().is_some_and(|a| a.watches_table(page))
+            || self
+                .bar1_pt
+                .borrow()
+                .as_ref()
+                .is_some_and(|pt| pt.table_pages.contains(&page))
+            || self.pool.borrow().as_ref().is_some_and(|p| p.tracks_page(page))
+            || self.bar_tlb_pages.borrow().contains(&page)
+    }
+
+    /// The MMU invalidate's sync of the BAR2 memfd when no flush is owed (docs/caraxes/
+    /// bar2-memfd.md §3, rule 2): the MMU re-reads page tables from here on, so the live
+    /// pages that are table pages ([`Self::device_table_page`]) are compared and written
+    /// back, and the BAR2 tables followed (a page that leaves the mapping is written back
+    /// first). Data the guest wrote through BAR2 reaches VRAM at the hand-over that gives
+    /// it to an engine (a doorbell, a GSP command, a flush's owed sync). Returns false
+    /// when the memfd is off.
+    pub fn bar2_sync_tables(&mut self, root: Option<u64>, sys: Option<&GuestMemory>) -> bool {
+        let Some(a) = self.bar2.as_deref() else {
+            return false;
+        };
+        let t0 = std::time::Instant::now();
+        // The table pages of every cache (a few hundred), kept where they are live: cheaper
+        // than asking every cache about every live page.
+        let mut keys: Vec<u64> = a.table_pages();
+        for c in self.walks.borrow().values() {
+            keys.extend(c.watched_pages());
+        }
+        if let Some(pt) = self.bar1_pt.borrow().as_ref() {
+            keys.extend(pt.table_pages.iter().copied());
+        }
+        if let Some(p) = self.pool.borrow().as_ref() {
+            keys.extend(p.tracked_pages());
+        }
+        keys.extend(self.bar_tlb_pages.borrow().iter().copied());
+        keys.retain(|&k| a.is_live(k));
+        keys.sort_unstable();
+        keys.dedup();
+        let size = self.size;
+        let a = self.bar2.as_deref_mut().expect("checked");
+        let pool = self.pool.borrow();
+        let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
+        let tr = |pa: u64| table.map_or(pa, |t| t.translate(pa));
+        let r = a.sync_only(&mut *self.store, size, root, sys, &tr, Some(&keys));
+        a.stats.table_syncs += 1;
+        a.stats.table_sync_pages += keys.len() as u64;
+        a.stats.table_sync_ns += t0.elapsed().as_nanos() as u64;
+        drop(pool);
+        if !r.dirty.is_empty() {
+            self.store.flush();
+        }
+        self.note_pages_changed(&r.dirty);
+        true
+    }
+
     /// A flush read with the BAR2 memfd: true when it only marked the sync owed
     /// (bar2area.rs `DeferredFlush`), false when the caller must sync now.
     pub fn bar2_defer_flush(&mut self) -> bool {

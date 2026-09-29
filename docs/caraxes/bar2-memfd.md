@@ -238,11 +238,15 @@ guest's tables. So no other page needs to trap.
    overwritten when the page is loaded. On hardware such a write would use a stale TLB entry.
 2. A page-table change is followed by an MMU invalidate before any engine uses it. The shadow is
    resynced at that invalidate (mapping.md §4), right after the sync, so it sees the change.
-   A doorbell syncs only what its channel could observe (rule 4); `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`,
-   a full sync at every doorbell, is the reference setting that tests this rule. The channel's
-   VAS leaves are taken as of the last walk update (the shadow's resync at the invalidate): a
-   mapping the guest made without an invalidate is not guaranteed to reach the engine on
-   hardware either.
+   So the invalidate is the sync point of the page tables: with no flush owed it compares and
+   writes back exactly the live table pages the device follows (the walks of the guest roots,
+   the BAR2 and BAR1 tables, the pool's area walk; `FakeFb::bar2_sync_tables`), and a BAR2 page
+   that the walk re-points is written back before it leaves the mapping. With a flush owed it
+   settles it with a full sync. A doorbell syncs only what its channel could observe (rule 4),
+   page tables excluded; `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`, a full sync at every doorbell,
+   is the reference setting that tests this rule. The channel's VAS leaves are taken as of the
+   last walk update (the shadow's resync at the invalidate): a mapping the guest made without
+   an invalidate is not guaranteed to reach the engine on hardware either.
 3. BAR2 data the GPU consumes (instance memory, scrubbed buffers) is flushed by the RM before it
    is handed to the GPU (`kern_bus_gm107.c:3339-3342`), and reaches VRAM at that flush.
    Since 2026-09-26 the flush read only marks the sync owed, and the hand-over settles it: the
@@ -257,17 +261,23 @@ guest's tables. So no other page needs to trap.
      set-B ranges (the promoted context buffers the host builds itself). The GPFIFO is among them
      wherever it lives (`NV_RAMFC_GP_BASE` is a VA, gm107/dev_ram.h:72-73), in VRAM as the Windows
      KMD puts it or in sysmem;
-   - by physical address: the page tables (`NV_RAMIN_PAGE_DIR_BASE`, gm107/dev_ram.h:58-66, and the
-     directories below), USERD (`NV_RAMFC_USERD`, tu102/dev_ram.h:29-30; the host channel of a
+   - by physical address: USERD (`NV_RAMFC_USERD`, tu102/dev_ram.h:29-30; the host channel of a
      mirror uses the guest's USERD page itself), the instance block with RAMFC and the method
      buffer (`instanceMem`, `ramfcMem`, `mthdbufMem`; `NV_RAMIN_RAMFC`, `NV_RAMIN_ENG_METHOD_BUFFER_ADDR`,
      tu102/dev_ram.h:27, 41-42). Runlist entries name the instance block and USERD by physical
-     address (`NV_RAMRL_ENTRY_CHAN_USERD_TARGET`, :46-50); the runlist memory is GSP-RM's.
+     address (`NV_RAMRL_ENTRY_CHAN_USERD_TARGET`, :46-50); the runlist memory is GSP-RM's. The page
+     tables (`NV_RAMIN_PAGE_DIR_BASE`, gm107/dev_ram.h:58-66) are read by physical address as well,
+     but they are the invalidate's (rule 2), not the doorbell's (vm10-boot9: the doorbell set with
+     the tables cost 9.7 us per doorbell, 25 pages compared, 6 dirty pages in 170455 doorbells).
    - A channel whose memory the device cannot name (no VAS root, no cached walk of it) could observe
      anything: every live page is synced.
    The sets are cached per channel (channel, root, walk and table generations, set-B stamp) and
-   intersected with the live pages when those change. The cost is a page compare (about 0.25 us)
-   per observable live page per doorbell; KVM dirty logging (§2) would make it one per dirty page.
+   intersected with the live pages when those change. The cost is one `memcmp` of the BAR2 page
+   with its snapshot per observable live page per doorbell (0.14 us warm, 0.28 us for a set that
+   no longer fits the cache, measured on this host); KVM dirty logging (§2) would make it one per
+   dirty page. Write-protect tracking on the device's side cannot replace it: userfaultfd-wp,
+   soft-dirty and `mprotect` all act on the device's own mapping, which the guest's stores (KVM
+   stage 2 through the VMM's mapping) never touch (§2).
 5. **Reads** (2026-09-29, vm10-boot8). FB is one memory: a write through any aperture or engine is
    what the next read through any other returns. A page behind BAR2 can have other writers:
    nouveau clears a channel's USERD through BAR2 and writes GPPut through BAR1 (the BAR1 pool,
