@@ -1310,11 +1310,14 @@ impl Device {
 
     /// The invalidate page's trigger (inv_page.rs, docs/caraxes/intr-page.md §11.3): run
     /// the invalidate as the trapped trigger write does and trace its notes.
-    pub fn invalidate_from_page(&mut self, t: crate::inv_page::Trigger) {
+    pub fn invalidate_from_page(
+        &mut self,
+        t: crate::inv_page::Trigger,
+    ) -> Option<crate::invgate::Hold> {
         let mem = &self.mem;
-        let notes = match self.bar0.boot_mut() {
+        let (notes, hold) = match self.bar0.boot_mut() {
             Some(b) => b.mmu_invalidate_from_page(mem, t.pdb, t.upper, t.value),
-            None => return,
+            None => return None,
         };
         self.trace.event(&format!(
             "invalidate page: trigger {:#x} pdb {:#x} upper {:#x} (reactor)",
@@ -1329,9 +1332,10 @@ impl Device {
         // gate's KMS readback read an empty pool page (series F, G and H). The offset is the
         // trigger word's, as for the trapped write (`BootModel::pool_merge_after`).
         let offset = self.bar0.boot().map_or(0, |b| b.mmu_invalidate_register());
-        // The reactor clears TRIGGER in the page when this returns: the pool finishes here,
-        // waits for the worker included, as the page's held invalidate does.
+        // The pool finishes here, waits for the worker included, before TRIGGER can clear
+        // (at once without a hold, else when the page's completion thread saw it applied).
         self.after_bar0_write_in(true, offset, crate::bar1pool::Pace::ALL);
+        hold
     }
 
     /// The display kick page's reactor found a `PUT` change (display/chan_page.rs,

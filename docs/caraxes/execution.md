@@ -592,3 +592,25 @@ clock's per-tick work takes the display engine's lock and never D.
 - Not done: the executor on its own thread without D. It reads and writes the FB through FakeFb
   (VRAM windows, walk-cache hooks, BAR2 memfd merges, victim patches, the pool's remap), all
   owned under D; only if the hold histogram still shows long software holds.
+
+### 9.8 The invalidate page, held off the lock (2026-09-29)
+
+- Target: about 100 us per guest MMU invalidate end to end. Run D spent, per invalidate, three
+  trapped writes (19, 12 and 1180 us of device time), about 2.9 trapped TRIGGER polls (53 us
+  each) and 445 us from arming to applied, plus the vCPU exits of five traps.
+- The invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs, intr-page.md §11.3) makes the
+  PDB, UPPER and TRIGGER stores and the TRIGGER polls memory. Its reactor used to wait out a
+  held invalidate under D before it cleared TRIGGER.
+- Now the reactor runs the invalidate under D and takes the gate's hold (`InvalidateGate::
+  hand_off`: the roots and their last jobs, still urgent for the worker). The page's
+  completion thread (`inv-complete`) waits for the worker's progress without D and only then
+  clears TRIGGER; until then the reactor takes no new trigger (the guest stores none while
+  TRIGGER shows). The card's rule holds: TRIGGER reads busy until every root the invalidate
+  names (with the untrapped scope rules, untrapped.rs) has its jobs applied.
+- One completion thread in the guest's order: the guest RM waits for TRIGGER before its next
+  invalidate. Counted: the page line's "held until the worker applied their roots" with the
+  armed-to-done mean and max, and the profile's "held invalidate: armed to TRIGGER read done".
+- Still under D in the page path: the BAR1 pool's poll after the trigger (at `Pace::ALL`, it may
+  wait for the worker; the pool's own rework).
+- Tests: `a_held_trigger_completes_when_the_worker_applied_its_root` (busy until the root's job
+  is applied, no second trigger meanwhile, urgent while held), the page's existing tests.

@@ -1702,17 +1702,17 @@ impl BootModel {
         pdb: u32,
         upper: u32,
         v: u32,
-    ) -> Vec<String> {
+    ) -> (Vec<String>, Option<crate::invgate::Hold>) {
         self.mmu_invalidate.0 = pdb;
         self.mmu_invalidate.1 = upper;
         let notes = self.mmu_invalidate_write(v, mem);
         // A held invalidate completes through the trigger's busy bit (invgate.rs,
-        // execution.md §8): the trapped trigger read reports TRIGGER until the shadow
-        // worker applied the plan. The page clears TRIGGER as soon as this returns
-        // (inv_page.rs `complete`), so the gate is waited out here, under the device lock
-        // (each `invalidate_busy` waits at most 50 us; past 1 s it waits to the end).
-        while self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy()) {}
-        notes
+        // execution.md §8): TRIGGER stays busy until the shadow worker applied the plans of
+        // the roots it names. With the page the hold leaves the device lock: the page's
+        // completion thread waits for the worker and only then clears TRIGGER
+        // (inv_page.rs, execution.md §9.8). Before, it was waited out here, under the lock.
+        let hold = self.ctrl.mirror.as_mut().and_then(|m| m.hand_off_invalidate());
+        (notes, hold)
     }
 
     /// The BAR2 memfd before a doorbell of the channels `chids` (docs/caraxes/bar2-memfd.md

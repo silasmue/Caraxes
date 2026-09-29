@@ -25,7 +25,7 @@
 //! `CARAXES_SHADOW_INVALIDATE_ASYNC=0` restores the hold under the lock (A/B only).
 
 use std::collections::BTreeMap;
-use std::sync::{Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// The switch (default on).
@@ -249,6 +249,43 @@ pub enum Trigger {
     Done(Option<Duration>),
 }
 
+/// A held invalidate off the device lock ([`InvalidateGate::hand_off`]): TRIGGER stays busy
+/// until the worker applied the jobs of its roots, which [`Hold::wait`] waits for without the
+/// lock (docs/caraxes/execution.md §9.8).
+pub struct Hold {
+    progress: Arc<Progress>,
+    targets: Vec<(u64, u64)>,
+    since: Instant,
+}
+
+impl Hold {
+    /// A hold of `targets` (root, its last job), armed at `since`.
+    pub fn new(progress: Arc<Progress>, targets: Vec<(u64, u64)>, since: Instant) -> Self {
+        for (r, _) in &targets {
+            progress.mark_urgent(*r);
+        }
+        Hold {
+            progress,
+            targets,
+            since,
+        }
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.progress.is_done(&Target::Roots(self.targets.clone()))
+    }
+
+    /// Wait until the worker applied the targets' jobs; the roots stop being urgent. Returns
+    /// the time since the invalidate was armed.
+    pub fn wait(self) -> Duration {
+        self.progress.wait(&Target::Roots(self.targets.clone()));
+        for (r, _) in &self.targets {
+            self.progress.unmark_urgent(*r);
+        }
+        self.since.elapsed()
+    }
+}
+
 /// The invalidate in flight: TRIGGER reads busy until the worker applied the jobs of the
 /// roots it names (the invalidated scope, not every root: the card's invalidate completes
 /// when the TLB holds no stale translation for its target).
@@ -281,6 +318,18 @@ impl InvalidateGate {
 
     pub fn armed(&self) -> bool {
         self.pending.is_some()
+    }
+
+    /// Hand the armed invalidate off the device lock (the invalidate page, inv_page.rs): its
+    /// targets and the worker's progress go to whoever completes TRIGGER; the gate is empty
+    /// again. `None` when nothing is held.
+    pub fn hand_off(&mut self, progress: &Arc<Progress>) -> Option<Hold> {
+        let (targets, since) = self.pending.take()?;
+        Some(Hold {
+            progress: progress.clone(),
+            targets,
+            since,
+        })
     }
 
     /// A read of the trigger: wait at most [`POLL_WAIT`] (to the end past [`FALLBACK`]) for
