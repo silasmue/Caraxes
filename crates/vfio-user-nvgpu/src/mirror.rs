@@ -2391,6 +2391,52 @@ impl Mirror {
         );
     }
 
+    /// One line per host channel and host TSG for a live state dump (main.rs `device-ctl`,
+    /// "state"): the host objects, the forwarded GP_PUT, and the private USERD's words as
+    /// the GPU left them (GP_GET 0x88, GP_PUT 0x8c, GET 0x44, PUT 0x40, REF 0x48). Read only.
+    pub fn state_lines(&self, reg: &Registry) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .tsgs
+            .iter()
+            .map(|(k, t)| {
+                format!(
+                    "host TSG {k:?}: handle {:#x} engine {:#x} guest {:#x}/{:#x} preempt {:?}",
+                    t.handle, t.engine, t.guest.0, t.guest.1, t.preempt
+                )
+            })
+            .collect();
+        out.extend(self.channels.iter().map(|(&chid, hc)| {
+            let current = reg.channel(chid).is_some_and(|ch| ch.generation == hc.generation);
+            let userd = hc
+                .with_userd(|u| {
+                    format!(
+                        "private USERD GP_GET {:#x} GP_PUT {:#x} GET {:#x} PUT {:#x} REF {:#x}, published put {:?}, harvested {:?}",
+                        u.storage.read_u32(0x88),
+                        u.storage.read_u32(0x8c),
+                        u.storage.read_u32(0x44),
+                        u.storage.read_u32(0x40),
+                        u.storage.read_u32(0x48),
+                        u.published_put,
+                        u.harvested
+                    )
+                })
+                .unwrap_or_else(|| "guest USERD".into());
+            format!(
+                "host chid {chid}: channel {:#x} tsg {:?} token {:#x}{}{}; {} doorbell(s), forwarded put {:?} ({} unwaited), age {} ms; {userd}",
+                hc.handle,
+                hc.tsg,
+                hc.token,
+                if hc.context_ready { "" } else { " context not ready" },
+                if current { "" } else { " STALE (guest channel replaced)" },
+                hc.doorbells,
+                hc.fwd_put,
+                hc.fwd_unwaited,
+                hc.created.elapsed().as_millis()
+            )
+        }));
+        out
+    }
+
     /// Whether channel `chid`'s private USERD has entries the device has not forwarded,
     /// checked as the locked poll checks it (ready, the guest's channel unchanged), with the
     /// GPU-owned words harvested first: the USERD poller's ring under the device lock.

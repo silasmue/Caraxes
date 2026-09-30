@@ -725,6 +725,21 @@ impl Dispatcher {
         notes
     }
 
+    /// The live state dump of the channels (main.rs `device-ctl`, "state"): every guest
+    /// channel, the scheduling switches' held and disabled sets, every host TSG and channel.
+    pub fn state_lines(&self, gm: &crate::channel::GpuMem) -> Vec<String> {
+        let mut out = self.channels.state_lines(gm);
+        out.push(format!(
+            "held (doorbells waiting for an enable): {:?}; disabled: {:?}",
+            self.dstate.rc.held,
+            self.dstate.rc.disabled_chids(&self.channels)
+        ));
+        if let Some(m) = &self.mirror {
+            out.extend(m.state_lines(&self.channels));
+        }
+        out
+    }
+
     /// The software channels whose blocked semaphore acquire is satisfied now (channel.rs
     /// `AcquireWait`) continue at once, on the `ce-slices` clock, as the host re-evaluates
     /// an acquire until it holds; nothing runs while every acquire still waits.

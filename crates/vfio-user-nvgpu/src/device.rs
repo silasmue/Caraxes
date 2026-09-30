@@ -1691,6 +1691,19 @@ impl Device {
         }
     }
 
+    /// A live state dump (main.rs `device-ctl`, "state"): every channel and host object,
+    /// the interrupt vectors' raises and acks. Read only; the caller prints it.
+    pub fn state_dump(&mut self) -> Vec<String> {
+        let mut out = match self.bar0.boot_mut() {
+            Some(b) => b.state_lines(&self.mem),
+            None => vec!["no boot model".into()],
+        };
+        if let Some(s) = self.intr.as_ref().and_then(|i| i.vector_summary()) {
+            out.push(s);
+        }
+        out
+    }
+
     /// The software channels whose blocked semaphore acquire is satisfied now continue
     /// (channel.rs `AcquireWait`), on the `ce-slices` clock of main.rs.
     pub fn recheck_acquires(&mut self) {

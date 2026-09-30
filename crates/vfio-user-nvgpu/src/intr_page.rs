@@ -868,6 +868,23 @@ impl IntrPage {
         self.reset();
     }
 
+    /// The interrupt tree now, for a live state dump: per leaf pending and enabled, the
+    /// top enable and the pending subtrees, the host hints and what is muted.
+    pub fn state_line(&self) -> String {
+        let st = self.lock();
+        let m = &st.model;
+        format!(
+            "intr page: leaf pending {:x?} enabled {:x?}; top_en {:#x} top {:#x}; hints {:x?} ({} re-arm(s) without an ack), muted {:x?}",
+            m.leaf,
+            m.leaf_en,
+            m.top_en,
+            m.top(),
+            st.hint,
+            st.hint_rearms,
+            st.muted
+        )
+    }
+
     /// The model as the reactor last applied it (tests, summary).
     pub fn model(&self) -> Model {
         self.lock().model.clone()

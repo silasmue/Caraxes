@@ -406,6 +406,15 @@ impl BootModel {
         self.ctrl.replay_held(&mut gm)
     }
 
+    /// The live state dump (ctrl.rs `state_lines`).
+    pub fn state_lines(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.state_lines(&gm)
+    }
+
     /// The software channels whose blocked acquire is satisfied now continue (ctrl.rs
     /// `recheck_acquires`).
     pub fn recheck_acquires(&mut self, mem: &GuestMemory) -> Vec<String> {

@@ -1812,11 +1812,51 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             })
             .context("spawn the software CE slice clock")?
     };
+    // A live state dump on request: `echo state > <state dir>/device-ctl` prints every
+    // channel, host object and the interrupt state into this log (device.rs `state_dump`).
+    let device_ctl = {
+        let d = device.clone();
+        let stop = soak_stop.clone();
+        let page = intr_page.clone();
+        let path = socket.parent().map(|p| p.join("device-ctl"));
+        std::thread::Builder::new()
+            .name("device-ctl".into())
+            .spawn(move || {
+                let Some(path) = path else { return };
+                let _ = std::fs::remove_file(&path);
+                let mut n = 0u32;
+                while !stop.load(std::sync::atomic::Ordering::Acquire) {
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    let Ok(cmd) = std::fs::read_to_string(&path) else { continue };
+                    let _ = std::fs::remove_file(&path);
+                    if cmd.trim() != "state" {
+                        eprintln!("vfio-user-nvgpu: device-ctl: unknown command {:?} (known: state)", cmd.trim());
+                        continue;
+                    }
+                    n += 1;
+                    let t0 = std::time::Instant::now();
+                    let mut lines = d.lock().unwrap_or_else(PoisonError::into_inner).state_dump();
+                    if let Some(p) = &page {
+                        lines.push(p.state_line());
+                    }
+                    for l in &lines {
+                        eprintln!("vfio-user-nvgpu: state {n}: {l}");
+                    }
+                    eprintln!(
+                        "vfio-user-nvgpu: state {n}: {} line(s) in {} us",
+                        lines.len(),
+                        t0.elapsed().as_micros()
+                    );
+                }
+            })
+            .context("spawn the device-ctl reader")?
+    };
     let result = server
         .run(&mut SharedDevice::new(device.clone(), routes))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
     soak_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = ce_slices.join();
+    let _ = device_ctl.join();
     if let Some(t) = userd_poll {
         let _ = t.join();
     }

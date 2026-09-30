@@ -1091,6 +1091,57 @@ impl Registry {
         ready
     }
 
+    /// One line per guest channel for a live state dump (main.rs `device-ctl`, "state"):
+    /// where the device is in the channel, what its guest USERD says now, and a blocked
+    /// acquire with the value at its address now. Read only.
+    pub fn state_lines(&self, mem: &GpuMem) -> Vec<String> {
+        let at = |t: Target, off: u64| match t {
+            Target::Fb(pa) => Some(Target::Fb(pa + off)),
+            Target::Sys(pa) => Some(Target::Sys(pa + off)),
+            _ => None,
+        };
+        let word = |t: Option<Target>| t.and_then(|t| mem.read_u32(t)).map_or("-".to_string(), |v| format!("{v:#x}"));
+        self.channels
+            .values()
+            .map(|ch| {
+                let userd = ch.userd.map_or("no USERD".to_string(), |u| {
+                    format!(
+                        "USERD {u:?}: GP_GET {} GP_PUT {} GET {} PUT {} REF {}",
+                        word(at(u, 0x88)),
+                        word(at(u, 0x8c)),
+                        word(at(u, 0x44)),
+                        word(at(u, 0x40)),
+                        word(at(u, 0x48))
+                    )
+                });
+                let acquire = ch.acquire_wait.map_or(String::new(), |w| {
+                    let n = if w.wide { 8 } else { 4 };
+                    let mut b = [0u8; 8];
+                    let now = ce_pieces(mem, w.root, false, 0, w.va, n as u64, ch.software_fb_range)
+                        .and_then(|pieces| ce_read(mem, &pieces, &mut b[..n]))
+                        .map_or_else(|e| format!("unreadable ({e})"), |()| format!("{:#x}", u64::from_le_bytes(b)));
+                    format!("; blocked acquire va {:#x} {:?} {:#x}, now {now}", w.va, w.op, w.payload)
+                });
+                format!(
+                    "chid {} {:#x}/{:#x} engine {:#x} privilege {} {}{}{}; device gp_get {} put_seen {} entries {} resume {:?}{}; {userd}{acquire}",
+                    ch.chid,
+                    ch.h_client,
+                    ch.h_object,
+                    ch.engine_type,
+                    ch.alloc_privilege,
+                    if ch.mirrored { "host" } else { "software" },
+                    if ch.stopped { " stopped" } else { "" },
+                    if ch.software_failed { " FAILED" } else { "" },
+                    ch.gp_get,
+                    ch.gp_put_seen,
+                    ch.entries_done,
+                    ch.resume,
+                    if ch.budget_stop { " budget-stop" } else { "" },
+                )
+            })
+            .collect()
+    }
+
     /// Software acquires may wait for a host GPU write without another guest doorbell.
     pub fn blocked_software_channels(&self) -> Vec<u32> {
         self.channels
