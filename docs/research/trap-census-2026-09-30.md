@@ -20,8 +20,9 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
 - Linux: the SotTR A/B arms' SIGUSR2 dumps around 25 s of benchmark rendering; the train A/B
   sessions; the per-frame records of 2026-09-25/28.
 - Sources: registers grouped by what would remove them (trap-census.py `source`).
-- vCPU share: modelled as rate × (25 µs + device µs); the guest-seen share is an upper bound
-  (it also holds guest time between two traps under 2 ms apart).
+- vCPU share: modelled as rate × (RTT + device µs), RTT 25 µs (quiet host) for the records
+  and the measured 38 µs for the L0 session; the guest-seen share is an upper bound (it also
+  holds guest time between two traps under 2 ms apart).
 - Host CPU: `/proc/<pid>/task/*/stat` of CH and the device, sampled every 10 s during the
   Windows agent's and codec agent's sessions (read-only) [R/procstat/, taskstat.py]. vCPU
   "host" time is utime + stime − guest_time: exits and KVM halt polling together.
@@ -30,11 +31,14 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
   - a7495f0e: trapped accesses the routes serve without the device mutex, per route
     (interrupt page, re-arm, display page, display status) with their device time. Before
     it the profile missed them (below).
-- New sessions: none ran. The priority file named Windows all night (repair, gates, codec
-  sessions; still at 07:56), so the Linux B session (census-linux.sh) stayed queued. A Windows
-  census session with the census binary (census-windows.sh, coordinator's go after C102) was
-  refused by the permission system and not retried. The Windows numbers below come from the
-  Windows and codec agents' own sessions (C96-C104, w3), train3 included (C104).
+- New session (Linux phase 2): one Linux B session on desktop-b-dmem (615, stock kernel,
+  1 GiB at slot 4, 8 vCPUs), census binary a7495f0e = train c3e9bd5b plus the two counters,
+  2026-09-30 08:08-08:16, beside a Windows VM and vm10 [R/L0-census/, census-linux.sh]:
+  trap round trip (bench-trap, before the driver), idle desktop 60 s, glmark2 and vkmark 3 ×
+  30 s at 1280x720, a Moonlight stream (vkcube, 60 s), a CUDA loop (`cuwork`, 40 s), each
+  between SIGUSR2 dumps and /proc snapshots; 0 guest and 0 host Xid.
+- Windows: no census session of my own (the permission system refused it); the numbers come
+  from the Windows and codec agents' sessions (C96-C104, w3), train3 included (C104).
 
 ## Facts
 
@@ -72,7 +76,8 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
 
 | Access | Cost | Evidence |
 |---|---|---|
-| trapped access, no device work (KVM exit, CH, vfio-user round trip) | 23-27 µs p50 | mapping.md §6 (bench-trap) |
+| trapped access, no device work (KVM exit, CH, vfio-user round trip) | 23-27 µs p50 on a quiet host; 35.5 µs p50 (p99 93) read, 40.0 µs (p99 116) write on train beside two VMs | mapping.md §6; R/L0-census/rtt.txt |
+| trapped read answered before the device lock (PTIMER, usermode `TIME`) | 38.3 / 38.6 µs p50: the lock is not the cost, the exit and the socket are | R/L0-census/rtt.txt |
 | back-to-back trapped BAR2 writes, Windows under CH | 27-32 µs guest-seen | R/phase1/win-C8{1,3}.md, win-C96.md |
 | datamatch ioeventfd: MMIO address / inside a read-only memslot | 1.28 / 1.91 µs | R/kvm-ro-ioeventfd-probe.txt |
 | write into a read-only memslot, no match (userspace exit, empty handler) | 6.5 µs | same |
@@ -90,9 +95,14 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
 
 | Workload (record) | traps/s | modelled vCPU % (seen) | top sources, /s |
 |---|---:|---:|---|
+| Linux idle GNOME desktop, 60 s (L0, train) | 421 | 1.6 (1.1) | `TIME` 360 (120 hi-lo-hi triples), display acks 60 (routed, 1.2 µs) |
+| Linux glmark2, score 4410, 91 s (L0) | 3206 | 13.9 (19.6) | flush read 1407, `TIME` 907, invalidate 704 (141 × 5), display acks 179 |
+| Linux vkmark, score 3922, 91 s (L0) | 3061 | 14.2 (19.9) | flush read 1385, `TIME` 852, invalidate 626, display acks 179 |
+| Linux Moonlight stream, 60 fps (vkcube + NVENC), 60 s (L0) | 4300 | 23.2 (33.0) | flush read 1620, invalidate 1323, `TIME` 1177, display acks 180 |
+| Linux CUDA loop (`cuwork`), 40 s (L0) | 474 | 2.2 (1.7) | the idle desktop's `TIME` 361 and acks 60; invalidate 22, GSP 5 RPC; submissions 6087 rings/s all on the token pool |
 | Linux SotTR benchmark, 25 s, arms A/D/F (sottr-ab) | 1670-2788 | 19-81 (25-58) | invalidate 699-1214, `TIME` 532-588, flush read 240-628, doorbell 84-120, FE acks 58-62, GSP 5-36 RPC |
 | Linux SotTR stall window, 20 s (sottr-stall) | 4878 | 96 (59) | invalidate 3120, flush read 1368, `TIME` 334, FE acks 56 |
-| Linux vkmark, 2026-09-28 record | ~3000 | - | per 60 Hz period 22.5 flush reads, 13.8 `TIME`, 2 invalidates (10), 3 FE writes, 1.1 kicks [vkmark-frame-2026-09-28.md] |
+| Linux vkmark, 2026-09-28 record (older binary) | ~3000 | - | per 60 Hz period 22.5 flush reads, 13.8 `TIME`, 2 invalidates (10), 3 FE writes, 1.1 kicks [vkmark-frame-2026-09-28.md] |
 | Linux Mutter desktop, 2026-09-25 record | 2400-3000 | - | 40-50 per frame: 23 flush reads, `TIME` 925/s fixed, 10 invalidate accesses, 1.3 kicks [optimization-backlog.md item 3] |
 | Linux vm2-615 boot + CUDA context bench (train/ab A1) | 1507 | 8 (9) | invalidate 404, BAR1 288 (no pool), PROM 198, flush read 185, GSP 40 RPC |
 | Windows Heaven 4.0, 133 fps, 292 s (C100 client 0xc1d000a4) | 3290 + ~5330 routed | 9.9 (46) + ~14 | interrupt tree stores ~5330, BAR2 writes 1228, PTIMER 896, doorbell 497, `TIME` 295, window `PUT` 138, ARMED reads 90 |
@@ -122,6 +132,18 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
   side (exits and halt polling); device: token reactor 15.4 %, socket thread 14.6 %,
   shadow-userd 6.6 %. NVENC stream: vCPU host 23.8 % against guest 31.4 %; socket thread 10.6 %
   [R/procstat/C101-final1, R/W-w3-procstat].
+- Linux on train (L0, modelled with the measured 38 µs): the device time behind a trap is
+  small now (flush read 0.4-0.8 µs, invalidate 22-50 µs, 267 µs per GSP RPC) against
+  74-252 µs and 150-890 µs in the 2026-09-29 SotTR arms; what remains is the exit itself
+  (guest-seen 68-88 µs per flush read or invalidate access in the stream) [R/L0-census/L-*.md].
+- Linux fast paths on train (per second): glmark2 token-pool rings 8674 (8914 guest writes),
+  re-arm eventfd 6306, interrupt-page scans 14054, BAR2 memfd syncs 9081; vkmark 8199 rings
+  (19528 writes); trapped doorbells ~0: the new token rows show only runlists 2 and 3, ChIDs
+  34-54 (copy runlists outside the guest set 0, 1, 7) [R/L0-census/L-vkmark.md, L-cuda.md].
+- Host CPU on train, Linux B: glmark2 vCPU threads 344 % of a core, 237 % of it host side
+  (exits, ioeventfds, halt polling: not separable without root); token reactor 77 % (hybrid);
+  device socket thread 5 %. Idle desktop: host side 23 %, reactor 23 %. CUDA loop: reactor
+  83 % [R/L0-census/L-*-cpu.txt].
 - Linux fast paths at work in SotTR (per second): token-pool rings 207-789 (636-1323 guest
   writes), re-arm eventfd 364-540, interrupt-page scans 1212-2284 [R/phase1/linux-sottr-*.md].
 - Writes: Linux SotTR 31-40 % of the traps, most of the device time; Windows Heaven 1919 of
@@ -134,14 +156,14 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
 | # | Source | Linux, /s | Windows, /s | Cost | vCPU share (modelled) |
 |---|---|---|---|---|---|
 | 1 | Interrupt tree stores (exact mode) | 0 | Heaven ~5330, Superposition ~4570, NVENC stream ~2380, idle ~650 | ~27 µs, device few µs | Windows 3D 12-14 % |
-| 2 | MMU invalidate (5 accesses each) | SotTR 699-1214 (stall 3120), desktop/vkmark ~600, CUDA 404 | 3D 5-14, desktop start 271 | 25 µs each + 150-890 µs sync at `TRIGGER` | SotTR 12-34 % |
+| 2 | MMU invalidate (5 accesses each) | stream 1323, glmark2 704, vkmark 626; SotTR 699-1214 (stall 3120); CUDA bench 404 | 3D 5-14, desktop start 271 | 35-40 µs each + sync at `TRIGGER`: 22-50 µs on train, 150-890 µs on the 09-29 SotTR binaries | stream 11.7 %, glmark2 4.2 %; SotTR 12-34 % |
 | 3 | BAR2 writes (Windows, no memfd) | 0 | Heaven 1228, Superposition 525, x264 stream 2133, desktop start 20567, ~0.9 M per boot | 27-32 µs | Windows 3D 1.5-3.6 %, desktop start 58 % |
-| 4 | Clock: PTIMER + usermode `TIME` | `TIME` SotTR 532-603, desktop/vkmark 828-925 | PTIMER 896-902 + `TIME` 295-306 in 3D; 360 + 360 idle | 25-30 µs, seen 40-160 µs | Linux 1.5-5 %, Windows 3D ~3 % |
-| 5 | BAR2 flush-page read (Linux memfd sync point) | SotTR 240-628 (stall 1368), vkmark 1350, desktop 1380, CUDA 185 | 2-64 | 50-145 µs sync | SotTR 2-8 % |
-| 6 | Trapped doorbells | SotTR 84-120 (older binaries), CUDA ~2 | Heaven 497, Superposition 291, NVENC stream 170 | 25-30 µs (posted: device 2-3 µs) | Windows 3D ~1.4 % |
+| 4 | Clock: PTIMER + usermode `TIME` | `TIME` idle 360, glmark2 907, vkmark 852, stream 1177, SotTR 532-603 | PTIMER 896-902 + `TIME` 295-306 in 3D; 360 + 360 idle | 35-40 µs, seen 40-160 µs | Linux 1.4-4.5 %, Windows 3D ~3 % |
+| 5 | BAR2 flush-page read (Linux memfd sync point) | stream 1620, glmark2 1407, vkmark 1385; SotTR 240-628 (stall 1368); CUDA bench 185 | 2-64 | 35-40 µs; sync 0.4-0.8 µs on train (deferred), 50-145 µs on 09-29 | 5.3-6.3 % (seen 9.5-13.4 %); SotTR 2-8 % |
+| 6 | Trapped doorbells | ~0 on train (copy runlists 2, 3); SotTR 84-120 on 09-29 binaries | Heaven 497, Superposition 291, NVENC stream 170 | 25-30 µs (posted: device 2-3 µs) | Windows 3D ~1.4 % |
 | 7 | Windows display USERD: `PUT`, ARMED, scanline, GET, cursor | kick page on | 3D ~330 (`PUT` 138, ARMED 90, winimm 45, scanline 45, GET 11-14); cursor 4 per move | `PUT` 48-66 µs device | Windows 3D ~1.7 % |
 | 8 | GSP RPC (queue head + 3 falcon accesses) | 5-40 RPC/s | NVENC stream 45 RPC/s, desktop start 49, 3D 1-3 | head 67-1520 µs device | Linux SotTR 0.3-5.5 % |
-| 9 | Linux display FE acks (read-only display page stores) | 56-62 (one per vblank) | - | 280-1070 µs device on the 2026-09-29 binaries; train serves them off the device mutex (f294c275) | 1.9-4.9 % then; the vblank ISR holds every completion 0.6-0.75 ms [vkmark-frame] |
+| 9 | Linux display FE acks (read-only display page stores, routed) | idle 60, benchmarks and stream 179-180 (3 per frame) | - | 1.2-2.3 µs device on train (280-1070 µs on 09-29) plus the exit | 0.7 % |
 | 10 | Boot and recovery: PROM window, SEC2, PRAMIN, config, ROM | ~75k per boot | ~160k per boot (+ BAR2) | ~25-30 µs | ~2 s (Linux), ~5 s + BAR2 ~25 s (Windows) per boot, FLR or TDR recovery |
 
 - Next after ten: the L2 flush and sysmem invalidate pair (0x70010, 0xb80f00; Linux SotTR 19
@@ -168,17 +190,16 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
   vfio-user socket on both ends, vkmark-frame fix 5: 25-30 → ≤ 10 µs per trap).
 - Expected, Windows Heaven: ~8600 → ~250 traps/s with 1, 2, 3, 6, 8 (left: scanline, GET,
   invalidates, GSP); modelled vCPU ~24 % → ~1 %.
+- Expected, Linux desktop and 3D on train: glmark2 3206 → ~190 traps/s and the stream 4300 →
+  ~190 with 3, 5, 9 (left: the display acks, GSP); modelled vCPU 14-23 % → ~1 %.
 - Expected, Linux SotTR: 1700-2800 → ~200-400 traps/s with 3, 5, 7, 9 (left: GSP falcon
-  reads, doorbells outside the tokens, L2 flushes); the remaining cost is the sync behind
-  `TRIGGER` and flush, not exits.
+  reads, doorbells outside the tokens, L2 flushes).
 
 ## Open
 
-- Linux B per workload on train (idle desktop, glmark2, vkmark, a stream, a CUDA loop) and
-  the trap round trip (bench-trap) are unmeasured tonight; census-linux.sh is ready and waits
-  for the priority file. The SotTR arms ran older binaries (2026-09-29): posted doorbells and
-  the async held invalidate are on train, so their doorbell and `TRIGGER` device times are
-  upper bounds.
+- SotTR on train is unmeasured: its arms ran 2026-09-29 binaries (their doorbell and `TRIGGER`
+  device times are upper bounds for train). The L0 round trip was taken beside two VMs; a
+  quiet-host repeat would show whether 23-27 µs still holds.
 - Windows idle desktop with DWM is unmeasured, and census-windows.sh has not run (refused by
   the permission system). The per-token doorbell rows and routed-trap rows have not run on a
   guest yet: which doorbell tokens miss the guest set is still inferred.
