@@ -92,3 +92,6 @@ caraxes/runs/**/*.trace
 caraxes/runs/**/device/
 caraxes/runs/**/transcript.log
 /caraxes/reference/gb206/gpu-0000_01_00.0/rom.bin
+
+# Python bytecode of the tools and run scripts.
+__pycache__/

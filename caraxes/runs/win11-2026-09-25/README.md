@@ -241,3 +241,24 @@ the diff against the 35-register baseline, `trace-saver` archives the full trace
   615-based endpoint is compatible in principle.
 - Unattended tooling added: `qga.py` (QEMU guest agent: PowerShell as SYSTEM, file transfer),
   `qmp.py` (screenshot, keys, clean power-down), `WIN_GPU_VBIOS`, `WIN_GPU_ROOTPORT`, `WIN_VGA`.
+
+## The Cloud Hypervisor kit (2026-09-29/30)
+
+These scripts ran the Windows guest on Cloud Hypervisor from the kit directory
+`/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/CH-build`. That directory now keeps
+symlinks to these files. What stays outside the repository: the SSH key and the guest user
+(`id_win`, `guest-user`, `authorized_keys`), `sunshine-creds`, the device binaries with their
+`*-cap` copies, `SHA256SUMS` and the soak media.
+
+- `run44.py`: start, stop (with `check-ch.sh`), ssh, the guest packs (`pack`/`upack` run
+  `tools/windows/*.ps1` through a scheduled task), maint mode. It launches through
+  `run-ch-gpu.sh` and `gpu-up-host.sh` next to it. `CH_SERVER` picks the device binary.
+  Before a start it refuses a host with less than 30 GiB free on the store, or below the host
+  FB and BAR1 floors.
+- `check-ch.sh RUN`: the checks after a run: host Xid by pid, the shadow's refusals, the
+  GPFIFO coverage, the RC notes.
+- `build-ch.py TAG PURPOSE`: builds this tree (or `CH_BUILD_ROOT`) and copies the binary into
+  CH-build with a `source-TAG.json`.
+- `xid-watch.sh`, `watch-p28.sh`: watchers during a run. `dispaccess.py`, `dispdecode.py`:
+  display register traces. `qtype.py`: keys over QMP. `cpu-sample.ps1`, `events.ps1`,
+  `tdr-info.ps1`: guest-side checks.
