@@ -49,7 +49,13 @@ if [[ -n ${WIN_TAP:-} ]]; then
     ip link show "$WIN_TAP" >/dev/null 2>&1 || die "no tap $WIN_TAP"
     tap=(-device "virtio-net-pci,netdev=n1,mac=${WIN_TAP_MAC:-02:00:00:00:00:47}" -netdev "tap,id=n1,ifname=$WIN_TAP,script=no,downscript=no")
 fi
-[[ -s $W/win11.qcow2 ]] || die "no $W/win11.qcow2: run install-qemu.sh first"
+# The flattened raw image when it exists (as run-ch-gpu.sh), else the qcow2 chain.
+if [[ -s $W/win11.raw ]]; then
+    drive="file=$W/win11.raw,if=virtio,format=raw,cache=writeback,discard=unmap"
+else
+    [[ -s $W/win11.qcow2 ]] || die "no $W/win11.qcow2: run install-qemu.sh first"
+    drive="file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap"
+fi
 [[ -f $VARS ]] || die "no $VARS (install-qemu.sh creates it)"
 mkdir -p "$W/swtpm"
 if ! pgrep -f "swtpm socket.*$W/swtpm" >/dev/null; then
@@ -64,7 +70,7 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -drive "if=pflash,format=raw,readonly=on,file=$CODE" \
     -drive "if=pflash,format=raw,file=$VARS" \
     -chardev "socket,id=chrtpm,path=$W/swtpm/sock" -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-crb,tpmdev=tpm0 \
-    -drive "file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap" \
+    -drive "$drive" \
     -drive "file=$VIRTIO,media=cdrom,readonly=on" \
     -device virtio-net-pci,netdev=n0 -netdev user,id=n0,hostfwd=tcp:127.0.0.1:3389-:3389 \
     "${tap[@]}" \

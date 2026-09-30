@@ -29,7 +29,15 @@ TAP=${WIN_TAP:-caraxes7} MAC=${WIN_TAP_MAC:-02:00:00:00:00:47}
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -x $CH ]] || die "no Cloud Hypervisor at $CH"
 [[ -s $FW ]] || die "no firmware $FW"
-[[ -s $W/win11.qcow2 ]] || die "no $W/win11.qcow2"
+# The disk: the flattened raw image when it exists (win11.raw: image_type=raw, 4 queues, no
+# direct=on, since the ublk device under /mnt/vmstore has 4096-byte logical sectors and Windows
+# issues 512-byte I/O), else the qcow2 chain.
+if [[ -s $W/win11.raw ]]; then
+    disk="path=$W/win11.raw,image_type=raw,num_queues=4"
+else
+    [[ -s $W/win11.qcow2 ]] || die "no $W/win11.raw or $W/win11.qcow2"
+    disk="path=$W/win11.qcow2,image_type=qcow2,backing_files=on"
+fi
 ip link show "$TAP" >/dev/null 2>&1 || die "no tap $TAP (created by the operator, owned by this user)"
 gpu=()
 if [[ ${WIN_GPU:-1} == 0 ]]; then
@@ -55,11 +63,11 @@ if ! pgrep -f "swtpm socket.*$W/swtpm" >/dev/null; then
     sleep 0.5
 fi
 rm -f "$W/ch.sock"
-echo "Cloud Hypervisor: Windows 11 ($MEM shared memfd, $CPUS vCPUs, kvm_hyperv), tap $TAP ($MAC), ${gpu[*]:-no GPU}"
+echo "Cloud Hypervisor: Windows 11 ($MEM shared memfd, $CPUS vCPUs, kvm_hyperv), disk ${disk%%,*}, tap $TAP ($MAC), ${gpu[*]:-no GPU}"
 exec "$CH" -v --api-socket "$W/ch.sock" \
     --cpus "boot=$CPUS,kvm_hyperv=on" --memory "size=$MEM,shared=on" \
     --kernel "$FW" \
-    --disk "path=$W/win11.qcow2,image_type=qcow2,backing_files=on" \
+    --disk "$disk" \
     --net "tap=$TAP,mac=$MAC" --rng src=/dev/urandom \
     --tpm "socket=$W/swtpm/sock" \
     --serial "file=${WIN_CH_SERIAL:-$W/ch-serial.log}" --console off \
