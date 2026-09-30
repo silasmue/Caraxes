@@ -3012,6 +3012,32 @@ impl HostMemory {
         self.gpa_mappings_frozen = true;
     }
 
+    /// A new client (vfio-user.rst "Client Disconnection", device.rs `client_gone`): the
+    /// old client's mappings may go once no GPU object can use a descriptor any more (the
+    /// device model reset freed the mirror's channels, VA spaces and shadows; the events
+    /// and the doorbell mapping fetch no RAM). Refused, and still frozen, otherwise.
+    pub fn thaw_gpa_mappings(&mut self) -> Result<()> {
+        self.flush_gather_cache();
+        if self.live.iter().any(|(_, _, what)| !matches!(*what, "os-event" | "usermode"))
+            || !self.gathers.is_empty() || !self.free_failures.is_empty() {
+            let held: Vec<&str> = self
+                .live
+                .iter()
+                .map(|(_, _, what)| *what)
+                .filter(|w| !matches!(*w, "os-event" | "usermode"))
+                .collect();
+            bail!(
+                "GPA mappings stay frozen: {} host object(s) still held ({}), {} gather(s), {} failed free(s)",
+                held.len(),
+                held.join(", "),
+                self.gathers.len(),
+                self.free_failures.len()
+            );
+        }
+        self.gpa_mappings_frozen = false;
+        Ok(())
+    }
+
     /// Free an exact GPA mapping before its CPU mapping disappears. Failed frees
     /// remain tracked, and the caller must retain the CPU mapping on any error.
     pub fn release_gpa_region(&mut self, gpa: u64, size: u64) -> Result<Vec<String>> {

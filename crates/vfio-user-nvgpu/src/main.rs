@@ -55,7 +55,9 @@ vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-m
                 [--name-format <legacy|transport>]
 vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
 
-  --socket   vfio-user socket to create (a stale socket file is removed)
+  --socket   vfio-user socket to create (a stale socket file is removed). When the client closes the
+             connection, a client connecting within 2 s gets the device reset (a VMM reboot);
+             otherwise the device frees its host state and exits
   --trace    access log file (default: none; the summary always goes to stderr)
   --board-data  board data: a built-in board (rtx2070, rtx5060ti, rtx5060ti-on-tu106: the 5060 Ti's PCI identity
              and name on the TU106, docs/caraxes/costume-5060.md) or a boards/*.toml-shaped file (default: rtx2070)
@@ -1426,13 +1428,18 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .chain(kicks.as_ref().map(|k| k.area()))
             .collect(),
     });
-    let mut server = Server::new(
-        socket,
+    // The listening socket stays open across clients (a VMM reboot connects a new client,
+    // `client_waiting`); a duplicate of it tells whether one is waiting.
+    let listener = std::os::unix::net::UnixListener::bind(socket)
+        .with_context(|| format!("vfio-user server: bind {}", socket.display()))?;
+    let _socket_file = SocketFile(socket.to_path_buf());
+    let waiting = listener.try_clone().context("vfio-user server: duplicate the listener")?;
+    let mut server = Server::from_owned_fd(
+        std::os::fd::OwnedFd::from(listener),
         true,
         irqs(),
         regions_with_pages(&a.board_data, bar1_area, bar2_region.as_ref(), bar0_areas),
-    )
-    .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"))?;
+    );
     let doorbell = if doorbell_ioeventfd {
         let offset = chip.data().registers.usermode_doorbell;
         let (sub_region, reader) = doorbell_sub_region(offset).context("doorbell eventfd")?;
@@ -1851,9 +1858,28 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             })
             .context("spawn the device-ctl reader")?
     };
-    let result = server
-        .run(&mut SharedDevice::new(device.clone(), routes))
-        .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+    let mut backend = SharedDevice::new(device.clone(), routes);
+    let mut clients = 1u32;
+    let result = loop {
+        let r = server
+            .run(&mut backend)
+            .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+        if r.is_err() || !client_waiting(&waiting, RECONNECT_WINDOW) {
+            break r;
+        }
+        let mut d = device.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Err(e) = d.client_gone() {
+            eprintln!(
+                "vfio-user-nvgpu: a new client connected, but the previous client's state was not released ({e}); ending the session"
+            );
+            break r;
+        }
+        clients += 1;
+        eprintln!(
+            "vfio-user-nvgpu: client {clients}: the previous client closed the connection and a new one connected (a VMM reboot): device reset, the previous client's memory regions and IRQ eventfds released; {}",
+            soak_line("new client", d.soak_counts(), host_mem.as_ref())
+        );
+    };
     soak_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = ce_slices.join();
     let _ = device_ctl.join();
@@ -1945,6 +1971,44 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
 
 /// Exit status of a teardown that failed closed (hostmem.rs `run_teardown`).
 const FAIL_CLOSED_EXIT: i32 = 3;
+
+/// How long the device waits for a new client after one closed the connection. Cloud
+/// Hypervisor's reboot connects its new client within about 0.7 s (C100: the reset event
+/// at 439.62 s, the new client's connection at 440.46 s); a VMM that exited sends none,
+/// and the device's exit waits this long.
+const RECONNECT_WINDOW: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Whether a client connects to `listener` within `window` (one already waiting in the
+/// backlog counts): poll(2) for POLLIN on the listening socket.
+fn client_waiting(listener: &impl std::os::fd::AsRawFd, window: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + window;
+    loop {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        let mut p = libc::pollfd {
+            fd: listener.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: one valid pollfd for the duration of the call.
+        let n = unsafe { libc::poll(&mut p, 1, left.as_millis().min(i32::MAX as u128) as i32) };
+        if n > 0 {
+            return p.revents & libc::POLLIN != 0;
+        }
+        if n == 0 || std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted {
+            return false;
+        }
+    }
+}
+
+/// The socket file goes when `serve` returns (as `vfio_user::Server` removes a socket it
+/// bound itself; this one is bound here so that it outlives one client).
+struct SocketFile(PathBuf);
+
+impl Drop for SocketFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
 
 fn device_rom_len(p: &Path) -> u64 {
     std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)

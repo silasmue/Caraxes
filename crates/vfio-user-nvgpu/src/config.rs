@@ -379,6 +379,7 @@ pub fn parse_dump(text: &str) -> Result<[u8; SIZE]> {
 }
 
 /// The live configuration space with its per-byte write mask.
+#[derive(Clone)]
 pub struct ConfigSpace {
     bytes: [u8; SIZE],
     wmask: [u8; SIZE],

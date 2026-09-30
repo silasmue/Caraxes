@@ -468,8 +468,9 @@ dma_load() {
 }
 
 down() {
-    # Stop the VM first; the server then sees the socket close, prints its access
-    # summary into gpu.log and exits on its own. Kill it only if it does not.
+    # Stop the VM first; the server then sees the socket close, waits 2 s for a new
+    # client (a VMM reboot), prints its access summary into gpu.log and exits on its
+    # own. Kill it only if it does not.
     if alive "$W/ch.pid"; then kill "$(cat "$W/ch.pid")" 2>/dev/null || true; fi
     for _ in $(seq 50); do alive "$W/gpu.pid" || break; sleep 0.1; done
     if alive "$W/gpu.pid"; then kill "$(cat "$W/gpu.pid")" 2>/dev/null || true; fi

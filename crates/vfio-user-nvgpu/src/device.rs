@@ -64,6 +64,8 @@ pub struct DmaMapping {
 
 pub struct Device {
     cfg: ConfigSpace,
+    /// The configuration space as the device came up, for a new client ([`Device::client_gone`]).
+    cfg_reset: ConfigSpace,
     bar0: Bar0,
     trace: Trace,
     dma: Vec<DmaMapping>,
@@ -932,6 +934,7 @@ impl Device {
     pub fn new(cfg: ConfigSpace, bar0: Bar0, trace: Trace) -> Self {
         let irq_fds = (0..VFIO_PCI_NUM_IRQS).map(|_| Vec::new()).collect();
         Device {
+            cfg_reset: cfg.clone(),
             cfg,
             bar0,
             trace,
@@ -1714,6 +1717,57 @@ impl Device {
         for n in notes {
             self.trace.event(&format!("boot: {n}"));
         }
+    }
+
+    /// The client closed the connection and a new one is waiting (Cloud Hypervisor's
+    /// reboot builds a new vfio-user client for the same socket). vfio-user.rst "Client
+    /// Disconnection": the old client's memory regions are unmapped and its IRQ eventfds
+    /// closed. The device state does not stay as the spec prefers: the host channels the
+    /// old guest created may still run work that reaches its RAM, so the model resets
+    /// first (its mirror frees them) and the RAM is unregistered after; the configuration
+    /// space goes back to its reset state with it, so the new client finds the device a
+    /// platform reset leaves (a vfio-pci device is reset when it is opened; Cloud
+    /// Hypervisor resets a resettable vfio-user device when it creates it).
+    ///
+    /// An error leaves the rest as it is: the caller then ends the session as before
+    /// (the full teardown), and the new client sees the connection close.
+    pub fn client_gone(&mut self) -> Result<(), String> {
+        self.trace.event(&format!(
+            "client gone: a new client is waiting; the model resets, then {} memory region(s) and the IRQ eventfds of the old client go",
+            self.dma.len()
+        ));
+        for index in 0..self.irq_fds.len() as u32 {
+            if !self.irq_fds[index as usize].is_empty() {
+                ServerBackend::set_irqs(
+                    self,
+                    index,
+                    VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
+                    0,
+                    0,
+                    Vec::new(),
+                )
+                .map_err(|e| format!("IRQ index {index}: {e}"))?;
+            }
+        }
+        self.reset_model();
+        self.cfg = self.cfg_reset.clone();
+        if self.guest_dma_gpa {
+            if let GuestRam::Register(hm) = &self.guest_ram {
+                hm.lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .thaw_gpa_mappings()
+                    .map_err(|e| format!("{e:#}"))?;
+            }
+        }
+        let maps: Vec<(u64, u64)> = self.dma.iter().map(|m| (m.address, m.size)).collect();
+        for (address, size) in maps {
+            ServerBackend::dma_unmap(self, DmaUnmapFlags::empty(), address, size)
+                .map_err(|e| format!("DMA_UNMAP {address:#x}+{size:#x}: {e}"))?;
+        }
+        self.sync_msi_enabled();
+        self.trace
+            .event("client gone: done; the device waits for the new client's messages");
+        Ok(())
     }
 
     /// A device reset (FLR or the client's reset): the interrupt vectors raised before it
@@ -2521,6 +2575,40 @@ mod tests {
         assert!(d.mem.covers(0, 0xa0000));
         assert!(!d.mem.covers(0x100000, 1));
         assert_eq!(d.mem.regions(), vec![(0, 0xa0000)]);
+    }
+
+    /// A new client after a disconnect (Cloud Hypervisor's reboot, vfio-user.rst "Client
+    /// Disconnection"): the old client's memory regions and IRQ eventfds are gone, the
+    /// configuration space is back at its reset state, and the new client maps again.
+    #[test]
+    fn a_new_client_finds_the_old_clients_memory_and_eventfds_gone() {
+        use std::os::fd::FromRawFd;
+        let mut d = rtx2070_device().with_guest_ram(GuestRam::Identity, None);
+        d.guest_dma_gpa = true;
+        let f = guest_ram_file();
+        let map = |d: &mut Device, at, size| d.dma_map(DmaMapFlags::READ_WRITE,
+            at, at, size, Some(f.try_clone().unwrap()));
+        map(&mut d, 0, 0xa0000).unwrap();
+        map(&mut d, 0x100000, 0x1f00000).unwrap();
+        let fd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
+        assert!(fd >= 0);
+        let ev = unsafe { File::from_raw_fd(fd) };
+        d.set_irqs(VFIO_PCI_MSI_IRQ_INDEX,
+            VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
+            0, 1, vec![ev.try_clone().unwrap()]).unwrap();
+        // The old guest enabled memory decoding and bus mastering.
+        let reset = d.cfg.dword(4);
+        d.cfg.write(4, &[0x06, 0x00]);
+        assert_ne!(d.cfg.dword(4), reset);
+        d.client_gone().unwrap();
+        assert!(d.dma.is_empty());
+        assert!(!d.mem.covers(0, 1));
+        assert!(d.mem.table().unwrap().is_empty());
+        assert!(d.irq_fds.iter().all(|f| f.is_empty()));
+        assert_eq!(d.cfg.dword(4), reset);
+        map(&mut d, 0, 0xa0000).unwrap();
+        map(&mut d, 0x100000, 0x1f00000).unwrap();
+        assert!(d.mem.covers(0x100000, 0x1f00000));
     }
 
     #[test]
