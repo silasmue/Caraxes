@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Source survey generated 2026-09-23 by reading vendor/open-gpu-kernel-modules at tag 610.57.04
-     (and the Caraxes tree at e2f1aec). Every claim cites file:line; values marked "derived" were
+     (and the Leandro VFIO tree at e2f1aec). Every claim cites file:line; values marked "derived" were
      computed, not read. Treat as notes to be verified by experiment, not as specification. -->
 # NVIDIA open-gpu-kernel-modules 610.57.04: how the driver boots GSP-RM on TU106 (RTX 2070) in GSP-client mode
 

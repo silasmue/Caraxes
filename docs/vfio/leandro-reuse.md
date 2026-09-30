@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Source survey generated 2026-09-23 by reading vendor/open-gpu-kernel-modules at tag 610.57.04
-     (and the Caraxes tree at e2f1aec). Every claim cites file:line; values marked "derived" were
+     (and the Leandro VFIO tree at e2f1aec). Every claim cites file:line; values marked "derived" were
      computed, not read. Treat as notes to be verified by experiment, not as specification. -->
-# Leandro host backend: survey for reuse in Caraxes
+# Leandro host backend: survey for reuse in Leandro VFIO
 
 This was a read-only survey; no files were changed. Paths are relative to `/home/silas/git/Caraxes/`. `S` means `crates/vhost-user-nvrm/src/`, `A` means `crates/nvrm-abi/src/`, `W` means `crates/nvrm-wire/src/`.
 
@@ -234,7 +234,7 @@ All of this happens inside `Session::prepare` (S/session.rs:1294-1863), in this 
 
 ---
 
-## 4. Reuse map for Caraxes
+## 4. Reuse map for Leandro VFIO
 
 ### 4.1 Library surface
 `vhost-user-nvrm` is a library plus a binary (crates/vhost-user-nvrm/Cargo.toml `[lib] vhost_user_nvrm`). Public modules: `grid, guest_words, host_pool, mirror, nvrm, session, syscalls, vram, waiters`. `client_policy` and `request_shape` are **private** (S/lib.rs:6-16). The fuzz target already drives `Session::detached_proc` plus `handle_msg` from outside the crate (crates/vhost-user-nvrm/fuzz/fuzz_targets/handle_msg.rs:47).
@@ -246,7 +246,7 @@ All of this happens inside `Session::prepare` (S/session.rs:1294-1863), in this 
   - `share` (A/share.rs:94-133), `nvgpu` wrapper structs `Nvos02WithFd`/`Nvos33WithFd` (A/nvgpu.rs:189, 210), `mediate` constants.
 - **`Session` as the RM executor:** `Session::detached_proc(sub_id, Arc<Ledger>, Arc<PinBudget>)` (S/session.rs:534), `set_guest_mem` (:1025), `set_syscalls` (:1013), `handle_msg_with` (:1042).
   - Only the **wire-byte API** is public; `prepare`, `execute` and `Plan` are private.
-  - Caraxes can reuse it by building `nvrm_wire::Req` messages:
+  - Leandro VFIO can reuse it by building `nvrm_wire::Req` messages:
     - Open ctl/gpu, which gives tokens.
     - Ioctl with `ioctl_nr=NV_ESC_RM_ALLOC` and NVOS64 inline with `embedded_ptr_off=16`, params in aux.
     - RM_CONTROL with NVOS54 inline, `paramsSize` equal to the aux length, `embedded_ptr_off=16`.
@@ -256,7 +256,7 @@ All of this happens inside `Session::prepare` (S/session.rs:1294-1863), in this 
   - `host_pool::Arena::build(mem, &[GpaRun], total)` (S/host_pool.rs:268), `GpaRun` (:223), `PinBudget::new`/`from_env` (:40, 55), and `PoolState::arena_for_osdesc` / `keep_osdesc_arena` / `drop_osdesc_*` (:738-772).
   - This is a natural fit for GSP-style page-list memory descriptors: GPA list, then host VA, then NVOS02 0x71.
   - `Backing` and the UVM `back_pool_for` are private or UVM-specific.
-  - The `Mem` type is `vm_memory::GuestMemoryAtomic<GuestMemoryMmap<()>>` (S/host_pool.rs:21), so Caraxes must build it from the vfio-user DMA regions, and those regions must be file-backed with an offset (:322).
+  - The `Mem` type is `vm_memory::GuestMemoryAtomic<GuestMemoryMmap<()>>` (S/host_pool.rs:21), so Leandro VFIO must build it from the vfio-user DMA regions, and those regions must be file-backed with an offset (:322).
 - **Other session-independent pieces:** `vram::{Ledger, Books, request_bytes, rewrite_*}`, `grid::{Card, rewrite_*}`, `mirror::Mirror`, `guest_words`, `waiters::WaiterPoller`.
 
 ### 4.3 Tied to the vhost-user transport (needs a new front end)
@@ -273,10 +273,10 @@ All of this happens inside `Session::prepare` (S/session.rs:1294-1863), in this 
    - A shim is needed. `nvrm-sys` binds no RPC structs: crates/nvrm-sys/wrapper.h and the abi.toml footprint (:113+) contain no rpc/GSP headers.
 2. **Serialized params.** CPU-RM FINN-serializes embedded-pointer controls and allocs for the RPC (vendor .../src/nvidia/src/kernel/vgpu/rpc.c:10735-10806, 11019-11044). Leandro refuses serialized payloads (S/request_shape.rs:164-176). The nested-pointer tables (A/xlate.rs:1240-1375) only describe unserialized NVOS54 layouts.
 3. **Privilege.** The backend is an unprivileged userspace RM client (CAP_SYS_ADMIN dropped, crates/vhost-user-nvrm/src/main.rs:50+). The guest kernel RM will issue kernel-only and internal controls (`NV2080_CTRL_CMD_INTERNAL_*`), plus non-alloc/control RPCs (system info, registry, static info, and so on). These have no ioctl equivalent in Leandro.
-4. **Identity.** `guest_proc`/Session and `ProcInfo` assume guest processes (W/lib.rs:105-112, 228-229). With GSP there is one kernel-RM caller, so Caraxes needs one session per VM or per guest `hClient`. SET_SUB_PROCESS_ID labeling (S/session.rs:2360-2387) and the PID roster (S/vram.rs:715, 790) lose their meaning.
-5. **Handles.** Leandro forwards guest handles verbatim and lets host RM choose root handles (`hObjectNew=0` pattern, crates/nvrm-client/src/lib.rs:55-60). Guest CPU-RM chooses its own `hClient` values, so Caraxes likely needs a guest-to-host handle map. Leandro has none.
+4. **Identity.** `guest_proc`/Session and `ProcInfo` assume guest processes (W/lib.rs:105-112, 228-229). With GSP there is one kernel-RM caller, so Leandro VFIO needs one session per VM or per guest `hClient`. SET_SUB_PROCESS_ID labeling (S/session.rs:2360-2387) and the PID roster (S/vram.rs:715, 790) lose their meaning.
+5. **Handles.** Leandro forwards guest handles verbatim and lets host RM choose root handles (`hObjectNew=0` pattern, crates/nvrm-client/src/lib.rs:55-60). Guest CPU-RM chooses its own `hClient` values, so Leandro VFIO likely needs a guest-to-host handle map. Leandro has none.
 6. **FD tokens.** GSP RPCs have no FDs. `Mirror` is still needed internally, because RM binds clients to the open file description: one ctl FD per client, plus REGISTER_FD'd GPU FDs for mappings and OS descriptors. The GPU index is hard-coded to 0 in `osdesc_gpu_fd` (S/session.rs:975) and `Backing::new` (S/host_pool.rs:415).
-7. **Events.** Leandro substitutes guest kernel callbacks with OS events and delivers `KIND_EVENT_FIRED` on virtio queue 1. Caraxes needs a GSP event/message-queue equivalent. The draining and substitution logic (S/session.rs:594-661, 885-965) is reusable conceptually but reached only through the wire API.
+7. **Events.** Leandro substitutes guest kernel callbacks with OS events and delivers `KIND_EVENT_FIRED` on virtio queue 1. Leandro VFIO needs a GSP event/message-queue equivalent. The draining and substitution logic (S/session.rs:594-661, 885-965) is reusable conceptually but reached only through the wire API.
 8. **Mediation hooks.** The control rewrites (FB info, name, PIDs, UUID) key on guest-issued NVOS54 controls (S/session.rs:2125-2202). A GSP guest gets most of its static card data through static-info RPCs instead, so these hooks may never fire (see §6).
 
 ### 4.5 `nvrm-client`
@@ -309,7 +309,7 @@ Direct-client diagnostics: `RmClient`, `HandleAllocator` with `0x8000_0000` daem
 
 ## 6. Open questions
 1. Can a host userspace client allocate `NV01_ROOT_CLIENT` with a caller-chosen `hObjectNew`, so guest CPU-RM client handles could pass through untranslated? Leandro always lets RM choose (crates/nvrm-client/src/lib.rs:55-60; S/session.rs:2331-2333).
-2. Does the host ioctl path accept `NVOS54_FLAGS_FINN_SERIALIZED` from a userspace client, which would let serialized RPC params be forwarded as-is? Or must Caraxes deserialize to NVOS54 plus nested buffers? Leandro refuses both forms (S/request_shape.rs:164-176); the vendor RPC path is at rpc.c:10735-10806.
+2. Does the host ioctl path accept `NVOS54_FLAGS_FINN_SERIALIZED` from a userspace client, which would let serialized RPC params be forwarded as-is? Or must Leandro VFIO deserialize to NVOS54 plus nested buffers? Leandro refuses both forms (S/request_shape.rs:164-176); the vendor RPC path is at rpc.c:10735-10806.
 3. Which GSP RPCs have no RM ioctl equivalent, and which controls in them require kernel or internal privilege (compare A/xlate.rs:1166-1203, which already blocks GSP_CRYPTO_CONTROL and RPC_GSP_TEST)?
 4. Can the typed `prepare`/`execute` be exposed (S/session.rs:1294, 1894) instead of re-encoding `nvrm-wire` bytes, and should `request_shape`/`client_policy` become `pub` (S/lib.rs:6, 12)?
 5. vfio-user DMA regions must be convertible to a `GuestMemoryMmap` with file offsets for `Arena::build` (S/host_pool.rs:318-324). Is guest RAM file-backed in the planned QEMU setup?

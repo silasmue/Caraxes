@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Architecture
 
-VFIO Leandro serves an unmodified NVIDIA guest driver a synthetic Turing GPU over vfio-user.
+Leandro VFIO serves an unmodified NVIDIA guest driver a synthetic Turing GPU over vfio-user.
 One Rust process, `vfio-user-nvgpu` (`crates/vfio-user-nvgpu`), is the whole device: it
 answers PCI configuration space, the BAR0 registers, the GSP boot exchange and the GSP RPC
 stream, keeps the guest's VRAM slice and registered RAM on the host, shadows the guest's
@@ -108,9 +108,9 @@ is a snapshot, a diff against the 615 baseline and regenerated tables
 ([gsp-abi-615.md](gsp-abi-615.md)); a new chip is a `Chip` implementation with data files
 ([versatility.md](versatility.md)).
 
-## Differences from VirtIO Leandro
+## Differences from Leandro VirtIO
 
-| | VirtIO Leandro (v1) | VFIO Leandro (v2) |
+| | Leandro VirtIO (v1) | Leandro VFIO (v2) |
 |---|---|---|
 | Guest driver | patched (`virtio_nvrm.ko`) | stock, unmodified |
 | Guest-side transport | a virtio device plus vhost-user | none: PCI, BARs and guest RAM |

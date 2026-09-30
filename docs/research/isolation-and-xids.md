@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Isolation and Xids
 
-Scope: the isolation rules a Caraxes device enforces on the shared RTX 2070 (reservation, comptags, privilege, teardown, scrub) and the catalogue of every Xid recorded, with cause and fix.
+Scope: the isolation rules a Leandro VFIO device enforces on the shared RTX 2070 (reservation, comptags, privilege, teardown, scrub) and the catalogue of every Xid recorded, with cause and fix.
 
 ## Facts
 
@@ -72,7 +72,7 @@ Scope: the isolation rules a Caraxes device enforces on the shared RTX 2070 (res
 - The host desktop is judged by a host watch sampling host `nvidia-smi` (max 0.087 s over 70 samples on two VMs) [run: caraxes/runs/mapping-2026-09-24/f1-concurrent/b-gate/hostwatch.txt].
 - Host impact without any Xid is possible: 732088 refused host BAR1 mappings from a window leak, and a half-million-mapping VA teardown that timed out host `nvidia-smi` after 20 s and restarted the desktop's electron GPU process [docs/vfio/parallel.md §2.3, §2.4].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Every new run collects the host Xid lines since its start and compares them with the device pid, and stops at the first Xid outside it.
 - A Xid on the device pid is a device bug with a VM-local blast radius; the fix goes into the mapping or ordering path, never into a host-side reset.

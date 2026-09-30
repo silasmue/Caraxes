@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Testing: the Leandro v1 gates against the vfio-user device
 
-One way to put the guest-side test material into a Caraxes VM and to run the v1 gates
+One way to put the guest-side test material into a Leandro VFIO VM and to run the v1 gates
 against the synthetic device, with v1's verdict rules, so that "the cuda gate passed"
 means what "the gpu gate passed" meant for Leandro v1.
 
@@ -12,7 +12,7 @@ VM=vm0 tools/caraxes-gate.sh cuda cuda-init    # one test alone (a clean device 
 VM=vm0 tools/caraxes-gate.sh gpu               # v1's gpu gate, guest-side stages
 VM=vm0 tools/caraxes-gate.sh vdisplay          # the device's DP monitor (needs CARAXES_DISPLAY=1)
 VM=vm0 tools/caraxes-gate.sh display           # the same, with Weston (Wayland) and Sunshine capture=kms
-VM=vm0 tools/caraxes-gate.sh nvml              # the Caraxes nvidia-smi gate (nvml.md)
+VM=vm0 tools/caraxes-gate.sh nvml              # the Leandro VFIO nvidia-smi gate (nvml.md)
 ```
 
 Files: `tools/caraxes-vm.sh` (`sync_tests`), `tools/caraxes-gate.sh` (`gate_cuda`,
@@ -22,7 +22,7 @@ Files: `tools/caraxes-vm.sh` (`sync_tests`), `tools/caraxes-gate.sh` (`gate_cuda
 ## 1. What ../Leandro-Test contains
 
 `/home/silas/git/Leandro-Test` (commit `e046e04`, a dirty working tree when this was
-written) is the v1 acceptance and measurement repository. Caraxes reads it and never writes
+written) is the v1 acceptance and measurement repository. Leandro VFIO reads it and never writes
 into it. Its parts, by role:
 
 | Part | Path | Runs on | Role |
@@ -245,7 +245,7 @@ What made v1's gates trustworthy, and what these gates keep:
    counts a mismatch as a fail (`do_gates`, `test.sh:1131-1200`). Not reproduced here yet; run the gates
    one by one.
 
-Caraxes additions: per-test rows for `cuda` (v1's gpu gate stops at the stage level),
+Leandro VFIO additions: per-test rows for `cuda` (v1's gpu gate stops at the stage level),
 the guest-tracer column, the device-trace column, the raw evidence saved per run.
 
 ## 5. Evidence
@@ -489,10 +489,10 @@ first `LOAD_INLINE_QMD_DATA(63)` on the GR channel (a kernel launch), whose QMD 
 semaphore the following CE copy acquires. The device refuses and logs it
 (`compute KERNEL LAUNCH NOT EXECUTED`); experiments.md E5c lists what part 2 must provide.
 
-## 9. Gaps in the v1 material for Caraxes
+## 9. Gaps in the v1 material for Leandro VFIO
 
 - The v1 gpu gate's `tables` and counter-check stages, and its pin and pool leak checks,
-  belong to virtio_nvrm; Caraxes needs its own leak check (for example device-side object
+  belong to virtio_nvrm; Leandro VFIO needs its own leak check (for example device-side object
   counts after SIGKILL) to make the robustness stage as strong as v1's.
 - No native reference: the torch stage and the encode comparison need a native run on the
   host card, which is the operator's call; v1's `vendor/hostvenv` does not exist.
@@ -500,7 +500,7 @@ semaphore the following CE copy acquires. The device refuses and logs it
   EGL, OpenCL and Vulkan headers (six probes); the guest has no network to install them.
 - The smi stage's mask was written for a guest that forwards all host display state; Disp.A
   differs by design here. Whether to mask it is a decision for the D9 cut, not for the gate.
-- The display gates presuppose virtio_nvrm's virtual display; Caraxes needs its own display
+- The display gates presuppose virtio_nvrm's virtual display; Leandro VFIO needs its own display
   engine before any of them applies.
 - The native traces used above (`probe/traces/*.tsv`) are untracked leftovers without a
   recorded driver version; a fresh native trace set for 610.57.04 would make the lookahead

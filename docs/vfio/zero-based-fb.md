@@ -31,7 +31,7 @@ Clippy still reports those pre-existing patterns.
 
 The Windows host launcher accepts `WIN_BAR1_POOL_MIB=64` in `exec` mode to
 opt into the existing BAR1 mmap pool. It remains off by default. QEMU uses
-a fixed sparse mmap of the owned pool; Caraxes updates page contents and
+a fixed sparse mmap of the owned pool; Leandro VFIO updates page contents and
 shadow mappings as guest BAR1 mappings change. Fixed passthrough is still
 refused in zero-based mode.
 

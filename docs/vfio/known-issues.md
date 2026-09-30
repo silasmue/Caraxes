@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Known issues
 
-Open defects and limits of VFIO Leandro as of 2026-09-30, with the evidence for each. A
+Open defects and limits of Leandro VFIO as of 2026-09-30, with the evidence for each. A
 fixed issue leaves this page; its record stays in the research note it names. The closed
 issues at the end are listed because their symptoms are easy to mistake for an open one.
 

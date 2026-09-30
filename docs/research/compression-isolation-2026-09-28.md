@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-# Compression isolation in vGPU and MIG, and the Caraxes slice (2026-09-28)
+# Compression isolation in vGPU and MIG, and the Leandro VFIO slice (2026-09-28)
 
 Research for the compression decision (D16 → real compression per VM slice, user 2026-09-28). `K` = `vendor/open-gpu-kernel-modules/src/nvidia/src/kernel/`, `SDK` = `.../src/common/sdk/nvidia/inc/`, `SW` = `.../src/common/inc/swref/published/`; tree 610.57.04 (e4a5faa). [V] verified in source, [I] inferred.
 
@@ -29,7 +29,7 @@ Research for the compression decision (D16 → real compression per VM slice, us
 - [V] A compressible kind override over uncompressed backing is silently downgraded (`memmgrGetUncompressedKind`, K/mem_mgr/virtual_mem.c:1370-1393; same in 615.71.09); per-PTE fallback with COMPTAGLINE 0 in regions without compression or when tags run out (virt_mem_allocator_gm107.c:1853-1881, 1926-1938, 2332-2342). The driver sees NV_OK and keeps believing the surface is compressed.
 - [V] Downgrade table = `memmgrGetUncompressedKind_TU102(..., bReleaseReacquire=FALSE)` (mem_mgr_tu102.c:303-351): 0x08/0x09→0x06, 0x0A→0x02, 0x0B→0x01, 0x0C→0x03, 0x0D→0x04, 0x0E→0x05.
 
-## Real compression per Caraxes slice (the chosen route)
+## Real compression per Leandro VFIO slice (the chosen route)
 - [V pieces / I whole] Allocate the reservation with `COMPR_REQUIRED` (host marks it physically based, kern_mem_sys.c:474-475), pass the guest's compressible kind as override (not downgraded, the backing is compressible); the host RM writes `1 + SPA[35:16]` of the reservation's own pages. This matches legacy Turing vGPU (host-written PTEs into the VM's exclusive slice). `NV01_MEMORY_LOCAL_PHYSICAL` with a compressed kind is allowed in 1:1 (K/mem_mgr/phys_mem.c:109-118).
 - Caveats:
   - 4 KiB compressible leaves: the host widens them to the physical page size, which is 2 MiB here (virt_mem_allocator_gm107.c:740-752); downgrade them.

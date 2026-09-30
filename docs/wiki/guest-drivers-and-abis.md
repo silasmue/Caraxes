@@ -25,7 +25,7 @@ guest's GSP boot, before any queue links, and answers with that generation's lay
 - RMARGS (`GSP_ARGUMENTS_CACHED`) opening with the magic "GSP " means 615: message queue v2
   and the GMCAPI init (Linux 615, Windows 617). A 610 RMARGS starts with the low half of a
   page-aligned address, which never equals the magic
-  ([caraxes/gsp-transport-615.md](../vfio/gsp-transport-615.md) §8).
+  ([vfio/gsp-transport-615.md](../vfio/gsp-transport-615.md) §8).
 - Without the magic the queue is v0. At the link the first command element decides
   (`ver::element_frame`): the "VRPC" v3.0 header at offset 0x10 is 610, at 0x30 pre-610,
   served as 570. RMARGS not yet mapped: the next doorbell or Booter Load decides.
@@ -92,7 +92,7 @@ guest's GSP boot, before any queue links, and answers with that generation's lay
 - Sends `GSP_SET_SYSTEM_INFO`, `SET_REGISTRY` (`RMSecBusResetEnable`,
   `RMForcePcieConfigSave`, `RMDevidCheckIgnore` = 1), `GET_GSP_STATIC_INFO` and
   `UNLOADING_GUEST_DRIVER`; it waits for `GSP_RUN_CPU_SEQUENCER` and `GSP_INIT_DONE`
-  ([caraxes/nova-guest.md](../vfio/nova-guest.md) §2.1).
+  ([vfio/nova-guest.md](../vfio/nova-guest.md) §2.1).
 - Checksums every element, matches a reply by function only, and has no channel code.
 - The device rejects a bad RPC header inside a valid frame and keeps GMCAPI sequences at 64
   bits ([research: nova-transport-compatibility](../research/nova-transport-compatibility-2026-09-27.md)).

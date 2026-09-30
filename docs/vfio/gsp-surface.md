@@ -3,7 +3,7 @@
 <!-- Source survey and tooling by a read-only subagent on 2026-09-24 (operator's direction of the same day: emulate as many device answers as possible, so that Windows can run later without trace-driven bring-up). Numbers are the output of caraxes/tools/gsp-surface.py on the working tree of that day (HEAD fd1e5e7 plus the uncommitted crate changes); rerun the script for current numbers. -->
 # The GSP surface of 610.57.04: what a GSP-RM stand-in must answer
 
-Caraxes plays GSP-RM towards a stock kernel RM in GSP-client mode. Until now the device has
+Leandro VFIO plays GSP-RM towards a stock kernel RM in GSP-client mode. Until now the device has
 answered what the Linux driver happened to ask on our gates, and every unanswered RPC showed up
 as a wall. This file inventories, from source only, everything the kernel RM of this driver
 generation can send to GSP, marks what the device handles today and with which D9 provenance,

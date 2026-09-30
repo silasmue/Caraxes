@@ -24,7 +24,7 @@ offsets at fixed positions that a costume must not move.
   ([kernel-rm-hal-and-registry](kernel-rm-hal-and-registry.md)).
 - The Windows driver reads the extended space through the mirror before any GSP contact
   (0x700 and the hidden SR-IOV block) and stops with Code 43 when it reads zeros
-  ([caraxes/vfio-user.md](../vfio/vfio-user.md), "Extended configuration space").
+  ([vfio/vfio-user.md](../vfio/vfio-user.md), "Extended configuration space").
 - A guest walks its capability list (offsets 0x06, 0x34, 0x60, 0x68, 0x78) over and over; the
   caller is not identified. Each read is a trap ([traps-and-fast-paths](traps-and-fast-paths.md)).
 
@@ -64,7 +64,7 @@ offsets at fixed positions that a costume must not move.
 - Cloud Hypervisor's vfio-user client reads the space over the socket; it is not mappable,
   so a cache of read-only dwords in the VMM would need a patch.
 
-## In VirtIO Leandro
+## In Leandro VirtIO
 
 - No PCI GPU exists in the guest: `virtio_nvrm.ko` is a virtio device; the NVIDIA libraries
   never see a PCI identity, and `nvrm_nodes.ko` supplies the proc files they read
@@ -73,5 +73,5 @@ offsets at fixed positions that a costume must not move.
 ## Depth
 
 - [research/driver-structure.md](../research/driver-structure.md), [research/identity-and-costume.md](../research/identity-and-costume.md).
-- [caraxes/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md) §E, [caraxes/costume-5060.md](../vfio/costume-5060.md),
-  [caraxes/blackwell-gb206.md](../vfio/blackwell-gb206.md) §1.
+- [vfio/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md) §E, [vfio/costume-5060.md](../vfio/costume-5060.md),
+  [vfio/blackwell-gb206.md](../vfio/blackwell-gb206.md) §1.

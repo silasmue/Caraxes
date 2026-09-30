@@ -99,7 +99,7 @@ Scope: the shortest open-source path to a render read back in a guest on the dev
 - Evening goal: R1-R3 (nouveau binds with accel, `renderD128`, `vulkaninfo` lists NVK on the device); R4/R5 if the bare GR channels mirror without change.
 - The kernel's own GR and CE channels (fences, TTM moves) run on the device's software executor; NVK's GR channels carry `TURING_COMPUTE_A` and take the GR shadow path [crates/vfio-user-nvgpu/src/mirror.rs `is_gr_shadow` 1762-1776, `shadow_channel` 2297-2382, `tsg_key_of` 928-941, `eligible` 3379-3438; ctrl.rs 775-781].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - An open driver stack renders on the device: nouveau (GSP-RM 570.144, the firmware nova uses) with Mesa NVK draws a triangle on the physical GPU through a host mirror channel, and Mesa's GL runs on it as zink (vm10-boot5). nova can follow when it gains channels, with the same device answers.
 - A 570 guest is no longer "controls as 610": the control frame and the two alloc structs are translated, and every other 570 layout the device answers is checked against the snapshots, not assumed.

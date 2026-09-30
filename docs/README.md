@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Documentation
 
-Two architectures share this documentation: VirtIO Leandro (v1), API forwarding through a
-guest module, and VFIO Leandro (v2, code name Caraxes), a synthetic NVIDIA GPU for stock
+Two architectures share this documentation: Leandro VirtIO (v1), API forwarding through a
+guest module, and Leandro VFIO (v2), a synthetic NVIDIA GPU for stock
 guest drivers. Start with [leandro.md](leandro.md) for both, the [v2 quickstart](vfio/quickstart.md)
 or the [v1 quickstart](virtio/quickstart.md) to run a VM, and the [wiki](wiki/README.md) for one
 concept at a time. Read [Security](virtio/security.md) and the [isolation rules](wiki/isolation-rules.md)
@@ -20,7 +20,7 @@ before interpreting isolation claims.
 | [Development](../DEVELOPMENT.md) | Build, checks, Nix, tracing and troubleshooting |
 | [Licenses](../LICENSES.md) | Licensing and third-party attribution |
 
-## VFIO Leandro (v2)
+## Leandro VFIO (v2)
 
 | File | Contents |
 |---|---|
@@ -30,9 +30,9 @@ before interpreting isolation claims.
 | [vfio/decisions.md](vfio/decisions.md) | The design decisions D1 to D20 |
 | [vfio/testing.md](vfio/testing.md) | The v1 gates against the device, the verdict rules, the guest-side test material |
 | [vfio/benchmark.md](vfio/benchmark.md) | v1, v2 and native on one card: harness, method, the tables |
-| [caraxes/](vfio/README.md) | The index of the v2 design documents and studies |
+| [vfio/](vfio/README.md) | The index of the v2 design documents and studies |
 
-## VirtIO Leandro (v1): setup and use
+## Leandro VirtIO (v1): setup and use
 
 | File | Contents |
 |---|---|
@@ -44,7 +44,7 @@ before interpreting isolation claims.
 | [virtio/guest-userspace.md](virtio/guest-userspace.md) | NVIDIA library installation and version requirements |
 | [virtio/showcase.md](virtio/showcase.md) | Demonstration checks and what they establish |
 
-## VirtIO Leandro (v1): design and development
+## Leandro VirtIO (v1): design and development
 
 | File | Contents |
 |---|---|
@@ -89,10 +89,10 @@ Recorded runs, not guarantees for the current revision.
 | File or directory | Contents |
 |---|---|
 | [history](history/README.md) | Dated snapshots of both versions: the v2 working record, briefs, the experiment ladder, superseded surveys |
-| [measurements/fence-14](virtio/measurements/fence-14/README.md) | v1: Vulkan fence-wait polling fallback |
-| [measurements/vram-68](virtio/measurements/vram-68/README.md) | v1: two-guest VRAM policy comparison |
-| [measurements/vram-69](virtio/measurements/vram-69/README.md) | v1: four-guest VRAM policy tests |
-| [measurements/vram-69b](virtio/measurements/vram-69b/README.md) | v1: admission limits and vGPU-mode behaviour |
-| [measurements/vram-70](virtio/measurements/vram-70/README.md) | v1: workloads under different VRAM limits |
-| [measurements/sottr-4q](virtio/measurements/sottr-4q/README.md) | v1: two concurrent Shadow of the Tomb Raider benchmarks |
+| [virtio/measurements/fence-14](virtio/measurements/fence-14/README.md) | v1: Vulkan fence-wait polling fallback |
+| [virtio/measurements/vram-68](virtio/measurements/vram-68/README.md) | v1: two-guest VRAM policy comparison |
+| [virtio/measurements/vram-69](virtio/measurements/vram-69/README.md) | v1: four-guest VRAM policy tests |
+| [virtio/measurements/vram-69b](virtio/measurements/vram-69b/README.md) | v1: admission limits and vGPU-mode behaviour |
+| [virtio/measurements/vram-70](virtio/measurements/vram-70/README.md) | v1: workloads under different VRAM limits |
+| [virtio/measurements/sottr-4q](virtio/measurements/sottr-4q/README.md) | v1: two concurrent Shadow of the Tomb Raider benchmarks |
 | `../caraxes/runs/` | v2: every run record, one folder per experiment and date |

@@ -10,7 +10,7 @@ shows the equivalent commands. The patches are `git format-patch` output, so
 The patches extend Cloud Hypervisor's generic vhost-user device
 (`--generic-vhost-user`) and the vhost-user backend channel; 0005 extends the
 vfio-user client (`--user-device`). None of them refers to NVIDIA or to Leandro;
-virtio-nvrm is one user, the Caraxes device another.
+virtio-nvrm is one user, the Leandro VFIO device another.
 
 | Patch | Change | Files |
 |---|---|---|
@@ -19,7 +19,7 @@ virtio-nvrm is one user, the Caraxes device another.
 | [0003](0003-generic-vhost-user-refused-request.patch) | Keep serving the backend channel after a refused request | `virtio-devices/src/vhost_user/mod.rs` |
 | [0005](0005-vfio-user-region-io-fds.patch) | vfio-user region I/O fds: request `VFIO_USER_DEVICE_GET_REGION_IO_FDS` for each BAR and register the server's ioeventfd sub-regions with KVM (exact length and datamatch), moved with the BAR, removed with the device; a server that refuses keeps every BAR trapped. Builds against [../vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md) beside the tree ([Patch 0005](#patch-0005-vfio-user-region-io-fds)); tested in [../caraxes/runs/patch0005-2026-09-24](../caraxes/runs/patch0005-2026-09-24) | `Cargo.toml`, `Cargo.lock`, `hypervisor/src/vm.rs`, `hypervisor/src/kvm/mod.rs`, `pci/src/vfio.rs`, `pci/src/vfio_user.rs` |
 | [0006](0006-vfio-user-region-io-fds-summary.patch) | One INFO line per region for its ioeventfds (registered of offered, descriptors received, datamatch range) and a test of a reply with 253 datamatch sub-regions at one offset, one descriptor each; with the vendored crate's client now announcing `max_msg_fds` 253 ([../vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md), crate patch 0002) a server can tell the values written to one register apart ([Patch 0006](#patch-0006-datamatch-sub-regions-at-one-offset), [../docs/vfio/doorbell-token-pool.md](../docs/vfio/doorbell-token-pool.md)); tested in [../caraxes/runs/doorbell-tokens-2026-09-24](../caraxes/runs/doorbell-tokens-2026-09-24). To be folded into 0005 before upstreaming | `pci/src/vfio_user.rs` |
-| [0004](0004-acpi-dma-host-bridge.patch) | Emit an ACPI `_DMA` object on a PCI segment's host bridge from `--pci-segment pci_segment=<id>,dma_ranges=[<cpu>:<dma>:<size>,...]`; nothing changes without the option ([ACPI-DMA.md](ACPI-DMA.md)); Caraxes only, tested in [../caraxes/runs/acpi-dma-2026-09-23](../caraxes/runs/acpi-dma-2026-09-23) | `vmm/src/api/openapi/cloud-hypervisor.yaml`, `vmm/src/config.rs`, `vmm/src/device_manager.rs`, `vmm/src/pci_segment.rs`, `vmm/src/vm_config.rs` |
+| [0004](0004-acpi-dma-host-bridge.patch) | Emit an ACPI `_DMA` object on a PCI segment's host bridge from `--pci-segment pci_segment=<id>,dma_ranges=[<cpu>:<dma>:<size>,...]`; nothing changes without the option ([ACPI-DMA.md](ACPI-DMA.md)); Leandro VFIO only, tested in [../caraxes/runs/acpi-dma-2026-09-23](../caraxes/runs/acpi-dma-2026-09-23) | `vmm/src/api/openapi/cloud-hypervisor.yaml`, `vmm/src/config.rs`, `vmm/src/device_manager.rs`, `vmm/src/pci_segment.rs`, `vmm/src/vm_config.rs` |
 | [0007](0007-vfio-user-readonly-mmap-areas.patch) | Read-only vfio-user mmap areas: `--user-device ...,x_readonly_mmap_areas=[<region>:<offset>:<size>,...]` maps those parts of a region's sparse areas as read-only KVM slots, so reads stay direct and writes trap to the region protocol; areas are validated against the sparse areas | `pci/src/vfio.rs`, `pci/src/vfio_user.rs`, `vmm/src/config.rs`, `vmm/src/device_manager.rs`, `vmm/src/vm_config.rs` |
 | [0008](0008-vfio-user-readonly-mmap-bar-move.patch) | Keep read-only mmap areas read-only across BAR moves: `move_bar` re-created every slot writable, and EDK2 moves every BAR at boot, so a Windows guest's writes to a read-only area landed in the mapping (C62, 2026-09-29). To be folded into 0007 before upstreaming | `pci/src/vfio_user.rs` |
 
@@ -80,7 +80,7 @@ with its `vfio-bindings` requirement widened to admit the 0.6.2 that v53.0's
 package, adds `enumn` 0.1.14, and keeps `vfio_user` on `vm-memory` 0.17.1 (the
 version v53.0's own `vfio_user` used; 0001 adds 0.18.0 for the vhost frontend).
 `tools/build.sh ch` builds `vendor/cloud-hypervisor`, beside which the path
-resolves; another checkout needs a `../vfio-user-rs` link to it. The Caraxes
+resolves; another checkout needs a `../vfio-user-rs` link to it. The Leandro VFIO
 workspace uses the same copy for the device.
 
 ## Message formats
@@ -471,7 +471,7 @@ marked **differs**.
   there is no reference client for the request; the client side follows the
   specification text and libvfio-user's test client.
 
-### Use by the Caraxes device
+### Use by the Leandro VFIO device
 
 `CARAXES_DOORBELL_IOEVENTFD=1` makes `vfio-user-nvgpu` declare one ioeventfd
 sub-region on BAR0: offset = the chip's `registers.usermode_doorbell` (0xbb0090 on
@@ -510,7 +510,7 @@ v53.0-5-gba20497bc`. v53.0 + 0005 alone: applies with `git apply` and builds.
 | `cargo test -p hypervisor --features kvm --lib` | 1 passed |
 | `cargo clippy -p pci -p hypervisor -p vmm --features kvm --all-targets` | only the unfulfilled lint expectation at `vmm/src/lib.rs:775` that v53.0 has |
 | `cargo test -p vfio_user` (rust-vmm/vfio at `a38ee7a3eeb5` + the crate patch) | 10 passed, 7 new: parser on the specification's bytes, on a libvfio-user reply, truncated and malformed replies, the server's reply bytes, a client/server round trip (descriptor sharing, truncation and retry, `max_msg_fds`, error reply and reuse), a server without the request |
-| `cargo test -p vfio-user-nvgpu` (Caraxes, vendored crate) | 97 passed |
+| `cargo test -p vfio-user-nvgpu` (Leandro VFIO, vendored crate) | 97 passed |
 
 Functional check in vm3, pure emulation (`CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1`),
 [../caraxes/runs/patch0005-2026-09-24](../caraxes/runs/patch0005-2026-09-24)
@@ -528,7 +528,7 @@ Functional check in vm3, pure emulation (`CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1
 A server may offer several ioeventfd sub-regions at one offset that differ only in
 datamatch, each with its own eventfd. KVM then signals the eventfd of the value the
 guest wrote, and the server knows the value without a `VFIO_USER_REGION_WRITE`. The
-Caraxes doorbell token pool uses this: one sub-region per device-chosen work-submit
+Leandro VFIO doorbell token pool uses this: one sub-region per device-chosen work-submit
 token ([../docs/vfio/doorbell-token-pool.md](../docs/vfio/doorbell-token-pool.md)).
 
 What the specification allows, with vfio-user.rst lines:

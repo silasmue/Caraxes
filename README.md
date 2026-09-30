@@ -4,10 +4,10 @@
 GPU sharing for virtual machines on one NVIDIA card that the host keeps using. Two
 architectures live in this repository:
 
-- **VirtIO Leandro (v1)**: API forwarding. A Leandro kernel module in the guest,
+- **Leandro VirtIO (v1)**: API forwarding. A Leandro kernel module in the guest,
   `virtio_nvrm.ko`, forwards the NVIDIA driver calls over vhost-user to a per-VM host
   backend, `vhost-user-nvrm`, which replays them on the host driver.
-- **VFIO Leandro (v2, code name Caraxes)**: a synthetic NVIDIA TU106, reported as an RTX
+- **Leandro VFIO (v2)**: a synthetic NVIDIA TU106, reported as an RTX
   2070, served to the guest over vfio-user by a per-VM host process, `vfio-user-nvgpu`. The
   guest runs its stock driver. The device plays the GSP firmware, models the PCI BARs,
   shadows the guest's page tables and runs the guest's channels on host channels as a
@@ -25,7 +25,7 @@ Every isolation run used a stock driver; no adversarial guest has been tested
 
 ## The two architectures
 
-| | VirtIO Leandro (v1) | VFIO Leandro (v2) |
+| | Leandro VirtIO (v1) | Leandro VFIO (v2) |
 |---|---|---|
 | Guest driver | Leandro modules `virtio_nvrm.ko` and `nvrm_nodes.ko` in place of `nvidia.ko`; NVIDIA user space staged to match the host driver | the guest's own stock driver: Linux 615.71.09 open modules, Windows 617.14, nova-core, nouveau with NVK |
 | Host process | `vhost-user-nvrm`, one per VM | `vfio-user-nvgpu`, one per VM |

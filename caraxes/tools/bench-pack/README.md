@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Render benchmark pack
 
-A prepared, offline-ready set of GPU render benchmarks for the Caraxes synthetic RTX 2070
+A prepared, offline-ready set of GPU render benchmarks for the Leandro VFIO synthetic RTX 2070
 (TU106) device: Blender Open Data's benchmark-launcher-cli, and Unigine's Heaven 4.0 and
 Superposition 1.1 (free Basic editions). Targets: the Linux guest (Ubuntu 24.04, GNOME,
 NVIDIA 615) and the Windows 11 guest (NVIDIA 617), with a native-host run as the reference

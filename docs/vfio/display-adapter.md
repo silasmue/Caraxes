@@ -689,6 +689,6 @@ gate names the observation that would be different if the device were lying.
 - Device crate: `crates/vfio-user-nvgpu/chips/tu106/boot.toml:48-50`, `regmap.toml:24,38`,
   `src/ctrl.rs:238-283,682-687`, `src/boot.rs:600-660`, `src/chip/turing.rs:152`.
 - nouveau r535 (linux-6.12): `nvkm/engine/disp/r535.c:955-1100,1281-1310,1571-1580`.
-- Caraxes notes: [display-path.md](display-path.md), [display-connector.md](display-connector.md),
+- Leandro VFIO notes: [display-path.md](display-path.md), [display-connector.md](display-connector.md),
   [display-scaling.md](display-scaling.md), [display-d0.md](../history/caraxes-display-d0-2026-09-23.md),
   [fb-model.md](fb-model.md) §3.2, [briefing-display-nova.md](../history/caraxes-briefing-display-nova-2026-09-23.md).

@@ -88,5 +88,5 @@ GB206 needs beyond Turing.
 
 - [research/feature-families.md](../research/feature-families.md): all 28 families with lines.
 - [research/blackwell-and-hopper.md](../research/blackwell-and-hopper.md): GB206, FSP, GMMU v3, the N gate.
-- [caraxes/gsp-plan/e-families.md](../vfio/gsp-plan/e-families.md), [caraxes/blackwell-gb206.md](../vfio/blackwell-gb206.md),
-  [caraxes/blackwell-gate.md](../vfio/blackwell-gate.md).
+- [vfio/gsp-plan/e-families.md](../vfio/gsp-plan/e-families.md), [vfio/blackwell-gb206.md](../vfio/blackwell-gb206.md),
+  [vfio/blackwell-gate.md](../vfio/blackwell-gate.md).

@@ -82,7 +82,7 @@ Scope: what a 615.71.09 GSP client on TU106 sends to GSP-RM (RPC functions, allo
 - The snapshot's split of the 149: 21 named and 29 acknowledged inside TU106's database, 3 refused there (profiling), 96 refused outside it [caraxes/abi/gsp-615.71.09/classes.tsv; docs/vfio/gsp-abi-615.md §4].
 - The only alloc-parameter layout change among GSP-bound classes is `NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS` 20 to 28 bytes, and the channel and TSG `internalFlags` now carry the kernel's TSG id [docs/vfio/gsp-plan/classes.md §2, §7].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - The RPC surface of a 615 client is closed: all 14 functions and both CPU-to-GSP GMCAPI commands have an answer.
 - `ALLOC_MEMORY` is not optional on 615: without it the event import is off at every boot, and deferred-API USERD, profiler PMA and suspend fail.

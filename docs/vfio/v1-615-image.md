@@ -11,7 +11,7 @@ selection says 615.
 | Item | Value |
 |---|---|
 | Path | `/mnt/vmstore/caraxes/images/guest-v1-2026-09-24-615.71.09.qcow2` (mode 0444) |
-| Source chain | `bench-v1-615/rootfs.qcow2` (the run's overlay, sha256 `67787853...c2fb` as in the record's `image-sha256.txt`, unchanged afterwards) on `guest-baked-2026-09-24-615.71.09.qcow2` (the Caraxes 615 base image, [guest-driver-versions.md](guest-driver-versions.md) section 8) |
+| Source chain | `bench-v1-615/rootfs.qcow2` (the run's overlay, sha256 `67787853...c2fb` as in the record's `image-sha256.txt`, unchanged afterwards) on `guest-baked-2026-09-24-615.71.09.qcow2` (the Leandro VFIO 615 base image, [guest-driver-versions.md](guest-driver-versions.md) section 8) |
 | Format | qcow2, compat 1.1, no backing file, virtual size 40 GiB |
 | Size | 16794648576 bytes (15.6 GiB, uncompressed clusters) |
 | `qemu-img check` | no errors, 256201/655360 clusters allocated |
@@ -32,10 +32,10 @@ A nix-built image (Leandro `nix build .#guest-image` at the L615 pin) was not po
 qemu and nixos-install among them, and their sources are not in the store. It is also a different guest: a NixOS
 system on kernel 6.12 whose identity comes from the kernel command line and has no seed disk
 (`nix/guest-image.nix:41-64` in Leandro), and whose NVIDIA userspace the rig stages at `up` time
-(`nix/guest-image.nix:66-70`). The bench and the Caraxes gates use the Ubuntu 6.8.0-136 guests, so this image
+(`nix/guest-image.nix:66-70`). The bench and the Leandro VFIO gates use the Ubuntu 6.8.0-136 guests, so this image
 follows the qemu-img route of the base image.
 
-## 2. What differs from the Caraxes 615 base image
+## 2. What differs from the Leandro VFIO 615 base image
 
 Read with `guestfish --ro` from both images.
 
@@ -48,7 +48,7 @@ Read with `guestfish --ro` from both images.
 | `/opt/nvrm/bin/nvidia-smi` | 610.57.04 | symlink to `/usr/bin/nvidia-smi` (615.71.09) | the same, for `v1-gates.sh` and the bench |
 | `/opt/nvrm-610.57.04/{lib,bin}` | none | the 610.57.04 copies moved out of `/opt/nvrm` | kept for reference, outside every search path |
 | `/opt/nvrm/README.leandro-v1` | none | names the image and these edits | |
-| `~/caraxes-tests` | none | `tools/caraxes-vm.sh sync-tests` of 2026-09-24 17:31 (`SYNC.txt`): the Caraxes runner with `driver.env` for 615, Leandro-Test 3edea73 with the probes built against libcuda 615.71.09, the L615 `libnvrm_trace.so` in `leandro-test/lib`. `out/` holds only `build.log` | the gates run without a new sync |
+| `~/caraxes-tests` | none | `tools/caraxes-vm.sh sync-tests` of 2026-09-24 17:31 (`SYNC.txt`): the Leandro VFIO runner with `driver.env` for 615, Leandro-Test 3edea73 with the probes built against libcuda 615.71.09, the L615 `libnvrm_trace.so` in `leandro-test/lib`. `out/` holds only `build.log` | the gates run without a new sync |
 | `~/bench` | `bench-trap` only | plus `bench-cu`, `nvprobe`, `ioctlping`, `ctrlping`, `vrampress`, `kernels.ptx` and the Python workloads of `bench-run.sh stage v1` (hashes in the record's `bench-stage.txt`) | the bench runs without a new stage |
 | cloud-init, network, ssh | instance `caraxes-vm3-1790170385`, hostname `caraxes-vm3` | also instance `v1-615-1790262142` (current), hostname `v1-615`, `/etc/netplan/60-leandro.yaml` with 192.168.105.25, new ssh host keys, the `id_leandro` key authorized | from the run's two boots |
 | logs | vm3's | plus the journal, `syslog`, `Xorg.0.log` and cloud-init logs of the run's two boots | not cleaned |
@@ -99,7 +99,7 @@ stage and the display gates are not possible on this image either.
   ABI that differs from the running driver, stop `up` with the binary's name. `down` stops the binary recorded in
   `$V/backend.bin`.
 - **610.** The 610 behaviour is still reachable through the same variables:
-  `LEA_V1_ROOT=<Caraxes or a Leandro L610 checkout> CARAXES_DRIVER=610 NVRM=$ROOT/target/bench/release/vhost-user-nvrm`.
+  `LEA_V1_ROOT=<this repository or a Leandro L610 checkout> CARAXES_DRIVER=610 NVRM=$ROOT/target/bench/release/vhost-user-nvrm`.
   It is refused while the host runs 615.
 - **Dry run.** `bench-v1vm.sh -n <step>` (or `BENCH_V1_DRY_RUN=1`) prints the commands. `bench-v1vm.sh config`
   prints the resolved paths and warns about missing files.
@@ -123,7 +123,7 @@ the caller's environment, as before.
 
 ## 4. Boot and gates (run on 2026-09-24, 18:12 to 18:24)
 
-From the main Caraxes checkout (the default `CH` lives there), in bash, with the tap `caraxes5` present:
+From the main checkout of this repository (the default `CH` lives there), in bash, with the tap `caraxes5` present:
 
 ```
 cd /home/silas/git/Caraxes

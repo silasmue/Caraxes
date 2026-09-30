@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Stock 615 Wayland and concurrent video checks
 
-Cloud Hypervisor remains the preferred Caraxes VMM. QEMU is used for Windows
+Cloud Hypervisor remains the preferred Leandro VFIO VMM. QEMU is used for Windows
 kernel debugging and a bounded Linux comparison; its Linux run is still pending.
 Evidence: `/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-checks/`.
 
@@ -25,7 +25,7 @@ MSI re-arm ioeventfd and lazy allocation. The guest has no loaded
 copies prevents accidental loading. Stock NVIDIA modules remain unmodified.
 
 The old desktop image explicitly gated `nvidia_modeset` and `nvidia_drm` loading
-on the Caraxes helper. Removing that dependency was necessary. Commit
+on the Leandro VFIO helper. Removing that dependency was necessary. Commit
 `b72bdfc2` makes GPA-mode provisioning migrate old prepared overlays despite their
 existing done marker; helper mode remains selectable. The new provisioning step
 was run twice in desktop-a: first migrated, second reported already configured.

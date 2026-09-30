@@ -15,7 +15,7 @@ neither was available, file and function only.
 
 **Why this module exists** (read first: `docs/vfio/sysmem-iova.md` §5, removal
 plan, and §3(b)/§4, design and rationale; short version in this directory's
-`README.md` and atop `caraxes_dma_range.c`): the Caraxes guest has no vIOMMU, so every
+`README.md` and atop `caraxes_dma_range.c`): the Leandro VFIO guest has no vIOMMU, so every
 DMA address the guest kernel hands the passthrough-shaped NVIDIA GPU is a guest
 physical address, but the physical GPU on the host lives in a translated IOMMU domain
 and only reaches the IOVAs the host mapped guest RAM at. This module installs a

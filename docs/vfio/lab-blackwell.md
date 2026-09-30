@@ -254,7 +254,7 @@ does not need it, since 610.57.04 has the GB10x/GB20x HALs.
   `resourceN` (the one exception is the kit's own opt-in `--prom`, a read-only mapping of
   the PROM window, operator decision of 2026-09-24), no `nvflash` or other VBIOS tools (their "read" goes through privileged
   register paths), no `nvidia-bug-report.sh` (it is broad and collects personal data).
-- No other Caraxes tools on that machine: not `host-facts reserve`, `host-exec`,
+- No other Leandro VFIO tools on that machine: not `host-facts reserve`, `host-exec`,
   `host-kick`, `sysmem-iova` or the bench scripts. The kit runs `host-facts facts` only.
 - Do not edit the capture by hand; if something looks wrong, rerun the script and bring
   both runs back.

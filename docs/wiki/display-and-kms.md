@@ -4,7 +4,7 @@
 
 A guest desktop needs a monitor the driver believes in, a vblank cadence, page flips that
 complete, and a way to capture the result for streaming. Neither architecture scans out
-physically. VirtIO Leandro uses NVIDIA's displayless class with guest timers; VFIO Leandro
+physically. Leandro VirtIO uses NVIDIA's displayless class with guest timers; Leandro VFIO
 emulates a DisplayPort monitor and the display engine in the GSP role, so the stock
 `nvidia-modeset` and `nvidia-drm` on Linux and the WDDM KMD on Windows see ordinary
 hardware. The flip, vblank, reset and reserve mechanics are on
@@ -26,7 +26,7 @@ hardware. The flip, vblank, reset and reserve mechanics are on
 - The Windows KMD drives the same channels with its own flip model: notifier mode WRITE,
   only `LAST_DATA` enabled, and the core's `SET_GET_BLANKING_CTRL`, which NVKMS never uses.
 
-## VirtIO Leandro
+## Leandro VirtIO
 
 - `virtio_nvrm.ko` exposes the displayless class (`NVA083_GRID_DISPLAYLESS`) and generates
   an EDID; guest hrtimers supply vblank timing; fence wake-ups return as RM events on queue 1.
@@ -37,7 +37,7 @@ hardware. The flip, vblank, reset and reserve mechanics are on
   The vblank configuration changes throttling (open question 27).
 - [display.md](../virtio/display.md), [wayland.md](../virtio/wayland.md).
 
-## VFIO Leandro
+## Leandro VFIO
 
 Step numbers and run names (C87, P41) refer to
 [research: windows-findings](../research/windows-findings.md).
@@ -62,7 +62,7 @@ Step numbers and run names (C87, P41) refer to
 
 | Measure | Value | Record |
 |---|---|---|
-| display gate, 615 guest | 11 of 11 | [caraxes/display-615.md](../vfio/display-615.md) |
+| display gate, 615 guest | 11 of 11 | [vfio/display-615.md](../vfio/display-615.md) |
 | Weston GL, presented / callbacks | 60.00 Hz / 59.79 Hz | same |
 | Mutter, presented / callbacks | 59.40 Hz / 58.62 Hz | same |
 | trapped accesses per frame, Weston / Mutter | 29.25 / 138.92 | same |
@@ -83,8 +83,8 @@ Step numbers and run names (C87, P41) refer to
 ## Capture and encoding
 
 - The stream encodes every captured frame: x264 on the vCPUs, or NVENC from VRAM.
-- VirtIO Leandro: the guest's NVENC objects are host objects; Sunshine used NVENC.
-- VFIO Leandro: the guest's NVENC channel runs on a host mirror channel; Sunshine
+- Leandro VirtIO: the guest's NVENC objects are host objects; Sunshine used NVENC.
+- Leandro VFIO: the guest's NVENC channel runs on a host mirror channel; Sunshine
   `encoder = nvenc` streams on Linux B and on Windows ([video-engines](video-engines.md)).
   Linux B at 60 fps: Sunshine took 23.7 % of a core of guest CPU with NVENC against 142.3 %
   with x264, and host latency 5.9 ms against 18.3 ms (l3,
@@ -96,10 +96,10 @@ Step numbers and run names (C87, P41) refer to
 
 - [display-flips-and-reserve.md](display-flips-and-reserve.md): the notifier model, the
   latch, the vblank costs, modeset and FLR, the NVKMS reserve.
-- [caraxes/display-ab.md](../vfio/display-ab.md): connector, EDID, link training (D2, D3).
-- [caraxes/display-cd.md](../vfio/display-cd.md), [caraxes/display-e.md](../vfio/display-e.md),
-  [caraxes/display-615.md](../vfio/display-615.md): modeset, flips, the GPU-rendered desktop,
+- [vfio/display-ab.md](../vfio/display-ab.md): connector, EDID, link training (D2, D3).
+- [vfio/display-cd.md](../vfio/display-cd.md), [vfio/display-e.md](../vfio/display-e.md),
+  [vfio/display-615.md](../vfio/display-615.md): modeset, flips, the GPU-rendered desktop,
   the per-frame trap tables.
-- [caraxes/display-connector.md](../vfio/display-connector.md), [caraxes/display-scaling.md](../vfio/display-scaling.md),
-  [caraxes/display-adapter.md](../vfio/display-adapter.md): the studies behind D15.
-- [caraxes/display-own-clock.md](../vfio/display-own-clock.md): the engine's own lock.
+- [vfio/display-connector.md](../vfio/display-connector.md), [vfio/display-scaling.md](../vfio/display-scaling.md),
+  [vfio/display-adapter.md](../vfio/display-adapter.md): the studies behind D15.
+- [vfio/display-own-clock.md](../vfio/display-own-clock.md): the engine's own lock.

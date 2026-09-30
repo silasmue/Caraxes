@@ -207,7 +207,7 @@ client can usefully announce more. That bounds N at 253 for the one doorbell reg
     descriptors of a truncated message and fails the receive (`recv_with_fds`, `MSG_CTRUNC`), and
     CH then fails device creation;
   - the crate's server obeyed the client's 1 and left out every sub-region after the first
-    descriptor (patches/README.md, "Use by the Caraxes device").
+    descriptor (patches/README.md, "Use by the Leandro VFIO device").
 
 **What changes.**
 - The vendored crate, [patches/vfio-user-rs/0002](../../patches/vfio-user-rs/0002-vfio-user-one-eventfd-per-ioeventfd-sub-region.patch)

@@ -183,7 +183,7 @@ and `clc57e.h` (617) under `OGK/src/common/sdk/nvidia/inc/class/` [V].
 - The **supervisor** interrupt sequence is handled entirely inside GSP. The kernel has no
   supervisor handler, and the events `RG_LINE_INTR` 0x1007 and `DISPLAY_MODESET` 0x1011
   are handled only by the Tegra DCE client (`dce_client_rpc.c:359-376`) [V].
-- For Caraxes this cuts both ways:
+- For Leandro VFIO this cuts both ways:
   - the device need not reproduce the three-stage supervisor handshake;
   - but no guest-visible source says what state the device must present after a
     modeset (armed state, CHNSTATUS values, IMP answers). Only NVKMS's reads, found by
@@ -252,7 +252,7 @@ every open-kernel-module build [V]:
     (`vblank_callback.c:62-70`). NVKMS only logs "Failed to enable VBlank callback"
     (`nvkms-rm.c:5141-5172`).
   - v1 served this class itself with an hrtimer because its transport could intercept
-    the allocation. In Caraxes the allocation stays inside the guest's `nvidia.ko`, and
+    the allocation. In Leandro VFIO the allocation stays inside the guest's `nvidia.ko`, and
     only a guest patch could serve it.
   - Whether flips, DRM vblank events and 60 FPS pacing work without it is **open**
     (D1 measures it).

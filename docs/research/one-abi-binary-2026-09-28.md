@@ -71,7 +71,7 @@ Scope: what chose the guest ABI at compile time in `crates/vfio-user-nvgpu`; whi
 - Linux 615 (lean VM, Linux B): the usual runs with `CARAXES_SERVER=<binary>`; nothing else. With dev's `tools/lib/driver.sh` the launcher still pins 615, which the binary accepts; with this branch's it runs unpinned.
 - Windows 617: `WIN_GPU_SERVER=<binary>` with the usual `WIN_GPU_*` settings, `CARAXES_GUEST_ABI` unset.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - One binary replaces the `v610`/`v615` pair and the `target/v615` tree; the guest-ABI knob disappears from the default configuration (D14, the weekend goal of a stock driver without module options).
 - A new guest version is a version module, a `GuestAbi` variant, a `guest_layouts!` table, its private stand-ins in `common.rs` and, if its transport or frame is new, a rule in `detect_guest` ([versatility.md](../vfio/versatility.md) "The version module", step 4).

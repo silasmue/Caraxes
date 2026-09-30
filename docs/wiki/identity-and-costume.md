@@ -104,6 +104,6 @@ that differs from the executing chip; the ladder measured how far it can go.
 ## Depth
 
 - [research/identity-and-costume.md](../research/identity-and-costume.md): the cited lines and runs.
-- [caraxes/identity-profile.md](../vfio/identity-profile.md): the profile policy and the naming model.
-- [caraxes/costume-5060.md](../vfio/costume-5060.md), [caraxes/costume-ladder.md](../vfio/costume-ladder.md),
-  [caraxes/versatility.md](../vfio/versatility.md): the ladder and the three axes.
+- [vfio/identity-profile.md](../vfio/identity-profile.md): the profile policy and the naming model.
+- [vfio/costume-5060.md](../vfio/costume-5060.md), [vfio/costume-ladder.md](../vfio/costume-ladder.md),
+  [vfio/versatility.md](../vfio/versatility.md): the ladder and the three axes.

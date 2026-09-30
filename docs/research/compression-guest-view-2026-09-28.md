@@ -53,7 +53,7 @@ Scope: what a 615 guest decides compression by, and what the device answers with
 - The guest's own lines of the 4 GiB slot are 0xe901..=0x1e8e0: its pages, no other VM's [compression.rs tests `comptag_lines_follow_the_page`].
 - The model of chain 5-11 in `compression.rs` (`guest615_alloc_compr_resources_preconditions_hold`) holds with these answers: Linux with scrub on free and Windows get kind 0x0C with their own lines; Linux with `RMDisableScrubOnFree=1` gets NV_ERR_INVALID_STATE; off keeps 0x03 and 0x06.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - A Linux guest must drop `RMDisableScrubOnFree=1` under the slice; the device warns when it sees the key [boot.rs `guest_key_warnings`].
 - The scrubber then runs a kernel CE channel in virtual mode over a kind-0x09 alias of the heap; the device must execute it. The channel names its own VA space [K/gpu/mem_mgr/channel_utils.c:83-89], which removes item 1 of docs/vfio/mapping.md §9; item 2, a path for a bare kernel CE channel, remains.

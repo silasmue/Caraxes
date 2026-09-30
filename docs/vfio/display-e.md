@@ -193,7 +193,7 @@ Per-run tables: `f3-traps-mutter/trap-table.txt`, `f3b-traps-mutter-fresh/`, `f4
 
 ## 7. The stream stage
 
-Method: `../Leandro-Test/scripts/bench.sh stream` (do_stream), carried over to the Caraxes
+Method: `../Leandro-Test/scripts/bench.sh stream` (do_stream), carried over to the Leandro VFIO
 display because that script only knows `x11` and `portal` capture:
 [stream.sh](../../caraxes/runs/display-f-2026-09-24/stream.sh) and
 [guest/sunshine-stream.sh](../../caraxes/runs/display-f-2026-09-24/guest/sunshine-stream.sh).
@@ -337,5 +337,5 @@ id), and `RmInitAdapter` succeeded there.
 - Mutter at 30-41 Hz: interrupt servicing, §6.
 - The stream at 26 FPS: the per-frame capture import and x264, §7; NVENC needs an NVENC mirror.
 - es2gears_wayland and eglgears_wayland run but print no frame rate.
-- `bench.sh stream` itself does not know `capture=kms`; the Caraxes variant lives in the run
+- `bench.sh stream` itself does not know `capture=kms`; the Leandro VFIO variant lives in the run
   directory. A `--capture kms` in Leandro-Test would make it one method.

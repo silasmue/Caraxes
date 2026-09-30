@@ -95,7 +95,7 @@ Scope: how guest FB and guest sysmem addresses reach the physical GPU (reservati
 
 - 610 delta: the swiotlb alias and the gather series were measured on the 610 guest, and the untrapped-GPPut fault reproduced on both guests [docs/vfio/memory-model.md §2, §7.5; docs/vfio/bar1-pool.md §9].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Every mapping the GPU can use is a shadow leaf that passed `resolve_leaf` in the same plan, so optimisations change call counts, never the reachable set.
 - Any guest store that reaches the GPU without a trap needs a barrier at the last trapped point before it, as the untrapped-GPPut hold does at the invalidate.

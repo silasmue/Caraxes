@@ -1,15 +1,15 @@
 <!-- SPDX-License-Identifier: MIT -->
-# The upstream NVIDIA vGPU manager (nova-core) against Caraxes
+# The upstream NVIDIA vGPU manager (nova-core) against Leandro VFIO
 
 Written 2026-09-23 (research task, internet access, read-only towards the device crate).
 Subject: the series "[PATCH v2 00/32] Introduce NVIDIA vGPU manager" posted to nova-gpu and
 linux-kernel on 2026-09-14, read patch by patch from the lore mbox, compared with the
-Caraxes device (`crates/vfio-user-nvgpu`, `D/` below) and the decisions in [README.md](decisions.md).
+Leandro VFIO device (`crates/vfio-user-nvgpu`, `D/` below) and the decisions in [README.md](decisions.md).
 Line numbers in `D/` are those of the working tree on 2026-09-23; another agent edits that
 crate concurrently, so they can drift by a few lines. Nothing was run, no VM, no GPU access.
 
 Purpose: learn from how NVIDIA structures the host side of its own virtual GPU, and find
-concrete defects or gaps in Caraxes. Not purpose: move Caraxes towards NVIDIA's architecture.
+concrete defects or gaps in Leandro VFIO. Not purpose: move Leandro VFIO towards NVIDIA's architecture.
 
 ## 1. Sources
 
@@ -115,7 +115,7 @@ Guest VRAM is scrubbed by a GSP-owned per-instance CeUtils channel at allocation
 (30). The guest runs NVIDIA's vGPU guest driver on the VF; the VF's BARs, GMMU and interrupts are
 hardware-partitioned, and the plugin inside GSP is the guest's RM server.
 
-**Caraxes.** No SR-IOV and no plugin. The card is a Turing GeForce PF owned by the stock host
+**Leandro VFIO.** No SR-IOV and no plugin. The card is a Turing GeForce PF owned by the stock host
 driver. The device process emulates a whole PCI GPU over vfio-user and itself plays GSP-RM
 towards a guest that runs the stock driver in its **bare-metal** GSP-client configuration
 (D1). RPCs arrive in the guest-RAM message queues and are answered locally or forwarded to the
@@ -125,16 +125,16 @@ RAM is registered as OS descriptors (D13), guest channels are mirrored as host c
 doorbells the device rings after a write-combining flush (execution.md §3-4), and the route to
 isolation is shadow page tables in the device (D17), with no compression ever (D16).
 
-**Caraxes must not copy this blindly.** NVIDIA's design assumes real SR-IOV VFs: hardware
+**Leandro VFIO must not copy this blindly.** NVIDIA's design assumes real SR-IOV VFs: hardware
 per-VF BAR windows, a VF GMMU with VMMU segments, per-GFID interrupt and doorbell routing in
-GSP, a vGPU-mode guest driver and a firmware plugin that Caraxes does not have and cannot
-load on a GeForce PF. Caraxes is a synthetic device on a PF (decision D17: the guest stays bare
+GSP, a vGPU-mode guest driver and a firmware plugin that Leandro VFIO does not have and cannot
+load on a GeForce PF. Leandro VFIO is a synthetic device on a PF (decision D17: the guest stays bare
 metal; that is the point). Where upstream's mechanism exists only because of VFs (GFID
-doorbells, VF BAR topology, VMMU alignment, the plugin comm region), the right Caraxes answer is
+doorbells, VF BAR topology, VMMU alignment, the plugin comm region), the right Leandro VFIO answer is
 usually "not applicable". What transfers is discipline: transaction ordering, fail-closed
 teardown, scrubbing, and bookkeeping of engines and channels. The SR-IOV route is P18 (Ada and
 later, a VF consumed through VFIO underneath the synthetic device), and it is there that this
-series becomes the host stack Caraxes would sit on.
+series becomes the host stack Leandro VFIO would sit on.
 
 ## 3. Findings per topic
 
@@ -154,7 +154,7 @@ config/init, reset, six migration steps, console VNC state, VF BAR0 register acc
 migration pointer reset, release client database, is-alive, static info). The v2 cover letter
 stresses that the VFIO side no longer carries copies of firmware headers.
 
-Caraxes: no plugin, so none of this ABI is consumed. The discipline is the same as D14 and
+Leandro VFIO: no plugin, so none of this ABI is consumed. The discipline is the same as D14 and
 `crates/nvgsp-sys`: the 610 message-queue and RPC layouts come from bindgen over the vendored
 headers (gsp-abi-610.md, the `ver::active` constants imported at `D/msgq.rs:17-20` and
 `D/rpc.rs:20-25`), not hand-typed.
@@ -187,9 +187,9 @@ carry the write barrier of `writel` on weakly ordered architectures. The typed c
 27 (`VersionNegotiation`, empty payload), 28 (`SetupConfigParamsAndInit`, an NVKV stream
 prefixed by its u64 word count) and 29 (`UpdateBmeState`, "the guest can then use the vGPU").
 
-Caraxes counterpart: the GSP message queues in guest RAM, `D/msgq.rs` `QueueState::receive`
+Leandro VFIO counterpart: the GSP message queues in guest RAM, `D/msgq.rs` `QueueState::receive`
 (313-364) and `send` (379-421), driven by the guest's queue-head doorbell in `D/boot.rs`
-(443-457, `service_queues` 468-812). The roles are reversed: Caraxes is the server (the plugin's
+(443-457, `service_queues` 468-812). The roles are reversed: Leandro VFIO is the server (the plugin's
 role), the guest kernel RM is the client, and the channel is a ring of 4 KiB slots rather than a
 single mailbox. Section 5 checks it step by step.
 
@@ -211,12 +211,12 @@ Order matters for two reasons stated in the commit messages: the marker shares t
 field, and a stale processed-sequence equal to the first request's sequence would complete a
 request that was never processed.
 
-Caraxes: the analogous handshake is the queue link. `D/boot.rs` `link_queues` (815-883) reads
+Leandro VFIO: the analogous handshake is the queue link. `D/boot.rs` `link_queues` (815-883) reads
 RMARGS and the queue page table from the guest, validates the guest's command-queue header,
 writes our status-queue header and zeroes our rx header (`D/msgq.rs` `QueueState::link`
 273-306), then sends `GSP_INIT_DONE`. The guest zeroes and builds its own queues before the
 first doorbell (gsp-rpc-protocol.md §1-2), so nothing stale can be inherited across a guest
-boot. The same "clear, confirm, then publish" rule applies in Caraxes to the one place where
+boot. The same "clear, confirm, then publish" rule applies in Leandro VFIO to the one place where
 the host RM overwrites guest-visible state behind the device: the host RM clears USERD at mirror
 channel creation, and the device restores GPGet/GPPut through the WC window and flushes before
 the doorbell (`D/mirror.rs` 540-559, execution.md §3).
@@ -243,7 +243,7 @@ Upstream:
   different type can only replace an empty pool. The boot request passes one guest FB segment
   (physical address and length, up to 8 supported) and the heap.
 
-Caraxes: the reservation is one `NV01_MEMORY_LOCAL_USER`, FIXED_ADDRESS, CONTIGUOUS, 2 MiB-page
+Leandro VFIO: the reservation is one `NV01_MEMORY_LOCAL_USER`, FIXED_ADDRESS, CONTIGUOUS, 2 MiB-page
 allocation at the **top** of the host FB heap, `[E - S, E)` with `E` the heap end aligned down to
 2 MiB (`D/hostmem.rs` `reserve` 765-870, memory-model.md §1 and §4, D11), refused when the host
 would keep less than 1 GiB free. The last 2 MiB is a device carve-out for the BAR roots and the
@@ -253,10 +253,10 @@ partitioned at all: the guest sees a synthesized 512-channel FIFO
 mirrored channel gets whatever host ChID the host RM picks; the device keeps a guest-token to
 host-token map (`D/mirror.rs` `doorbell` 1259, `chid_of_host_token` 587).
 
-Verdict: **different-and-fine.** Upstream partitions a GPU it owns; Caraxes borrows from a host
+Verdict: **different-and-fine.** Upstream partitions a GPU it owns; Leandro VFIO borrows from a host
 RM it does not own, so a fixed contiguous reservation plus a token map is the right shape. Worth
 taking over: upstream reserves a dedicated maintenance channel per instance inside the
-instance's own resources. Caraxes already has one (the invalidator in the carve-out), and it is
+instance's own resources. Leandro VFIO already has one (the invalidator in the carve-out), and it is
 the natural place for scrubbing (§3.5).
 
 ### 3.5 CeUtils VRAM scrubbing and fail-closed behaviour
@@ -281,7 +281,7 @@ Upstream, patch 30, `vgpu/scrubber.rs` and `vgpu/instance.rs`:
   letter states the rule: "If ownership or completion is uncertain, keep the affected VRAM and
   channels out of the allocators."
 
-Caraxes: the reservation is **not scrubbed** by the device, neither when it is allocated nor
+Leandro VFIO: the reservation is **not scrubbed** by the device, neither when it is allocated nor
 before it is freed (`D/hostmem.rs` `reserve` 765-870 and `shutdown` 1065-1122). Teardown frees
 mirror channels, then descriptors, then the reservation, then the client, and logs but
 **continues on errors** (`free_live` 583-592 and `shutdown`). What does happen today: the host
@@ -322,8 +322,8 @@ Upstream: patch 05 decodes key `0x1050` of the r000 `GSP_INIT` reply (zero when 
 stores it in `VgpuManager`, 18/21 use it as `fb_align`: each guest FB slot size and the pool
 base must be multiples of it ("VMMU-segment alignment"), minimum 4 KiB.
 
-Caraxes: no VMMU. On a PF without SR-IOV, the GPU sees the reservation through the host's own
-GMMU and the guest's page tables; the alignment Caraxes needs is the page and PDE granularity,
+Leandro VFIO: no VMMU. On a PF without SR-IOV, the GPU sees the reservation through the host's own
+GMMU and the guest's page tables; the alignment Leandro VFIO needs is the page and PDE granularity,
 and the reservation is 2 MiB aligned in base and size (memory-model.md §1, `E` aligned down to
 2 MiB, `S` rounded up).
 
@@ -344,7 +344,7 @@ occur; the likely reading is one entry per FIFO/runlist slot of an engine that a
 once, and the firmware indexing the channel map positionally, so dedup or sorting would shift
 every later entry.
 
-Caraxes: the guest-visible table (`FIFO_GET_DEVICE_INFO_TABLE`, `D/ctrl.rs:756-788`) is the
+Leandro VFIO: the guest-visible table (`FIFO_GET_DEVICE_INFO_TABLE`, `D/ctrl.rs:756-788`) is the
 chip's `chips/tu106/device-info.toml`, emitted in file order (`D/chip/mod.rs:460-489`, no dedup,
 no sort). Engine identities, fault ids and PBDMA counts are the host card's; runlists and PBDMA
 ids are synthesized (fifo-device-info.md); `gr0`, `ce0` and `ce1` share runlist 0, which the
@@ -352,7 +352,7 @@ table keeps as three entries. Mirrored channels take the host's engine type from
 own `engineType` (execution.md §3), not from the guest-visible runlist.
 
 Verdict: **same** on order and duplicates (both keep the source order verbatim).
-**Different-and-fine** on meaning: Caraxes' table is a guest-facing description, not a
+**Different-and-fine** on meaning: Leandro VFIO's table is a guest-facing description, not a
 channel-to-engine binding the hardware uses. Keep the rule when D14 adds chips: never sort or
 dedup a device-info or engine table; positions are meaning.
 
@@ -367,7 +367,7 @@ virtual-function register window (`0x00b8_0000` base, doorbell `0x00b8_2200`, va
 `gfid * 32 + 17`, patch 26), with GFID = VF index + 1 and GFID 0 the PF (patch 21 `Gfid`; v1
 cover letter). Guest interrupts are hardware-routed per VF by GSP.
 
-Caraxes: nothing is routed by hardware. The guest's GSP-client driver reads its interrupt tree
+Leandro VFIO: nothing is routed by hardware. The guest's GSP-client driver reads its interrupt tree
 through the same `NV_VIRTUAL_FUNCTION` register window (`0xB80000 + ...`, gsp-rpc-protocol.md
 "Receive (interrupt-driven)"), which the device emulates (`D/intr.rs`); the guest's own
 `GspSystemInfo.gspVFInfo` is only parsed for BAR addresses (`D/rpc.rs` 123-134). Host
@@ -379,7 +379,7 @@ the host notifier is engine-wide, so the desktop's own completions also wake the
 Verdict: **different-and-actionable**, already known: without hardware routing, the device
 must do the filtering upstream gets from GSP. The designed progress gate (execution.md §7:
 forward a vector only when a mirrored channel on that engine advanced its GPGet) is the
-Caraxes-shaped answer. Nothing in the upstream VF topology applies to D17.
+Leandro VFIO-shaped answer. Nothing in the upstream VF topology applies to D17.
 
 ### 3.9 Public GSP-vGPU plugin communication-region structures
 
@@ -391,7 +391,7 @@ guest RPC trace `0x274000`, end `0x284000`. It checks that the sizes add up and 
 and response regions have exactly the bindgen struct sizes. The management heap is in VRAM
 (`gsp_heap_size` of the vGPU type, 18/21), next to the guest FB slots.
 
-Caraxes: the plugin's state is the device process itself (host RAM); the guest-visible
+Leandro VFIO: the plugin's state is the device process itself (host RAM); the guest-visible
 equivalents are the message queues in guest RAM (`D/msgq.rs`) and the device trace. No VRAM is
 spent on a management heap beyond the 2 MiB carve-out.
 
@@ -409,12 +409,12 @@ series**; in the v1 review Alex Williamson points out that the variant driver mu
 it matches and cites hisi_acc, where "only the VFs are supported for the migration feature of the
 variant driver". Migration is the VFIO side's future work.
 
-Caraxes: no migration. State to move would be the device process state (RM object registry,
+Leandro VFIO: no migration. State to move would be the device process state (RM object registry,
 queue positions, mirror maps), the reservation contents, guest RAM (the VMM's), and the host
 channels (which cannot move; they would be re-created from the registry and replayed).
 
 Verdict: **unknown / not applicable yet.** One design seam to keep: upstream separates the
-"stop work, save, restore deferred state, resume" phases into distinct messages; Caraxes'
+"stop work, save, restore deferred state, resume" phases into distinct messages; Leandro VFIO's
 registry already has what a replay needs, and quiescing mirrored channels (preempt, wait idle,
 save GPGet/GPPut) is the step every other phase depends on.
 
@@ -427,7 +427,7 @@ the three plugin task logs through debugfs, read over BAR1, each prefixed (patch
 `LIBOS_LOG_NVLOG_BUFFER_V2` header (chip, 32-byte build id from the `BLID` tag of `gsp.tlv`) so
 `nvlog_decoder` can decode a dump without out-of-band information.
 
-Caraxes: every received and sent element is in the device trace with element sequence, function,
+Leandro VFIO: every received and sent element is in the device trace with element sequence, function,
 RPC sequence, length, checksum state and a decoded summary (`D/boot.rs` 545-554 and 776-800);
 P10 plans one tracer with timestamps across the guest-ioctl, RPC and host-mirror layers.
 
@@ -446,7 +446,7 @@ cannot consume the reply"), matches response flag, command id and sequence, uses
 for everything observed while waiting, and consumes stale non-matching elements. An
 asynchronous command waits under the same lock for its completion event (16).
 
-Caraxes: the device answers every request synchronously inside the doorbell handler on the
+Leandro VFIO: the device answers every request synchronously inside the doorbell handler on the
 server thread, so there is no second receiver and no interleaving; the mirror's event thread
 never touches the queues (`D/intr.rs` 24-31, only interrupt bits). Our elements carry
 `NVDM_HEADER` = type `RM_RPC` (`D/msgq.rs:395-396`, gsp-abi-610.md: 0x2510de7e).
@@ -467,7 +467,7 @@ N gates.
    reservation frees and leave them to the fd close. D16's comptag rule is untouched by this
    series (it says nothing about compression); keep it as is.
 2. **Interrupts: progress-gated forwarding** (§3.8). Upstream gets per-VF routing from GSP;
-   Caraxes must filter host-wide notifier events itself. Already designed (execution.md §7).
+   Leandro VFIO must filter host-wide notifier events itself. Already designed (execution.md §7).
 3. **Shared-memory ordering in the GSP queues** (§5): an acquire fence after reading the
    guest's write pointer and a release fence before publishing our read pointer (free on x86,
    required for a non-x86 host and against compiler reordering); handling of a malformed or
@@ -478,7 +478,7 @@ N gates.
    example a timed-out push that completes later, followed by the next one). Use it for any new
    semaphore wait (scrubber, warm-up push).
 5. **Doorbells** (§5): same principle as upstream (payload visible before the doorbell).
-   Upstream reads the doorbell back; Caraxes does `sfence` plus a read through every BAR1
+   Upstream reads the doorbell back; Leandro VFIO does `sfence` plus a read through every BAR1
    window before the host doorbell (`D/hostmem.rs` `Window::flush` 97-110, `D/ctrl.rs:239` and
    `:249`, `D/mirror.rs:326` and `:555`), which is what exec-formats.md §3 requires for WC
    mappings. No change needed; a read-back of the host doorbell page would only add a
@@ -495,7 +495,7 @@ The queue discipline lives in `D/msgq.rs` (ring access) and `D/boot.rs` (`servic
 logic. Guest RAM is ordinary cached memory shared with the VMM; the guest side is
 `message_queue_cpu.c` of 610.57.04 as surveyed in gsp-rpc-protocol.md.
 
-| Upstream discipline | Caraxes (device as GSP) | Assessment |
+| Upstream discipline | Leandro VFIO (device as GSP) | Assessment |
 |---|---|---|
 | Write the complete payload before publishing (plugin RPC: payload, type, then sequence) | Status queue: the whole slot range is built in a zeroed buffer with MCTP/NVDM, element sequence, RPC header, payload and checksum, written, then `fence(SeqCst)`, then `writePtr` (`D/msgq.rs:394-417`) | same |
 | No stale contents in published slots | Slots are written whole from a zeroed buffer, so padding never leaks old bytes (`:394`); received slots are read whole, and `slot_payload` deliberately keeps bytes beyond `length` for `GSP_RM_ALLOC` (`:248-251`, `:352`) | same |
@@ -509,7 +509,7 @@ logic. Guest RAM is ordinary cached memory shared with the VMM; the guest side i
 | Corrupt framing poisons the queue (`EIO`) | Bad checksum: the element is consumed and **answered anyway**, only marked `BAD` in the trace (`D/boot.rs:546-552`, `D/msgq.rs:348-349`) | **actionable, low**: answer with an error status or drop it loudly; answering a torn request can apply half-written parameters |
 | Timeouts and forward progress | Three silent wedge conditions: (a) a guest `writePtr >= msgCount` returns "empty" forever (`D/msgq.rs:317`); (b) an element with a bad length is an error, the read pointer does not move, and every later doorbell re-reads the same slot (`:330-335`, `D/boot.rs:487-489`); (c) a full status queue drops the reply with a trace line (`D/boot.rs:782`, `:798-801`) and the guest waits for that sequence until its own RPC timeout | **actionable, low**: (a) and (b) should log once loudly and either skip the element (answering an error for its sequence when the header is readable) or declare the queue dead; (c) should be impossible while the guest drains, but it deserves a counter |
 
-**Could any of this explain a stalled RPC in Caraxes?** Only through the three wedge conditions
+**Could any of this explain a stalled RPC in Leandro VFIO?** Only through the three wedge conditions
 of the last row, and each leaves a distinctive line in the trace (`receive: ...`, `send: status
 queue full`) or, for (a), a guest RPC timeout with no `rx` line at all. The memory-ordering gaps
 cannot bite on this x86 host in practice (TSO, and the doorbell arrives through system calls).
@@ -536,7 +536,7 @@ stretches every RPC's latency. That is a latency risk, not a wedge.
 5. For P18: the upstream stack needs a vGPU type assigned to the VF by the firmware
    (`QUERY_ASSIGNED_VF_VGPU_TYPE`) and boots a plugin that expects a vGPU-mode guest (guest RPC
    trace, guest info, VNC console surfaces). Can a VF under this manager be driven by anything
-   other than NVIDIA's vGPU guest driver, that is, can the Caraxes device speak the guest side of
+   other than NVIDIA's vGPU guest driver, that is, can the Leandro VFIO device speak the guest side of
    the plugin protocol while presenting a bare-metal device upward? This is P18's open check
    seen from the host side.
 6. The r000 queue element format (MCTP/NVDM, GMC header) versus the 610 and r570 formats: what

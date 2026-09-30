@@ -89,6 +89,6 @@ function. On TU106 it uses 14:
 ## Depth
 
 - [research/gsp-rpc-events-classes.md](../research/gsp-rpc-events-classes.md): the cited lines.
-- [caraxes/gsp-plan/rpc-functions.md](../vfio/gsp-plan/rpc-functions.md),
-  [caraxes/gsp-plan/events.md](../vfio/gsp-plan/events.md),
-  [caraxes/gsp-plan/classes.md](../vfio/gsp-plan/classes.md): every function, event and class.
+- [vfio/gsp-plan/rpc-functions.md](../vfio/gsp-plan/rpc-functions.md),
+  [vfio/gsp-plan/events.md](../vfio/gsp-plan/events.md),
+  [vfio/gsp-plan/classes.md](../vfio/gsp-plan/classes.md): every function, event and class.

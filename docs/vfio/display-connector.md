@@ -236,7 +236,7 @@ What each consumer uses:
   NVKMS allocates it when anything registers on a head's `vblankCallbackList`
   (`nvRmAddVBlankCallback`, `NVKMS/nvkms-rm.c:5141-5175`). Those consumers are the
   vblank-semaphore control, headSurface, and the `NotifyVblank` ioctl that the X driver and
-  GLX swap intervals use. They are fed by the `LAST_DATA` interrupt [V]. Unlike v1, Caraxes
+  GLX swap intervals use. They are fed by the `LAST_DATA` interrupt [V]. Unlike v1, Leandro VFIO
   does not serve NV9010 itself: the guest's own RM does, driven by the device's interrupt.
 - **`NV2080_NOTIFIERS_VBLANK` does not exist in 610.57.04.** `cl2080_notification.h` has
   no vblank notifier; `NV2080_NOTIFIERS_HOTPLUG` (1) is the one display notifier NVKMS

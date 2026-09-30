@@ -93,7 +93,7 @@ Scope: the CPU-GSP transport of 615.71.09 on TU106 (message queue v2, element fr
 - Queue encryption is explicitly "*NOT* ABI stable" [615 tree: src/nvidia/inc/kernel/gpu/gsp/message_queue_priv.h:45].
 - The kernel still accepts only a GSP-RM image whose `.fwversion` equals its own version [615 tree: src/nvidia/src/kernel/gpu/gsp/kernel_gsp.c:4190; docs/vfio/gsp-abi-615.md §3].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - The v2 transport (`msgq/v2.rs`, `gmcapi.rs`) is written once for every later driver whose stable tags hold; only payloads behind it stay per version (D14).
 - The device must link its status queue at Booter Load, not at a doorbell, because the kernel polls for the GSP header before it sends anything.

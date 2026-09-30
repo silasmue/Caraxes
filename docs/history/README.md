@@ -5,8 +5,10 @@
 - They describe the source and environment at the recorded date, not current behaviour.
 - Raw evidence stays unchanged. A correction goes into the current document that
   supersedes the snapshot.
+- Snapshots keep the names of their date: `caraxes-*` files and the code name in them
+  belong to Leandro VFIO ([naming](../naming.md)).
 
-## VirtIO Leandro (v1)
+## Leandro VirtIO (v1)
 
 | File | Contents |
 |---|---|
@@ -14,7 +16,7 @@
 | [testing-2026-09-18.md](testing-2026-09-18.md) | Test coverage and hardware evidence as of 2026-09-18; current: [testing.md](../virtio/testing.md) |
 | [llm-2026-09-18.md](llm-2026-09-18.md) | Maintenance notes as of 2026-09-18; current: [llm.md](../virtio/llm.md) |
 
-## VFIO Leandro (v2)
+## Leandro VFIO (v2)
 
 | File | Contents |
 |---|---|
@@ -30,5 +32,5 @@
 | [caraxes-gsp-rpc-protocol-610.md](caraxes-gsp-rpc-protocol-610.md) | The 610.57.04 CPU-GSP protocol from source; current: [gsp-transport-615.md](../vfio/gsp-transport-615.md) |
 | [caraxes-phase5-rpcs-610.md](caraxes-phase5-rpcs-610.md) | The 98 RPCs of a 610 boot up to `RmInitAdapter succeeded`, with an answer source each |
 | [caraxes-repo-split-2026-09-24.md](caraxes-repo-split-2026-09-24.md) | The plan for separating v1 and v2 into two repositories; not taken, both live here |
-| [caraxes-roadmap-2026-09-27.md](caraxes-roadmap-2026-09-27.md) | Done, in progress, next and later as of 2026-09-24 with annotations to 2026-09-27; current: [leandro.md](../leandro.md) chapter 12 |
+| [caraxes-roadmap-2026-09-27.md](caraxes-roadmap-2026-09-27.md) | Done, in progress, next and later as of 2026-09-24 with annotations to 2026-09-27; current: [roadmap.md](../roadmap.md), [leandro.md](../leandro.md) chapter 12 |
 | [caraxes-open-questions-2026-09-23.md](caraxes-open-questions-2026-09-23.md) | Questions 1 to 33 of the bring-up; the open ones live in the research notes and [known-issues.md](../vfio/known-issues.md) |

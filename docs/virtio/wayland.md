@@ -1,10 +1,10 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Ubuntu Wayland desktop
 
-This page documents the VirtIO Leandro v1 desktop. Keep its guest modules and launch
-commands separate from Caraxes. The current Caraxes helper-free path uses Cloud
-Hypervisor, stock NVIDIA 615 packages and `CARAXES_GUEST_DMA_GPA=1`; see the
-[Caraxes quickstart](../vfio/quickstart.md#current-615-wayland-path) and the
+This page documents the Leandro VirtIO (v1) desktop. Keep its guest modules and launch
+commands separate from Leandro VFIO (v2), which runs the stock NVIDIA 615 packages under
+Cloud Hypervisor with `CARAXES_GUEST_DMA_GPA=1`; see the
+[v2 quickstart](../vfio/quickstart.md#3-run-a-linux-guest) and the
 [2026-09-27 measurements](../research/wayland-multiguest-2026-09-27.md).
 
 - Use the same host backends, Cloud Hypervisor commands and guest modules as [Quickstart](quickstart.md).

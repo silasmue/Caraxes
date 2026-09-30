@@ -101,7 +101,7 @@ Scope: the GB206 identity from the lab capture, the FSP Chain-of-Trust boot, GMM
 
 [docs/vfio/gsp-plan/lab-kit.md §9]
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - A Blackwell or Hopper identity is a chip-axis addition (chip tables, FSP boot model, GMMU v3 walker) on the 615 version module, with no new transport.
 - The GB206 stays pure emulation up to "driver up": Blackwell methods and GMMU v3 tables cannot run on the TU106.

@@ -320,7 +320,7 @@ It needs no symbol export, because `dma_range_map` is a plain field of `struct d
 nothing in the NVIDIA modules or the kernel.
 
 **Ordering.** It must run before `nvidia.ko` probes, for example with
-`softdep nvidia pre: caraxes_dma_range` in the guest's modprobe.d. The Caraxes harness can also
+`softdep nvidia pre: caraxes_dma_range` in the guest's modprobe.d. The Leandro VFIO harness can also
 load it first.
 
 **Coverage.** The table must cover all guest RAM from GPA 0:

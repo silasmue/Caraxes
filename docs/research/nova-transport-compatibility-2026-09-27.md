@@ -1,15 +1,15 @@
 <!-- SPDX-License-Identifier: MIT -->
-# Nova RPC/transport separation and Caraxes compatibility
+# Nova RPC/transport separation and Leandro VFIO compatibility
 
 Reference: Alexandre Courbot's [public 10-patch series](https://ratatoskr.run/nova-gpu/2026/09/17648741/t),
 2026-09-27, Message-ID `20260927-cmdq-rpc-v1-0-822db5af910e@nvidia.com`,
 change-id `20260927-cmdq-rpc-ed5f850b207e`. The cover describes separating
 transport from RPC in preparation for r000/GMC, with no significant functional
-change intended. No upstream code is copied into Caraxes.
+change intended. No upstream code is copied into Leandro VFIO.
 
 ## Relevant differences
 
-| Concern | Caraxes evidence / action |
+| Concern | Leandro VFIO evidence / action |
 |---|---|
 | Queue extent | 570/595 has an outer `elemCount`, currently ignored on receive. 610 has no such field. 615 already uses outer `mctpPayloadSize`. Do not transplant one version's rule into another. |
 | RPC header validation | Fixed: both receive paths now reject invalid signatures/versions even when the outer frame is valid. Tests check pre-610, 610 and v2 framing and recovery at the next valid message. |

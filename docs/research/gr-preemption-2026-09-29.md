@@ -59,7 +59,7 @@ Scope: the host Xid 109 CTX SWITCH TIMEOUT of the SotTR 720p run on Linux B (`ca
 | 5 | GR stalled on a fault | Non-faulting shadow VAS; no Xid 31, no IOMMU fault | Excluded | 0.85 |
 | 6 | Runaway work from stale shadow mappings | 95 doorbells found the host channel ahead with plans pending; only the first 16 are logged, the last at 04:29:20 [L:388; untrapped.rs:46] | Open | - |
 
-## Consequence for Caraxes: the fix
+## Consequence for Leandro VFIO: the fix
 
 Step 0, read-only diagnostic (about 60 lines, no behaviour change):
 - Per host GR TSG, once after the build (before its first GPFIFO_SCHEDULE) and once at teardown: GET_CTXSW_MODES on its first host channel; log `tsg K: host modes gfxp G cilp C zcull Z`.

@@ -39,7 +39,7 @@ channels stay in the device is on [software-executor](software-executor.md).
   the preemption bind. The job runs after the root's shadow plans, so the set-A mirror
   exists before the host RM validates the GPFIFO VA.
 - The commit (`commit_build`) takes the device lock briefly: schedule, token, the GPPut the
-  host RM cleared written back, the ring ([caraxes/execution.md](../vfio/execution.md) §9.2).
+  host RM cleared written back, the ring ([vfio/execution.md](../vfio/execution.md) §9.2).
 - A Windows D3D device's GR build took 238 to 397 ms, almost all of it the new VA space's
   first plan carving the shadow fence per leaf; the fence is now carved once per region
   ([research: gr-build](../research/gr-build-2026-09-29.md)). Build costs per engine are on
@@ -79,7 +79,7 @@ channels stay in the device is on [software-executor](software-executor.md).
 - Deferred contexts and ring migrations run through the 0x5080 object
   ([channel-migration-and-deferred-api](channel-migration-and-deferred-api.md)).
 
-## In VirtIO Leandro
+## In Leandro VirtIO
 
 - The guest's own RM objects are created on the host by the backend under mirrored file
   descriptors; the guest's channels are the host's channels, with the guest's page tables
@@ -88,10 +88,10 @@ channels stay in the device is on [software-executor](software-executor.md).
 
 ## Depth
 
-- [caraxes/execution.md](../vfio/execution.md): the mirror objects, the two execution walls,
+- [vfio/execution.md](../vfio/execution.md): the mirror objects, the two execution walls,
   the held invalidate (§8), the device lock (§9).
-- [caraxes/host-exec.md](../vfio/host-exec.md): the standalone primitive that proved a host
+- [vfio/host-exec.md](../vfio/host-exec.md): the standalone primitive that proved a host
   channel walks a guest-built page directory.
-- [caraxes/exec-formats.md](../vfio/exec-formats.md), [caraxes/host-gr.md](../vfio/host-gr.md):
+- [vfio/exec-formats.md](../vfio/exec-formats.md), [vfio/host-gr.md](../vfio/host-gr.md):
   PBDMA faults, GMMU entries, the GR context on a host channel.
 - [research/isolation-and-xids.md](../research/isolation-and-xids.md): the Xid catalogue.

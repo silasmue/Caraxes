@@ -319,7 +319,7 @@ Each section has the same parts:
     User getters answer NV_OK with zeros where the card does. The native trace already
     shows that shape for `NVLINK_GET_PLATFORM_INFO` (nvml.rs; [../gsp-surface.md](../gsp-surface.md)
     "After E and A").
-  - **Tier 1.** A protocol model between two device instances. Each Caraxes device plays one
+  - **Tier 1.** A protocol model between two device instances. Each Leandro VFIO device plays one
     GPU, and a shared "link" object between them carries:
     - discovery (the IOCTRL table of each side);
     - the SID exchange (`UPDATE_REMOTE_LOCAL_SID`);

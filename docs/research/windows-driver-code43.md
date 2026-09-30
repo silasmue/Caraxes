@@ -77,7 +77,7 @@ Scope: what the registers the Windows driver reads before Code 43 are, whether d
 | - | GeForce against data-centre driver | night run C, Day one | ruled out |
 | - | A wrong BAR0 value among the identification registers | capture rounds 1-3 (except `0x110abc`) | ruled out |
 
-## Consequence for Caraxes (experiments, in order)
+## Consequence for Leandro VFIO (experiments, in order)
 
 1. **Serve a VBIOS with the extension image**: `--vbios caraxes/reference/rtx2070/synth-vbios.bin` (keep `rom-legacy-only.bin` on the ROM BAR). Success: PROM reads above 0x1fc00 return data, and new BAR0 offsets follow the scan (`0x118128`/`0x118234`, `NV_PGSP_FALCON_MAILBOX0` 0x110040, the falcon reset/DMEM ports), or a different stop point. The synthetic FWSEC is a stub: enough for a GSP path the device emulates, not for a CPU-RM path that runs real ucode.
 2. **Answer `0x110abc` = 0x20** (let the capture win for unmodelled falcon offsets, or model HWCFG). Success: the sequence after `0x1400` changes. Run it together with 1 and alone, to know which one gated.

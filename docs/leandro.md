@@ -3,9 +3,9 @@
 # Leandro: one NVIDIA GPU, several virtual machines, two architectures
 
 Leandro shares one consumer NVIDIA GPU among virtual machines on a host that keeps using
-the card itself. Two architectures exist. **VirtIO Leandro** (v1) runs a Leandro guest
+the card itself. Two architectures exist. **Leandro VirtIO** (v1) runs a Leandro guest
 module whose Resource Manager (RM) calls travel over vhost-user to a per-VM host backend
-that replays them on the host driver. **VFIO Leandro** (v2, code name Caraxes) presents a
+that replays them on the host driver. **Leandro VFIO** (v2) presents a
 synthetic NVIDIA PCI device over vfio-user to the guest's stock driver; the device plays
 the GPU System Processor firmware (GSP-RM), models the PCI BARs, and executes the guest's
 work on the physical GPU as a client of the host RM through mirror channels and shadow page
@@ -33,7 +33,7 @@ under [docs/vfio](vfio/README.md). Driver references name the open kernel module
 
 ![The two architectures side by side](img/leandro-two-architectures.svg)
 
-### 2.1 VirtIO Leandro (v1)
+### 2.1 Leandro VirtIO (v1)
 
 - The guest runs the NVIDIA user-space libraries unchanged and a Leandro kernel module,
   `virtio_nvrm.ko`, in place of `nvidia.ko`. The module owns `/dev/nvidia*` and forwards
@@ -47,7 +47,7 @@ under [docs/vfio](vfio/README.md). Driver references name the open kernel module
   timers for vblank ([virtio/display.md](virtio/display.md)).
 - Details: [virtio/architecture.md](virtio/architecture.md), [virtio/security.md](virtio/security.md).
 
-### 2.2 VFIO Leandro (v2, Caraxes)
+### 2.2 Leandro VFIO (v2)
 
 - The guest runs a stock driver in GSP-client mode: the Linux 615.71.09 open modules, the
   Windows 617.14 driver, nova-core, or nouveau with NVK. One device binary serves all four
@@ -65,7 +65,7 @@ under [docs/vfio](vfio/README.md). Driver references name the open kernel module
 
 ### 2.3 Side by side
 
-| Aspect | VirtIO Leandro (v1) | VFIO Leandro (v2) |
+| Aspect | Leandro VirtIO (v1) | Leandro VFIO (v2) |
 |---|---|---|
 | Trust boundary | the VM; the backend validates ioctl envelopes, pointer spans and FD tokens; hostile guests not established ([virtio/security.md](virtio/security.md)) | the VM; the device validates every GPU address through shadow tables (D17, D18), every VRAM address against the slice (D11) and refuses compression state it does not own (D16, D16b); malicious guests untested ([wiki: isolation rules](wiki/isolation-rules.md)) |
 | Guest changes | a Leandro kernel module replaces `nvidia.ko`; matching NVIDIA user space staged by hand | none to the driver; a Linux guest carries two registry keys (`RmDisableGlobalCeUtils=1`, `RmRcWatchdog=0`) until the device serves those channels; no guest module |
@@ -450,7 +450,7 @@ Wiki: [display-and-kms](wiki/display-and-kms.md),
   hrtimers for vblank, RM events for fence wake-ups; GNOME on Wayland with KMS capture and
   NVENC through Sunshine passed a client-frame check on 2026-09-19. Two concurrent Shadow of
   the Tomb Raider guests at 720p completed on one card
-  ([measurements/sottr-4q](virtio/measurements/sottr-4q/README.md)).
+  ([virtio/measurements/sottr-4q](virtio/measurements/sottr-4q/README.md)).
 - **v2.** The device declares heads, windows, SORs and one DisplayPort SST connector per head
   (D15), answers the NV0073 display controls, serves EDID over AUX and a DPCD model from the
   `dp-sink` crate, completes link training, paces vblank and flip completion on its own timer
@@ -612,7 +612,7 @@ Evidence: [research/methods.md](research/methods.md), [vfio/testing.md](vfio/tes
 
 ### 12.1 Per architecture
 
-| | VirtIO Leandro (v1) | VFIO Leandro (v2) |
+| | Leandro VirtIO (v1) | Leandro VFIO (v2) |
 |---|---|---|
 | Strengths | native on GPU-bound work; allocation and context paths near native; startup 0.19 s; 14 of 14 CUDA tests on the 615 image; two SotTR guests ran on one card; a small, reviewable wire schema; no firmware model | stock drivers on four guests (Linux, Windows, nova, nouveau) with one binary; guest driver version independent of the host; isolation by construction (slice, registered RAM, filtered shadows, owned compression) with a pattern test and an Xid catalogue; 0 traps per submission; a Windows desktop and 3D benchmarks near native; NVENC and NVDEC bit-exact; display with a device-paced cadence on Wayland and WDDM; the GSP surface recorded as a diffable ABI baseline; three-axis identity for other chips and versions |
 | Weaknesses | a guest kernel module in place of the driver, staged user space; every RM call a round trip (13 to 35 us), 100 ms per blocking sync, a pinned-page retention; refused controls for debugging, P2P, MIG, profiling; hostile-guest isolation not established; display through the displayless class with guest timers; Linux only | 3200 to 8600 traps per second in 3D and streams; setup paths 1.8x to 12.5x of native; 4 GiB of pinned host RAM per VM until D18; host VRAM pressure from a second VM reaches the guest as a fault; managed memory and cuda-gdb open; one open rendering fault each on Linux (SotTR) and Windows (DX12 3DMark); a 256 MiB host BAR1 shared with the desktop; no QoS for time, channels or RM work; execution honest only for Turing identities on the RTX 2070; malicious guests untested; 67 controls unhandled, 50 of them waiting for a capture |
@@ -631,7 +631,7 @@ Each row: the mechanism, the evidence, the mitigation and what it takes.
 | 5 | Setup-path cost (v2) | performance | the guest RM's MMU invalidate and flush accesses trap, the BAR2 sync rides on them, the first plan builds gathers, 20 host channels are built serially | cuMemAlloc 1 MiB 5.6x, cuMemFree 12.5x (2026-09-25); cuCtxCreate 240 to 256 ms against 130 ms native with the gather cache ([research/ctxcreate-2026-09-29.md](research/ctxcreate-2026-09-29.md)) | the invalidate and flush pages as memory with a cheap sync (row 1's plan), the shadow prefetch re-ported to the worker, warm spare channels (saves at most 10 ms per GR build) |
 | 6 | Two open rendering faults (v2) | stock drivers | Windows: a constant-cache read at VA 0 in 3DMark DX12, then a TDR, and exclusive fullscreen unavailable; Linux: SotTR frames with surfaces read in the wrong format on the newest binary, hangs and crashes in half of the evening runs | [known issues](vfio/known-issues.md) 1 and 2 | a native run of 3DMark to tell a missed mapping from a guest fault; a bisect of the SotTR frame with the rendering check in the gate; the display reserve patch for NVKMS on a full guest |
 | 7 | No QoS between guests (both) | more guests, isolation | budgets exist for BAR1 and host VRAM floors only; GPU time, channel count and RM work of one VM can stall the host's `nvidia-smi` without any Xid | a VA teardown timed out host `nvidia-smi` for 20 s ([research/isolation-and-xids.md](research/isolation-and-xids.md)) | per-device budgets for mappings, RM calls per second and channel count; host TSG timeslice and priority for mirrored TSGs; Turing has no per-VM interrupt routing or SM partitioning, so time-slicing the card stays the host RM's scheduler |
-| 8 | Malicious guests untested (both) | isolation | every isolation run used a stock driver; the rules are enforced by the device, but no adversarial guest has tried to break them | [vfio/parallel.md](vfio/parallel.md); v1 SECURITY.md "remaining risks" | a fuzzing guest against the GSP dispatcher and the shadow filter, a hostile page-table writer, a doorbell storm; a test-suite item, no design change expected; v1 needs the source-object ownership policy across DUP and UVM imports |
+| 8 | Malicious guests untested (both) | isolation | every isolation run used a stock driver; the rules are enforced by the device, but no adversarial guest has tried to break them | [vfio/parallel.md](vfio/parallel.md); v1 [security.md](virtio/security.md) "remaining risks" | a fuzzing guest against the GSP dispatcher and the shadow filter, a hostile page-table writer, a doorbell storm; a test-suite item, no design change expected; v1 needs the source-object ownership policy across DUP and UVM imports |
 | 9 | Execution only for Turing identities on the RTX 2070 (v2) | more chips | class ids live in the pushbuffer and compute capability follows the chip identity; the GMMU format is per family | GA106 costume: host Xid 13 on libcuda's first push; GB206 stops past N4 | a structural limit for one host card: a chip runs only on a host card of its family; the path is more host cards and the three-axis tables; the GB206 device needs the CA6F/CAB5 method subset and full KGR static info, then a host of its own |
 | 10 | 67 unhandled controls, 50 waiting for a capture (v2) | stock drivers | static chip data the open tree does not hold can only come from the card | [research/gsp-surface.md](research/gsp-surface.md); the real TU106 `GSP_INIT` response is unmeasured | one passthrough capture of the RTX 2070 with the prepared procedure, or the lab kit with `--priv` on the workplace card; a capture, not a design change |
 | 11 | Two registry keys in a Linux guest (v2) | stock drivers | the device does not serve the CeUtils self-test channel and the watchdog channel the kernel RM creates on its own VA space | the kick-smoke records carry `RmDisableGlobalCeUtils=1;RmRcWatchdog=0` | serve both channels through the mirror (their VA space comes from the same `GSP_RM_ALLOC` stream); then a plain `apt install nvidia-driver-open` guest needs no modprobe file |

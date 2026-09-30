@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # The 5060 costume: an RTX 5060 Ti on the outside, the TU106 on the inside
 
-The operator's side project (2026-09-24): a Caraxes VM "that emulates a 5060 but
+The operator's side project (2026-09-24): a Leandro VFIO VM "that emulates a 5060 but
 deliberately tells the truth about compute capability and so on, i.e. what Turing can
 do", to try a half 5060 and work on it. The device presents the RTX 5060 Ti's PCI
 identity from the lab capture (`caraxes/reference/gb206/`, [blackwell-gb206.md](blackwell-gb206.md))

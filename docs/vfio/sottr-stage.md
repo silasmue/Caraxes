@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-# The SotTR stage: Shadow of the Tomb Raider in a Caraxes VM
+# The SotTR stage: Shadow of the Tomb Raider in a Leandro VFIO VM
 
 Written 2026-09-24. This is roadmap item 2 ([roadmap.md](../history/caraxes-roadmap-2026-09-27.md)): the game workload is the
 benchmark that decides. The stage gives the operator a VM with 3 GiB in which to start, play
@@ -24,8 +24,8 @@ Scripts and evidence: [caraxes/runs/sottr-2026-09-24/](../../caraxes/runs/sottr-
 
 ### The writer lock
 
-The directory of the v1 base, `/mnt/vmstore/leandro/vm`, is read-only for Caraxes, so the lock
-cannot sit next to the base. It lives in the Caraxes store:
+The directory of the v1 base, `/mnt/vmstore/leandro/vm`, is read-only for Leandro VFIO, so the lock
+cannot sit next to the base. It lives in the Leandro VFIO store:
 `/mnt/vmstore/caraxes/locks/games-<hash>.writer`. The hash is the first 16 hex digits of the
 sha256 of the base's real path. The file holds `<vm> <pid> <disk>`. `up` writes it with
 noclobber and rewrites it with the Cloud Hypervisor pid (`tools/caraxes-vm.sh:201-204`). `down`
@@ -199,15 +199,15 @@ benchmark screen and Moonlight's session summary.
 v1's reference (`../Leandro/docs/virtio/measurements/sottr-4q/README.md`) is **two** `RTX2070-4Q`
 guests of 3072 MiB running the benchmark at the same time. Both completed at 720p. At 1080p the
 second scene failed to load: card peak 7771 MiB, 1 MiB free, per-guest charge up to 3184 MiB
-(110 MiB over the profile), host RAM exhausted with two 8 GiB VMs. The first Caraxes run is
+(110 MiB over the profile), host RAM exhausted with two 8 GiB VMs. The first Leandro VFIO run is
 **one** guest, so the comparison is:
 
-- the per-guest numbers: VRAM held against the 3072 MiB profile (on Caraxes the reservation is
+- the per-guest numbers: VRAM held against the 3072 MiB profile (on Leandro VFIO the reservation is
   fixed at the profile size, and a guest cannot exceed it: the device's FB is the reservation),
-  encoder use, stream frame rate and host latency (v1: NVENC on the host driver, Caraxes: x264
+  encoder use, stream frame rate and host latency (v1: NVENC on the host driver, Leandro VFIO: x264
   in the guest until roadmap item 3);
 - whether the 1080p scene loads, with the reservation in place of v1's charge accounting;
-- the benchmark's own FPS at 720p and 1080p. v1's README gives no FPS, so the first Caraxes
+- the benchmark's own FPS at 720p and 1080p. v1's README gives no FPS, so the first Leandro VFIO
   numbers are the reference for the second guest.
 
 The concurrent run (two game VMs as in sottr-4q) needs two 3 GiB slots (slots 0 and 1 of a
@@ -270,7 +270,7 @@ vm4-615 share tap, address, MAC, profile and slot, so only one of them runs.
 
 **Lesson.** The stock packages are the way. Everything the 610 stage needed by hand (the
 four-module build, the GL copy, the ld.so entry, the absolute ICD path, the EGL and GBM links)
-is what `nvidia-driver-open` and `linux-modules-extra` install. What remains Caraxes-specific in
+is what `nvidia-driver-open` and `linux-modules-extra` install. What remains Leandro VFIO-specific in
 the guest is below.
 
 ### 8.1 What the device still needs from the guest

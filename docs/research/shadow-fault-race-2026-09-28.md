@@ -48,7 +48,7 @@ Scope: the host Xid 31 of Linux guest desktop-b at 21:20:24 (PyTorch ResNet-18, 
 - dmesg wall time maps to device time 1269387995, about 96 ms after the RC scan: the clocks differ by more than the window.
 - The ran-ahead counter did not fire: it counts only planned or deferred plans, and unplanned table writes are neither.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Fix (fail closed): a software `MEM_OP` TLB invalidate that names a shadow root stops its push right after the method. The dispatcher then plans the named roots and waits for the worker. Only then does the push continue, including UVM's semaphore release. Code:
   - channel.rs: `doorbell_holding`, `Stop::HeldAtInvalidate`;

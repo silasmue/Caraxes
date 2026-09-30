@@ -51,7 +51,7 @@ physical-mode CE method there faults that channel only.
   channel waited 2.5 s at boot instead of 8.3 s
   ([research: windows-findings](../research/windows-findings.md), step 19, C82).
 - Bounded runs: a run stops between entries after 2 ms and the slice clock continues it after
-  50 us; a CPU copy slice is 4 ms ([caraxes/execution.md](../vfio/execution.md) §9.7).
+  50 us; a CPU copy slice is 4 ms ([vfio/execution.md](../vfio/execution.md) §9.7).
 
 ## The device CE
 
@@ -93,4 +93,4 @@ physical-mode CE method there faults that channel only.
 - [research/device-ce-2026-09-29.md](../research/device-ce-2026-09-29.md): why the paging
   channel is not split, the device CE's design and numbers.
 - [research/windows-findings.md](../research/windows-findings.md): P29 to P34, steps 12, 19, 21.
-- [caraxes/execution.md](../vfio/execution.md) §9.6, §9.7: translations, the TLB, bounded runs.
+- [vfio/execution.md](../vfio/execution.md) §9.6, §9.7: translations, the TLB, bounded runs.

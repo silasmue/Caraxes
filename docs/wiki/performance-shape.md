@@ -9,7 +9,7 @@ native (above 1 slower for times, below 1 slower for rates). Each row carries it
 
 ## The units
 
-| Cost | VirtIO Leandro | VFIO Leandro |
+| Cost | Leandro VirtIO | Leandro VFIO |
 |---|---|---|
 | one trapped access (exit, Cloud Hypervisor, socket) | - | 23 to 27 us p50 on a quiet host; 35.5 us read, 40.0 us write beside two VMs |
 | one datamatch ioeventfd; one read of a mapped page | - | 1.28 us (1.91 us inside a read-only slot); about 1 ns |
@@ -20,7 +20,7 @@ native (above 1 slower for times, below 1 slower for rates). Each row carries it
 | one blocking synchronisation | 100 ms (a poll fallback) | mostly native; a launch after 30 ms idle 680 us against 155 to 177 us (2026-09-25) |
 | startup, boot | 0.19 s to the first cuInit | Linux about 75k traps (about 2 s) per boot, Windows about 1 M (about 27 s of vCPU) |
 
-- VFIO rows: the train binary, 2026-09-30 ([research: trap-census-2026-09-30](../research/trap-census-2026-09-30.md)); VirtIO: [caraxes/benchmark.md](../vfio/benchmark.md) §5.
+- VFIO rows: the train binary, 2026-09-30 ([research: trap-census-2026-09-30](../research/trap-census-2026-09-30.md)); VirtIO: [vfio/benchmark.md](../vfio/benchmark.md) §5.
 
 ## CUDA per operation (615 guest)
 
@@ -115,6 +115,6 @@ native (above 1 slower for times, below 1 slower for rates). Each row carries it
 | h2d pinned 1 MiB, GB/s | 12.1 | 12.2 | 6.06 |
 | matmul N=2048, GFLOP/s | 5494 | 5569 | 2248 |
 
-- The only interleaved series of both ([caraxes/benchmark.md](../vfio/benchmark.md), closing
+- The only interleaved series of both ([vfio/benchmark.md](../vfio/benchmark.md), closing
   series). v1 is native on GPU-bound work and pays per RM call and per blocking sync; v2's gap
   sits in mapping changes and per-ring work.

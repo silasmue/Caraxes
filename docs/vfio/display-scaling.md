@@ -44,7 +44,7 @@ Sources), [S] public specification numbers from general knowledge (DVI, HDMI, DP
 - **Several heads: at most 4.** TU106 and NVKMS both cap it (`NV_MAX_HEADS` = 4). There are
   4 SORs and 8 windows, 2 per head. Each head is one connector, one timer and one
   head-timing interrupt bit, with its own mode and refresh. NVIDIA vGPU's best Q profiles
-  offer 4 heads up to 5K, or 2 at 8K, paced by a 60 FPS frame-rate limiter. Caraxes can match
+  offer 4 heads up to 5K, or 2 at 8K, paced by a 60 FPS frame-rate limiter. Leandro VFIO can match
   the head count and exceed the refresh rate. The limits are NVENC and VRAM, not the display
   model (section 3).
 - **Product: guest-side streaming is the display.** Sunshine/Moonlight, GNOME Remote
@@ -336,7 +336,7 @@ Also in vGPU:
 - Console VNC shows only the primary display, as a "management convenience" (journal §2).
 - GeForce cards such as the RTX 2070 cannot run vGPU at all.
 
-**Caraxes against that:**
+**Leandro VFIO against that:**
 - 4 heads, the same as a -2Q or larger.
 - 4K144 on each head, as far as NVENC and VRAM allow.
 - No frame-rate limiter.

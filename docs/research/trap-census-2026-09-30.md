@@ -149,7 +149,7 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
 - Writes: Linux SotTR 31-40 % of the traps, most of the device time; Windows Heaven 1919 of
   3290 profiled traps/s plus all ~5330 tree stores.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 ### The ranked table
 

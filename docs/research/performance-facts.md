@@ -2,11 +2,11 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Performance facts
 
-Scope: ratios of Caraxes to native on the RTX 2070 (host 615.71.09) per operation and per workload, where the remaining time goes, and what ReBAR would change.
+Scope: ratios of Leandro VFIO to native on the RTX 2070 (host 615.71.09) per operation and per workload, where the remaining time goes, and what ReBAR would change.
 
 ## Facts
 
-- Native is the closing series' host column (quiet host, n=5) unless a table says otherwise, and a ratio is Caraxes median / native median, so above 1 is slower for times and below 1 is slower for rates [docs/vfio/benchmark.md §2, §Closing series on driver 610.57.04; run: caraxes/runs/closing-610-2026-09-24/summary.md].
+- Native is the closing series' host column (quiet host, n=5) unless a table says otherwise, and a ratio is Leandro VFIO median / native median, so above 1 is slower for times and below 1 is slower for rates [docs/vfio/benchmark.md §2, §Closing series on driver 610.57.04; run: caraxes/runs/closing-610-2026-09-24/summary.md].
 - "Windows on" is the recommended CUDA configuration: `CARAXES_INTR_PAGE=1`, `CARAXES_BAR1_PASSTHROUGH=pool`, `CARAXES_DOORBELL_TOKENS=64`, `CARAXES_DOORBELL_POLL=hybrid`, `CARAXES_BAR2_MEMFD=1`, `CARAXES_MSI_REARM_IOEVENTFD=1` [caraxes/tools/bench-run.sh:37-41].
 
 ### Per operation: night series part 3 and morning matrix
@@ -87,7 +87,7 @@ Caption: 615 rows = vm0-615, 2 GiB slot 0, host execution, token pool, hybrid re
 
 [run: caraxes/runs/display-615-2026-09-24/s4-series/trap-compare.txt; run: caraxes/runs/matrix-2026-09-25/display-615; run: caraxes/runs/display-f-2026-09-24]
 
-- No Caraxes SotTR frame rate exists; the stage ran only its plumbing test in pure emulation [docs/vfio/sottr-stage.md §6, §7].
+- No Leandro VFIO SotTR frame rate exists; the stage ran only its plumbing test in pure emulation [docs/vfio/sottr-stage.md §6, §7].
 
 ### Where the remaining time goes
 
@@ -105,7 +105,7 @@ Caption: 615 rows = vm0-615, 2 GiB slot 0, host execution, token pool, hybrid re
 - The device reaches the rest of the reservation through two 32 MiB BAR1 windows at 1.6 us per uncached read and 2.5 ms per window miss [docs/vfio/optimization-backlog.md §5; docs/vfio/benchmark.md §Doorbell over KVM ioeventfd].
 - With BAR1 covering VRAM the pool could cover all of guest BAR1 and the device could map the whole reservation once, but zero-copy pool moves still need a VMM patch that re-points one 4 KiB page of the area mapping [docs/vfio/optimization-backlog.md §5].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Device-bound workloads on the 615 guest run at 0.88-1.04 of native with the 2 GiB profile, and submission-bound PPO at 0.64-0.67, so per-ring device work is the lever for PPO-like loads.
 - Allocation and free (5.6x and 12.5x in the matrix) and the invalidate and flush path are the largest per-operation gaps left.

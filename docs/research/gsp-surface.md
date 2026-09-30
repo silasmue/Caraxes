@@ -32,7 +32,7 @@ Scope: everything a stock 615.71.09 kernel RM in GSP-client mode can send to GSP
 - The one unhandled C control, `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET`, is answered by `gspmem.rs` ahead of the dispatcher, where the inventory does not look [docs/vfio/gsp-surface.md "After the GSP plan round 2, category C"].
 - The 16 unhandled D controls are the 12 display MODEL rows and the 4 open A rows the heuristic still calls D [docs/vfio/gsp-surface.md "After round 2 of D", "After the GSP plan round 2, category C"].
 - The 50 unhandled A controls wait for a capture of the card or the kernel's reading of an INTERNAL answer [docs/vfio/gsp-surface.md "After E and A"].
-- No CUDA or Wayland workload has reached a category D control so far; the only D control seen in a Caraxes run is `NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL` on a DP hot-unplug [docs/vfio/gsp-plan/d-device-model.md summary; run: caraxes/runs/display-cd-2026-09-24/d11-unplug].
+- No CUDA or Wayland workload has reached a category D control so far; the only D control seen in a Leandro VFIO run is `NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL` on a DP hot-unplug [docs/vfio/gsp-plan/d-device-model.md summary; run: caraxes/runs/display-cd-2026-09-24/d11-unplug].
 - 610 delta: 1377 exported, 829 routed, 763 answered, 66 unhandled (A 50, D 16), 230 RPC functions (a 610 client sends 20), 41 events, 222 classes and no `NV_ABI_STABLE` tag [docs/vfio/gsp-surface.md "After the reconciliation"; docs/vfio/gsp-abi-615.md §4].
 
 ### The categories
@@ -62,7 +62,7 @@ Scope: everything a stock 615.71.09 kernel RM in GSP-client mode can send to GSP
 - The watchdog init tolerates `NV_ERR_NOT_SUPPORTED` but any other error fails `RmInitAdapter` [615 tree: src/nvidia/arch/nvalloc/unix/src/osinit.c:2264-2276].
 - User space can stop on a refusal: the 615 libcuda failed `cuInit` with 100 when `CE_GET_LCE_SHIM_INFO` was refused [run: caraxes/runs/cutover-615-2026-09-24/v2-615guest/gate-cuda.txt].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - A new control of a later driver arrives unhandled, gets a category from the generators, and on TU106 mostly lands in an absent family (see [abi-baseline.md](abi-baseline.md)).
 - Refusals are safe for kernel paths that tolerate `NV_ERR_NOT_SUPPORTED` and a wall for user space that does not, so a refused control seen in a user-space trace is re-examined, not assumed harmless.

@@ -78,7 +78,7 @@ Scope: why a trapped display-page write costs 147-180 µs and an MMU invalidate 
 - Inferred from the code: each window `UPDATE` resolves up to three context DMAs. Each `engine::resolve` reads the whole 8 KiB RAMHT from FB [D display/engine.rs `window_update`, `resolve`].
 - With the kick page (dev default since 4dde63e1) the guest no longer waits for it; the reactor does, under the device lock, followed by a merge (`Device::display_kick_from_page`).
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 Changes on `vblank-2026-09-29` (no new switch):
 

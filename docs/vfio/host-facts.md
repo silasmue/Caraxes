@@ -122,7 +122,7 @@ whole sequence.
   - One `nvAssertFailedNoLog: pSmIssueThrottleCtrl != NULL @ kernel_graphics.c:3425` appeared
     at 13:56:13, before the run. It has recurred since 12:49 (seven times today) and is not
     caused by host-facts, which sends no GR_GET_SM_ISSUE_THROTTLE_CTRL (`host-after.txt`).
-  - The Caraxes VM (`vfio-user-nvgpu --host-rm --fb-mib 4096`) was running throughout.
+  - The Leandro VFIO VM (`vfio-user-nvgpu --host-rm --fb-mib 4096`) was running throughout.
 
 ## 3. What this means for option C
 

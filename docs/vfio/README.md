@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
-# VFIO Leandro: design documents and studies
+# Leandro VFIO: design documents and studies
 
-The long form behind VFIO Leandro (v2, code name Caraxes): designs, source surveys and
+The long form behind Leandro VFIO (v2): designs, source surveys and
 measured studies, one document per topic. The entry points are the
 [repository README](../../README.md), [leandro.md](../leandro.md), the
 [wiki](../wiki/README.md) and the [research notes](../research/README.md). Documents here
@@ -112,7 +112,7 @@ are dated where their numbers are; a superseded document lives in [docs/history]
 | [lab-blackwell.md](lab-blackwell.md) | The operator's checklist for a lab capture with `caraxes/tools/lab-capture.sh` |
 | [passthrough-procedure.md](passthrough-procedure.md) | The prepared passthrough procedure for R1/R3 (SSH/tmux, unbind, vfio-pci, QEMU trace, recovery), written, not run |
 | [guest-driver-versions.md](guest-driver-versions.md) | Other guest driver versions against the device: 595, 610, 615; the 615 base image layout (section 8) |
-| [v1-615-image.md](v1-615-image.md) | The VirtIO Leandro guest image for 615.71.09 and how the v1 gates run on it |
+| [v1-615-image.md](v1-615-image.md) | The Leandro VirtIO guest image for 615.71.09 and how the v1 gates run on it |
 | [nova.md](nova.md) | nova-core against the synthetic TU106: what the probe reads and waits for, the differences, the ABI diff, gates N0 to N4 |
 | [nova-guest.md](nova-guest.md) | nova-core as a guest driver of the device: the 570 transport, the re-probe, the five-probe run |
 | [nova-vgpu-upstream.md](nova-vgpu-upstream.md) | The upstream nova-core vGPU manager series read against the device: what transfers, what is VF-only |

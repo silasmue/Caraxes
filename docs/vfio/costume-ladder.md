@@ -51,7 +51,7 @@ with `crates/`, `docs/`, `caraxes/` or `tools/`. Evidence: `caraxes/runs/costume
 
 **Correction (2026-09-25).** This wall is the rig's, not the device's: vm6 lacked the guest
 module options of [quickstart.md](quickstart.md) section 2 step 3 (`RmDisableGlobalCeUtils=1`,
-`RMDisableScrubOnFree=1`, `RmRcWatchdog=0`), which every other Caraxes guest carries. With
+`RMDisableScrubOnFree=1`, `RmRcWatchdog=0`), which every other Leandro VFIO guest carries. With
 them the TU106 and every rung below reach `RmInitAdapter succeeded` and nvidia-smi in pure
 emulation (vm7, `caraxes/runs/emu-regress-2026-09-25/ladder-conf/`), and so do the main
 binary 7621cfb and the commit 61e0b6a before it. Analysis: [blackwell-gate.md](blackwell-gate.md)

@@ -4,7 +4,7 @@
 
 A Turing GPU signals the CPU through one MSI and a tree of interrupt registers in BAR0. The
 kernel RM reads the tree to find the pending vector, acknowledges it, re-arms the MSI, and
-toggles the enables at every RM lock. VFIO Leandro serves the tree from memory, the interrupt
+toggles the enables at every RM lock. Leandro VFIO serves the tree from memory, the interrupt
 page: a Linux guest stores to it as memory (tagged mode), a Windows guest's stores trap
 (exact mode). What still traps and what it costs is on
 [traps-and-fast-paths](traps-and-fast-paths.md).
@@ -96,7 +96,7 @@ page: a Linux guest stores to it as memory (tagged mode), a Windows guest's stor
 - A device reset resets the boot model before the page, so the old mirror's late raises are
   dropped.
 
-## In VirtIO Leandro
+## In Leandro VirtIO
 
 - Queue 1 carries RM events (`KIND_EVENT_FIRED`) from the backend's nested epoll; semaphore
   waiters use a separate polling thread; a blocking wait falls back to a 100 ms poll
@@ -104,9 +104,9 @@ page: a Linux guest stores to it as memory (tagged mode), a Windows guest's stor
 
 ## Depth
 
-- [caraxes/intr-page.md](../vfio/intr-page.md): the per-register census, both modes, the
+- [vfio/intr-page.md](../vfio/intr-page.md): the per-register census, both modes, the
   ambiguity list, the display page.
-- [caraxes/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md) §C Intr.
+- [vfio/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md) §C Intr.
 - [research: windows-and-traps](../research/windows-and-traps.md),
   [research: trap-census-2026-09-30](../research/trap-census-2026-09-30.md): the traps per
   frame, per operation and per workload.

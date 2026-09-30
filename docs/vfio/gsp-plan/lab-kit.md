@@ -291,7 +291,7 @@ from the open 615 tree with a print or a ring buffer in the message queue send a
 path (`src/nvidia/src/kernel/gpu/gsp/message_queue_cpu.c`). That is a driver change: never
 on the workplace card, and not part of the kit. On a rented VM it is possible as a separate,
 opt-in step, if the operator decides the RPC stream of an H100 or B200 boot is worth it. A
-patch and a decoder for it would be their own work item (about 3 days). The Caraxes device
+patch and a decoder for it would be their own work item (about 3 days). The Leandro VFIO device
 logs the same stream for the synthetic chips already, so the comparison would be direct.
 
 **Display on data-center parts.** GA100, GH100 and GB100 have no display engine

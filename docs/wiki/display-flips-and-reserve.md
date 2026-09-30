@@ -14,7 +14,7 @@ Linux guest needs so that NVKMS can always allocate a scanout buffer. The overvi
 - A window `UPDATE` latches at a tick once its acquire semaphore holds, `MIN_PRESENT_INTERVAL`
   ticks have passed since the window's last latch, and any `SET_UPDATE_TIMESTAMP` time has
   come (`crates/vfio-user-nvgpu/src/display/engine.rs` `window_update`;
-  [caraxes/display-connector.md](../vfio/display-connector.md)).
+  [vfio/display-connector.md](../vfio/display-connector.md)).
 - The notifier states:
   - NOT_BEGUN, as the guest left it, until the latch;
   - BEGUN with the latch's PTIMER time at the latch;
@@ -46,7 +46,7 @@ Linux guest needs so that NVKMS can always allocate a scanout buffer. The overvi
   otherwise (ed82e0db, step 4).
 - The engine has its own lock: the ticker, the FE interrupt status registers and the scan
   position never wait for the device lock; FB records go through record windows
-  ([caraxes/display-own-clock.md](../vfio/display-own-clock.md) §7). The clock's driver:
+  ([vfio/display-own-clock.md](../vfio/display-own-clock.md) §7). The clock's driver:
   p99 at most 4 ms, max 6.5 ms (C67), against p99 524 ms, max 757 to 801 ms (C64, C65;
   step 13). Channel kicks (`PUT` writes) still take the device lock.
 

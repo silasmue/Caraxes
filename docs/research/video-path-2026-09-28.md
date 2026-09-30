@@ -83,7 +83,7 @@ Scope: where a frame's time goes when a 615 guest encodes and decodes (`caraxes/
   - there is a second mode 1.5-3.5 ms later.
   - This fits the card's clock state rather than a fixed cost per job.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 | # | fix | effort | gain per frame (encode / decode) | proof | confidence |
 |---|---|---|---|---|---|

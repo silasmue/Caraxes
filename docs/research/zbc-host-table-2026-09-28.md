@@ -17,7 +17,7 @@ Scope: the host's ZBC clear table under real compression per VM slice ([compress
 - The host desktop filled all 12 free colour slots within 5 h of the boot (booted 15:15, probe 20:11; the order differs from the 2026-09-24 sweep); depth and stencil hold only the defaults [zbc-host-probe.txt; caraxes/runs/gsp-round2-d-2026-09-24/q5-host-sweep/sweep.txt].
 - The stock UMD reads the table (TABLE_SIZE, GET_ENTRY; vk-offscreen: 33 and 495 calls) and sets nothing in the 10 native traces; the display gate sends `SET_ZBC_COLOR_CLEAR` three times [matrix/traces/610.57.04/control/*.jsonl; caraxes/runs/gsp-d-2026-09-24/after/gate-dscan.txt].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 `CARAXES_COMPRESSION=slice` (zbc.rs `SliceZbc`); without it the local table answers as before, byte for byte.
 

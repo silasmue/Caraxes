@@ -99,7 +99,7 @@ out: (b) ioeventfds from QEMU, (d) the usermode page as memory, (e) Windows unde
 - Gain: the token pool's ioeventfds (Linux short kernel 11 us), the interrupt page and the
   display kick page as on Linux; one hypervisor for both guests.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Order under QEMU, each a measured A/B on Windows (short kernel, PyTorch first step, smoke):
   1. BAR2 memfd: the largest trap class, one switch, known on Linux;

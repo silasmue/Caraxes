@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-# Benchmark: Leandro v1, Leandro v2 (Caraxes) and native (P13)
+# Benchmark: Leandro VirtIO (v1), Leandro VFIO (v2) and native (P13)
 
 Written 2026-09-24. Goal P13 in [README.md](../history/caraxes-record-2026-09-28.md) (Ideas table): measure the two paths
 against the bare card. Harness: `caraxes/tools/bench-run.sh`, `bench-cu.c`, `bench-v1vm.sh`,
@@ -17,7 +17,7 @@ v2 limitations (§7; the flush wait is fixed, the single reservation has slots n
 
 ## 1. What is compared
 
-| | v1 (Leandro) | v2 (Caraxes) | native |
+| | v1 (Leandro VirtIO) | v2 (Leandro VFIO) | native |
 |---|---|---|---|
 | Path | API forwarding: guest `nvrm_nodes` + `virtio_nvrm` forward every RM ioctl and mapping to `vhost-user-nvrm`, which replays it on the host RM | synthetic PCI device: the stock `nvidia.ko` in the guest drives `vfio-user-nvgpu`, which backs the FB with reserved host VRAM and mirrors the guest's channels onto host channels | the same programs on the host |
 | Hypervisor | Cloud Hypervisor v53.0 + `patches/0001-0004` (`vendor/cloud-hypervisor/target/release/cloud-hypervisor`), `--generic-vhost-user device_type=60` | Cloud Hypervisor v53.0.0 (nix, `/mnt/vmstore/leandro/cloud-hypervisor/bin/cloud-hypervisor`), `--user-device` | - |

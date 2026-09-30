@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-# vfio-user: what matters for Caraxes
+# vfio-user: what matters for Leandro VFIO
 
 Sources read: `vendor/qemu-vfio-user/vfio-user.rst` (the protocol spec, QEMU
 `docs/interop/vfio-user.rst` at v11.1.1), `vendor/qemu-vfio-user/{proxy,device,container,pci}.c`

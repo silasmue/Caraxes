@@ -97,7 +97,7 @@ Scope: the recorded GSP ABI snapshot of 615.71.09 under `caraxes/abi/`, the tool
 - When a 615.71.09 tree is found (`$CARAXES_OGKM_615`, else the Leandro checkout beside the repository, else `/mnt/vmstore/caraxes/ogkm-615.71.09`) and cc and clang exist, it runs `diff --strict` of the snapshot against that tree; without a tree the drift half is skipped with a note [docs/vfio/gsp-abi-615.md §8].
 - Against the Leandro checkout's tree the check found 0 driver-side and 0 device-side changes and the tables up to date [docs/vfio/gsp-abi-615.md §8; docs/vfio/README.md §Status 2026-09-25].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - A new driver is a reviewed diff against `caraxes/abi/gsp-615.71.09/`, not a trace-driven bring-up; exit 1 of `diff` lists exactly the device code to touch.
 - The stable layer (transport, boot arguments, GMCAPI, promoted keys) is written once; every control, alloc, RPC and event layout stays per version in the generated modules (D14).

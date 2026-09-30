@@ -86,7 +86,7 @@ Scope: the 28 feature families of 615.71.09 that TU106 lacks, which chips have t
 
 [docs/vfio/gsp-plan/e-families.md Summary, §5]
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - TU106 stays the reference with every family absent, held by `chipctl::tests` and the 615 guest gates, and needs no family work.
 - A chip that names a family present needs a model module before the flag means anything; until then present and absent differ only in the label.

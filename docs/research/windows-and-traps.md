@@ -96,7 +96,7 @@ Scope: the shared-memory windows that take guest accesses off the trapped vfio-u
 - A doorbell ioeventfd removes 3 of about 670 traps per Mutter frame and cannot move the frame rate [docs/vfio/display-e.md §6].
 - 610 delta: the 610 guest makes about 2 more config-mirror writes per frame (Mutter 12.17 against 10.21) with more MSIs (6.61 against 4.66 per frame), and every other row is within two traps per frame [docs/vfio/display-615.md §5].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - CUDA's steady state (submission, copy, event, synchronise) is trap-free with the recommended stack, so its remaining gap to native is device and host work, not exits (see [performance-facts.md](performance-facts.md)).
 - The next windows in the backlog are the MMU invalidate and flush page as memory (item 3), progress-gated interrupt forwarding (item 5), a poll-mode GSP queue (item 6) and the PCI config walk (item 7) [docs/vfio/optimization-backlog.md §4].

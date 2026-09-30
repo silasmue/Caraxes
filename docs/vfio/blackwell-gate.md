@@ -126,7 +126,7 @@ Both had passed the day before (section 4; the TU106 boots of the 615 transport)
 device, no host RM, no reservation, no GPU; each commit built into `target/bisect`, booted
 through a frozen copy of the HEAD launcher, verdict from the serial log). In the ladder's
 rig, the declared good end 61e0b6a fails for both chips, and so does 6650623, the commit
-where this gate was recorded as passing. In the rig of every other Caraxes guest, the
+where this gate was recorded as passing. In the rig of every other Leandro VFIO guest, the
 declared bad end 7621cfb boots both chips, and so does main 541b9a9 (TU106 with the 610
 and the 615 guest, GB206 N0 to N4). No commit between the ends changes the verdict in
 either rig, so there was nothing to bisect.

@@ -76,7 +76,7 @@ Scope: how the 615.71.09 kernel RM picks its runtime variant and HAL, what it mu
 - Everything that layer carries (`GSP_RM_CONTROL`, `GSP_RM_ALLOC`, all control and alloc layouts, events, RPC numbers, the internal handles) is outside the stable promise [docs/vfio/gsp-abi-615.md §3].
 - The device refuses RM RPCs with `NV_ERR_NOT_SUPPORTED` from a client without the RPC bit and sends no RM event to one without the EVENTS bit [docs/vfio/gsp-plan/boot-exchange.md Status B7].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - The identity the driver acts on is the three BOOT registers plus the VBIOS and boot-model registers of the HAL they select; PCI ids and names are free (see [identity-and-costume.md](identity-and-costume.md)).
 - `NV_PMC_BOOT_1` must read 0 in the VGPU field and `NV_PMC_BOOT_0` must stay constant for the life of the device.

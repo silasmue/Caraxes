@@ -3,7 +3,7 @@
 # dp-sink: a transport-neutral DisplayPort SST sink
 
 Package A of the display side assignment ([briefing](../../docs/history/caraxes-briefing-display-nova-2026-09-23.md),
-P16 in [docs/vfio/README.md](../../docs/history/caraxes-record-2026-09-28.md)). This crate models the monitor
+P16 in [the v2 working record](../../docs/history/caraxes-record-2026-09-28.md)). This crate models the monitor
 end of an emulated DisplayPort connector: the DPCD register file, the link-training state
 machine, the AUX engine with I2C-over-AUX, the EDID and hot-plug detect. It knows nothing about
 NVIDIA, vfio-user or GSP. The NVIDIA control adapter (package B) and the display model will sit

@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Research notes
 
-The evidence layer of VFIO Leandro: one short note per topic, bullets, every fact with its
+The evidence layer of Leandro VFIO: one short note per topic, bullets, every fact with its
 evidence. Concepts are explained in the [wiki](../wiki/README.md); designs and studies live
 in [docs/vfio](../vfio/README.md); records under `caraxes/runs`. The target driver is
 615.71.09; 610.57.04 appears as one "610 delta" bullet at most.
@@ -69,7 +69,7 @@ in [docs/vfio](../vfio/README.md); records under `caraxes/runs`. The target driv
 ## Format of a note
 
 - Title, one line "Scope:", then "Facts" (one sentence each, evidence in brackets),
-  "Consequence for Caraxes", "Open".
+  "Consequence for Leandro VFIO", "Open".
 - Evidence is a line in the 615 tree (`/home/silas/git/Leandro/vendor/open-gpu-kernel-modules`,
   cited as `615 tree: path:line`), a run folder under `caraxes/runs`, or a `docs/vfio`
   document and section.

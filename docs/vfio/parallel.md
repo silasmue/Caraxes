@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-# P20: two Caraxes VMs on one RTX 2070 at the same time
+# P20: two Leandro VFIO VMs on one RTX 2070 at the same time
 
 Written 2026-09-24 for the operator's order "alles nacheinander und dann brauchen wir den
 Parallelitaets-Proof" (README P20). Evidence is in `caraxes/runs/parallel-2026-09-24/`, with one

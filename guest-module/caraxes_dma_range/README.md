@@ -2,7 +2,7 @@
 # caraxes_dma_range
 
 - Installs a DMA range map (`dev->dma_range_map`) on the NVIDIA GPU's PCI device
-  in a Caraxes guest **before `nvidia.ko` binds**. From then on, every DMA
+  in a Leandro VFIO guest **before `nvidia.ko` binds**. From then on, every DMA
   address the guest kernel computes for that device is the guest physical
   address plus the offset of the range that holds it.
 - Stock kernel API only, no NVIDIA symbols, no kernel or driver patch. Built and

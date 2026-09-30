@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Methods
 
-Scope: how Caraxes is tested and measured: gates, benchmark harness, census, profile, coverage map and control sweep, lab kit, emu-boot check, ABI drift check, and the recipe for a new workload.
+Scope: how Leandro VFIO is tested and measured: gates, benchmark harness, census, profile, coverage map and control sweep, lab kit, emu-boot check, ABI drift check, and the recipe for a new workload.
 
 ## Facts
 
@@ -93,7 +93,7 @@ Scope: how Caraxes is tested and measured: gates, benchmark harness, census, pro
 6. For untouched surface compare with `combined-coverage.json` and extend `ctlsweep-gen.py --only`; for unreached code rebuild with `-C instrument-coverage` and run `llvm-cov.sh report` [docs/vfio/coverage-map.md §5].
 7. Keep the dumps, `marks.tsv` and the host Xid lines of the device's pid, and count numbers only with 0 host Xid on that pid [docs/vfio/coverage-map.md §5; docs/vfio/optimization-backlog.md §6].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - A green gate means what a green v1 gate meant, so a 615 result is comparable with v1's history row by row.
 - Trap counts come from the census, device time outside traps from the profile, so both are needed before an optimisation is ranked (see [performance-facts.md](performance-facts.md)).

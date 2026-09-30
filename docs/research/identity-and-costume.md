@@ -27,9 +27,9 @@ Scope: where each guest-visible identity fact comes from, which layers may lie o
 | Compute capability | derived by libcuda/NVML from the chip identity, not from GR info | chip table (presented chip) | [docs/vfio/costume-ladder.md §3.4] |
 | SMs, L2 (torch) | GR info | host GR info of the physical card; chip `[gr] emulated_info` in pure emulation | [docs/vfio/costume-5060.md §2; docs/vfio/costume-ladder.md §1] |
 | GPU Part Number | `GET_CHIP_DETAILS`: SKU plus pciDevId | host SKU + board device id (mixed, e.g. `2D04-400-A1`) | [docs/vfio/costume-5060.md §2] |
-| Virtualization mode | `bIsVgx`, `hypervisorType` | device choice, default "not virtual" | [docs/vfio/identity-profile.md "Where the same numbers go under Caraxes"] |
+| Virtualization mode | `bIsVgx`, `hypervisorType` | device choice, default "not virtual" | [docs/vfio/identity-profile.md "Where the same numbers go under Leandro VFIO"] |
 
-- 610 delta: the static identity travels as the `GspStaticConfigInfo` struct of `GET_GSP_STATIC_INFO`, and the costume's chip ids also appear in `INTERNAL_GPU_GET_CHIP_INFO` 0x20800A36, an id 615 reuses for the fabric-probe sync [docs/vfio/identity-profile.md "Where the same numbers go under Caraxes"; docs/vfio/gsp-transport-615.md §7].
+- 610 delta: the static identity travels as the `GspStaticConfigInfo` struct of `GET_GSP_STATIC_INFO`, and the costume's chip ids also appear in `INTERNAL_GPU_GET_CHIP_INFO` 0x20800A36, an id 615 reuses for the fabric-probe sync [docs/vfio/identity-profile.md "Where the same numbers go under Leandro VFIO"; docs/vfio/gsp-transport-615.md §7].
 
 ### Costume rules
 
@@ -66,7 +66,7 @@ Scope: where each guest-visible identity fact comes from, which layers may lie o
 
 - Blackwell and Hopper identities in pure emulation (no costume over the TU106): see [blackwell-and-hopper.md](blackwell-and-hopper.md).
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - A presented chip is the base chip's tables plus a TOML overlay, so the overlay file is the complete list of lies.
 - Execution on the RTX 2070 is honest only for Turing identities; a non-Turing identity is for pure emulation or for a host card of that family.

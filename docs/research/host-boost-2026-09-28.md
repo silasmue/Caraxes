@@ -17,7 +17,7 @@ Scope: why the host card ran a VM's work at P8; what `NV2080_CTRL_CMD_PERF_BOOST
 
 ### What the RM does with PERF_BOOST
 
-The verified sources are the 615.71.09 tree, with 610.57.04 (the Caraxes vendor copy) where it differs.
+The verified sources are the 615.71.09 tree, with 610.57.04 (the repository's vendor copy) where it differs.
 
 - **Params:** {NvU32 flags; NvU32 duration}, 8 bytes, the same in both versions [615 tree: src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080perf.h:103-106; 610: :97-102]. `nvrm-sys` does not bind ctrl2080perf.h, so the device lays the struct out by hand and pins it in a test.
 - **Flags:** CMD 1:0 (CLEAR 0, BOOST_1LEVEL 1, BOOST_TO_MAX 2), CUDA 4:4, ASYNC 5:5, CUDA_PRIORITY 6:6, MULTIMEDIA 7:7. MULTIMEDIA exists in 615 only [615 ctrl2080perf.h:75-94; 610 :75-90]. BOOST_1LEVEL is deprecated [615 tree: src/nvidia/inc/kernel/gpu/perf/kern_perf_boost.h:65].
@@ -37,7 +37,7 @@ The verified sources are the 615.71.09 tree, with 610.57.04 (the Caraxes vendor 
 - **Client free:** the open kernel RM clears no PERF_BOOST when a subdevice or client is freed. Its only boost cleanup at subdevice destruct is the dynamic boost limit of nvidia-powerd [615 tree: src/nvidia/src/kernel/gpu/subdevice/subdevice.c:136-170].
   - Whether GSP-RM drops a freed client's hint is not visible. With finite durations it does not matter.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 ### Design (`src/hostboost.rs`)
 

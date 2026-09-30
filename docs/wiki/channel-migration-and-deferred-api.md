@@ -5,7 +5,7 @@ The Windows KMD runs some RM controls inside a channel's stream instead of at on
 registers the control on a deferred API object (`NV50_DEFERRED_API_CLASS`, 0x5080) under
 the channel and triggers it later with a software method in the pushbuffer. It prepares
 every application GR context this way, and under contention it moves a busy channel to a
-larger ring the same way. VFIO Leandro runs each registered control where GSP-RM would run
+larger ring the same way. Leandro VFIO runs each registered control where GSP-RM would run
 it: a context request on the device's management path; a ring migration in the host
 channel's own stream through the host RM's 0x5080 object, or in the software executor.
 
@@ -50,7 +50,7 @@ channel's own stream through the host RM's 0x5080 object, or in the software exe
   ([research: windows-findings](../research/windows-findings.md), P29b, P30).
 - The preparation runs on the shadow worker. The deferred method stays pending, the
   management channel is held and replayed by the slice clock until the build is committed
-  ([caraxes/execution.md](../vfio/execution.md) §9.12). Before, 57 preparations of
+  ([vfio/execution.md](../vfio/execution.md) §9.12). Before, 57 preparations of
   390 to 432 ms each held the device lock for about 23 s (C83).
 - A video channel's 0x5080 object stays an inert host object (1dc497c5, P29b).
 

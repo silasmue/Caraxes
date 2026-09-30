@@ -109,5 +109,5 @@ One device binary, four guests, before every merge into dev
 ## Depth
 
 - [research/methods.md](../research/methods.md): every tool with its lines.
-- [caraxes/testing.md](../vfio/testing.md), [caraxes/benchmark.md](../vfio/benchmark.md) §2,
-  [caraxes/coverage-map.md](../vfio/coverage-map.md).
+- [vfio/testing.md](../vfio/testing.md), [vfio/benchmark.md](../vfio/benchmark.md) §2,
+  [vfio/coverage-map.md](../vfio/coverage-map.md).

@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Lookahead written 2026-09-23 against vendor/open-gpu-kernel-modules 610.57.04, the native
-     610.57.04 CUDA traces in matrix/traces/610.57.04/ and the Caraxes working tree after E5b
+     610.57.04 CUDA traces in matrix/traces/610.57.04/ and the Leandro VFIO working tree after E5b
      part 1. Research only: nothing here was run in a VM, nothing touched the host GPU. -->
 # CUDA lookahead: everything the CUDA path sends to the device
 

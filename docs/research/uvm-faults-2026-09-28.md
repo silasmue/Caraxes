@@ -102,7 +102,7 @@ Scope: why `cudaMallocManaged` in a 615 guest ends in a host Xid 31, how the gue
 | 6 | Unregistered fault-capable VAS as a "replay pump" | needs the fault VA while stalled (no source) and GR on an externally owned VAS (Xid 38 wall) | - | spins host UVM's bottom half for every host CUDA client | research only; rejected |
 | 7 | Host kernel help (a fault-forwarding host UVM or module), what SR-IOV vGPU gets from hardware | yes | yes | good | excluded by the host rule |
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Recommendation: option 1 now, and declare demand-paged managed memory out of reach on TU106 with an unmodified host. This is the line NVIDIA drew as well: no vGPU unified memory before SR-IOV.
 - If memory beyond the slice matters (llama models larger than the slice), option 3 is the route that needs no faults.
