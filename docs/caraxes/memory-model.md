@@ -3,7 +3,7 @@
 
 Written 2026-09-23 with the implementation in `crates/vfio-user-nvgpu` (`fb.rs`
 `FbLayout`, `hostmem.rs`, `dmamap.rs`, `guestmem.rs`, `privilege.rs`) and
-`tools/caraxes-vm.sh`. Results: [experiments.md](experiments.md), "E5b part 1".
+`tools/caraxes-vm.sh`. Results: [experiments.md](../history/caraxes-experiments-2026-09-29.md), "E5b part 1".
 Evidence: `caraxes/runs/e5b-2026-09-23/`.
 
 This document describes the default identity-addressed path. The experimental

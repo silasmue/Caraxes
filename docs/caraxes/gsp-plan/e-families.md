@@ -554,7 +554,7 @@ Each section has the same parts:
 - **Chips.** vGPU-offload-capable HALs on AD10x and later (`g_gpu_nvoc.c:479`), on hosts in vGPU
   mode. The kernel's callers are in `virtualization/kernel_vgpu_mgr.c`, `vgpuconfigapi.c`
   and `kernel_hostvgpudeviceapi.c`.
-- **Truth.** The device isolation rules of [../README.md](../README.md): the guest's PF is no
+- **Truth.** The device isolation rules of [../README.md](../../history/caraxes-record-2026-09-28.md): the guest's PF is no
   vGPU host.
 - **Design.** Refuse forever. `NVENC_SW_SESSION_STATS` keeps its `empty_ok` answer
   (`chips/tu106/chip.toml:305-307`).

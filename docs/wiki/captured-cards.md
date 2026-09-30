@@ -43,7 +43,7 @@ built from it by hand. New rows come from [contributing-a-capture](contributing-
 
 ## Depth
 
-- [caraxes/environment.md](../caraxes/environment.md): the reference dumps of the RTX 2070.
+- [caraxes/environment.md](../history/caraxes-environment-2026-09-23.md): the reference dumps of the RTX 2070.
 - [caraxes/blackwell-gb206.md](../caraxes/blackwell-gb206.md): the GB206 capture read item by item.
 - [caraxes/gsp-plan/lab-kit.md](../caraxes/gsp-plan/lab-kit.md) §6 to §9: what a tarball feeds,
   what a capture cannot give, which cloud part covers which chip.

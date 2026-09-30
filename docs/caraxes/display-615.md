@@ -4,7 +4,7 @@
 The display path of [display-e.md](display-e.md) and [intr-page.md](intr-page.md) §10 (GPU-rendered
 Wayland on the emulated DisplayPort monitor, the interrupt page and the display front-end page) with
 the 615.71.09 guest driver instead of 610.57.04 (decision D19), on vm0 on the night of 2026-09-24 to
-2026-09-25. Evidence: [../../caraxes/runs/display-615-2026-09-24/](../../caraxes/runs/display-615-2026-09-24/)
+2026-09-25. Evidence: [../../caraxes/runs/display-615-2026-09-24/](../../caraxes/runs/display-615-2026-09-24)
 (one folder per session, `series.sh`, `env.sh`, `prepare-vm0-615.sh`, `guest/`, `abi/`).
 
 ## 1. Outcome

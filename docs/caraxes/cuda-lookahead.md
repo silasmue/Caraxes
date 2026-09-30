@@ -57,7 +57,7 @@ kept so that the order of the phase stays readable.
     - `mmap`: device, fd, length, offset, address.
   - Condensed with a throw-away script (not checked in). The script names controls from the SDK
     headers and flags from the `/*flags=*/` fields of `src/nvidia/generated/g_*_nvoc.c`, the
-    ctrl_table.tsv method of [phase5-rpcs.md](phase5-rpcs.md) §0.
+    ctrl_table.tsv method of [phase5-rpcs.md](../history/caraxes-phase5-rpcs-610.md) §0.
 - `P:lvlN` is `probe/traces/lvlN.tsv`, the staged `nvprobe N` traces. They are git-ignored and
   carry no driver version, so they are used only for the phase boundaries. The boundaries agree
   with the matrix traces.

@@ -16,7 +16,7 @@ Result on 2026-09-23: no control is unanswered for either command. The guest
 
 ## How the controls arrive
 
-Section 2 of [phase5-rpcs.md](phase5-rpcs.md) describes the routes by which a control
+Section 2 of [phase5-rpcs.md](../history/caraxes-phase5-rpcs-610.md) describes the routes by which a control
 reaches GSP. The device answers each route as follows:
 
 | Route | Handles | What the device does |

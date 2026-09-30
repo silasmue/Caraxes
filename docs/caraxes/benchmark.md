@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Benchmark: Leandro v1, Leandro v2 (Caraxes) and native (P13)
 
-Written 2026-09-24. Goal P13 in [README.md](README.md) (Ideas table): measure the two paths
+Written 2026-09-24. Goal P13 in [README.md](../history/caraxes-record-2026-09-28.md) (Ideas table): measure the two paths
 against the bare card. Harness: `caraxes/tools/bench-run.sh`, `bench-cu.c`, `bench-v1vm.sh`,
 `bench-summary.py`. Raw outputs, summaries and the command log:
 `caraxes/runs/bench-2026-09-24/` (`commands.txt` lists every command in order).
@@ -572,7 +572,7 @@ same for `reg 0x70004`, each after `_threadNodeCheckTimeout: Timeout was set to:
 0x70004 `NV_UFLUSH_L2_SYSMEM_INVALIDATE`. The device model reads back the value written there,
 so the pending bit the RM polls never clears. Fixed in `7faac21` (the registers are modelled
 and the flushes forwarded to the host; the fix agent's hardware check is the `d-uflush` row of
-[experiments.md](experiments.md)). In the final series (`8d44ee6`) cuCtxCreate takes 4.7 s and
+[experiments.md](../history/caraxes-experiments-2026-09-29.md)). In the final series (`8d44ee6`) cuCtxCreate takes 4.7 s and
 no flush timeout occurs.
 
 Trigger (on `223075d`): every context, from the first process on a fresh device. Seven `nvprobe 1` in a row
@@ -619,7 +619,7 @@ miss) and gave the gain back; with the FB store's watched copy (`FakeFb::watched
 current by the trapped GPPut writes) the scan is a map lookup. The short kernel gains about the
 one trap of four (25 us of 160); the other three (GPFIFO entry, GPPut through BAR1) and the
 small copies are P21's. Once P21 passes the BAR1 windows through, the watched copy no longer
-sees GPPut, and the wakeup needs the token: the datamatch token pool ([roadmap.md](roadmap.md)).
+sees GPPut, and the wakeup needs the token: the datamatch token pool ([roadmap.md](../history/caraxes-roadmap-2026-09-27.md)).
 
 ## P21 BAR1 passthrough, prototype G (2026-09-24, vm1, host under load)
 

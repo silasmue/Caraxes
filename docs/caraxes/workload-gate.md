@@ -2,7 +2,7 @@
 # Workload gate: real workloads against native ("verrücktere Kernels")
 
 Written 2026-09-24, prepared without a VM or the GPU. The runs are for tonight's window after
-the closing series and the host driver upgrade to 615.71.09 ([cutover-615.md](cutover-615.md)).
+the closing series and the host driver upgrade to 615.71.09 ([cutover-615.md](../history/caraxes-cutover-615-2026-09-24.md)).
 Operator's order: real workloads on top of the microbenchmarks of [benchmark.md](benchmark.md),
 against native and v1. The question is whether the zero-trap submission path (the P21 BAR1 area,
 the doorbell token pool and the pinned reactor, benchmark.md sections of 2026-09-24,

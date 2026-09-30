@@ -6,7 +6,7 @@ GSP-client mode, TU106) sends to GSP after `GET_GSP_STATIC_INFO`. The list runs
 through the log line RmInitAdapter succeeded!, then covers what the first user-space open and
 `nvidia-smi -q` add. For each RPC it proposes where the synthetic device gets the
 answer. Everything here was read from source; nothing has run yet. E3/E4
-([experiments.md](experiments.md)) will confirm or correct it.
+([experiments.md](caraxes-experiments-2026-09-29.md)) will confirm or correct it.
 
 ## 0. Conventions, method, baseline
 
@@ -185,7 +185,7 @@ In the Load loop, the only senders are KernelPerf and the first KernelCE:
 | 31 | `NV2080_CTRL_CMD_CE_UPDATE_CLASS_DB` 0x20802a06 | `kceUpdateClassDB_KERNEL` kernel_ce.c:638, from :735 | 0xc0 (g_subdevice_nvoc.c:11739) | ctrl2080ce.h:267-273 | stubbedCeMask adds or removes CE classes per KCE (kernel_ce.c:647-668). Fatal | c: stubbedCeMask 0, and advertise in engineCaps only the CEs that should exist |
 | 32 | `NV2080_CTRL_CMD_CE_UPDATE_PCE_LCE_MAPPINGS_V2` 0x20802a0d | kernel_ce.c:814. bUpdateNvlinkPceLce is FALSE because KernelNvlink was removed (src/kernel/gpu/ce/arch/turing/kernel_ce_tu102.c:97-101) | 0x4 PRIVILEGED, sent on the physical RMAPI (g_subdevice_nvoc.c:11844) | ctrl2080ce.h:388-398 | status; fatal (kernel_ce.c:821-826) | c: NV_OK. On real GSP this reprograms the PCE2LCE registers; the fake only records the map. Not forwardable (privileged) |
 | 33 | `CE_UPDATE_CLASS_DB` again | kernel_ce.c:638 via :834 | as row 31 | | fatal | c: same mask |
-| 34 | `NV2080_CTRL_CMD_GPU_GET_VMMU_SEGMENT_SIZE` 0x2080017e | `gpuInitVmmuInfo` gpu.c:938-950, called at :2847, after `gpuInitVideoLogging`. Video logging sends no RPC, but it maps 32 KiB of FB per video engine through BAR2 (src/kernel/gpu/video/kernel_video_engine.c:127-142) | 0x10448 NON_PRIV+ROUTE+CACHEABLE (g_subdevice_nvoc.c:4854) | ctrl2080gpu.h:3135-3141 | NV_ERR_NOT_SUPPORTED leaves the size at 0. Any other error is fatal | a: forward (Leandro's launcher already queries it, [identity-profile.md](identity-profile.md)), or c: NOT_SUPPORTED |
+| 34 | `NV2080_CTRL_CMD_GPU_GET_VMMU_SEGMENT_SIZE` 0x2080017e | `gpuInitVmmuInfo` gpu.c:938-950, called at :2847, after `gpuInitVideoLogging`. Video logging sends no RPC, but it maps 32 KiB of FB per video engine through BAR2 (src/kernel/gpu/video/kernel_video_engine.c:127-142) | 0x10448 NON_PRIV+ROUTE+CACHEABLE (g_subdevice_nvoc.c:4854) | ctrl2080gpu.h:3135-3141 | NV_ERR_NOT_SUPPORTED leaves the size at 0. Any other error is fatal | a: forward (Leandro's launcher already queries it, [identity-profile.md](../caraxes/identity-profile.md)), or c: NOT_SUPPORTED |
 
 ### 1.5 gpuStatePostLoad (LOAD order), then the end of gpuStateLoad
 
@@ -290,7 +290,7 @@ The rows below are in call order:
 | 92-94 | client triple of the kernel RM API client (processID 0xFFFFFFFF; device params all 0) | osinit.c:1795-1831, reaching device.c:180-191 and subdevice.c:122-131 | as rows 14-16 | fatal (RM_INIT_ALLOC_RMAPI_FAILED) | c: shadow objects. Rows 96-98 arrive on **these** handles |
 | 95 | GSP_RM_ALLOC NV40_I2C 0x402C, parent subdevice | osinit.c:1837-1850, reaching alloc_free.c:880-928 (resource_list.h:832-840) | none | tol. (hI2C = 0 skips row 98) | c |
 | 96 | `NV2080_CTRL_CMD_GSP_GET_FEATURES` 0x20803601 on the kernel client's subdevice | `RmGetFirmwareVersion` osinit.c:542-566 (ROUTE_TO_PHYSICAL) | 0x40549 (g_subdevice_nvoc.c:13104); ctrl2080gsp.h:64-75 | firmwareVersion appears in /proc and nvidia-smi. tol. | c: bValid 1, firmwareVersion "610.57.04" |
-| 97 | `NV2080_CTRL_CMD_BIOS_GET_INFO_V2` 0x20800810 {REVISION, OEM_REVISION} | `RmGetVbiosVersion` osinit.c:592-614 | 0x60048 (g_subdevice_nvoc.c:5904); ctrl2080bios.h:97-104 | Builds the vbios_version string. tol. | c: vbiosRevision/vbiosOemRevision from static info (matching the synthetic VBIOS, [vbios-synthesis.md](vbios-synthesis.md)) |
+| 97 | `NV2080_CTRL_CMD_BIOS_GET_INFO_V2` 0x20800810 {REVISION, OEM_REVISION} | `RmGetVbiosVersion` osinit.c:592-614 | 0x60048 (g_subdevice_nvoc.c:5904); ctrl2080bios.h:97-104 | Builds the vbios_version string. tol. | c: vbiosRevision/vbiosOemRevision from static info (matching the synthetic VBIOS, [vbios-synthesis.md](../caraxes/vbios-synthesis.md)) |
 | 98 | `NV402C_CTRL_CMD_I2C_GET_PORT_INFO` 0x402c0101 on hI2C | osapi.c:4293-4312 | 0x48, always forwarded (g_i2c_api_nvoc.c:163-170); sdk/ctrl/ctrl402c.h:110-118 | One Linux i2c adapter per valid port. tol. | c: no ports |
 
 The rest of RmInitAdapter sends **no RPC**:
@@ -325,7 +325,7 @@ With display present, the display RPCs are:
 ### 1.8 Non-RPC conditions the replies depend on
 
 These are listed because a correct reply is useless without them:
-- **PRAMIN window.** Needed by rows 20-23. Details in [kernel-rm-hw-surface.md](kernel-rm-hw-surface.md).
+- **PRAMIN window.** Needed by rows 20-23. Details in [kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md).
 - **BAR2 walker.** Also needed by rows 20-23; same reference.
 - **BAR1 root at bar1PdeBase.** Required after row 35.
 - **TLB-invalidate trigger reading back 0.** See src/kernel/gpu/mmu/arch/turing/kern_gmmu_tu102.c:60-160.
@@ -417,7 +417,7 @@ Kernel-served controls that issue an RPC of their own:
 **Handle translation.** Every row in this section except K2/K4/K5 carries the guest
 user's hClient/hObject. Those handles are guest-chosen (0xc1d5xxxx, 0xa55axxxx in the
 trace), so the device needs a per-guest-client map onto Leandro host objects, filled at
-U1-U6 and cleared at F1-F6 ([leandro-reuse.md](leandro-reuse.md) §4.4 items 4-5).
+U1-U6 and cleared at F1-F6 ([leandro-reuse.md](../caraxes/leandro-reuse.md) §4.4 items 4-5).
 
 **Persistence.** Without nvidia-persistenced, the last close of /dev/nvidia0 shuts the
 adapter down (nv.c:2065-2140). Each nvidia-smi run then replays all of section 1 and
@@ -573,7 +573,7 @@ channels): **98 RPCs**.
    physical addresses and a kernel-chosen ChID, so nothing can be forwarded. A faked
    GSP can accept them only as long as those channels never execute. Once real GR work
    is wanted (E4 and later), this is where the design question "whose FB is it"
-   ([open-questions.md](open-questions.md) Q5) must be answered.
+   ([open-questions.md](caraxes-open-questions-2026-09-23.md) Q5) must be answered.
 
 Runner-up: the section 2 user-handle forwards. Each one is easy, but together they need
 a complete per-client handle map, including handles embedded in params, and correct
@@ -629,4 +629,4 @@ FREE cascades.
     depend on the VM topology and ACPI tables. The baseline assumes Cloud Hypervisor
     with no Intel root port and no NVIDIA `_DSM`; verify this in E3.
 12. **Verification.** Every order in this file is static. E3's device log is the check
-    ([open-questions.md](open-questions.md) Q8, Q9).
+    ([open-questions.md](caraxes-open-questions-2026-09-23.md) Q8, Q9).

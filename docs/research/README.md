@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Caraxes research notes
 
-Rule: short and precise; bullets; every fact with its evidence; long form lives in [docs/caraxes](../caraxes/README.md); records under `caraxes/runs`.
+Rule: short and precise; bullets; every fact with its evidence; long form lives in [docs/caraxes](../history/caraxes-record-2026-09-28.md); records under `caraxes/runs`.
 
 Target: driver 615.71.09 only (D19, D20); 610.57.04 appears as one "610 delta" bullet at most.
 
@@ -57,5 +57,5 @@ Target: driver 615.71.09 only (D19, D20); 610.57.04 appears as one "610 delta" b
 ## Maintenance
 
 - A fact changes: fix the bullet in its note and cite the new evidence (new run folder, new line, new section); do not append a second, contradicting bullet.
-- A new finding goes into the note of its topic; the working record and the status log stay in [docs/caraxes/README.md](../caraxes/README.md).
+- A new finding goes into the note of its topic; the working record and the status log stay in [docs/caraxes/README.md](../history/caraxes-record-2026-09-28.md).
 - A new driver version: rerun the ABI diff ([abi-baseline.md](abi-baseline.md)), then recheck every `615 tree:` citation the diff touches.

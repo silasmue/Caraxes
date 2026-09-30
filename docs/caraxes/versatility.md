@@ -1,11 +1,11 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Versatility: chips, boards and driver versions
 
-Decision D14 ([README.md](README.md)): implement for the RTX 2070 (TU106) on driver
+Decision D14 ([README.md](decisions.md)): implement for the RTX 2070 (TU106) on driver
 610.57.04, but keep everything version- or silicon-specific where another driver
 version or another chip can be added without touching the generic paths. This note
 describes how `crates/vfio-user-nvgpu` is split after the refactor of 2026-09-23
-([experiments.md](experiments.md), "D14 refactor"), where each kind of fact lives,
+([experiments.md](../history/caraxes-experiments-2026-09-29.md), "D14 refactor"), where each kind of fact lives,
 what is still hard-coded and why, and the checklists for a new chip and a new driver
 version.
 
@@ -109,7 +109,7 @@ honest:
    hand-written offsets (`RM_CONTROL_*`, `RM_ALLOC_*`, `FREE_*`, `DUP_*`, `GUEST_INFO_*`,
    `REGISTRY_*`, `SYSINFO_*`, `SI_*`, `FB_REGION_*`, `WPR_META_*`, `LIBOS_ARG_*`, `MQ_*`)
    are checked by `gsp_offsets_match_the_measured_abi` against the compiler-measured
-   tables of [gsp-abi-610.md](gsp-abi-610.md) (a), which the test parses.
+   tables of [gsp-abi-610.md](../history/caraxes-gsp-abi-610.md) (a), which the test parses.
    The bindings are imported as `nvrm_sys::v610 as ffi`, deliberately not as `sys`:
    `cargo xtask abi --check` (a `tools/check.sh` step) treats every `sys::` path in
    the workspace as a use that must go through the multi-version `RmAbi`, and this

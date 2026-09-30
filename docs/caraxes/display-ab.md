@@ -4,7 +4,7 @@
 Run 2026-09-23 on vm0, branch `worktree-agent-a6f9005032084a629` (from checkpoint `66682ae`).
 Plan: phases A and B of [display-connector.md](display-connector.md) §4 with decision D15
 (DisplayPort SST), the checklist A0-A12/B1-B18 of [display-adapter.md](display-adapter.md) §5.
-Evidence: [../../caraxes/runs/display-ab-2026-09-23/](../../caraxes/runs/display-ab-2026-09-23/)
+Evidence: [../../caraxes/runs/display-ab-2026-09-23/](../../caraxes/runs/display-ab-2026-09-23)
 (commands word for word in `commands.md`). Nothing ran on the physical GPU. The display is pure
 emulation. The host GPU was reached only through the existing unprivileged host RM client
 (nvml forwarding) and the gate's read-only `nvidia-smi -q`.

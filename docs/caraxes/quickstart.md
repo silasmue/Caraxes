@@ -8,7 +8,7 @@
   current measured desktop uses host and guest driver 615.71.09. The host driver
   stays untouched; see Safety below.
 - This is Leandro v2 (Caraxes). The current helper-free path uses the unmodified
-  stock driver and no Caraxes guest kernel module. Background: [README.md](README.md).
+  stock driver and no Caraxes guest kernel module. Background: [README.md](../history/caraxes-record-2026-09-28.md).
 
 ## Current 615 Wayland path
 
@@ -180,7 +180,7 @@ physical card ([nvml.md](nvml.md)).
 ## Limits of the original 610 milestone path
 
 - **No CUDA.** `nvidia-uvm` and the first CUDA context are the next experiment (E5);
-  see [cuda-path.md](cuda-path.md) for the design and [experiments.md](experiments.md)
+  see [cuda-path.md](cuda-path.md) for the design and [experiments.md](../history/caraxes-experiments-2026-09-29.md)
   for status.
 - **No display.** `nvidia-modeset` and `nvidia-drm` stay unloaded; scope is
   `nvidia.ko` only until CUDA is working.
@@ -188,7 +188,7 @@ physical card ([nvml.md](nvml.md)).
   all zeros (`gpcMask` 0), which skips the golden-image channel and the Bug 4208224
   workaround; GR stays unusable for clients.
 
-Full status and the experiment-by-experiment record: [experiments.md](experiments.md).
+Full status and the experiment-by-experiment record: [experiments.md](../history/caraxes-experiments-2026-09-29.md).
 
 Those three historical limits do not describe the tested 615 desktop configuration.
 The current result does not imply full native parity. Long-duration stream soak,

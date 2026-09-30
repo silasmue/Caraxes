@@ -16,7 +16,7 @@ on (the RM, the GSP, the BARs and the memory model), states what each architectu
 cannot do, and closes with the ranked weaknesses and the work that would remove them by
 Christmas 2026. Every concept named here has a page in [the wiki](wiki/README.md); every
 number comes from a record cited in [the research notes](research/README.md) or the working
-documents under [docs/caraxes](caraxes/README.md). Driver references name the open kernel
+documents under [docs/caraxes](history/caraxes-record-2026-09-28.md). Driver references name the open kernel
 modules 615.71.09 by path and function.
 
 ## 1. The problem
@@ -62,7 +62,7 @@ modules 615.71.09 by path and function.
   host channels it creates as an ordinary RM client.
 - The guest's display is an emulated DisplayPort monitor served in the GSP role: EDID over
   AUX, DPCD, link training, vblank and flips on the device's clock.
-- Details: [caraxes/README.md](caraxes/README.md) (decisions D1 to D20), the research notes,
+- Details: [caraxes/README.md](history/caraxes-record-2026-09-28.md) (decisions D1 to D20), the research notes,
   the wiki.
 
 ### 2.3 Side by side
@@ -139,7 +139,7 @@ Wiki: [rm-resource-model](wiki/rm-resource-model.md), [rm-controls](wiki/rm-cont
   the kernel RM has already resolved handles and the payload is inline, but where the kernel
   RM also sends internal controls that an unprivileged host client can never forward as they
   are. The GSP boundary is not smaller than the ioctl boundary; it wraps the same alloc and
-  control vocabulary ([caraxes/README.md](caraxes/README.md), idea P1).
+  control vocabulary ([caraxes/README.md](history/caraxes-record-2026-09-28.md), idea P1).
 
 ## 4. The GSP and its emulation
 

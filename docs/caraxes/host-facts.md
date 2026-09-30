@@ -2,7 +2,7 @@
 # Host facts H1-H8 and the VRAM reservation experiment (D11)
 
 This file records the host facts listed in [cuda-path.md](cuda-path.md) §7.2 and the result of
-the VRAM reservation experiment behind decision D11 ([README.md](README.md)). Both were measured
+the VRAM reservation experiment behind decision D11 ([README.md](decisions.md)). Both were measured
 on the RTX 2070 host (TU106, 8 GiB, driver 610.57.04) on 2026-09-23.
 
 **Tool.** [caraxes/tools/host-facts.rs](../../caraxes/tools/host-facts.rs) builds with rustc

@@ -5,7 +5,7 @@ Caraxes serves an unmodified NVIDIA guest driver a synthetic Turing GPU over
 vfio-user. One Rust process, `vfio-user-nvgpu`, is the whole device: it answers PCI,
 BAR0, the GSP boot sequence and the GSP RPC stream, forwarding what needs the
 physical card to the host driver through Leandro's own client libraries. Background
-and the source surveys behind every claim here: [README.md](README.md).
+and the source surveys behind every claim here: [README.md](../history/caraxes-record-2026-09-28.md).
 
 ## Component diagram
 
@@ -87,14 +87,14 @@ the falcon mailboxes: the libos args page and the WPR meta page. `msgq.rs` follo
 queue at `+0x1000`, a 256 KiB status queue at `+0x41000`), validates the CPU's
 command-queue header and writes a status header the CPU accepts. Every message
 carries an MCTP/NVDM header, a self-checksum and an incrementing sequence number
-([gsp-rpc-protocol.md](gsp-rpc-protocol.md)).
+([gsp-rpc-protocol.md](../history/caraxes-gsp-rpc-protocol-610.md)).
 
 ### RPC dispatch and provenance labels
 
 `rpc.rs` answers the three init RPCs, filling `GspStaticConfigInfo` from the
 profile. `ctrl.rs` then dispatches the phase-5 stream — 98 `GSP_RM_ALLOC`/
 `GSP_RM_CONTROL` calls in the milestone-1 baseline — by function and control id, one
-handler per row ([phase5-rpcs.md](phase5-rpcs.md)); `kgr.rs` and `nvml.rs` extend it
+handler per row ([phase5-rpcs.md](../history/caraxes-phase5-rpcs-610.md)); `kgr.rs` and `nvml.rs` extend it
 for graphics static info and telemetry. Object lookups key on `(hClient, hObject)`,
 because guest clients reuse handle numbers. Every answer carries a label naming its
 source (decision D9): `host` (forwarded through `hostrm.rs`), `profile`, `card`
@@ -140,7 +140,7 @@ for the phase-5 controls that have a public host equivalent.
 | RPC function numbers and struct layouts (`rpc_gsp_rm_alloc/control_v03_00`, `GspStaticConfigInfo`, `GspSystemInfo`) | The boot register sequence: BAR0 offsets, falcon bases `0x110000`/`0x840000` |
 | The phase-5 inventory (98 RPCs) and its order | The GMMU format: 49-bit VA, dual PDE at PD0, the PRAMIN/BAR2 translation scheme |
 | Message-queue sizes (`0x40000` each queue) and page-table layout | The PCI identity and BAR layout |
-| FWSEC/Booter ucode image sizes and offsets ([gsp-abi-610.md](gsp-abi-610.md)) | |
+| FWSEC/Booter ucode image sizes and offsets ([gsp-abi-610.md](../history/caraxes-gsp-abi-610.md)) | |
 | Registry key names (`RmDisableGlobalCeUtils`, and so on) | |
 
 [other-architectures.md](other-architectures.md)'s finding: the RPC vocabulary and
@@ -149,7 +149,7 @@ register sequence is per-architecture. A second chip identity (Ampere GA10x is t
 least-work candidate) would reuse `rpc.rs` and `ctrl.rs` unchanged and need new
 values only in `boot.rs`/`falcon.rs`. Moving to a newer vendored driver tag
 (615.71.09 exists upstream) means re-deriving the version-bound column with the
-method in [gsp-abi-610.md](gsp-abi-610.md).
+method in [gsp-abi-610.md](../history/caraxes-gsp-abi-610.md).
 
 ## Differences from Leandro v1
 
@@ -179,7 +179,7 @@ Leandro v1 stays untouched and working; Caraxes only adds code.
 | D9 | Every value handed to the guest carries a provenance label; forward host data generously first, minimize later |
 | D10 | One device process; it opens the host RM itself; the vhost-user device and its guest module are not part of a Caraxes VM |
 
-Full rationale for each: [README.md](README.md).
+Full rationale for each: [README.md](../history/caraxes-record-2026-09-28.md).
 
 ## Milestone ladder
 
@@ -194,4 +194,4 @@ Full rationale for each: [README.md](README.md).
 | E5: CUDA path | next — design in [cuda-path.md](cuda-path.md), not implemented |
 
 Current position: after nvidia-smi completion, before E5. Full detail and evidence
-per step: [experiments.md](experiments.md).
+per step: [experiments.md](../history/caraxes-experiments-2026-09-29.md).

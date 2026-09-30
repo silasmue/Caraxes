@@ -105,7 +105,7 @@ and `clc57e.h` (617) under `OGK/src/common/sdk/nvidia/inc/class/` [V].
 
 ### 2.2 RPCs and controls the device must answer (GSP's display firmware role) [V]
 
-- **PreInit, Init and Load** (inventory in [phase5-rpcs.md](phase5-rpcs.md) §1.7):
+- **PreInit, Init and Load** (inventory in [phase5-rpcs.md](../history/caraxes-phase5-rpcs-610.md) §1.7):
   - `GET_IP_VERSION`;
   - `NV04_DISPLAY_COMMON` alloc;
   - `INTERNAL_DISPLAY_GET_STATIC_INFO` 0x20800a01 (`numHeads`, `windowPresentMask`,
@@ -298,7 +298,7 @@ every open-kernel-module build [V]:
    itself, so it should not recur [I].
 4. Every new driver version moves display structures. D14 keeps this manageable (per
    version ABI), but it adds a whole subsystem to the version surface.
-5. Scope: [kickoff.md](kickoff.md) §6 keeps nvidia-modeset/nvidia-drm after the compute
+5. Scope: [kickoff.md](../history/caraxes-kickoff-2026-09-23.md) §6 keeps nvidia-modeset/nvidia-drm after the compute
    path. Route E competes with E5b for the same device code (FB model, interrupts).
 
 ## 6. Recommendation and the smallest first experiment

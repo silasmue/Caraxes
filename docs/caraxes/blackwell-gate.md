@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # The Blackwell N gate: a stock 610.57.04 guest on a synthetic GB206, in pure emulation
 
-The first Blackwell gate of decision D14 ([README.md](README.md), [versatility.md](versatility.md)):
+The first Blackwell gate of decision D14 ([README.md](decisions.md), [versatility.md](versatility.md)):
 the device presents the RTX 5060 Ti identity of the lab capture
 ([blackwell-gb206.md](blackwell-gb206.md)) and emulates its FSP boot
 ([gsp-boot-blackwell.md](gsp-boot-blackwell.md)); the guest runs the unmodified 610.57.04
@@ -90,7 +90,7 @@ use vm3's own values if they differ. `CARAXES_HOST_RM`, `CARAXES_RESERVE_VRAM`,
 `CARAXES_HOST_EXEC` and `CARAXES_DMA=register` are refused with `CARAXES_CHIP=gb206`.
 Evidence goes to `caraxes/runs/blackwell-<date>/` (the `probe-*`/`uvm-*` directories, the
 `lspci` and `nvidia-smi` output, `gpu.log`), rows to the "Blackwell N gate" section of
-[experiments.md](experiments.md).
+[experiments.md](../history/caraxes-experiments-2026-09-29.md).
 
 ## 4. Status
 

@@ -6,7 +6,7 @@ VBIOS image. It then specifies a minimal synthetic image that passes every check
 so the device can serve the PROM window without a real VBIOS capture. The generator and
 the Python oracle live in `caraxes/tools/synth-vbios.py`.
 
-Background: experiment E0 ([experiments.md](experiments.md), "E0 result") failed in
+Background: experiment E0 ([experiments.md](../history/caraxes-experiments-2026-09-29.md), "E0 result") failed in
 `s_locateExpansionRoms` with `NV_ERR_INVALID_DATA` (0x25). The sysfs capture
 `caraxes/reference/rtx2070/rom.bin` (130048 bytes) ends at 0x1FC00. The NPDE of the EFI image
 says a third image follows there.

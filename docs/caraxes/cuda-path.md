@@ -6,7 +6,7 @@
      in it. Nothing here is implemented. -->
 # The CUDA path: stock driver in the guest, work executed by the physical GPU
 
-Next stage after milestone 1 ([experiments.md](experiments.md), "Milestone 1 reached"): CUDA runs
+Next stage after milestone 1 ([experiments.md](../history/caraxes-experiments-2026-09-29.md), "Milestone 1 reached"): CUDA runs
 in the guest on the stock 610.57.04 driver, and the physical RTX 2070 executes its kernels.
 Sections:
 
@@ -82,7 +82,7 @@ Entry: `uvm_api_register_gpu` (`kernel-open/nvidia-uvm/uvm_gpu.c:4049`) → `gpu
 | 3 | `add_gpu` / `gpu_supports_uvm` | `uvm_gpu.c:2870`, `:353-358` | `subdeviceCount == 1` |
 | 4 | `nvUvmInterfaceDeviceCreate` | `uvm_gpu.c:1455`; `nv_gpu_ops.c:2247` | client triple. A kernel-only `VOLTA_USERMODE_A` maps BAR0 0xBB0000 (`nv_gpu_ops.c:5637`). `GPU_QUERY_ECC_STATUS` 0x2080012f is **routed**; NOT_SUPPORTED is accepted (`nv_gpu_ops.c:1344-1348`). The classlist must contain C46F, C5B5, C369 (MMU_FAULT_BUFFER) and C365 (ACCESS_COUNTER_NOTIFY_BUFFER) (`nv_gpu_ops.c:8838`) |
 | 5 | HAL selection | `kernel-open/nvidia-uvm/uvm_hal.c:637-710` | `ceClass` 0xC5B5, `hostClass` 0xC46F, arch TU100, otherwise `NV_ERR_INVALID_CLASS` |
-| 6 | `nvUvmInterfaceInitFaultInfo` | `uvm_gpu_replayable_faults.c:255`; `nv_gpu_ops.c:9385-9545` | **GSP_RM_CONTROL** `INTERNAL_GMMU_REGISTER_FAULT_BUFFER` 0x20800a9b (`src/nvidia/src/kernel/gpu/mmu/kern_gmmu.c:1264`) carrying the PTE array of a guest-sysmem buffer, and `INTERNAL_GMMU_REGISTER_CLIENT_SHADOW_FAULT_BUFFER` 0x20800a9d (`kern_gmmu.c:1818`). The buffer size comes from row 19 of [phase5-rpcs.md](phase5-rpcs.md) (`kern_gmmu.c:1222`, `:1920`). The device already answers 256 × 32 bytes (`D/ctrl.rs:381-388`); it must be non-zero and a multiple of 32 (`uvm_gpu_replayable_faults.c:146`) |
+| 6 | `nvUvmInterfaceInitFaultInfo` | `uvm_gpu_replayable_faults.c:255`; `nv_gpu_ops.c:9385-9545` | **GSP_RM_CONTROL** `INTERNAL_GMMU_REGISTER_FAULT_BUFFER` 0x20800a9b (`src/nvidia/src/kernel/gpu/mmu/kern_gmmu.c:1264`) carrying the PTE array of a guest-sysmem buffer, and `INTERNAL_GMMU_REGISTER_CLIENT_SHADOW_FAULT_BUFFER` 0x20800a9d (`kern_gmmu.c:1818`). The buffer size comes from row 19 of [phase5-rpcs.md](../history/caraxes-phase5-rpcs-610.md) (`kern_gmmu.c:1222`, `:1920`). The device already answers 256 × 32 bytes (`D/ctrl.rs:381-388`); it must be non-zero and a multiple of 32 (`uvm_gpu_replayable_faults.c:146`) |
 | 7 | `nvUvmInterfaceOwnPageFaultIntr(TRUE)` | `uvm_gpu_replayable_faults.c:187`; `nv_gpu_ops.c:2477-2489` | nothing: a kernel-only mask flip (`src/nvidia/src/kernel/gpu/mmu/arch/volta/kern_gmmu_gv100.c:86-107`) |
 | 8 | replayable reinit | `uvm_gpu_replayable_faults.c:119-135` | BAR0 reads of GET 0xB83028 and PUT 0xB8302C, and a read-modify-write of PAGE_FAULT_CTRL 0xB83070 (`src/nvidia/src/kernel/gpu/mmu/arch/turing/kern_gmmu_tu102.c:188-236`; `src/common/inc/swref/published/turing/tu102/dev_vm.h:74-113`). GET must be below the entry count, and PUT bit 30 (GETPTR_CORRUPTED) must be 0 (`kernel-open/nvidia-uvm/uvm_turing_fault_buffer.c:85-100`) |
 | 9 | `nvUvmInterfaceInitAccessCntrInfo` | `uvm_gpu_access_counters.c:425` | the size is read from **BAR0 0xB83110** × 32 (`src/nvidia/src/kernel/gpu/uvm/arch/turing/uvm_tu102.c:265-274`; `dev_vm.h:209`), and **0 fails registration**. Then GSP_RM_CONTROL `INTERNAL_UVM_REGISTER_ACCESS_CNTR_BUFFER` 0x20800a1d (`src/nvidia/src/kernel/gpu/uvm/uvm.c:215-255`). Counters are allocated but not enabled on x86 by default (`uvm_gpu_access_counters.c:69`, `:146-157`, `:522-531`) |
@@ -345,7 +345,7 @@ What the golden channel needs then:
 - **gpcMask from the host.** The row 41 reply must carry the host floorsweeping masks (assembly
   already specified in `D/kgr.rs:34-52`). gpcMask 0 leaves GR unusable for clients
   (`kernel_graphics.c:487-489`).
-- **The golden and WAR rows 56-78** ([phase5-rpcs.md](phase5-rpcs.md) §1.6) then arrive. Under
+- **The golden and WAR rows 56-78** ([phase5-rpcs.md](../history/caraxes-phase5-rpcs-610.md) §1.6) then arrive. Under
   (c1) they can stay record-only: no guest context is ever loaded from the guest's golden buffer,
   because each host channel gets its context from the host RM.
 - **The KGR rows currently synthesized** (39-52, `D/kgr.rs`) must stay consistent with the host's
@@ -355,7 +355,7 @@ What the golden channel needs then:
   the reserved range, i.e. real) but does not apply them. Under (c2) it would apply them on the
   host channel.
 - **Global CeUtils and the watchdog** (`RmDisableGlobalCeUtils`, `RmRcWatchdog`) can be re-enabled
-  once E5b works. They are the first kernel-originated real work ([open-questions.md](open-questions.md) Q19).
+  once E5b works. They are the first kernel-originated real work ([open-questions.md](../history/caraxes-open-questions-2026-09-23.md) Q19).
 
 ### 4.4 Risks of the recommended model
 

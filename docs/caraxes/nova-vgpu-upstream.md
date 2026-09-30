@@ -4,7 +4,7 @@
 Written 2026-09-23 (research task, internet access, read-only towards the device crate).
 Subject: the series "[PATCH v2 00/32] Introduce NVIDIA vGPU manager" posted to nova-gpu and
 linux-kernel on 2026-09-14, read patch by patch from the lore mbox, compared with the
-Caraxes device (`crates/vfio-user-nvgpu`, `D/` below) and the decisions in [README.md](README.md).
+Caraxes device (`crates/vfio-user-nvgpu`, `D/` below) and the decisions in [README.md](decisions.md).
 Line numbers in `D/` are those of the working tree on 2026-09-23; another agent edits that
 crate concurrently, so they can drift by a few lines. Nothing was run, no VM, no GPU access.
 

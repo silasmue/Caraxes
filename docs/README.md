@@ -17,7 +17,7 @@ interpreting isolation claims.
 | [LEANDRO.md](LEANDRO.md) | The overview: the problem, the two architectures side by side, the driver, the GSP and its emulation, BARs and memory, submission, execution, display, identity, performance, verification, the ranked weaknesses |
 | [wiki/](wiki/README.md) | One page per concept, driver references by path and function, a glossary, the captured cards and how to contribute one |
 | [research/](research/README.md) | The evidence: one short note per topic with 615.71.09 lines and run folders |
-| [caraxes/](caraxes/README.md) | The working record of VFIO Leandro: decisions D1 to D20, studies, designs, measurements, status |
+| [caraxes/](history/caraxes-record-2026-09-28.md) | The working record of VFIO Leandro: decisions D1 to D20, studies, designs, measurements, status |
 
 ## VirtIO Leandro: setup and use
 

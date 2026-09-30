@@ -7,7 +7,7 @@
 The operator's lab run of `caraxes/tools/lab-capture.sh` on host korngold (RTX 5060 Ti, GB206,
 PCI 10de:2d04, driver 615.71.09) is filed under `caraxes/reference/gb206/`. This note reads it
 item by item against the TU106 reference, turns it into the D14 identity work list
-([README.md](README.md) D14, [versatility.md](versatility.md) "Blackwell"), records the
+([README.md](decisions.md) D14, [versatility.md](versatility.md) "Blackwell"), records the
 `gsp-abi-sizes` item the lab run skipped, and orders the steps to a first Blackwell N gate.
 
 Paths: `gb206/` means `caraxes/reference/gb206/`, `gpu/` means

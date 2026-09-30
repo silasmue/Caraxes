@@ -66,7 +66,7 @@ driver by path and function, and links to the evidence.
 
 - [docs/research](../research/README.md): one short evidence note per topic, every fact with a
   615 line or a run folder.
-- [docs/caraxes](../caraxes/README.md): the working record of VFIO Leandro: decisions, studies,
+- [docs/caraxes](../history/caraxes-record-2026-09-28.md): the working record of VFIO Leandro: decisions, studies,
   designs, measurements.
 - [ARCHITECTURE.md](../ARCHITECTURE.md), [SECURITY.md](../SECURITY.md), [DISPLAY.md](../DISPLAY.md),
   [TESTING.md](../TESTING.md): VirtIO Leandro's design documents.

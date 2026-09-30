@@ -23,19 +23,19 @@ every isolation run used the stock driver, and no adversarial guest has been tes
 - [Wiki](docs/wiki/README.md): one page per concept, driver references by path and function.
 - [Research notes](docs/research/README.md): the evidence, one short note per topic with
   615.71.09 lines and run folders.
-- [Working record](docs/caraxes/README.md): decisions D1 to D20, studies, designs, measurements
+- [Working record](docs/history/caraxes-record-2026-09-28.md): decisions D1 to D20, studies, designs, measurements
   and the status log of VFIO Leandro.
 - [Quickstart](docs/caraxes/quickstart.md): build the device, prepare a guest, run and verify.
 - [Development](DEVELOPMENT.md): build, checks, tracing and troubleshooting.
 - [Testing](docs/caraxes/testing.md), [benchmark](docs/caraxes/benchmark.md),
-  [roadmap](docs/caraxes/roadmap.md), [open questions](docs/caraxes/open-questions.md).
+  [roadmap](docs/history/caraxes-roadmap-2026-09-27.md), [open questions](docs/history/caraxes-open-questions-2026-09-23.md).
 
 ## Requirements
 
 - Linux x86-64 host with KVM and the NVIDIA open kernel modules on the host card with GSP
   firmware active. The host runs 615.71.09; the device serves a 615.71.09 or 610.57.04
   guest and selects the host ABI at run time. [DRIVER_VERSION](DRIVER_VERSION) still names
-  the 610.57.04 build default for the shared crates ([cutover-615.md](docs/caraxes/cutover-615.md)).
+  the 610.57.04 build default for the shared crates ([cutover-615.md](docs/history/caraxes-cutover-615-2026-09-24.md)).
 - Cloud Hypervisor [v53.0](CH_VERSION) with [patches 0005 and 0006](patches/README.md)
   (vfio-user region I/O fds and datamatch sub-regions); 0004 is optional. Patches 0001 to
   0003 belong to VirtIO Leandro.
@@ -89,7 +89,7 @@ VM=vm0 tools/caraxes-gate.sh nvml               # then cuda, gpu, vdisplay, disp
 | `crates/vfio-user-nvgpu` | The device: PCI and BAR0 model, GSP boot and message queue, the RPC dispatcher, the memory model, shadow page tables, mirror channels, display, the shared-memory windows; `chips/` and `boards/` data |
 | `crates/dp-sink` | DisplayPort sink: EDID, DPCD, AUX, link training |
 | `crates/nvrm-abi`, `crates/nvrm-sys`, `crates/nvrm-client`, `crates/nvrm-trace` | Shared with VirtIO Leandro: translation tables and the naming model, generated driver bindings, the host RM client, the `LD_PRELOAD` tracer |
-| `crates/vhost-user-nvrm`, `guest-module/virtio_nvrm`, `guest-module/nvrm_nodes` | VirtIO Leandro's backend and guest modules, kept for the v1-against-v2 benchmark ([repo-split.md](docs/caraxes/repo-split.md)) |
+| `crates/vhost-user-nvrm`, `guest-module/virtio_nvrm`, `guest-module/nvrm_nodes` | VirtIO Leandro's backend and guest modules, kept for the v1-against-v2 benchmark ([repo-split.md](docs/history/caraxes-repo-split-2026-09-24.md)) |
 | `guest-module/caraxes_dma_range` | The temporary guest DMA-range module (decision D13) |
 | `patches/` | Cloud Hypervisor patches: 0001 to 0003 vhost-user shared memory (v1), 0004 ACPI `_DMA`, 0005 and 0006 vfio-user region I/O fds |
 | `caraxes/abi/` | The GSP ABI snapshots of 615.71.09 and 610.57.04 and their delta |

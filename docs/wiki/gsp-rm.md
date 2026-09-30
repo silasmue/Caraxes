@@ -59,7 +59,7 @@ guest: it produces the CPU-visible side effects of the boot and answers the RPC 
   inline.
 - The vocabulary is not smaller: `GSP_RM_ALLOC` and `GSP_RM_CONTROL` wrap the RM class and
   control space, and the kernel RM adds the internal controls it sends on its own
-  ([caraxes/README.md](../caraxes/README.md), idea P1).
+  ([caraxes/README.md](../history/caraxes-record-2026-09-28.md), idea P1).
 
 ## Depth
 

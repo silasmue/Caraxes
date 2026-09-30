@@ -450,7 +450,7 @@ that the model is per-head clean.
 ## Sources
 
 - Prior studies: [display-connector.md](display-connector.md), [display-path.md](display-path.md),
-  [kickoff.md](kickoff.md), README P12/P13, D9, D14; [versatility.md](versatility.md).
+  [kickoff.md](../history/caraxes-kickoff-2026-09-23.md), README P12/P13, D9, D14; [versatility.md](versatility.md).
 - Journal (read only): `../Leandro-Journal/claude/research-vram-display-reserve.md` (§4-5 reserve
   formula and measurements, §2 vGPU type fields and FRL, §4 Wayland on vGPU),
   `research-vram-profiles.md`.

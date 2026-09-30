@@ -4,7 +4,7 @@
 Written 2026-09-23. Driver citations are relative to `vendor/open-gpu-kernel-modules/`
 at tag 610.57.04; `D/` is `crates/vfio-user-nvgpu/src/`. The plan is in
 [cuda-path.md](cuda-path.md) §1 and §6 (row E5a). The result is in
-[experiments.md](experiments.md), section "E5a: UVM registration". The evidence is in
+[experiments.md](../history/caraxes-experiments-2026-09-29.md), section "E5a: UVM registration". The evidence is in
 `caraxes/runs/e5-2026-09-23/`.
 
 **Result.** `UVM_REGISTER_GPU` returns `NV_OK` against the host-RAM framebuffer. The

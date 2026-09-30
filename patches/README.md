@@ -41,7 +41,7 @@ fetched from `https://gitlab.com/qemu-project/qemu/-/raw/1276e6c85dcc/docs/inter
 
 The vfio-user specification was fetched as a single file with the QEMU v11.1.1
 client sources into the git-ignored `vendor/qemu-vfio-user`
-([docs/caraxes/environment.md](../docs/caraxes/environment.md)); the tag's commit
+([docs/caraxes/environment.md](../docs/history/caraxes-environment-2026-09-23.md)); the tag's commit
 id was not recorded with it, the tag and the sha256 above identify the text. It is
 the current home of the specification: `vendor/libvfio-user` (nutanix/libvfio-user
 at `803924493a7c`, 2026-09-08) no longer carries `docs/vfio-user.rst`. libvfio-user
@@ -718,7 +718,7 @@ new binaries, then:
 The [manual VM check](#manual-vm-check) on a v1 VM, plus the negative pairing
 with the previous frontend. Logs, the launcher, the CUDA test program and every
 command are in
-[caraxes/runs/vhost-user-check-2026-09-23](../caraxes/runs/vhost-user-check-2026-09-23/)
+[caraxes/runs/vhost-user-check-2026-09-23](../caraxes/runs/vhost-user-check-2026-09-23)
 (`commands.txt` lists the commands in order).
 
 Setup: Cloud Hypervisor `v53.0-3-g993681a04` built from this series (the

@@ -88,4 +88,4 @@ the command queue on each trapped pointer write and fills the status queue itsel
 - [research/gsp-transport.md](../research/gsp-transport.md): the cited lines.
 - [caraxes/gsp-transport-615.md](../caraxes/gsp-transport-615.md): the transport key by key,
   610 against 615, the device's `msgq::v2` and `gmcapi` modules.
-- [caraxes/gsp-rpc-protocol.md](../caraxes/gsp-rpc-protocol.md): the 610 layout.
+- [caraxes/gsp-rpc-protocol.md](../history/caraxes-gsp-rpc-protocol-610.md): the 610 layout.

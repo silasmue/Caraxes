@@ -115,7 +115,7 @@ gates; delete the module.
   `BAR_PDE`, `BAR_PTE` from `pGpu->instLocOverrides` in `_kgmmuInitRegistryOverrides`
   (`src/nvidia/src/kernel/gpu/mmu/kern_gmmu.c`); the defaults are `ADDR_FBMEM`. Whether the
   GSP side honours the same keys for its own tables is still open.
-- Decision D17 ([README](README.md)): route 4 is the target, built in two stages after CUDA runs, a
+- Decision D17 ([README](decisions.md)): route 4 is the target, built in two stages after CUDA runs, a
   validating PTE filter first (isolation, guest module kept), the translating filter second (vanilla,
   guest module dropped). The guest stays bare metal: page tables in VRAM are the driver's native
   default, so the only configuration deviation is disabling UVM's sysmem fallback. VRAM cost of

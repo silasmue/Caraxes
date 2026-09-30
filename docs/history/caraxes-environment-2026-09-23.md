@@ -20,7 +20,7 @@
 | Other | clang, gcc, meson, ninja, python3, nix, `qemu-nbd`, `guestfish`; `sudo -n` works without password | |
 
 Access limits found: mapping BAR0 through `/dev/mem` fails with EPERM and through
-`/sys/.../resource0` with EINVAL (see [open-questions.md](open-questions.md) Q1), so
+`/sys/.../resource0` with EINVAL (see [open-questions.md](caraxes-open-questions-2026-09-23.md) Q1), so
 the real `NV_PMC_BOOT_0/1/42` values were not read directly. Expected from the
 header encodings (`src/common/inc/swref/published/nv_ref.h:108-175`): BOOT_0 =
 `0x166000A1` (architecture 0x16 in bits 28:24, implementation 6 in 23:20, major A,

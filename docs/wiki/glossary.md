@@ -12,7 +12,7 @@ driver's vocabulary, then the device's.
 - **VFIO Leandro (v2, code name Caraxes)**: the synthetic-device architecture: a stock guest driver on a vfio-user PCI device, `vfio-user-nvgpu` on the host in the GSP-RM role.
 - **Caraxes**: the code name of VFIO Leandro; also the name of the device's launcher (`tools/caraxes-vm.sh`), environment variables (`CARAXES_*`) and record directories (`caraxes/`).
 - **Leandro-Test**: the optional private repository with the probes, VM provisioning and hardware gates both architectures use.
-- **Decision Dn**: a numbered design decision in [caraxes/README.md](../caraxes/README.md) (D1 GSP-client mode, D11 VRAM slice, D12 privilege, D13 DMA module, D14 three axes, D15 DisplayPort, D16 comptags, D17 shadow tables, D18 sparse registration, D19 615 baseline, D20 ABI snapshot).
+- **Decision Dn**: a numbered design decision in [caraxes/decisions.md](../caraxes/decisions.md) (D1 GSP-client mode, D11 VRAM slice, D12 privilege, D13 DMA module, D14 three axes, D15 DisplayPort, D16 comptags, D17 shadow tables, D18 sparse registration, D19 615 baseline, D20 ABI snapshot).
 - **Idea Pn**: a recorded, unplanned idea in the same document (P13 the two-path decision, P18 SR-IOV middleman, P21 BAR1 window, P23 GSP surface, P24 poll-mode GSP).
 - **Gate**: a binary pass-or-fail test run of one area (`nvml`, `cuda`, `gpu`, `vdisplay`, `display`) with v1's verdict rules.
 - **Profile (VRAM)**: the guest framebuffer size a VM is given (`4G`, `1333M`, or a vGPU-style `4Q` resolved to a size).
