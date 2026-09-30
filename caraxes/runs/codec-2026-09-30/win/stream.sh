@@ -23,7 +23,7 @@ if ! s 'Get-Process sunshine -ErrorAction SilentlyContinue | Measure-Object | Fo
 fi
 # the present load in the signed-in session
 # the codec branch's present-probe (052f8611: the kit's copy does not compile)
-timeout 150 bash /mnt/vmstore/caraxes/runs-2026-09-30/codec/win/upack.sh start /home/silas/git/Caraxes/tools/windows/present-probe.ps1 codec-present $((SECS + 150)) -Seconds $((SECS + 60)) > "$OUT/present-start.txt" 2>&1
+timeout 150 bash "$(dirname "$(readlink -f "$0")")/upack.sh" start /home/silas/git/Caraxes/tools/windows/present-probe.ps1 codec-present $((SECS + 150)) -Seconds $((SECS + 60)) > "$OUT/present-start.txt" 2>&1
 sleep 5
 setsid nohup env WAYLAND_DISPLAY=wayland-1 DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 LANG=C.UTF-8 /usr/bin/moonlight stream 192.168.107.2 Desktop --resolution 1920x1080 --fps 60 --bitrate 20000 --display-mode windowed --absolute-mouse --video-decoder auto > "$OUT/moonlight.log" 2>&1 < /dev/null &
 MP=$!; echo "moonlight pid $MP at $(date +%T)" | tee "$OUT/stream.txt"
@@ -48,7 +48,7 @@ kill -USR2 $DEV 2>/dev/null
 g1=$(s '$p = Get-Process sunshine -ErrorAction SilentlyContinue | Select-Object -First 1; if ($p) { $p.TotalProcessorTime.TotalSeconds } else { 0 }' | tr ',' '.' | tail -1)
 kill $MP 2>/dev/null; sleep 3
 echo "raw: t $t0 $t1 ch $c0 $c1 dev $d0 $d1 sunshine $g0 $g1 hz $hz" >> "$OUT/stream.txt"
-timeout 90 bash /mnt/vmstore/caraxes/runs-2026-09-30/codec/win/upack.sh status codec-present 2>&1 | tail -12 > "$OUT/present-status.txt"
+timeout 90 bash "$(dirname "$(readlink -f "$0")")/upack.sh" status codec-present 2>&1 | tail -12 > "$OUT/present-status.txt"
 wait $SP 2>/dev/null
 sleep 2; mv $K/gpu-profile.[0-9]*.tsv "$OUT/" 2>/dev/null
 python3 - "$t0" "$t1" "$c0" "$c1" "$d0" "$d1" "$g0" "$g1" "$hz" >> "$OUT/stream.txt" <<'EOF'
