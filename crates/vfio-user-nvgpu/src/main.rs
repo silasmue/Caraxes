@@ -721,13 +721,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // D16b (compslice.rs): real compression per VM slice. The reservation is allocated
     // compressed, and only shadow-only host execution may run on it (invariant (b)).
     let compression = compslice::requested().map_err(anyhow::Error::msg)?;
-    if std::env::var_os(vfio_user_nvgpu::recorded::WIN_COMPBIT_ENV).is_some() {
-        eprintln!(
-            "vfio-user-nvgpu: WARNING {} is retired and ignored: without compression the compbit store is refused (D16), with {}=slice compression.rs answers it",
-            vfio_user_nvgpu::recorded::WIN_COMPBIT_ENV,
-            compslice::ENV
-        );
-    }
     if compression == compslice::Mode::Slice {
         if !a.host_exec {
             bail!("{}=slice needs --host-exec", compslice::ENV);

@@ -86,9 +86,9 @@ pub const FIFO_WINDOWS_1111: u32 = 0x2080_1111;
 /// table), answered by compression.rs with it. The card's recorded answer (the KMD-block
 /// capture) stays a test fixture only: `CARAXES_WIN_COMPBIT=1` gave it to the Windows KMD
 /// (Y20: the start stopped at the same place without it), which then allocated compressible
-/// kinds the shadow refused (C87/C88). Retired 2026-09-29; the device warns when it is set.
+/// kinds the shadow refused (C87/C88). Retired 2026-09-29; the device warns when it is set
+/// (settings.rs `REMOVED`).
 pub const FB_GET_COMPBIT_STORE_INFO: u32 = 0x0080_1306;
-pub const WIN_COMPBIT_ENV: &str = "CARAXES_WIN_COMPBIT";
 
 /// `CARAXES_WIN_ACKS=1`: three controls the Linux path refuses on purpose (isolation or
 /// host FB addresses) acknowledged for the Windows KMD, which is the kernel and would get

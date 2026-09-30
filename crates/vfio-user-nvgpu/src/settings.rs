@@ -63,7 +63,6 @@ pub const VARS: &[Var] = &[
     var("CARAXES_FB_ZERO_BASED", Open, "off", "1: the guest FB starts at 0 as on the card (Windows)"),
     var("CARAXES_SHADOW_FENCE", Open, "off", "1: shadow VA spaces fence the guest RM's kernel range (Windows)"),
     var("CARAXES_WIN_ACKS", Open, "off", "1: four controls the KMD needs acknowledged (Windows)"),
-    var("CARAXES_WIN_COMPBIT", Open, "off", "1: the card's recorded COMPBIT_STORE_INFO (Windows)"),
     var("CARAXES_WIN_DISPLAY_QUERIES", Open, "off", "1: the KMD's display queries answered (Windows)"),
     var("CARAXES_RUSD", Open, "off", "1: the RM user shared data page kept as GSP-RM keeps it (Windows)"),
     var("CARAXES_LPWR_2806_OK", Open, "off", "1: LPWR 0x2806 answered NV_OK (Windows)"),
@@ -120,7 +119,7 @@ const fn gone(name: &'static str, now: &'static str) -> Removed {
 }
 
 /// Every variable removed on 2026-09-30 (flags-2026-09-30): promoted to the default or
-/// deleted with its experiment.
+/// deleted with its experiment; CARAXES_WIN_COMPBIT retired with D16 (2026-09-29).
 pub const REMOVED: &[Removed] = &[
     gone("CARAXES_MIRROR_CHANNELS", "the default with --host-exec"),
     gone("CARAXES_MIRROR_GR_SHADOW", "the default with --host-exec (every host channel on a shadow VA space)"),
@@ -175,6 +174,7 @@ pub const REMOVED: &[Removed] = &[
     gone("CARAXES_GSP_FW_VERSION", "the served guest ABI's driver"),
     gone("CARAXES_GUEST_ABI", "the guest chooses; --guest-abi pins"),
     gone("CARAXES_TRACE_FLUSH", "flushed at event lines and every 100 ms"),
+    gone("CARAXES_WIN_COMPBIT", "retired by D16: without compression the compbit store is refused, with CARAXES_COMPRESSION=slice compression.rs answers it"),
 ];
 
 /// The variable `name`, if the device reads it.
