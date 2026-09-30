@@ -53,7 +53,8 @@ Every isolation run used a stock driver; no adversarial guest has been tested
   still trap 3200 to 8600 times per second, 14 to 24 % of a vCPU; the plan to remove them
   is in the [trap census](docs/research/trap-census-2026-09-30.md).
 - v2 open defects: [known issues](docs/caraxes/KNOWN-ISSUES.md) (DX12 3DMark, Shadow of the
-  Tomb Raider on Linux, the NVENC stream latency on Windows, host VRAM with two VMs).
+  Tomb Raider on Linux, vkmark on nouveau, the NVENC stream latency on Windows, host VRAM
+  with two VMs).
 - One device binary serves every guest ABI; one configuration with five knobs (VRAM size,
   display, compression, doorbell poll, BAR1 pool); the device logs its effective
   configuration at start ([device configuration](docs/wiki/device-configuration.md)).
