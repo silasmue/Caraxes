@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # R4 pass A (BARs mmapped): low-rate vfio events only; the per-access events stay off.
 # Pattern per line, as QEMU's -trace events= reads it (hw/vfio/trace-events of QEMU 11.1.1).
 vfio_pci_reset*

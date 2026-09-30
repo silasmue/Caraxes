@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # After an FLR no host event reaches the guest (2026-09-29, C75-C89)
 
 - **Symptom:** after any KMD reset (FLR), the Windows display stays dead: the head is blanked,

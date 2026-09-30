@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # R4 pass B (.0 with x-no-mmap=on, x-no-kvm-msi=on, x-no-kvm-ioeventfd=on): every BAR and
 # config access of the card with its value, every MSI, the NVIDIA config-mirror quirk, resets.
 # qemutrace2gpu.py turns the log into the device's gpu-trace.log format.
