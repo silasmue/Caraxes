@@ -11,7 +11,7 @@
 //! layouts are the guest ABI's, chosen by the guest at its GSP boot ([`crate::ver`],
 //! [`BootModel::guest_chooses`]).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use crate::chip::{BootEvent, Chip, ChipData, FirmwareBoot, Registers};
@@ -50,7 +50,7 @@ const PTIMER_TIME_1: u64 = 0x410;
 
 /// One PTIMER word at `now` ns ([`BootModel::ptimer_read`]); `pending` is the high word
 /// of the last TIME_1 read not yet followed by a TIME_0 read.
-fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 {
+pub(crate) fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 {
     if hi {
         *pending = Some(now >> 32);
         return (now >> 32) as u32 & 0x1FFF_FFFF;
@@ -61,13 +61,11 @@ fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 {
     }
 }
 
-/// The cached answer of `BootModel::bar2_observed` for one channel: the memory it could
-/// observe (as of `stamp`: its generation, VAS root, the walk's leaf and table generations,
-/// the set-B stamp) and the live BAR2 memfd pages among it (as of `live_gen`).
+/// The cached answer of `BootModel::bar2_observed` for one channel: the live BAR2 memfd
+/// pages its memory holds, as of `stamp` (its generation, VAS root, the walk's leaf and
+/// table generations, the set-B stamp) and `live_gen` (the BAR2 live set).
 struct ObserveEntry {
     stamp: [u64; 5],
-    pieces: Vec<(Target, u64)>,
-    tables: Vec<u64>,
     live_gen: u64,
     pages: Vec<u64>,
 }
@@ -132,9 +130,9 @@ pub struct BootModel {
     l2_ops: BTreeMap<u64, u32>,
     /// The BAR2 memfd's doorbell rule: what each channel could observe (`bar2_observed`).
     bar2_observe: std::collections::HashMap<u32, ObserveEntry>,
-    /// The high word the last `NV_PTIMER_TIME_1` read returned, until the next `TIME_0`
-    /// read (the torn-read guard of [`BootModel::ptimer_read`]).
-    ptimer_hi: Option<u64>,
+    /// The BAR1 pool's replicas each channel could observe, with the stamp of the channel's
+    /// memory and the replica set's generation (`pool_observed`).
+    pool_observe: std::collections::HashMap<u32, ([u64; 5], u64, Vec<u64>)>,
     /// L2 cache operations started / forwarded to the host / host failures (trace).
     pub l2_op_counts: (u64, u64, u64),
     bar2_block: u32,
@@ -183,6 +181,9 @@ pub struct BootModel {
     /// what came through it.
     rpc_eventfd: Option<std::fs::File>,
     pub rpc_eventfd_stats: RpcEventfdStats,
+    /// What the trapped TRIGGER and flush-page reads are answered from without the device
+    /// lock (fastread.rs); the FB holds it too, and a reset carries it.
+    fast: std::sync::Arc<crate::fastread::FastReads>,
 }
 
 /// What the command-queue head ioeventfd delivered (`BootModel::cmd_head_from_ring`).
@@ -242,6 +243,14 @@ impl BootModel {
         let d: &'static ChipData = chip.data();
         let r = d.registers;
         let fb_bytes = layout.addr_space;
+        let fast = std::sync::Arc::new(crate::fastread::FastReads::default());
+        {
+            let tb = d.chip_info.timer_base as u64;
+            fast.set_time_regs(
+                [tb + PTIMER_TIME_0, tb + PTIMER_TIME_1],
+                [r.usermode_time_0, r.usermode_time_1],
+            );
+        }
         BootModel {
             chip,
             regs: r,
@@ -260,13 +269,17 @@ impl BootModel {
             rusd: Default::default(),
             pending: None,
             gspmem: crate::gspmem::GspMemory::new(),
-            fb: FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format),
+            fb: {
+                let mut fb = FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format);
+                fb.set_fast(fast.clone());
+                fb
+            },
             // Reset value as the VBIOS leaves it: the last MiB of FB (fb-model.md §4c).
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
             mmu_invalidate: (0, 0, 0),
             l2_ops: BTreeMap::new(),
             bar2_observe: Default::default(),
-            ptimer_hi: None,
+            pool_observe: Default::default(),
             l2_op_counts: (0, 0, 0),
             bar2_block: 0,
             bar_faults: 0,
@@ -290,7 +303,19 @@ impl BootModel {
             cpu_cmd_head: 0,
             rpc_eventfd: None,
             rpc_eventfd_stats: RpcEventfdStats::default(),
+            fast,
         }
+    }
+
+    /// The state the trapped TRIGGER and flush-page reads are answered from without the
+    /// device lock (fastread.rs; device.rs `SharedDevice::region_read`).
+    pub fn fast(&self) -> std::sync::Arc<crate::fastread::FastReads> {
+        self.fast.clone()
+    }
+
+    fn set_fast(&mut self, f: std::sync::Arc<crate::fastread::FastReads>) {
+        self.fb.set_fast(f.clone());
+        self.fast = f;
     }
 
     /// Execute on the physical GPU (E5b part 2): the FB is backed by the reserved VRAM
@@ -379,6 +404,36 @@ impl BootModel {
             sys: mem,
         };
         self.ctrl.replay_held(&mut gm)
+    }
+
+    /// The live state dump (ctrl.rs `state_lines`).
+    pub fn state_lines(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.state_lines(&gm)
+    }
+
+    /// The software channels whose blocked acquire is satisfied now continue (ctrl.rs
+    /// `recheck_acquires`).
+    pub fn recheck_acquires(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.recheck_acquires(&mut gm)
+    }
+
+    /// The USERD poller's rings under the device lock (ctrl.rs `ring_userd_pending`).
+    pub fn ring_userd_pending(&mut self, mem: &GuestMemory, chids: &[u32]) -> Vec<String> {
+        self.ctrl.ring_userd_pending(
+            &mut crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            },
+            chids,
+        )
     }
 
     pub fn poll_shadow_userds(&mut self, mem: &GuestMemory) -> Vec<String> {
@@ -835,6 +890,78 @@ impl BootModel {
         let Some(cmd) = crate::display::engine::ticker().take_command() else {
             return;
         };
+        // `channels`: every channel whose USERD shows GPGet behind GPPut, for a stall seen
+        // from outside (what the guest's work waits on); the guest is not involved.
+        if cmd.trim() == "channels" {
+            let gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            let mut lines = Vec::new();
+            for c in self.ctrl.channels.channels() {
+                let Some(u) = c.userd else { continue };
+                let at = |o: u64| match u {
+                    crate::fb::Target::Fb(pa) => Some(crate::fb::Target::Fb(pa + o)),
+                    crate::fb::Target::Sys(pa) => Some(crate::fb::Target::Sys(pa + o)),
+                    _ => None,
+                };
+                let get = at(0x88).and_then(|t| gm.read_u32(t));
+                let put = at(0x8C).and_then(|t| gm.read_u32(t));
+                if get != put {
+                    lines.push(format!(
+                        "chid {} engine {:#x} {}: GPGet {} GPPut {}",
+                        c.chid,
+                        c.engine_type,
+                        if c.mirrored { "mirrored" } else { "software" },
+                        get.map_or("?".into(), |v| v.to_string()),
+                        put.map_or("?".into(), |v| v.to_string())
+                    ));
+                }
+            }
+            self.ctrl.display.notes.push(format!(
+                "channels: {} with GPGet behind GPPut (USERD 0x88/0x8C){}{}",
+                lines.len(),
+                if lines.is_empty() { "" } else { ": " },
+                lines.join("; ")
+            ));
+            return;
+        }
+        // `dump [path]`: window 0's scanout as a PNG (display/dump.rs), no event; `dump auto`
+        // and `dump off`: after new latches, at most one per 3 s (display/mod.rs).
+        if let Some(rest) = cmd.trim().strip_prefix("dump") {
+            let dir = crate::display::engine::ticker().control_dir().unwrap_or_default();
+            match rest.trim() {
+                "auto" => {
+                    self.ctrl.display.auto_dump = Some(crate::display::AutoDump::new(dir.clone()));
+                    self.ctrl.display.notes.push(format!(
+                        "display: auto dump on: window 0's scanout after new latches, at most one per 3 s, {}/scanout-auto-<0..9>.png",
+                        dir.display()
+                    ));
+                    return;
+                }
+                "off" => {
+                    if let Some(mut a) = self.ctrl.display.auto_dump.take() {
+                        a.join();
+                    }
+                    self.ctrl.display.notes.push("display: auto dump off".into());
+                    return;
+                }
+                _ => {}
+            }
+            let path = match rest.trim() {
+                "" => crate::display::engine::ticker()
+                    .control_dir()
+                    .unwrap_or_default()
+                    .join(format!("scanout-{}.png", self.ctrl.channels.now_ns() / 1_000_000)),
+                p => std::path::PathBuf::from(p),
+            };
+            let note = match self.ctrl.display.dump_window(0, &self.fb, mem, &path) {
+                Ok(n) => n,
+                Err(e) => format!("display: dump refused: {e}"),
+            };
+            self.ctrl.display.notes.push(note);
+            return;
+        }
         let events = self.ctrl.display.connector_command(&cmd);
         let Some(mut queues) = self.queues.take() else {
             self.ctrl
@@ -880,8 +1007,25 @@ impl BootModel {
         let mut s = Vec::new();
         if let Some(st) = self.fb.vram_stats() {
             s.push(format!(
-                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes",
-                st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written
+                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes; BAR2 windows: {} map(s), {} eviction(s), {} refused by the host (BAR1 floor), {} access(es) in the back-off after a refusal, {} access(es) served, {} held",
+                st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written,
+                st.bar2_maps, st.bar2_evictions, st.bar2_refused, st.bar2_backoff, st.bar2_served, st.bar2_held
+            ));
+            s.push(format!(
+                "vram store reads by caller: {}",
+                crate::fb::vram_reads_by_why()
+                    .iter()
+                    .map(|(n, c, b)| format!("{n} {c} read(s) of {b} bytes"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+            s.push(format!(
+                "vram store window maps by caller: {}",
+                crate::fb::vram_maps_by_why()
+                    .iter()
+                    .map(|(n, c)| format!("{n} {c}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
         if self.fb.private_refused() > 0 {
@@ -894,14 +1038,10 @@ impl BootModel {
         s.push(format!(
             "bar tlb: {h} hit(s), {m} walk(s), {f} flush(es) by a table write (docs/caraxes/mapping.md §3)"
         ));
-        if let (Some((fb0, len)), Some(st)) =
-            (self.fb.bar1_passthrough(), self.fb.bar1_passthrough_stats())
-        {
-            s.push(format!(
-                "bar1 passthrough: guest BAR1 [0, {len:#x}) on FB {fb0:#x}; {} check(s), last: {} page(s) mapped, {} matched, {} elsewhere; {} mismatched page(s) and {} page-table hazard(s) over the run, {} table re-read(s) (docs/caraxes/bar1-passthrough.md)",
-                st.checks, st.mapped, st.matched, st.mismatched, st.mismatch_events, st.table_hazards, st.table_resyncs
-            ));
-        }
+        let (h, m, f) = self.fb.exec_tlb_stats();
+        s.push(format!(
+            "executor tlb: {h} page hit(s), {m} unit walk(s), {f} flush(es) by a table write or an invalidate (docs/caraxes/execution.md §9.7)"
+        ));
         if let Some(a) = self.fb.bar2_area() {
             s.push(a.summary());
         }
@@ -919,7 +1059,9 @@ impl BootModel {
             s.push(self.ctrl.routing.summary());
         }
         if self.ctrl.display.enabled {
-            s.push(self.ctrl.display.engine.summary());
+            let e = self.ctrl.display.eng();
+            s.push(e.summary());
+            s.extend(e.recent_lines());
         }
         s
     }
@@ -955,7 +1097,10 @@ impl BootModel {
                 a.count_point(point, ns);
             }
         }
+        crate::dlock::work("flush point", "BAR2 full sync".into(), t0.elapsed());
+        let t1 = std::time::Instant::now();
         crate::bar1pool::sync_untracked(&mut self.fb);
+        crate::dlock::work("flush point", "BAR1 replica merges".into(), t1.elapsed());
         self.fb.bar2_flush_settled(point.settle());
     }
 
@@ -1017,6 +1162,9 @@ impl BootModel {
         };
         let refused = self.fb.private_refused();
         let t = self.fb.bar_access(mem, root, offset, data, write);
+        if bar == 3 && !write {
+            self.publish_flush_page(offset, t);
+        }
         if let (Target::Fb(pa), true) = (t, self.fb.private_refused() != refused) {
             private_refused_line(refused + 1, pa);
             return format!("fb {pa:#x} REFUSED: the device's private pages");
@@ -1030,6 +1178,25 @@ impl BootModel {
                 format!("UNMAPPED (level {level})")
             }
         }
+    }
+
+    /// A locked read of a trapped BAR2 page (the flush page, with the BAR2 memfd and deferred
+    /// flush reads): its bytes are published so the next reads are answered without the
+    /// device lock (fastread.rs). Nothing when the page is published already, the flush reads
+    /// sync at once, or the page is not in the FB.
+    fn publish_flush_page(&mut self, offset: u64, t: Target) {
+        let Some(defer) = self.fb.bar2_area().and_then(|a| a.deferred_flush()) else {
+            return;
+        };
+        self.fast.note_locked_flush();
+        let Target::Fb(pa) = t else { return };
+        let page = offset & !0xFFF;
+        if self.fast.flush_published(page) {
+            return;
+        }
+        let mut bytes = vec![0u8; 4096];
+        self.fb.read(pa & !0xFFF, &mut bytes);
+        self.fast.publish_flush(page, pa >> 12, bytes, defer);
     }
 
     /// The ordering rule of the doorbell (mirror.rs `gr_shadow_doorbell`) for the store
@@ -1084,6 +1251,20 @@ impl BootModel {
         self
     }
 
+    /// Forward the held rings that are ready (ringgate.rs; the completer thread).
+    pub fn complete_held_rings(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.complete_held_rings(&mut gm)
+    }
+
+    /// The mirror's ring gate, when there is a mirror.
+    pub fn ring_gate(&self) -> Option<std::sync::Arc<crate::ringgate::RingGate>> {
+        self.ctrl.ring_gate()
+    }
+
     /// A ring of pool token `token` through its ioeventfd (device.rs `doorbell_tokens`).
     pub fn doorbell_token(&mut self, mem: &GuestMemory, token: u32) -> Vec<String> {
         self.bar2_before_ring(mem, Some(token));
@@ -1092,6 +1273,21 @@ impl BootModel {
             sys: mem,
         };
         let mut notes = self.ctrl.doorbell_pool(&mut gm, token, false);
+        notes.extend(self.scan_channel_errors(mem, false));
+        notes
+    }
+
+    /// A write of `value` to the usermode doorbell that arrived through its guest-token
+    /// ioeventfd (device.rs `doorbell_guest_tokens`): the same steps as the trapped write
+    /// (`Reg::UsermodeDoorbell` in `write32`), then the channel-error scan the pool's
+    /// eventfd path runs after a ring.
+    pub fn doorbell_value(&mut self, mem: &GuestMemory, value: u32) -> Vec<String> {
+        self.bar2_before_ring(mem, Some(value));
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        let mut notes = self.ctrl.doorbell(&mut gm, value);
         notes.extend(self.scan_channel_errors(mem, false));
         notes
     }
@@ -1159,7 +1355,7 @@ impl BootModel {
                 }
             };
         }
-        self.fb.carry_bar1_passthrough(&fresh.fb);
+        self.fb.carry_bar1_pool(&fresh.fb);
         self.fb.carry_bar2_area(&mut fresh.fb);
         fresh.ctrl.channels.tokens = tokens;
         // The persistent settings (ECC and MIG mode) survive, and what was pending applies.
@@ -1168,6 +1364,10 @@ impl BootModel {
         fresh.auto_guest = self.auto_guest;
         fresh.rpc_eventfd = self.rpc_eventfd.take();
         fresh.rpc_eventfd_stats = self.rpc_eventfd_stats;
+        // The reads without the lock keep their state object (the server found it once);
+        // nothing is in flight after the reset.
+        self.fast.reset();
+        fresh.set_fast(self.fast.clone());
         *self = fresh;
     }
 
@@ -1198,13 +1398,36 @@ impl BootModel {
     /// TIME_0 read that follows a TIME_1 read whose high word has since moved on answers
     /// the last low value of that high word (0xFFFF_FFE0): the pair is then a time that
     /// already passed but never older than one read before, and the next pair catches up.
+    /// The pending high word is shared with the reads without the device lock
+    /// (fastread.rs), so both paths keep one guard.
     pub fn ptimer_read(&mut self, hi: bool) -> u32 {
-        ptimer_word(&mut self.ptimer_hi, self.ctrl.channels.now_ns(), hi)
+        self.fast.note_locked_time();
+        self.fast.ptimer_read(self.ctrl.channels.now_ns(), hi)
+    }
+
+    /// The time registers' BAR0 offsets: PTIMER TIME_0, TIME_1, usermode TIME_0, TIME_1.
+    pub fn time_registers(&self) -> [u64; 4] {
+        let tb = self.ptimer_base();
+        [
+            tb + PTIMER_TIME_0,
+            tb + PTIMER_TIME_1,
+            self.regs.usermode_time_0,
+            self.regs.usermode_time_1,
+        ]
     }
 
     /// The BAR0 offset of `_INVALIDATE` (the invalidate page's trigger word, inv_page.rs).
     pub fn mmu_invalidate_register(&self) -> u64 {
         self.regs.mmu_invalidate
+    }
+
+    /// Whether `off` is one of the MMU invalidate registers (the two PDB words and the
+    /// trigger): a write there is part of an invalidate whose trigger the guest polls.
+    pub fn is_mmu_invalidate_register(&self, off: u64) -> bool {
+        matches!(
+            self.reg(off),
+            Some(Reg::MmuInvalidatePdb | Reg::MmuInvalidateUpperPdb | Reg::MmuInvalidate)
+        )
     }
 
     fn reg(&self, off: u64) -> Option<Reg> {
@@ -1227,45 +1450,25 @@ impl BootModel {
         })
     }
 
-    /// Whether the BAR1 pool's poll after a trapped BAR0 write at `off` merges the
-    /// replicas (bar1pool.rs `poll_at`). Not after a write that only latches a value or
-    /// whose own handler merged just before the poll (docs/caraxes/bar1-pool.md §11):
-    /// - the MMU invalidate's PDB and upper PDB (latched; the trigger follows);
-    /// - the MMU invalidate trigger (its handler runs `sync_untracked` before the re-sync);
-    /// - the usermode doorbell (not a sync point, bar1-pool.md §10; its handler forwards
-    ///   the doorbell before the poll, so a merge there orders nothing for it);
-    /// - the PTIMER time registers (the write is dropped);
-    /// - the GSP command queue's head, `NV_PGSP_QUEUE_HEAD(0)` (the command-queue doorbell:
-    ///   its handler runs `sync_untracked` itself before the RPC, bar1-pool.md §12);
-    /// - the GSP status queue's tail, `NV_PGSP_MSGQ_TAIL(0)` (the guest's read pointer:
-    ///   it hands the device nothing to read).
-    ///
-    /// Every other BAR0 write (the L2 flushes and invalidates, the display, the other GSP
-    /// registers, anything unknown) merges, as before.
     /// The GSP queue pointer registers of this chip's firmware model, when it has them.
     pub fn gsp_queue_registers(&self) -> Option<crate::chip::QueueRegisters> {
         self.fw.queue_registers()
     }
 
+    /// Whether the BAR1 pool's poll after a trapped BAR0 write at `off` merges the
+    /// replicas (bar1pool.rs `poll_at`; docs/caraxes/bar1-pool.md §16). A replica is merged
+    /// before an engine starts to consume, as BAR2 data is (bar2-memfd.md §3 rule 3): at the
+    /// hand-overs that settle an owed flush (a channel doorbell, the GSP command queue, a BAR2
+    /// bind, the flush clock; boot.rs `flush_point`) and at an MMU invalidate for the table
+    /// replicas (`sync_untracked_tables`). Among the trapped BAR0 writes only a display
+    /// channel's `PUT` starts an engine the device models itself (the display engine reads its
+    /// pushbuffer's surfaces, notifiers and semaphores from the FB): the channels' USERD
+    /// pages [`crate::display::CORE_USERD`, `USERD_END`). Every other write (the display's
+    /// interrupt acks, the interrupt tree, L2 and FB flushes (the FB flush marks the owed
+    /// flush), the GSP falcon, PRAMIN, PTIMER, doorbells with their own path) merges nothing:
+    /// SotTR run E merged 8 replicas (600 us) after each of 54700 display interrupt acks.
     pub fn pool_merge_after(&self, off: u64) -> bool {
-        if self
-            .fw
-            .queue_registers()
-            .is_some_and(|q| off == q.cmd_head || off == q.msg_tail)
-        {
-            return false;
-        }
-        !matches!(
-            self.reg(off),
-            Some(
-                Reg::MmuInvalidatePdb
-                    | Reg::MmuInvalidateUpperPdb
-                    | Reg::MmuInvalidate
-                    | Reg::UsermodeDoorbell
-                    | Reg::PtimerTime0
-                    | Reg::PtimerTime1
-            )
-        )
+        (crate::display::CORE_USERD..crate::display::USERD_END).contains(&off)
     }
 
     /// Start the L2 cache operation `op` (the guest wrote `PENDING_BUSY`). With host
@@ -1357,6 +1560,9 @@ impl BootModel {
             return Some(u32::from_le_bytes(b));
         }
         if self.vf.handles(off) {
+            if off == self.regs.usermode_time_0 || off == self.regs.usermode_time_1 {
+                self.fast.note_locked_time();
+            }
             return Some(self.vf.read32(off, self.ctrl.channels.now_ns()));
         }
         Some(match self.reg(off) {
@@ -1368,9 +1574,16 @@ impl BootModel {
             // TRIGGER (bit 31) reads back as done (fb-model.md §4d), except while a held
             // invalidate's shadow plan is still being applied (invgate.rs, execution.md §8):
             // the guest polls it before its map call returns.
+            // The BAR1 pool's moves left from the invalidate count as well (bar1pool.rs
+            // `poll_sliced`, bar1-pool.md §14; device.rs ran the next slice before this).
+            // The hold the trigger write handed off (fastread.rs) counts as well; reads without
+            // the device lock answer the same state when no pool batch runs.
             Some(Reg::MmuInvalidate) => {
-                let busy = self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy());
-                (self.mmu_invalidate.2 & !(1 << 31)) | if busy { 1 << 31 } else { 0 }
+                let held = self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy());
+                let handed = self.fast.trigger_busy(true);
+                let pool = self.fb.pool_mut().as_ref().is_some_and(|p| p.batch_pending());
+                self.fast.note_locked_trigger();
+                (self.mmu_invalidate.2 & !(1 << 31)) | if held || handed || pool { 1 << 31 } else { 0 }
             }
             // Write-only doorbell (`clc361.h:33`); reads return 0.
             Some(Reg::UsermodeDoorbell) => 0,
@@ -1475,7 +1688,9 @@ impl BootModel {
                 }
             }
             Some(Reg::UsermodeDoorbell) => {
+                let t0 = std::time::Instant::now();
                 self.bar2_before_ring(mem, Some(v));
+                crate::dlock::work("trapped doorbell", "BAR2 before the ring".into(), t0.elapsed());
                 // A channel's work submit token (kernel_fifo_tu102.c:75-130): a mirrored
                 // channel rings the host doorbell (E5b part 2), the others run their
                 // pending GPFIFO entries against the FB store and guest RAM (E5a).
@@ -1487,6 +1702,11 @@ impl BootModel {
             }
             Some(Reg::MmuInvalidate) => {
                 notes.extend(self.mmu_invalidate_write(v, mem));
+                // The held invalidate leaves the lock: its TRIGGER reads are answered without
+                // it until the worker applied its roots (fastread.rs, execution.md §9.10).
+                if let Some(h) = self.ctrl.mirror.as_mut().and_then(|m| m.hand_off_invalidate()) {
+                    self.fast.push_hold(h);
+                }
             }
             None => {
                 notes.extend(self.queue_register_write(off, v, mem));
@@ -1572,7 +1792,10 @@ impl BootModel {
     fn mmu_invalidate_write(&mut self, v: u32, mem: &GuestMemory) -> Vec<String> {
         let mut notes = Vec::new();
         self.mmu_invalidate.2 = v;
+        self.fast.set_trigger(self.regs.mmu_invalidate, v);
         if v & (1 << 31) != 0 {
+            // The executor's cached translations end at every invalidate (fb.rs `ExecTlb`).
+            self.fb.exec_tlb_flush();
             // NV_PFB_PRI_MMU_INVALIDATE_PDB: ADDR 31:4 in 4 KiB units, APERTURE
             // 1:0; UPPER_PDB adds bits 51:32 (fb-model.md §4d).
             let pdb = ((self.mmu_invalidate.0 as u64 >> 4) << 12)
@@ -1583,27 +1806,39 @@ impl BootModel {
             // update (kbusUpdateRmAperture_GM107, kern_bus_gm107.c:2757-2785).
             // The BAR1 area's untracked pages (bar1pool.rs `sync_untracked`): the
             // replicas' guest writes reach their pages as tracked writes, and a
-            // table page still in the pool is re-read by the walks below. Settles
-            // a deferred flush read. With the memfd and no flush owed, the table pages
-            // only (`FakeFb::bar2_sync_tables`, bar2-memfd.md §3 rule 2): the MMU re-reads
-            // tables from here on; data reaches VRAM at its own hand-over.
+            // table page still in the pool is re-read by the walks below. With the memfd,
+            // the table pages only (`FakeFb::bar2_sync_tables`, bar2-memfd.md §3 rules 2
+            // and 3): the MMU re-reads tables from here on, and the invalidate starts no
+            // engine, so data (and an owed flush) waits for the next engine start. A host
+            // VA space on the guest's own tables (a mirror VAS) makes it a full sync.
+            // The parts of an invalidate in the device lock's work table (dlock.rs).
+            let mut t = std::time::Instant::now();
+            let mut part = |name: &str| {
+                crate::dlock::work("invalidate", name.to_string(), t.elapsed());
+                t = std::time::Instant::now();
+            };
             let host_walks = self.ctrl.mirror.as_ref().is_some_and(|m| m.walks_guest_tables());
-            if self.fb.bar2_area().is_some() && !self.fb.bar2_flush_pending() && !host_walks {
+            if self.fb.bar2_area().is_some() && !host_walks {
                 let root = self.bar_root(3);
                 self.fb.bar2_sync_tables(root, Some(mem));
-                crate::bar1pool::sync_untracked(&mut self.fb);
+                part("BAR2 table sync");
+                crate::bar1pool::sync_untracked_tables(&mut self.fb);
+                part("BAR1 table replicas");
             } else {
                 self.flush_point(mem, crate::bar2area::Point::MmuInvalidate);
+                part("BAR2 full sync");
             }
             // The guest changed page tables in VRAM through BAR1; drain the WC
             // buffers before the host TLB invalidate so RM re-walks fresh tables.
             self.fb.flush();
+            part("FB flush");
             // The root watch (pdbwatch.rs, fix 2 of run P17): the guest names the root it uses.
             let named = (v & 2 == 0).then(|| {
                 crate::pdbwatch::register_pdb(self.mmu_invalidate.0, self.mmu_invalidate.1)
             });
             self.ctrl.channels.note_guest_invalidate(named);
             let forwarded = self.ctrl.mirror_invalidate(&mut self.fb, Some(pdb));
+            part("host invalidates");
             // Shadow VA spaces (every channel's with the pool) are not host VA spaces
             // the invalidate is forwarded to: the re-sync below brings them in line.
             let shadowed = self.ctrl.mirror.as_ref().is_some_and(|m| {
@@ -1627,6 +1862,7 @@ impl BootModel {
                 let which = if v & 2 != 0 { None } else { Some(pdb) };
                 notes.extend(self.ctrl.mirror_shadow_resync(&mut gm, which));
             }
+            part("shadow walk and plan");
             notes.push(format!(
                 "mmu invalidate: pdb {pdb:#x} flags {:#x}{}",
                 v & 0x7FFF_FFFF,
@@ -1650,17 +1886,17 @@ impl BootModel {
         pdb: u32,
         upper: u32,
         v: u32,
-    ) -> Vec<String> {
+    ) -> (Vec<String>, Option<crate::invgate::Hold>) {
         self.mmu_invalidate.0 = pdb;
         self.mmu_invalidate.1 = upper;
         let notes = self.mmu_invalidate_write(v, mem);
         // A held invalidate completes through the trigger's busy bit (invgate.rs,
-        // execution.md §8): the trapped trigger read reports TRIGGER until the shadow
-        // worker applied the plan. The page clears TRIGGER as soon as this returns
-        // (inv_page.rs `complete`), so the gate is waited out here, under the device lock
-        // (each `invalidate_busy` waits at most 50 us; past 1 s it waits to the end).
-        while self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy()) {}
-        notes
+        // execution.md §8): TRIGGER stays busy until the shadow worker applied the plans of
+        // the roots it names. With the page the hold leaves the device lock: the page's
+        // completion thread waits for the worker and only then clears TRIGGER
+        // (inv_page.rs, execution.md §9.8). Before, it was waited out here, under the lock.
+        let hold = self.ctrl.mirror.as_mut().and_then(|m| m.hand_off_invalidate());
+        (notes, hold)
     }
 
     /// The BAR2 memfd before a doorbell of the channels `chids` (docs/caraxes/bar2-memfd.md
@@ -1671,16 +1907,10 @@ impl BootModel {
     /// trap, nouveau's FB-address-0 read, is covered as well).
     ///
     /// - A flush whose sync is still owed is settled first, in full (rule 3).
-    /// - `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`: a full sync (the reference setting).
     /// - Otherwise only the live pages the channels could observe are compared and written
     ///   back ([`Self::bar2_observed`]); none, no sync.
     fn bar2_doorbell_sync(&mut self, mem: &GuestMemory, chids: &[u32]) {
         if self.settle_deferred_flush(mem, crate::bar2area::Settle::Doorbell) {
-            return;
-        }
-        if self.fb.bar2_area().is_some_and(|a| a.sync_doorbell) {
-            let root = self.bar_root(3);
-            self.fb.bar2_sync(root, Some(mem));
             return;
         }
         let mut keys = Vec::new();
@@ -1709,7 +1939,8 @@ impl BootModel {
     /// `Dispatcher::doorbell_targets`), or for the token-less doorbell (`None`: the channels
     /// with newly published GPFIFO entries). Nothing without the BAR2 memfd.
     fn bar2_before_ring(&mut self, mem: &GuestMemory, token: Option<u32>) {
-        if self.fb.bar2_area().is_none() {
+        let replicas = self.fb.pool_mut().as_ref().is_some_and(|p| p.has_replicas());
+        if self.fb.bar2_area().is_none() && !replicas {
             return;
         }
         let chids = match token {
@@ -1722,7 +1953,80 @@ impl BootModel {
                 self.ctrl.pending_channels(&gm)
             }
         };
-        self.bar2_doorbell_sync(mem, &chids);
+        // A flush owed is settled by the BAR2 sync below with every replica merged.
+        let owed = self.fb.bar2_flush_pending();
+        if self.fb.bar2_area().is_some() {
+            self.bar2_doorbell_sync(mem, &chids);
+        }
+        if replicas && !owed {
+            self.pool_before_ring(&chids);
+        }
+    }
+
+    /// The BAR1 pool's replicas before a doorbell of the channels `chids`
+    /// (docs/caraxes/bar1-pool.md §16): on the card both BAR1 mappings of a page reach the
+    /// same VRAM, so a guest write through a replica's area must reach the home before the
+    /// rung channels' engines can see it. The replicas whose home the channels could observe
+    /// (the doorbell rule's set, [`Self::pool_observed`]) are merged home; none, no read.
+    fn pool_before_ring(&mut self, chids: &[u32]) {
+        let t0 = std::time::Instant::now();
+        let mut gs: BTreeSet<u64> = BTreeSet::new();
+        for &chid in chids {
+            match self.pool_observed(chid) {
+                Some(v) => gs.extend(v),
+                None => {
+                    // A channel whose memory the device cannot name could observe anything.
+                    if let Some(p) = self.fb.pool_mut().as_ref() {
+                        gs.extend(p.replica_set().1.into_iter().map(|(g, _)| g));
+                    }
+                    break;
+                }
+            }
+        }
+        if gs.is_empty() {
+            return;
+        }
+        let gs: Vec<u64> = gs.into_iter().collect();
+        crate::bar1pool::merge_to_home(&mut self.fb, &gs);
+        crate::dlock::work("doorbell", "BAR1 replicas the channel sees".into(), t0.elapsed());
+    }
+
+    /// The area pages of the BAR1 pool's replicas whose home channel `chid` could observe:
+    /// the doorbell rule's pieces (its VAS's leaves less set B, its instance structures, its
+    /// USERD; [`Self::bar2_observed`]) against the replicas' homes. Cached per channel with
+    /// the stamp of its memory and the replica set's generation. `None` when the device
+    /// cannot name the channel's memory.
+    fn pool_observed(&mut self, chid: u32) -> Option<Vec<u64>> {
+        let (gen, replicas) = self.fb.pool_mut().as_ref().map(|p| p.replica_set())?;
+        let reg = &self.ctrl.channels;
+        let ch = reg.channel(chid)?;
+        let Some(Target::Fb(root)) = reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) else {
+            return None;
+        };
+        let (walk_gen, tables_gen) = self
+            .fb
+            .with_walk(Target::Fb(root), |c| (c.generation(), c.tables_generation()))?;
+        let excl = self.ctrl.mirror.as_ref().and_then(|m| m.shadow_exclusions(root));
+        let stamp = [ch.generation, root, walk_gen, tables_gen, excl.map_or(0, |(g, _)| g)];
+        if let Some((st, g, v)) = self.pool_observe.get(&chid) {
+            if *st == stamp && *g == gen {
+                return Some(v.clone());
+            }
+        }
+        // The replicas' home pages (page-aligned FB addresses) as page keys, against the
+        // doorbell rule's pieces ([`Self::channel_keys`]).
+        let mut homes: Vec<u64> = replicas.iter().map(|&(_, x)| x >> 12).collect();
+        homes.sort_unstable();
+        homes.dedup();
+        let exclude = excl.map_or(Vec::new(), |(_, r)| r.to_vec());
+        let hit = self.channel_keys(chid, root, &exclude, &homes)?;
+        let seen: Vec<u64> = replicas
+            .into_iter()
+            .filter(|(_, x)| hit.binary_search(&(x >> 12)).is_ok())
+            .map(|(g, _)| g)
+            .collect();
+        self.pool_observe.insert(chid, (stamp, gen, seen.clone()));
+        Some(seen)
     }
 
     /// The live BAR2 memfd pages channel `chid` could observe (the doorbell rule,
@@ -1766,40 +2070,54 @@ impl BootModel {
             excl.map_or(0, |(g, _)| g),
         ];
         let live_gen = self.fb.bar2_area()?.live_generation();
-        if let Some(e) = self.bar2_observe.get(&chid).filter(|e| e.stamp == stamp) {
-            if e.live_gen == live_gen {
-                return Some(e.pages.clone());
-            }
-        } else {
-            let exclude = excl.map_or(&[][..], |(_, r)| r);
-            let (mut pieces, tables) = self
-                .fb
-                .with_walk(Target::Fb(root), |c| c.observable(exclude))
-                .flatten()?;
-            pieces.extend(ch.structures.iter().copied());
-            if let Some(u) = ch.userd {
-                pieces.push((u, USERD_SIZE as u64));
-            }
-            self.bar2_observe.insert(
-                chid,
-                ObserveEntry {
-                    stamp,
-                    pieces,
-                    tables,
-                    live_gen: u64::MAX,
-                    pages: Vec::new(),
-                },
-            );
+        if let Some(e) = self
+            .bar2_observe
+            .get(&chid)
+            .filter(|e| e.stamp == stamp && e.live_gen == live_gen)
+        {
+            return Some(e.pages.clone());
         }
-        let area = self.fb.bar2_area_mut()?;
-        let e = self.bar2_observe.get_mut(&chid).expect("just checked or inserted");
+        let live = self.fb.bar2_area()?.live_keys();
+        let exclude = excl.map_or(Vec::new(), |(_, r)| r.to_vec());
         // Page tables are not in the doorbell's set: the card re-reads them only after an
-        // MMU invalidate (rule 2), which syncs every live table page itself.
-        e.pages = area.observed(&e.pieces, &[]);
-        e.live_gen = live_gen;
-        let tables = area.observed(&[], &e.tables).len();
-        area.note_observe_set(e.pages.len(), tables);
-        Some(e.pages.clone())
+        // MMU invalidate (rule 2), which syncs every live table page itself. They are
+        // counted: the live pages the walk reads its tables from.
+        let pages = self.channel_keys(chid, root, &exclude, &live)?;
+        let tables = self
+            .fb
+            .with_walk(Target::Fb(root), |c| live.iter().filter(|&&k| c.watches(k)).count())
+            .unwrap_or(0);
+        self.fb.bar2_area_mut()?.note_observe_set(pages.len(), tables);
+        self.bar2_observe.insert(
+            chid,
+            ObserveEntry {
+                stamp,
+                live_gen,
+                pages: pages.clone(),
+            },
+        );
+        Some(pages)
+    }
+
+    /// The keys among `keys` (ascending page keys, FB page numbers and guest-RAM pages with
+    /// `ptcache::SYS_KEY`) that channel `chid`'s memory touches, ascending: the doorbell
+    /// rule's pieces ([`Self::bar2_observed`]), i.e. its VAS leaves under `root` less the
+    /// set-B ranges `exclude` (`WalkCache::observed_keys`), its instance structures and its
+    /// USERD. `None` when the channel or the walk of its root is unknown.
+    fn channel_keys(&self, chid: u32, root: u64, exclude: &[(u64, u64)], keys: &[u64]) -> Option<Vec<u64>> {
+        let ch = self.ctrl.channels.channel(chid)?;
+        let mut out = self
+            .fb
+            .with_walk(Target::Fb(root), |c| c.observed_keys(exclude, keys))
+            .flatten()?;
+        let mut pieces: Vec<(Target, u64)> = ch.structures.to_vec();
+        if let Some(u) = ch.userd {
+            pieces.push((u, USERD_SIZE as u64));
+        }
+        out.extend(crate::ptcache::keys_in(&pieces, keys));
+        out.sort_unstable();
+        out.dedup();
+        Some(out)
     }
 
     /// A doorbell the usermode page's reactor took (um_page.rs): the channel its value names
@@ -1994,6 +2312,9 @@ impl BootModel {
                     "checksum"
                 };
                 let t_rpc = crate::profile::on().then(std::time::Instant::now);
+                // The device lock's work table and the hold's tags (dlock.rs).
+                let t_work = std::time::Instant::now();
+                let work_key = rpc::work_key(h.function, &msg.payload);
                 notes.push(format!(
                     "rx seq {} {} ({}) sequence {} length {} {integrity} {}: {}",
                     msg.seq_num,
@@ -2115,6 +2436,26 @@ impl BootModel {
                                 label: "guest (GSP-side event buffer, gspmem.rs)",
                                 note: r.note,
                             });
+                        // The new USERD of a channel migration (a direct or deferred
+                        // UpdateChannelInfo): the memory the kernel registered with GSP first
+                        // (deferred_api.c:345-378), with the GPGet the guest left in it.
+                        self.ctrl.migration_userd = crate::deferred::migration_bundle(cmd, params).map(|info| {
+                            let r = self
+                                .gspmem
+                                .memories
+                                .get(&(info.h_client, info.h_userd_memory))
+                                .ok_or_else(|| format!("hUserdMemory {:#x} is not registered with GSP", info.h_userd_memory))?;
+                            let t = crate::gspmem::registered_target(r, info.userd_offset, 512)?;
+                            let at = match t {
+                                crate::fb::Target::Fb(pa) => crate::fb::Target::Fb(pa + 0x88),
+                                crate::fb::Target::Sys(pa) => crate::fb::Target::Sys(pa + 0x88),
+                                other => other,
+                            };
+                            let get = crate::channel::GpuMem { fb: &mut self.fb, sys: mem }
+                                .read_u32(at)
+                                .ok_or_else(|| format!("the new USERD {t:?} is unreadable"))?;
+                            Ok((t, get))
+                        });
                         let a = match gm
                             .or_else(|| crate::chip::physical::answer(self.chip.data(), cmd, params))
                         {
@@ -2338,6 +2679,15 @@ impl BootModel {
                         let w =
                             |o: usize| u32::from_le_bytes(p[o..o + 4].try_into().unwrap_or([0; 4]));
                         let (h_client, h_object) = (w(v::FREE_H_ROOT), w(v::FREE_H_OBJECT));
+                        // Mirror builds in flight the free may concern are committed first,
+                        // so the free finds them built (execution.md §9.2).
+                        {
+                            let mut gm = crate::channel::GpuMem {
+                                fb: &mut self.fb,
+                                sys: mem,
+                            };
+                            notes.extend(self.ctrl.settle_builds_for_free(&mut gm, h_client, h_object));
+                        }
                         let a = self.ctrl.free(h_client, h_object);
                         // Shadow VA spaces the free handed to the teardown: drop their
                         // cached walks (docs/caraxes/host-resources.md).
@@ -2582,6 +2932,11 @@ impl BootModel {
                         }
                     }
                 }
+                let spent = t_work.elapsed();
+                if spent >= std::time::Duration::from_millis(1) {
+                    crate::dlock::tag(|| format!("rpc {work_key} {} ms", spent.as_millis()));
+                }
+                crate::dlock::work("rpc", work_key, spent);
                 if let Some(t) = t_rpc {
                     crate::profile::record(
                         crate::profile::Key::Rpc(h.function),
@@ -4639,7 +4994,6 @@ mod tests {
         b.fb.write_u64(pt + 8 * 0x1f, pte(base + 0x2_0000));
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: defer,
             flush_page_memory: false,
         };
@@ -4649,6 +5003,50 @@ mod tests {
         assert!(b.fb.bar2_sync(Some(bar2), None));
         assert_eq!(b.fb.backing(x), crate::fb::Backing::Bar2Memfd(0x2000));
         (b, x, guest)
+    }
+
+    /// The reads without the device lock (fastread.rs, execution.md §9.10): a locked read of
+    /// the trapped flush page publishes its bytes, the next reads are answered from them and
+    /// mark the sync owed; a device write to the page drops the copy. TRIGGER reads busy on
+    /// the locked path too while a handed-off hold is not applied.
+    #[test]
+    fn the_flush_page_and_trigger_are_published_for_reads_without_the_lock() {
+        let (mut b, _x, _guest) = memfd_model(true);
+        let mem = GuestMemory::new();
+        b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock);
+        let flush_fb = 0x400_0000u64 + 0x2_0000;
+        b.fb.write_u64(flush_fb + 8, 0xfeed);
+        let fast = b.fast();
+        let mut w = [0u8; 4];
+        assert!(!fast.try_read(3, 0x1f008, &mut w), "nothing published yet");
+        let mut d = [0u8; 4];
+        b.bar_access(&mem, 3, 0x1f008, &mut d, false);
+        assert_eq!(u32::from_le_bytes(d), 0xfeed);
+        assert!(b.fb.bar2_flush_pending());
+        b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock);
+        assert!(!b.fb.bar2_flush_pending());
+        assert!(fast.try_read(3, 0x1f008, &mut w), "published");
+        assert_eq!(u32::from_le_bytes(w), 0xfeed);
+        assert!(b.fb.bar2_flush_pending(), "the read without the lock marked the sync owed");
+        b.fb.write_u64(flush_fb + 8, 0xbeef);
+        assert!(!fast.try_read(3, 0x1f008, &mut w), "a device write to the page drops the copy");
+        b.bar_access(&mem, 3, 0x1f008, &mut d, false);
+        assert!(fast.try_read(3, 0x1f008, &mut w));
+        assert_eq!(u32::from_le_bytes(w), 0xbeef);
+        // TRIGGER: the latched word; busy on both paths while a handed-off hold runs.
+        let r = b.regs;
+        b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert!(fast.try_read(0, r.mmu_invalidate, &mut w));
+        assert_eq!(u32::from_le_bytes(w), 5, "no hold: idle");
+        let p = std::sync::Arc::new(crate::invgate::Progress::default());
+        p.begin(3, 0xA000);
+        fast.push_hold(crate::invgate::Hold::new(p.clone(), vec![(0xA000, 3)], std::time::Instant::now()));
+        assert_eq!(b.read32(r.mmu_invalidate), Some(0x8000_0005));
+        assert!(fast.try_read(0, r.mmu_invalidate, &mut w));
+        assert_eq!(u32::from_le_bytes(w), 0x8000_0005);
+        p.finish(3);
+        assert_eq!(b.read32(r.mmu_invalidate), Some(5));
+        assert!(fast.summary().contains("1 held invalidate(s) completed by a read"));
     }
 
     fn vram_u64(b: &BootModel, pa: u64) -> u64 {
@@ -4683,7 +5081,7 @@ mod tests {
         assert_eq!(vram_u64(&b, x), 0xABCD);
         assert!(!b.fb.bar2_flush_pending());
         assert_eq!(stats(&b).syncs, syncs0 + 1);
-        // Without an owed flush a doorbell does not sync (sync_doorbell is off).
+        // Without an owed flush a doorbell does not sync.
         b.doorbell_pending(&mem);
         assert_eq!(stats(&b).syncs, syncs0 + 1);
         // The flush clock settles one no hand-over did.
@@ -4692,13 +5090,18 @@ mod tests {
         assert!(b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock));
         assert_eq!(vram_u64(&b, x + 8), 0x1234);
         assert!(!b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock));
-        // The MMU invalidate settles it (the RM flushes, then invalidates).
+        // The MMU invalidate starts no engine: it syncs the table pages and leaves the owed
+        // flush to the next engine start (bar2-memfd.md §3 rule 3), here the GSP queue head.
         guest.store_word(2, 2, 0x5678);
         flush(&mut b);
         let r = b.regs;
         b.write32(r.mmu_invalidate_pdb, 0, &mem).unwrap();
         b.write32(r.mmu_invalidate_upper_pdb, 0, &mem).unwrap();
         b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x + 16), 0);
+        assert!(b.fb.bar2_flush_pending());
+        let head = b.gsp_queue_registers().unwrap().cmd_head;
+        b.write32(head, 0, &mem).unwrap();
         assert_eq!(vram_u64(&b, x + 16), 0x5678);
         let s = stats(&b);
         assert_eq!(
@@ -4706,6 +5109,45 @@ mod tests {
             (4, 1, 1, 1)
         );
         assert!(b.fb.bar2_area().unwrap().summary().contains("4 deferred"));
+    }
+
+    /// The order an invalidate keeps with a flush owed (bar2-memfd.md §3 rules 2 and 3): the
+    /// RM rewrites a PTE through a page table it mapped into BAR2 and writes data through
+    /// BAR2, flushes, and invalidates. The page table reaches VRAM at the invalidate (the MMU
+    /// uses it from there on) and the BAR2 mapping it changes is followed; the data reaches
+    /// VRAM only at the next engine start (a doorbell), and the device reads it from the
+    /// memfd meanwhile.
+    #[test]
+    fn an_invalidate_with_a_flush_owed_syncs_the_tables_and_leaves_the_data_to_the_engine_start() {
+        let mem = GuestMemory::new();
+        let (mut b, x, guest) = memfd_model(true);
+        let base = 0x400_0000u64;
+        let pt = base + 0x9000;
+        let y = base + 0x11_0000;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        // BAR2 page 3 maps the BAR2 page table itself (the RM's PTE update window).
+        b.fb.write_u64(pt + 8 * 3, pte(pt));
+        let (bar2, _) = b.layout.bar_roots().unwrap();
+        assert!(b.fb.bar2_sync(Some(bar2), None));
+        let flush = |b: &mut BootModel| {
+            let mut d = [0u8; 4];
+            b.bar_access(&GuestMemory::new(), 3, 0x1f000, &mut d, false);
+        };
+        // Through BAR2: a new PTE (BAR2 page 4 -> y) and data at x; a flush read; the invalidate.
+        guest.store_word(3, 4, pte(y));
+        guest.store_word(2, 0, 0xDA7A);
+        flush(&mut b);
+        assert!(b.fb.bar2_flush_pending());
+        b.write32(b.regs.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert_eq!(vram_u64(&b, pt + 8 * 4), pte(y), "the table is in VRAM for the MMU");
+        assert_eq!(b.fb.backing(y), crate::fb::Backing::Bar2Memfd(0x4000), "and followed");
+        assert_eq!(vram_u64(&b, x), 0, "the data waits for an engine start");
+        assert_eq!(b.fb.read_u64(x), Some(0xDA7A), "the device reads it from the memfd");
+        assert!(b.fb.bar2_flush_pending());
+        // A channel doorbell settles the owed flush before any channel is rung.
+        b.doorbell_pending(&mem);
+        assert_eq!(vram_u64(&b, x), 0xDA7A);
+        assert!(!b.fb.bar2_flush_pending());
     }
 
     /// `CARAXES_BAR2_MEMFD_DEFER_FLUSH=0`: every flush read syncs, as before.
@@ -4753,8 +5195,9 @@ mod tests {
         assert!(b.fb.bar2_area().unwrap().summary().contains("1 NV_UFLUSH_FB_FLUSH write(s)"));
     }
 
-    /// The MMU invalidate, the GSP command-queue head (where the CPU's runlist submits
-    /// arrive as RPCs on a GSP system) and the BAR2 bind are full sync points, each counted.
+    /// The GSP command-queue head (where the CPU's runlist submits arrive as RPCs on a GSP
+    /// system) and the BAR2 bind are full sync points, each counted; the MMU invalidate syncs
+    /// the table pages only, with or without a flush owed.
     #[test]
     fn the_invalidate_the_gsp_queue_head_and_the_bar2_bind_sync() {
         use crate::bar2area::Point;
@@ -4768,18 +5211,24 @@ mod tests {
         assert_eq!(vram_u64(&b, x), 0);
         assert_eq!(point(&b, Point::MmuInvalidate), 0);
         assert_eq!(b.fb.bar2_area().unwrap().stats().table_syncs, 1);
-        // A flush read (the trapped page) owes a sync: the invalidate settles it in full.
+        // A flush read (the trapped page) owes a sync: the invalidate still syncs the table
+        // pages only and leaves it owed, as it starts no engine (rule 3).
         let mut d = [0u8; 4];
         b.bar_access(&mem, 3, 0x1f000, &mut d, false);
         assert!(b.fb.bar2_flush_pending());
         b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
-        assert_eq!(vram_u64(&b, x), 0x11);
-        assert_eq!(point(&b, Point::MmuInvalidate), 1);
+        assert_eq!(vram_u64(&b, x), 0);
+        assert_eq!(point(&b, Point::MmuInvalidate), 0);
+        let s = b.fb.bar2_area().unwrap().stats();
+        assert_eq!((s.table_syncs, s.table_syncs_owed), (2, 1));
+        assert!(b.fb.bar2_flush_pending());
+        // The GSP queue head, an engine start, settles it with a full sync.
         guest.store_word(2, 0, 0x22);
         let head = b.gsp_queue_registers().unwrap().cmd_head;
         assert_eq!(head, 0x11_0c00, "NV_PGSP_QUEUE_HEAD(0), tu102/dev_gsp.h:38");
         b.write32(head, 0, &mem).unwrap();
         assert_eq!(vram_u64(&b, x), 0x22);
+        assert!(!b.fb.bar2_flush_pending());
         assert_eq!(point(&b, Point::GspQueueHead), 1);
         guest.store_word(2, 0, 0x33);
         let v = b.bar2_block;
@@ -4881,6 +5330,91 @@ mod tests {
         }
     }
 
+    /// The BAR1 pool's replicas at a doorbell (bar1-pool.md §16): the guest maps FB page x at
+    /// two area pages (x lives in the pool at the first, the second is its replica) and
+    /// writes through the replica; a doorbell of a channel whose VAS maps x carries the write
+    /// home before the ring, a channel that cannot see x merges nothing. No BAR2 memfd here.
+    #[test]
+    fn a_doorbell_merges_the_replicas_its_channel_sees_home() {
+        use nvrm_sys::RmAbi;
+        type Abi = nvrm_sys::V610;
+        const MIB: u64 = 1 << 20;
+        let (base, end) = (0x400_0000u64, 0x800_0000u64);
+        let layout = crate::fb::FbLayout::reserved(32 * MIB, 256 * MIB, base, end)
+            .unwrap()
+            .with_pool(4 * MIB)
+            .unwrap();
+        let f = crate::fixture::rtx2070();
+        let mut b = BootModel::new(f.chip, layout, f.identity(256 * MIB));
+        let mem = GuestMemory::new();
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        // The BAR1 tables over the area: x at area pages 0x1000 and 0x2000.
+        let (_, bar1) = layout.bar_roots().unwrap();
+        let (pd2, pd1, pd0, pt) = (base + 0x1000, base + 0x2000, base + 0x3000, base + 0x4000);
+        b.fb.write_u64(bar1, vid(pd2));
+        b.fb.write_u64(pd2, vid(pd1));
+        b.fb.write_u64(pd1, vid(pd0));
+        b.fb.write_u64(pd0 + 8, vid(pt));
+        let (pool0, _) = layout.pool_range().unwrap();
+        b.fb.set_bar1_pool(bar1, pool0, 4 * MIB, layout.usable().unwrap());
+        let x = base + 0x30_0000;
+        b.fb.write_u64(x, 0x11);
+        b.fb.write_u64(pt + 8, pte(x));
+        b.fb.write_u64(pt + 16, pte(x));
+        assert!(crate::bar1pool::poll(&mut b.fb, &mut crate::bar1pool::NoGpu));
+        assert_eq!(b.fb.remap(x), pool0 + 0x1000, "x lives at area page 0x1000");
+        // Channel 5's VAS maps x (and the tree of a second root, channel 6's, does not).
+        let (root, gpd2, gpd1, gpd0, gpt) =
+            (base + 0x50_0000, base + 0x50_1000, base + 0x50_2000, base + 0x50_3000, base + 0x50_4000);
+        b.fb.write_u64(root, vid(gpd2));
+        b.fb.write_u64(gpd2, vid(gpd1));
+        b.fb.write_u64(gpd1, vid(gpd0));
+        b.fb.write_u64(gpd0 + 16 * 0x80 + 8, vid(gpt));
+        b.fb.write_u64(gpt + 8, pte(x));
+        b.fb.walk_update(Some(&mem), Target::Fb(root), false, 1 << 16);
+        let reg = &mut b.ctrl.channels;
+        reg.record_alloc(1, 0x10, 0x20, v::FERMI_VASPACE_A, &[]);
+        let mut pd = [0u8; 24];
+        pd[0..8].copy_from_slice(&root.to_le_bytes());
+        pd[8..12].copy_from_slice(&1u32.to_le_bytes());
+        pd[16..20].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_set_page_directory(1, &pd);
+        let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let put = |p: &mut [u8], o: usize, v: &[u8]| p[o..o + v.len()].copy_from_slice(v);
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags, &((1u32 << 21) | (5u32 << 8)).to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_hVASpace, &0x20u32.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoOffset, &0x1000_0000u64.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoEntries, &32u32.to_le_bytes());
+        for (off, pa) in [
+            (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_userdMem, base + 0x60_0000),
+            (<Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_instanceMem, base + 0x61_0000),
+        ] {
+            put(&mut p, off + v::MEM_DESC_BASE, &pa.to_le_bytes());
+            put(&mut p, off + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_FBMEM.to_le_bytes());
+        }
+        reg.record_alloc(1, 0x10, 0x40, 0xC46F, &p).unwrap();
+        // The guest writes through the replica's area page (its own mapping at 0x2000).
+        b.fb.write_raw(pool0 + 0x2000, &0x22u64.to_le_bytes());
+        assert_eq!(b.fb.read_u64(x), Some(0x11), "not merged yet");
+        let at = b.regs.usermode_doorbell;
+        b.write32(at, 5, &mem).unwrap();
+        assert_eq!(b.fb.read_u64(x), Some(0x22), "the write reached the home before the ring");
+        let s = b.fb.pool_mut().as_ref().unwrap().stats.clone();
+        assert_eq!((s.ring_merges, s.ring_replicas, s.ring_to_home), (1, 1, 1));
+        // The next doorbell reads the area again, finds nothing new.
+        b.write32(at, 5, &mem).unwrap();
+        let s = b.fb.pool_mut().as_ref().unwrap().stats.clone();
+        assert_eq!((s.ring_merges, s.ring_replicas, s.ring_to_home), (2, 2, 1));
+        // The channel's VAS no longer maps x: its doorbells merge nothing.
+        b.fb.write_u64(gpt + 8, 0);
+        b.fb.walk_update(Some(&mem), Target::Fb(root), false, 1 << 16);
+        b.fb.write_raw(pool0 + 0x2000, &0x33u64.to_le_bytes());
+        b.write32(at, 5, &mem).unwrap();
+        assert_eq!(b.fb.read_u64(x), Some(0x22));
+        assert_eq!(b.fb.pool_mut().as_ref().unwrap().stats.ring_replicas, 2);
+    }
+
     /// A doorbell with no flush owed syncs only what its channel could observe: the page its
     /// VAS maps behind BAR2 reaches VRAM, another BAR2 page does not.
     #[test]
@@ -4977,6 +5511,41 @@ mod tests {
         assert!(s.table_sync_pages >= 1);
         // The walk re-reads the written table page (marked dirty by the sync).
         assert!(w.b.fb.tables_dirty(Target::Fb(DB_BASE + 0x30_0000)));
+    }
+
+    /// The walks' live table pages (fb.rs `bar2_sync_tables`): an invalidate with the walks'
+    /// table pages and the BAR2 live set unchanged reuses the lists and syncs the same pages
+    /// (a guest write to a table page through BAR2 still reaches VRAM); once a page left
+    /// BAR2 the lists are made again, without it.
+    #[test]
+    fn an_invalidate_reuses_the_walks_live_table_pages_while_nothing_changed() {
+        let (y_userd, inst) = (DB_BASE + 0x50_0000, DB_BASE + 0x60_0000);
+        let mut w = doorbell_world(false, true, y_userd, inst, true);
+        let pt = w.pt;
+        let r = w.b.regs;
+        let s0 = w.stats();
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s1 = w.stats();
+        let pages = s1.table_sync_pages - s0.table_sync_pages;
+        assert!(pages >= 1);
+        assert!(s1.table_key_lists_listed > s0.table_key_lists_listed);
+        let pte = ((DB_BASE + 0x70_0000) >> 12 << 8) | 1;
+        w.guest.store_word(4, 2, pte);
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s2 = w.stats();
+        assert_eq!(s2.table_sync_pages - s1.table_sync_pages, pages, "the same pages");
+        assert_eq!(s2.table_key_lists_listed, s1.table_key_lists_listed, "nothing listed again");
+        assert!(s2.table_key_lists_reused > s1.table_key_lists_reused);
+        assert_eq!(w.vram(pt + 16), pte);
+        // The guest unmaps the table page's BAR2 page (4): the sync that follows the BAR2
+        // tables takes it out of the live set, and the next one lists again without it.
+        w.b.fb.write_u64(DB_BASE + 0x9000 + 8 * 4, 0);
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s3 = w.stats();
+        w.b.write32(r.mmu_invalidate, 0x8000_0001, &w.mem).unwrap();
+        let s4 = w.stats();
+        assert!(s4.table_key_lists_listed > s3.table_key_lists_listed);
+        assert_eq!(s4.table_sync_pages - s3.table_sync_pages, pages - 1, "pt is no longer live");
     }
 
     /// A BAR2 page re-pointed at the invalidate's table sync: what the guest wrote through

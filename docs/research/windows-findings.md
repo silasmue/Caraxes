@@ -711,3 +711,736 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - The first refusal leaves one line in gpu.log; the exit summary counts them all.
   - BAR1 passthrough and the BAR1 pool already stop below the 2 MiB carve-out.
 - Depends on: R (the reservation and its carve-out).
+
+## Cloud Hypervisor, step 1: guest tooling (2026-09-29, M44-tooling, QEMU maintenance boot)
+
+- **Why:** CH has no VGA, no GOP and no virtio-serial port, so no guest agent. The run kits reach
+  the guest over SSH on a tap instead (kit: `windows-plain/CH-build`, `run44.py`).
+- **Done in the guest** (tools/windows/ssh-setup.ps1, run once from the maintenance boot):
+  - OpenSSH server (capability OpenSSH.Server, installed from Windows Update over QEMU's user
+    network), service automatic, key authentication only, PowerShell as the login shell.
+  - A SYSTEM task at every boot puts 192.168.107.2/24 on the adapter with MAC 02:00:00:00:00:47;
+    the NIC is a new device instance under each hypervisor, so the MAC is the key.
+  - Firewall: SSH and ping from 192.168.107.0/24 only, every profile. No gateway, no NAT: the
+    guest has no internet under CH (no Windows Update, no driver updates); downloads go host,
+    sha256, scp.
+  - Sunshine v2026.914.233613 (MSI sha256 1d7fed8b..., GitHub API digest), service automatic,
+    web credentials in the kit. Power: display and standby never, hibernation (and with it fast
+    startup) off.
+- **Found in the guest:** Windows 11 Pro 25H2 26200.8037, BitLocker off, Secure Boot off under
+  OVMF, no auto-logon (the user's account has a password; Sunshine captures the logon screen as
+  SYSTEM, so none is set).
+- **The device instance:** Windows keeps the NVIDIA card as `PCI\VEN_10DE&DEV_1F02&...\3&11583659&0&30`
+  (bus 0, device 6, parent `ACPI\PNP0A08\0`), driver key `{4d36e968-...}\0007`, the only one with
+  `EnableGpuFirmware`/`RMEnableGpuFirmware` = 1 (the GSP-RM switch). CH's root complex is also
+  `PNP0A08` with `_UID` 0 (pci_segment.rs), so run-ch-gpu.sh puts the GPU at `pci_device_id=6`:
+  the same instance, the same driver key, no new GSP switch needed.
+- **The doorbell fast path does not follow from CH alone** (code reading; to be measured):
+  - The token pool hands a pool token out through the channel's work-submit-token notifier entry
+    (ctrl.rs `hand_out_token`), which libcuda re-reads on Linux. The Windows KMD computes its
+    tokens in its own RM and caches them; its channels have no error notifier (P36: 1 of 53
+    channels, P37-arm2: "1355 without notifier"). So under CH nearly every Windows ring still traps.
+  - The token-less wildcard ioeventfd (`CARAXES_DOORBELL_IOEVENTFD=1`, every ring one eventfd, the
+    device scans GPPut) is refused with the zero-based FB (main.rs, mirror.rs `Mirror::new`), and
+    KVM refuses a wildcard next to datamatch entries at one address.
+  - Options: (a) the wildcard ioeventfd for the zero-based FB, with the scan reading Windows'
+    sysmem USERD (chid 26 in P43: `userd Some(Sys(..))`); (b) datamatch sub-regions for the
+    guest's own tokens (`runlist << 16 | chid`, P43: runlists 0, 1, 2, 8, 9, 10, chids up to 51),
+    at most 253 per region. A decision for the user.
+- Memory model: none (tooling and doorbells are independent of the VRAM layout).
+
+## Cloud Hypervisor, step 2: boot and the driver (2026-09-29, C44-nogpu2, C45-gpu, C46-ch1)
+
+- **C44 (no GPU):** Windows boots under CH v53.0-7-ge7b1965c0 with CLOUDHV.fd, kvm_hyperv, 8 GiB
+  shared memfd and the 4-level qcow2 chain (backing_files=on). Network ~13 s after the start, SSH
+  over the tap, a clean `Stop-Computer` in 9 s.
+  - The guest TPM driver reports event 15 ("unrecoverable TPM error", Get-Tpm 0x80284001) with
+    swtpm attached through `--tpm`: Windows boots, TPM-bound features would not work. Open.
+  - The CH RTC is UTC, QEMU's was localtime: the guest now sets RealTimeIsUniversal=1, and
+    run-qemu-gpu.sh must use `-rtc base=utc` (otherwise smoke's "events since boot" window
+    picks up older runs' events, as in C45).
+- **C45 (GPU, P43 binary and flags, trapped doorbells):** the same device instance (PCI 0:6, class
+  key 0007, GSP-RM path), problem code 0, nvidia-smi "Leandro VFIO RTX 2070-4G" WDDM 4096 MiB.
+  - The monitor "Caraxes DP" is active at 1920x1080@60; dwm.exe and LogonUI.exe run on the GPU;
+    our adapter is the only one.
+  - D3D11 gate PASS (create 6.2 s); smoke: D3D11, D3D12, vulkaninfo, nvidia-smi PASS.
+  - CUDA (host load ~5): short kernel median 80.2 us (mean 263, p90 785; QEMU P43 72.6, 295,
+    900); launch + sync 311 us; pinned HtoD 1.98 GB/s (QEMU 12.55), DtoH 13.0 GB/s. The HtoD
+    drop is open.
+  - No host Xid; clean teardown (8 GiB unpinned, 0 ERROR lines).
+- **Scanout: the KMD lights the head but presents nothing.** Under CH as under QEMU (P1-P43): 7 core
+  UPDATEs (modeset 2200x1125 at 148.5 MHz on SOR0, DP trained 1 lane HBR2, OLUT/OCSC/dither),
+  vblank enables toggling, but no window-channel UPDATE; the 8 window channels only get CSC LUTs
+  and no window is ever assigned to a head (no `WINDOW_SET_CONTROL` in the core's 16 kicks).
+  - `NV0073_CTRL_CMD_SYSTEM_GET_ACTIVE` answered 0 for every head (spec: the display a head
+    drives, also one an NV client lit). Fixed (d68e87b5); C46: head 0 -> 0x100, no change.
+  - A DxgKrnl ETW trace around a DWM restart (C46): dxgkrnl calls the KMD's flip DDI
+    (`DdiSetVidPnMultiPlaneOverlay3`, `MMIOFlipMultiPlaneOverlay3`, `SetVidPnSourceVisibility`)
+    and 3 queued flips (`IMMEDIATE_SW_FLIP_QUEUE`) were cancelled at the kill: earlier flips
+    never completed. The device saw no display USERD write during those DDIs.
+  - So the KMD accepts flips and defers the programming. Next: which display register or
+    interrupt it waits for (`CARAXES_TRACE_ACCESSES=bar0:0x610000-0x700000`, a0907d98).
+  - Sunshine: DDA capture re-initialises every ~15 s (each init is a D3D11 device on our adapter,
+    ~12-15 s), the stream never starts; its NVENC self-test fails on frame 1 (100 ms async
+    event wait, nvenc_base.cpp) and it falls back to libx264. Both follow once flips work.
+- Memory model: none (display and tooling are independent of the VRAM layout).
+
+## Cloud Hypervisor, step 3: why the KMD never flips (2026-09-29, C47-ch2)
+
+- **Display access trace** (`CARAXES_TRACE_ACCESSES=bar0:0x610000-0x700000`, a0907d98):
+  - Interrupts: the KMD enables only `LAST_DATA` (`RM_INTR_EN_HEAD_TIMING(0)` = 0x2) and services
+    it through `RM_INTR_DISPATCH`/`RM_INTR_STAT_*`: no RG_LINE or RG_SEM wait.
+  - It reads each window channel's assembly state once (window user pages, offsets 0x234-0xb08;
+    the model answers 0), the core's ARMED OLUT state, `FE_CORE_HEAD_STATE(0)` (0x200).
+  - **The blocker candidate:** the core channel's PIO register `SET_GET_BLANKING_CTRL(0)` (core
+    user page +0x240, clc57d.h:291-297; BLANK 0:0, UNBLANK 1:1, values NO_CHANGE/ENABLE: a
+    request encoding). The KMD writes 0x1 (BLANK) inside its modeset (between core kicks 8 and
+    9) and twice at DWM's start (132.47 s, 132.88 s), each time reading it back at once. The
+    model latched the write, so the read-back was 0x1 forever: a blank request that never
+    completes. The KMD never wrote UNBLANK and never programmed a window. NVKMS never uses the
+    register, so Linux never met this.
+  - Fix (8e5452e3): the request is carried out at once (BLANK before UNBLANK, the state logged
+    per head), the read-back shows none pending; `GET_RG_SCAN_LINE(b)` (+0x220) gives the
+    device clock's line and VBLANK from the head's raster blank. To be confirmed in C48.
+- **CUDA HtoD under CH:** C47 12.80 / 12.86 GB/s; C45's 1.98 GB/s was a transient (the slot-5
+  VM's work), not CH.
+- **Doorbells:** the guest-token ioeventfds (doorbell-token-pool.md (g), 8e82567c): automatic
+  from the device-info table, 240 values on TU106. Not run yet.
+- Memory model: none.
+
+## Cloud Hypervisor, step 4: blanking, the caps page, guest-token doorbells (2026-09-29, C48-ch3)
+
+- **SET_GET_BLANKING_CTRL reads the state, not pending requests.** With the read-back at 0
+  (8e5452e3, "none pending") the KMD polled the register 3599 times after its BLANK; with the
+  latched 0x1 (C47) it went on after one read. So a read shows the head's blanking state in
+  the register's fields; ed82e0db: BLANK (0x1) while blanked, UNBLANK (0x2) otherwise.
+  Still no UNBLANK and no window UPDATE in C48.
+- **The caps page was no TU106's** (NVC573, BAR0 0x640000; C48 vs the card's capture
+  display-caps-2026-09-27.txt): window pipes without FULL_WIDTH/UNIT_WIDTH/ALPHA_WIDTH, no
+  scalers and VSCLR_MAX_PIXELS 2TAP/5TAP 0 (window CAPF, head CAPD), every CSC stage on every
+  window (the card: the even windows), 47 of the card's 90 nonzero dwords missing. ed82e0db
+  serves the capture except IHUB VGA/compression/MSCG/MCLK-switch/bit-24 and head 0's VGA bit.
+  The suspected reason the KMD accepts flips without programming a window; C49 tests it.
+  Linux now sees the card's caps too.
+- **Guest-token doorbell ioeventfds work** (doorbell-token-pool.md (g), automatic): CH
+  registered 240 of 240; "9143 guest write(s) in 3169 eventfd wakeup(s)". CUDA probe (a
+  nouveau VM booting beside it, not clean): short kernel median 28.6 us (trapped C47 88.3,
+  QEMU P43 72.6, Linux B 11), min 14.7 us; queued launch 65.6 us (C47: 430); launch +
+  synchronize 104.8 us (C47: 227); HtoD/DtoH 12.45/12.05 GB/s. The tail (p90 ~900 us) is the
+  interrupt path (28 traps per interrupt, windows-traps-exit-2026-09-29.md).
+- No host Xid in C45-C48.
+- Memory model: none.
+
+## Cloud Hypervisor, step 5: flips, then a TDR (2026-09-29, C49-ch4 to C52-auto)
+
+- **Scanout works since the caps page (C49):** UNBLANK, window 0 latches real surfaces
+  (1920x1080 block-linear 0xCF, three buffers), `display_active` Enabled. The device-side
+  dump (`dump` in display-ctl, 0545afd2) showed the desktop (C51-dump/scanout-135039.png).
+- **Then every run ends in a TDR.** Guest event log: nvlddmkm id 153 at 08:45:40 (C49), 08:55:30
+  (C50), 09:20:37 (C51); no id 14 (RC), no 4101. On the device: no window UPDATE for ~2.5 s,
+  then window disable, head off, DP link power down, FLR, GSP re-boot (C52: FLR at 138.9 s after
+  latches 5-7 at 136.0-136.3 s). After the recovery the KMD modesets and blanks and never flips
+  again. No host Xid in C49-C52.
+- **The flip cadence points at completion.** C49 latches 13-42 come every 500 ms (134-150 s),
+  then one every ~30 s up to latch 62; C51 the same 500 ms rhythm until its FLR. The KMD flips
+  on a timeout, not on completion. Its flips use notifier mode WRITE (no AWAKEN; AWAKEN_WIN
+  read once per run), semaphore records 16 bytes apart (acquire == 0, release 2, 3, 4 ...).
+- **The device wrote the wrong status.** A window notifier is BEGUN after the flip, not
+  FINISHED: "when EVO performs the flip, it changes the notifier to BEGUN"
+  (nvkms-headsurface.c:1896-1922, tested `== BEGUN`; the client-notifier emulation writes
+  BEGUN and the timestamp, 1996-2013). FINISHED is the core notifier's. nvidia-drm never reads
+  the status (it waits for AWAKEN), so Linux never showed it.
+- **Two clocks.** Notifier timestamps came from the display engine's own epoch, PTIMER from
+  the channel registry's, and an FLR restarted PTIMER at 0 under the old display and usermode
+  bases. The timestamp base is PTIMER (nvkms-api.h:925; the RM's GPU/CPU time correlation,
+  nvkms-evo.c:8810-8840).
+- **Fix (82fb8741):** window notifier BEGUN; one device clock per process, kept across FLR
+  (the RM sets PTIMER forward before every GSP boot, kernel_gsp.c:5677-5682); PTIMER-granular
+  timestamps (low five bits 0); the flip-away release writes the record's timestamp;
+  `TIMESTAMP_MODE` holds a flip until PTIMER >= `SET_UPDATE_TIMESTAMP`. BEGUN alone was
+  wrong for Windows, see step 6.
+- **BAR1 pool under CH (C50):** trapped BAR1 accesses 5.64 M (C49) to 148; heavy page moves;
+  not the TDR's cause (same TDR without the pool).
+- **Automatic dumps** (eaf8c394): `dump auto` in display-ctl, one PNG per 3 s at most, last 10;
+  the device removes a stale display-ctl at start, so run44.py arms it after the device start.
+- Memory model: none (display engine and device clock); the BAR1 pool result is the pool model.
+
+## Cloud Hypervisor, step 6: the KMD waits for FINISHED (2026-09-29, C53-begun, C54-armed)
+
+- **C53 (ch8, BEGUN only) and C54 (ch10, plus ARMED readback):** same stall. DWM's modeset
+  blanks the head, flips once (C53 151.6 s, C54 141.07 s), the KMD never unblanks; window
+  disable 2-4 s later, FLR, TDR. No host Xid.
+- **The unblank decides it.** Every run has this modeset: blank, one flip, unblank.
+  - Notifier FINISHED at the latch (ch4-ch7): unblank 1.5 ms after the flip's kick (C52),
+    36 ms (C51), likewise C49.
+  - BEGUN only (ch8, ch10): no unblank (C53, C54).
+- **The KMD's own records (C54, ch10 trace of the records before the device writes):** it
+  pre-sets a notifier record to 0x80000000 (FINISHED) and resets it to 0 (NOT_BEGUN, timestamp
+  0) before a flip; the previous release record holds the device's release (value, 0,
+  timestamp).
+- **Timing derived from both drivers** (the class gives the states only): BEGUN plus the
+  timestamp at the latch (NVKMS tests the newest flip for BEGUN at the next vblank,
+  nvkms-headsurface.c:1896-1922), FINISHED at the next tick, when the first frame from the new
+  surface has been scanned out (the Windows KMD's wait). No scanout (inactive head): FINISHED
+  at once. 26355f04, ch11; C55 tests it.
+- **ARMED readback (ca4b32d8):** the KMD reads window 0's ARMED `SET_PARAMS` (+0xA2C) and
+  `SET_COMPOSITION_CONTROL` (+0xAEC) around each flip; the model answered 0. Now every
+  channel's page reads back its assembly state and, in the upper half, its ARMED state
+  (open-gpu-doc gv100 dev_display_withoffset.ref.txt:5956-5973); C54 read 0xCF there. Not the
+  stall's cause, but the manual's behaviour.
+- **Dump cost:** one 1080p surface read through BAR1 took 591 ms under the device lock (C53);
+  read in 64 KiB steps it is 482 ms in 135 steps (C54), the PNG written by a thread.
+- **Open:** C52's later stall after three flips with FINISHED at the latch (release timing or
+  something else; the record trace will show it); window-core interlock
+  (`SET_INTERLOCK_FLAGS`) is not modelled.
+- Memory model: none.
+
+## Cloud Hypervisor, step 7: Windows flips on our scanout (2026-09-29, C55-finished, ch11)
+
+- **BEGUN then FINISHED works.** After DWM's modeset the KMD unblanked 1.46 s after the blank
+  (134.69 -> 136.15 s) and window 0 latched 126 flips over the run (three buffers, fb
+  0x600000/0x3400000/0x3E00000, a 500 ms cadence while DWM redraws the lock screen clock).
+  0 TDR, 0 nvlddmkm event, 0 host Xid; the one FLR is the shutdown's.
+- **The picture:** the auto dumps show the Windows lock screen (11:03, Dienstag, 29. September);
+  1080p surface read in 135 steps, 17 ms under the device lock in all.
+- **The dump decoder's in-GOB order was wrong** (every edge jagged): of the 120 orders of the
+  five address bits above bit 3, bits 4-8 = y0, y1, x4, y2, x5 decode the scanout sharpest,
+  with crisp text (42e52c59). Measured on this surface, not from a document.
+- **Smoke all PASS** with the display live: Device Manager OK, nvidia-smi 'Leandro VFIO RTX
+  2070-4G', vulkaninfo, D3D11 triangle, D3D12 fence + compute (D3D12CreateDevice 17.8 s).
+- **CUDA probe PASS, not clean** (neighbour VMs, 60 Hz vblank, Sunshine): short kernel median
+  286 us, p90 1338 us (C48 idle: 28.6 us); queued launch 224 us; HtoD/DtoH 12.0/9.9 GB/s.
+- **Sunshine:** encoder validation 3 s (was ~110 s before the flip fix: DDA needs completed
+  flips). A Moonlight session still fails: capture setup takes ~24 s after CLIENT CONNECTED
+  (a device probe 9.4 s, the D3D11 device on our GPU 13.6 s), Moonlight quits after ~10 s
+  without video. Device and context creation are trap-bound (BAR2 byte stores, P36 census);
+  C56 tests the BAR2 memfd (dev c67ef78e: sync points and doorbell rule) against it.
+- **NVENC in Sunshine (async mode):** "NvEnc: frame 1 encode wait timeout" 1.35 s after the
+  encoder was created; the NVENC0 non-stall events are forwarded (mirror.rs ENGINES), so the
+  suspect is the first frame's latency (lazy context setup; P37: NVENC init 4.8 -> 0.6 s with
+  the memfd). Software x264 until C56 shows it.
+- Memory model: none (display); the BAR2 memfd changes where BAR2-written pages live.
+
+## Cloud Hypervisor, step 8: FINISHED needs the display clock; pool and memfd stall (2026-09-29, C56-C58)
+
+- **C56 (ch12 + BAR2 memfd, dev c67ef78e):** start-up faster (DWM at 91.6 s, C55 134 s), a
+  30 fps burst of 11 flips, then no update and a TDR 2.5 s later (nvlddmkm 153 12:31:57).
+- **C57 (ch12 + BAR1 pool 32 MiB):** DWM at 47 s; its first flip latched at 47.08 s, the head
+  stayed blanked, TDR at 49.19 s.
+- **Cause (both):** a flip's FINISHED is written at the tick after its latch, but without the
+  display page the engine advanced only on the guest's display register reads or a ticker
+  raise that started its handler; the KMD waits for FINISHED in memory and reads nothing, a
+  raise coalescing with a pending vector starts no handler. C55 got its ticks by timing.
+  Fix 44c7c9a4 (ch14): the display clock runs the engine at every tick in every mode, an
+  owed FINISHED keeps the head's clock ticking.
+- **C58 (ch14 + pool):** the post-modeset unblank works (48.14 s), 106 flips (60 fps lock
+  screen animation, then DWM's 500 ms cadence); at 76.52 s a flip kick with nothing after,
+  TDR 78.75 s. In those 2.2 s the KMD's paging channel (chid 15, software executor) ran 6594
+  GPFIFO entries (227 CE memsets, 17 MB; 96 memcopies; 183 TLB invalidates); C55 without the
+  pool ran ~1000 entries/s on it and 0 TDR in 25 min. Open: what DWM's frame waits for with
+  the pool (and the memfd); both change how CPU writes reach VRAM.
+- **Auto-logon for the unlock:** not set up (my permission system treats stored credentials
+  as persistence that needs the user's own consent); the unlock needs the user or a working
+  Moonlight stream (Sunshine's capture setup 24 s without pool/memfd, Moonlight gives up
+  after ~10 s).
+- Memory model: the pool (BAR1 pages mapped to host BAR1) and the memfd (BAR2 pages in a
+  memfd) are memory-model paths; the display fix is independent of the VRAM layout.
+
+## Cloud Hypervisor, step 9: the pool stall is no stuck channel (2026-09-29, C59, C59b)
+
+- **Repro:** ch15 + pool, both runs: DWM at ~47 s, flips at 60 fps then its 500 ms cadence,
+  TDR 2.1-2.2 s after the last flip (C59 82.5 s, C59b 78.1 s). 0 host Xid.
+- **Not the display:** no flip waited on its acquire (the 0.5 s note never fired); vblank
+  enabled and the clock at 60 Hz up to the TDR.
+- **Not a stuck channel:** `channels` (USERD GPGet vs GPPut, every second up to the TDR): none
+  behind at 76.6 and 77.6 s; chid 19 (GR) briefly at 75.7 s, then caught up.
+- **The KMD's paging channel** (chid 15, software executor) ran 6536 GPFIFO entries in the
+  last 2.1 s: ~181 paging ops (small CE memsets/copies into page tables around FB
+  0x3dbxxxxx, a TLB invalidate and a semaphore release each). The device's share is small:
+  145 shadow plans, 9 ms in all (max 2.1 ms); paging batches p90 8.4 ms, max 362 ms.
+- **The pool thrashes under Windows** (C59b exit summary, up to the FLR at 78 s): 33668 pages
+  moved in and 32858 back, all cold (the KMD maps and unmaps CPU-visible allocations all the
+  time), 134672 KiB copied in and 131432 KiB back in 586 ms; 123 pool polls held the device
+  over 2 ms; 28 guest page-table pages (FB 0x3e0000-) mapped through BAR1 refused and served
+  as replicas merged at sync points (95 merges, 0 conflicting words).
+- **"No channel behind" is weaker than it looks:** GPGet equal to GPPut says the PBDMA fetched
+  every entry, not that a semaphore acquire in the last segment finished (bar1-pool.md §4).
+- **Open:** what the KMD times out on. Next: a DxgKrnl ETW trace across the TDR
+  (tools/windows/dxgk-etw.ps1) names the node and the fence.
+- Memory model: the pool (BAR1 pages mapped to host BAR1 windows).
+
+## Cloud Hypervisor, step 10: the TDR is a VSync timeout behind long device-lock holds (2026-09-29, C60b, C61)
+
+- **Gate 6df81acc (four guests, one binary):** Linux B 615 kick-smoke PASS, nova 5-probe PASS
+  (5/4/0), vm10 nouveau+NVK R1-R8 PASS (vkCreateDevice 59.8 ms); Windows: see below. No host Xid.
+- **C60b/C61 (ch15, no pool, auto-logon desktop):** TDR 2-3 min after sign-in, not caused by
+  the display checks (my display-mode task never reached the guest).
+- **DxgKrnl ETW across the TDR (C61, tools/windows/dxgk-etw.ps1):** `TdrPayloadVSyncTimeout`
+  (source 0, present ID 0x4B) at 14:07:47.7. dxgkrnl had set the interrupt target present ID
+  to 0x4B; the KMD's vsync reports (`VSyncDPCMultiPlane`) kept saying 0x4A; the vsync
+  interrupts it reported (`VSyncInterrupt`) came sporadically, none for ~550 ms before.
+- **Cause on the device:** the display clock waits behind the device lock. Exit summary:
+  driver (device lock + catch-up) p50 <= 15 us, p99 <= 524 ms, max 821 ms; catch-up alone p99
+  <= 63 us. The trace is silent for 495 ms right before the timeout: a mirror build of a new GR
+  channel (chid 31: host VAS, TSG, private USERD vidmem, 6 objects) under the lock. Other
+  silences of 0.5-1 s follow shadow syncs (VAS full walks 250-290 ms) and paging doorbells. The
+  guest's ISR reads trap and block on the same lock, so no flip completes and no vblank is
+  reported while it is held.
+- **What follows the card:** the display runs on its own clock. Two levers: long holders off
+  the device lock (mirror builds and shadow full walks async behind a held doorbell), and the
+  display engine's per-tick work on its own lock.
+- Memory model: none for the display; the long holders are the mirror and shadow paths.
+
+## Cloud Hypervisor, step 11: exact mode reaches the guest; a re-arm storm after the FLR (2026-09-29, C62-C64)
+
+- **Runs:**
+
+  | run | binary, CH | tree mode | first desktop flip | FLR | after the FLR |
+  |---|---|---|---|---|---|
+  | C62-intrpage | ch16, CH 0007 | tagged (0007 lost the read-only flag) | 152.7 s | 174.4 s | re-init, 1268 RPCs |
+  | C63-lf | lf1, CH 0007 | tagged | 152.8 s | 160.4 s | re-init, 1526 RPCs |
+  | C64-exact | lf1, CH 0008 | exact from 11.8 s | 135.5 s | 151.7 s | hung at RPC 124 |
+
+- **CH 0008:** EDK2 moves every BAR at boot and `move_bar()` re-created the read-only area
+  writable. With 0008 the guest's tree stores trap ("exact register values from now on").
+- **The reset is not caused by the tree mode:** in all three runs the KMD tears the device down in
+  order 8-22 s after the first desktop flip (FREEs, display shut down, DP link powered down),
+  then an FLR. There is no stall before it, and no channel is behind.
+  - The display clock still waits behind the device lock. In C64 the driver (lock plus
+    catch-up) had p99 <= 524 ms and max 801 ms; the catch-up alone max 46 us.
+  - Longest holds: doorbell/re-arm/rpc eventfds (360 holds, 25.9 s in total, max 806 ms) and a
+    config-space write (684 ms).
+- **C64's hang after the FLR was the model's:**
+  - 4.35M MSIs at the guest's MSI re-arm (`kbifRearmMSI_GM107`), 58k from the watchdog, 12.8M
+    trapped reads of `FE_RM_INTR_DISPATCH` (0x611ec0) and no tree ack. vcpu0 spun in the ISR,
+    with no network.
+  - Cause: the display clock raised the DISP vector at every tick with work, whatever the FE
+    showed. After the FLR the fresh engine had nothing pending, so the KMD's display handler
+    found nothing and left the leaf. Exact mode then re-sent the MSI at every re-arm, as the
+    card does for a pending enabled vector.
+  - On the card the leaf follows the FE's interrupt line.
+- **Fix (8a12eada):**
+  - The clock raises the vector only while the FE line is asserted after the tick (a
+    `LAST_DATA` left pending is still raised again at the next frame).
+  - A device reset drops the vectors raised before it.
+  - Diagnostics (6b09dba1): the first 256 trapped tree stores after each reset, and the busiest
+    trapped BAR0 offsets at exit.
+  - Binary lf2 (win-lockfree 9f6d5126).
+- **The ETW start failed:** SSH dropped at the reset. Start the trace before the desktop.
+- Memory model: none. The storm and the fix are interrupt semantics; the long holders are the
+  mirror and shadow paths.
+
+## Cloud Hypervisor, step 12: the software channel holds the lock; a stale host vector after the FLR (2026-09-29, C65, C66)
+
+- **C65 (lf3: lf2 plus lockfree step 2, mirror builds off the lock):**
+  - TDR 4.6 s after the first desktop flip (138.0 s, FLR 142.6 s). No flip in between; the
+    guest went quiet (6 doorbells), then the KMD tore down.
+  - No host NVRM line.
+- **Lock attribution (lockfree's `dlock`):**
+  - "doorbell software" 357 holds, 21.8 s in total, max 538 ms, nearly all chid 15. That is the
+    KMD's privileged CE channel ("may issue guest physical-mode work", allocation flags
+    0x201720), kept on the software executor.
+  - Mirror build snapshot 5 x 370 ms: CARAXES_SHADOW_CHANNEL_DIAG's coverage query. It is off by
+    default in run44.py since C66.
+  - The display clock's driver waited as long (p99 <= 524 ms, max 757 ms); its catch-up took
+    <= 27 us.
+  - The CE bytes are not the cost: fills of 64 KiB and more already run on the device CE (50
+    pushes, 99 MiB, 11 ms). The lockfree agent names the per-4 KiB translations through
+    uncached BAR1 window reads (step 5a, dc30d2c5).
+- **After the FLR, a re-arm storm again (8.57M MSIs):**
+  - The trace of the tree stores after the reset shows vector 4 pending before the guest's first
+    store. The old mirror's host event thread delivered two host-notifier raises after the tree
+    page's reset, because Bar0::reset reset the page before the boot model.
+  - The guest enabled LEAF_EN bit 4 and TOP_EN and never acked the vector.
+  - Fix (a76dd4a3): the boot model first (the old mirror joins its event thread), then the page,
+    which drops the raises not yet folded.
+- **C66 (lf4) never reached the driver:** the device trace ends at 7 s and the guest answers no
+  ARP. Probably Windows' automatic recovery after two killed runs (C64, C65), with no screen to
+  show it (the ROM has no GOP).
+- **Diagnostic (694e2e9c):** a reset traces the old model's summary ("reset: before:"), so the
+  counters before a TDR survive the FLR.
+- Memory model: the software executor reads guest page tables through BAR1 windows. Its cost
+  depends on the FB store (windows, pool, memfd).
+
+## Guest boot policy (2026-09-29, M-recover)
+
+- After two killed runs in a row (C64 and C65 hung after their FLR), Windows started Automatic
+  Repair (WinRE) under CH. It waits for a key, has no network, and there is no screen (the ROM
+  has no GOP). C66 therefore never reached the driver.
+- The coordinator recovered the guest in a QEMU maintenance boot (it came up normally there)
+  and set through QGA:
+  - `bcdedit /set {default} bootstatuspolicy IgnoreAllFailures`
+  - `bcdedit /set {default} recoveryenabled No`
+- To revert: `bcdedit /deletevalue {default} bootstatuspolicy`, then
+  `bcdedit /set {default} recoveryenabled Yes`.
+- Auto-logon (Winlogon AutoAdminLogon=1 with DefaultUserName and DefaultPassword) is set too,
+  by the coordinator after the user's answer. To remove it: AutoAdminLogon=0 and delete
+  DefaultPassword under HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon (or
+  netplwiz / Sysinternals Autologon).
+
+## Cloud Hypervisor, step 13: the display off the device lock; the TDR stays a VSync timeout (2026-09-29, C67)
+
+- **Binary lf6:** display own clock, stages 1-3, lockfree step 5a, the reset fixes.
+- **Display without the device lock:**
+  - The display clock's driver: p99 <= 4 ms, max 6.5 ms. Before (C64/C65) it was p99 524 ms,
+    max 757-801 ms.
+  - 751 of 1408 ticks ran without the device mutex; 13445 FE status reads and 611 writes were
+    routed; one FB record window (Windows' semaphores at fb 0xf8f80000).
+- **After the FLR:** no storm. The driver re-initialised (2382 RPCs), the head came back
+  (245.7 s), SSH works. A reset traces the old model's counters:
+  - VRAM store: 38765 window maps and 38762 evictions (the 2 x 32 MiB windows thrash).
+  - 394k page-table reads; BAR TLB 3.9M hits, 9986 walks, 2286 flushes.
+  - Longest mirror build 479 ms.
+- **The TDR (ETW, TdrPayloadVSyncTimeout for present 0x1E):**
+  - Two flips 21 ms apart (0x1D, 0x1E); each flip DDI took about 20 ms, since the PUT write
+    still takes the device lock.
+  - The KMD reported 0x1D at once and then 0x1D at every VSync DPC for 2 s. dxgkrnl waited
+    for 0x1E.
+  - The engine latched both (35 updates, 35 latched, 0 acquire waits), but the trace names no
+    latch after 32. Diagnostic in lf7: the last 96 latches, FINISHED writes, acquire waits and
+    failed record writes with their path.
+- **Another TDR after the recovery** (ETW 143.09 s): TdrPayloadEngineTimeout, node 0, fence
+  0x73, without a device FLR.
+- **The Linux page path:** stage 3 did not cover the display page's trapped acks (a VMM mapping
+  0x611000 read-only). Linux SotTR spent 42.6 s in 41k of them under the device lock. Routed
+  since f294c275.
+- Memory model: record windows need VRAM behind the FB address for good, so they are refused
+  with the BAR1 pool, the BAR2 memfd or BAR1 passthrough (see display-own-clock.md §7).
+
+## Cloud Hypervisor, step 14: the VSync timeout is the notifier's timing (2026-09-29, C68-C70)
+
+- **With the display clock off the device lock and step 5b** (lf9, C70), the flip's trapped
+  writes take 0.2-0.3 ms. The TDR stays: TdrPayloadVSyncTimeout for present 0x2B.
+- **The DDIs wait for our BEGUN.** Every ETW flip DDI (DdiSetVidPnMultiPlaneOverlay3) spans
+  24-30 ms and ends 0.5-0.8 ms before a VSyncInterrupt. The KMD polls the flip's sysmem
+  notifier until it leaves NOT_BEGUN, and the device wrote BEGUN only at the latch.
+  - In C69 (D contention) the DDIs took 40-45 ms.
+- **The flips that never complete:**
+  - 0x2B (C70) was latch 47 at tick 737, one tick after 0x2A (latch 46 at 736).
+  - 0x11 (C68) was latch 21 at tick 1872, after latch 20 at 1871.
+  - 0x12 (C69) came 3 ticks after the previous flip, but with 40 ms DDIs.
+  - The recent-events ring shows their BEGUN and FINISHED written (device or clock path,
+    0 failed writes); the KMD reported the previous ID for 2 s.
+  - Flips 2+ ticks apart with short DDIs were all reported.
+  - In the software flip queue mode (DXGKETW_FLIPMODE_IMMEDIATE_SW_FLIP_QUEUE) dxgkrnl
+    completes flips itself. The failures come when it leaves that mode (hFlipDevice 0,
+    FLIPMODE_NO_DEVICE) and the KMD must confirm the flip from the hardware: with BEGUN at
+    the latch and FINISHED one frame later, the KMD's view of a flip that went BEGUN and
+    then FINISHED between two of its looks never showed the flip done.
+- **Model since 2026-09-29 (display-connector.md):**
+  - BEGUN when the UPDATE is armed (the kick), with that PTIMER time.
+  - FINISHED at the latch, with the latch's time.
+  - nouveau's wait for exactly BEGUN after an UPDATE is met at once. The Windows DDI returns
+    at once, and the vblank that latches the flip shows it FINISHED.
+  - Test: back_to_back_flips_finish_at_their_own_latch.
+- Memory model: none.
+
+## Cloud Hypervisor, step 15: the flip armed at the blank's start (2026-09-29, C71-C73)
+
+- **With BEGUN at the arm and FINISHED at the latch (lf11), the VSync timeout stays** (C71:
+  0x9, C72: 0x7, C73: 0x10). The flip DDIs still span about 28 ms: the KMD programs the flip
+  at the DDI's end, just before a VSync. It does not poll our notifier; the notifier watch in
+  lf12 saw no guest store to it.
+- **The failing flip is the one armed right at the tick.**
+  - C73: flips armed 1.3-35 ms before their latch were reported. Flip 20 (present 0x10) was
+    armed at 117.8215 and latched at tick 685 (117.8215).
+  - The KMD read the scan line right before its UPDATE: 1117 (C73) and 1119 (C71), with the
+    blank starting at line 1120 (RASTER_BLANK_START 0x460083f) and the tick at line 0.
+  - After that flip the KMD polls window 0's GET/PUT and PTIMER for 2 s. After others it reads
+    the ARMED SET_PARAMS once.
+  - C72 (scan line 1088, latch 0.49 ms after the UPDATE) fails the same way; C70's 0x2B ran
+    with the old notifier timing.
+- **The card latches armed updates at the blank's start and raises LAST_DATA there.** Ours did
+  both at line 0, the start of vsync, 5 lines later. A flip armed in those lines latched a
+  frame earlier than the KMD, which knows the scan line, expects.
+- **Model since 2026-09-29:** the display clock's ticks are the blank's first line (the
+  raster's BLANK_START, else the viewport's height). The scan line reads that line at the
+  tick; an UPDATE armed after it waits for the next frame. Test:
+  the_latch_is_at_the_blank_start_line.
+- Memory model: none.
+
+## Cloud Hypervisor, step 16: the notifier's state at the KMD's check (2026-09-29, C74-C76)
+
+- **C74** (lf14, time-read catch-up): VSync TDR, then a hang without FLR. An MSI storm from
+  the host channels' non-stall notifiers after the KMD's display teardown: 16.26M re-arm MSIs,
+  60,597 host events.
+- **C75** (lf13, latch at the blank's start): VSync TDR for the flip armed 0.4 ms before the
+  latch (scan line 1095, blank from 1120). The FLR recovered the guest.
+- **C76** (lf15, latch at the blank's end): the first desktop flip failed. The KMD programmed it
+  inside the blank (scan line 3); the latch at line 40 came 0.55 ms later.
+- **What decides:** after programming a flip, the KMD spins on PTIMER for ~0.6 ms and then
+  checks the flip's notifier. Every failing flip (C71-C76) had latched within that window,
+  wherever the latch point was.
+  - With the notifier FINISHED at the latch (lf11-lf15), the check found FINISHED and the KMD
+    went into its GET/PUT poll. Flips latched after the check (BEGUN from the arm, or
+    NOT_BEGUN) went through.
+  - The KMD presets its slots FINISHED and resets one to NOT_BEGUN before a flip. FINISHED is
+    its "slot free" state, not "latched".
+  - nouveau's wait for exactly BEGUN and NVKMS headsurface's BEGUN assert say the same: a
+    latched presentation reads BEGUN.
+- **Model since 2026-09-29:**
+  - NOT_BEGUN (as the guest left it) until the latch.
+  - BEGUN with the latch's time at the latch.
+  - FINISHED when the next presentation displaces it.
+  - FINISHED at once on a head without scanout.
+  - The latch stays at the blank's start (0493209e reverted); the time-read catch-up is
+    reverted too (b4d8975d, not needed with this).
+  - Test: a_displaced_flip_is_finished.
+- Memory model: none.
+
+## Cloud Hypervisor, step 17: the modeset back to 1080p resets the GPU (2026-09-29, C77)
+
+- **Symptom:** 1920x1080 -> 1280x720 succeeded (DISP_CHANGE 0 in 599 ms). The way back failed
+  (DISP_CHANGE -1 after 45 s). The display then stayed at 720p. Sunshine blocked in its
+  display-config call and Moonlight failed with error 4.
+- **At 720p no flip latched.** The head ticked (the vblank acks went on at 60 Hz), but window
+  updates 349-352 stayed armed for 4.4 s.
+  - The engine kept the window's last latch as a tick of the head's counter (32933). The
+    modeset started the counter over.
+  - MIN_PRESENT_INTERVAL held every flip until tick 32934 of the new raster, about 9 minutes.
+- **The restore:** the KMD detached the window (the pending flips latched at once), switched the
+  head off and powered the DP link down (DPCD 0x600 := 2, as in the working 720p modeset).
+  - Instead of training the link it then saved config space through the `NV_PCFG` mirror,
+    cleared bus master and reset the GPU (FLR, 16 ms after the head went off).
+  - The re-init brought the head back at 720p, blanked. The window channel got no kick for
+    the rest of the run (10 min). C75's FLR shows the same: 6 window kicks after it.
+- **Fix (32b1f25b):** a window drops its last latch when its head's clock restarts (a modeset)
+  and when it changes its owner head. Test: a_modeset_restarts_the_present_interval.
+- **Open:**
+  - After a KMD reset the desktop never flips on our windows again.
+  - The `NV_PCFG` mirror answers the BARs with their sizing masks (0xff000000,
+    0xf000000c/0xffffffff), not the programmed addresses. The KMD wrote them back after the
+    FLR, and CH kept BAR0 ("Failed moving device BAR").
+- Memory model: none.
+
+## Cloud Hypervisor, step 18: host events livelock the KMD's teardown (2026-09-29, C78, C79)
+
+- **C78** hung at boot: the KMD's modeset to the persisted mode ran the same teardown as C77's
+  restore, then its pre-reset config save. **C79's** stop hung in Windows' shutdown teardown.
+- Both are C74's storm: 19.09M (C78) and 3.44M (C79) MSIs at the re-arm, the trace silent,
+  CH at 80 % CPU.
+  - A host GR0 non-stall event arrived right after the teardown began (C79: 908.9985 s ->
+    vector 4).
+  - The KMD's handler in its reset and shutdown paths neither acknowledges nor masks the
+    vector but re-arms (kbifRearmMSI).
+  - Level semantics resend the MSI for ever.
+- The host events are the host GPU's, not the guest's. C78: 128,200 of 129,504 came with no
+  guest doorbell waiting, 127,939 of them more than 100 ms after the last one.
+  - NV2080 engine non-stall notifiers fire for every client of the host GPU, the host desktop
+    included.
+  - Turing's `intrSetIntrEn(DISABLED)` only touches the legacy PMC enable
+    (intrSetIntrEnInHw_GP100, pmcRmOwnsIntrMask). The CPU_INTR tree stays enabled, and a card
+    with only this driver has nothing pending there.
+- **Fix (26e67b26):** when the re-arm's MSI would be for pending host hints only (the
+  forwarded engines' non-stall vectors 4-9), and the guest re-armed 256 times without an ack,
+  they are withdrawn. Their raises are muted for 1 s, or until the guest acks or enables them.
+  - The device's own vectors are never withdrawn.
+  - Tests: rearm_withdraws_a_host_hint_the_handler_does_not_service,
+    rearm_keeps_serviced_hints_and_device_vectors.
+- **Open:** the spec-true end state is attribution: only the guest's own work raises its
+  non-stall vectors. The host API gives no per-channel non-stall event (NVC46F_NOTIFIERS_NONSTALL
+  is defined but never notified by the RM).
+- **Kit:** run44's host-kernel.log was cut by the start's dmesg line count. Once the ring buffer
+  had dropped lines the file was empty, and C80's 54 Xid 31 lines read PASS. It is cut by the
+  start's uptime now, and check-ch.sh also greps the live log for the device's pid.
+- Memory model: none.
+
+## Cloud Hypervisor, step 19: context creation for Sunshine (2026-09-29, C79-C83)
+
+- Moonlight gives the host 10 s for the first frame. Sunshine's capture setup (a D3D11 device
+  plus DXGI duplication on our GPU):
+  - C79 (lf17): 13.2 s.
+  - C81 (lf18-perf2b): 15.2 s, probe captures 3.2 s each.
+  - C82 (lf19): 12.2 s, of which 2.9 s is "Output Name". Probe captures 3.25 s.
+- **Blocked acquires (4f925b23):** the software executor retried a failed semaphore acquire only
+  at the next doorbell or budget stop of any channel. C79 lost 1.58 s in 59 waits, C81 3.8 s
+  (one 2.26 s).
+  - Now the ce-slices clock (1 ms) re-reads the blocked word.
+  - C82's boot: chid 15 waits dropped from 8.3 s (374 stretches) to 2.5 s (175 stretches).
+- **What remains per D3D device:** the host mirror of each new GR channel takes 238-397 ms
+  after its first doorbell (shadow VAS 8 ms, TSG, private USERD, channel, 6 engine objects).
+  The KMD's paging channel waits for it through chid 4's deferred-management semaphores.
+  CE-only builds take 3-18 ms.
+- **BAR2 memfd (C80):** 54 host Xid 31 (HOST0/HOST10, FAULT_PTE, PBDMA reads at the KMD's
+  GPFIFO/USERD VAs 0x1_200d9000-0x1_203b3000). The shadow's walk did not see PTEs the KMD wrote
+  through BAR2. The device agent's 1c31cac2 syncs the memfd's table pages before every re-plan;
+  it is not yet run with the memfd on.
+- Memory model: the memfd (BAR2) and the BAR1 pool change it; the rest is the unified model.
+
+## Cloud Hypervisor, step 20: Sunshine streams (2026-09-29, C83-C87)
+
+- **C83** (lf18-perf5, BAR1 pool 32 MiB): the session capture took 8.1 s. The first Moonlight
+  video came, then the KMD reset the GPU after 82 s.
+  - The perf5 slice clock read its continuation flag twice per pass, so the paging channel's
+    budget stops resumed only at the next doorbell: 2.7 s and 3.1 s (264.8-270.7 s).
+  - The KMD's teardown came at 270.90 and the FLR at 270.98.
+  - The one hint withdrawal (vectors 4, 7) belongs to that teardown.
+- **C84** (lf21, same bug) hung in Sunshine's 8th probe capture after the guest's last work on
+  a mirrored GR channel (chid 20). A read-only ETL extraction of mine took a full vCPU for
+  6.5 min during it; no guest-side extraction during tests since.
+- **C86** (lf22: slice flag once b224ecbe, fence carved once per region 0e6ed0dd) streamed
+  15 min, first video after 9.5 s.
+  - GR/CE shadow builds: mean 82 ms, max 198 ms (C83: 176/448).
+  - Moonlight: 28.2 FPS over a mostly static desktop.
+- **C87** (lf23: + deferred Initialize off the lock f1985978, memset pattern df1a812f;
+  8 vCPUs, Sunshine min_threads 8):
+  - First video after 5.1 s; session capture 5.3 s; probe captures 1.8 s. 6 budget stops at
+    boot (C86: 2313).
+  - Present probe (D3D11 flip-model windowed 960x540, sync interval 1, 180 s) during the
+    stream: 59.9 fps, 0 failed presents.
+  - Windows put the swap chain on the MPO overlay (window 4), which latched 59.2-60.0 flips/s.
+  - Moonlight: 54.8 FPS incoming/decoded/rendered over the 3.5 min (29 s of it static), host
+    latency 11.9 ms, network latency 41 ms (C86: 2 ms; guest CPU load under x264).
+- Memory model: BAR1 pool 32 MiB (C83-C87); the rest is the unified model.
+
+## Cloud Hypervisor, step 21: 3D benchmarks (2026-09-29, C87-C91)
+
+- **Superposition black (C87, C90):** Windows PowerShell 5.1's Start-Process joins
+  -ArgumentList with spaces and quotes nothing. The console command
+  `config_readonly 1 && world_load superposition/superposition` was split, so the engine ran
+  only `config_readonly` and loaded no world: an empty scene with the overlay at 500-870 fps.
+  The bench pack's run-windows.ps1 has the same line. Fixed in tools/windows/superposition.ps1
+  (10987a97): the command is passed quoted.
+- **Heaven and Superposition reset the GPU (C87-C90):** 9-30 s after the world load began, the
+  KMD's paging channel ran a CE remap with a NO_WRITE component. The software CE refused it
+  ("remap component 2 selects 6"), raised RC Xid 45 to the guest, and the KMD reset (FLR).
+  The device agent's d02dc84d models SET_REMAP_COMPONENTS in full (lf23-remap).
+- **D3D11 stages (tools/windows/d3d11-stages.ps1):** C88/C90 pass all 12 checks: raster, clear,
+  D32_FLOAT depth, texture Load, constant buffer, compute UAV, 4x MSAA resolve, event query
+  (8 ms), occlusion query (18,432 samples, exact), tessellation.
+- **C91** (lf23-remap, BAR1 pool 32 MiB, 8 vCPUs, profile on), no stream:
+  - Heaven 4.0 DX11 1920x1080 windowed, High, tessellation Normal (PHORONIX): 115.6 fps
+    (30,114 frames in 260.6 s). 210 remaps ran, no RC, no FLR, no host Xid.
+  - Superposition 1.1 1080p Medium DirectX windowed (render 1920x1061): score 8758, fps
+    65.5 / min 31.1 / max 116.1. A desktop RTX 2070 scores about 12-13k natively.
+- Memory model: the BAR1 pool (32 MiB); compression off (the kind-0x9 leaves still refused,
+  the device agent's D16 A/B is next).
+
+## Cloud Hypervisor, step 22: the full disk and the guest's repair (2026-09-29/30, C92-C99)
+
+- **Cause:** /mnt/vmstore (guest qcow2, traces, VM state) filled up during the user's session
+  (C92, 22:47-22:52). CH logged one failed virtio-blk write at 22:47:49
+  ("_disk0_q0 … Request failed: request_type: Out", 491,520 bytes from byte 78,885,019,648,
+  C: clusters 19203486-19203605).
+  - qemu-img check of that top layer: 6965 leaked clusters and one error, cluster 650549
+    referenced with refcount 0, not yet reused.
+  - The layer is frozen as win11-pre-repair-2026-09-29.qcow2 (0444) with a fresh overlay on
+    top.
+- **Symptom:** every boot after it had no user session (w1, C93, C95-C98): Ntfs 55, Volsnap 23,
+  and CoreMessagingRegistrar crashing at boot (7031, recovery action "restart the computer").
+- **Repair:**
+  - chkdsk /scan could not snapshot the volume; sfc could not run; Repair-Volume
+    -OfflineScanAndFix failed. They left the dirty bit set.
+  - Autochk at the next boot (C98) fixed the $I30 indexes of six directories. Some of their
+    index blocks held foreign data (an XML header, a path "…ository\", a Python 3.12 site-packages
+    entry). A hypothesis, not a finding: that data came from the ENOSPC write sequence itself.
+  - sfc /scannow then "found corrupt files and successfully repaired them" (C99), and the
+    session is back. No DISM, no fallback to the 27 Sep chain.
+- **Guards since:**
+  - run44 refuses a start below 30 GiB free.
+  - The trace stops below 10 GiB free (c1fe2c28).
+  - The kit prefers a raw image (win11.raw, image_type=raw, num_queues=4) once the chain is
+    flattened.
+- **Open (fix after the merge):** a guest reboot in early boot (C97, 38 s after the start:
+  CoreMessagingRegistrar's recovery restart) killed the VM. The device exits on the vfio-user
+  client's disconnect and removes its socket, and CH's reboot path then fails with "Failed to
+  create vfio-user client: No such file". Reboots from a running Windows worked (C93, C96).
+- Memory model: none.
+
+## Cloud Hypervisor, step 23: the gate candidate, the reboot, and a second GPU client (2026-09-30, C100-C117)
+
+- **Correction to step 22:** reboots from a running Windows did not work either. C96's ch.log
+  has the same fatal error as C97; "ssh back" was printed whether or not the guest came back.
+- **lf24 (C100):** the host-hint withdrawal (26e67b26) fired once when the KMD tore down for the
+  reboot ("withdrawal 1": 256 re-arms without an ack). The guest reached the reset 0.7 s later;
+  before lf24 this teardown livelocked. Heaven HIGH/NORMAL: 133.4 fps over 295 s.
+- **The reboot kills the VM (C100, C101):** CH's reboot drops the vfio-user client and builds a
+  new one about 0.7 s later: `VmReboot(DeviceManager(VfioUserCreateClient(StreamRead(Connection
+  reset by peer))))`. The device served one connection and exited when it closed.
+  - Fix, after the merge: reconnect-2026-09-30 (c43495af). The device binds the socket itself and
+    keeps listening. A client that connects within 2 s gets the device reset, and the old
+    client's memory and IRQ eventfds are released (vfio-user.rst "Client Disconnection").
+- **final1 (train c3e9bd5b + D16):**
+  - D3D11 stages: 12/12 (C101, C104, C106).
+  - Heaven HIGH/NORMAL: 152.4 and 146.0 fps (C105), 132.0 and 128.4 (C111).
+  - Superposition 1080p Medium: 10805 (C101), 11604 (C106), 10590 and 10996 (C111), 11965 (C112).
+  - 0 host Xid, 0 FLR, 0 shadow faults in every run.
+- **The gate candidate is deferred-v2 (b6d01293):** final1 + the live state dump
+  (diag-state) + the channel migration below. Its Windows leg is C118.
+- **D16 on Windows:** kept. The KMD still maps kind-0x09 surfaces with COMPRESSION_SIZE 0 and
+  the compbit store refused. The device refuses them as before: 3744-4741 leaves per session,
+  never touched (no fault). Nothing in C100-C113 points at D16. lf24 without D16 fails the same
+  way (below).
+- **KNOWN BUG #1: a benchmark next to another GPU client stops (fixed):**
+  - Symptom: Heaven or Superposition crashes 90-250 s into a run. The crash is 0xC0000005 in
+    d3d11.dll for Heaven, and 0xC0000005 or 0xC0000409 for Superposition. A burst of
+    LiveKernelEvent 141 (VIDEO_ENGINE_TIMEOUT_DETECTED) comes with it. There is no TDR event,
+    no FLR and no host Xid.
+  - Or the app hangs without any timeout (C112: the guest stopped presenting 95 s in; every
+    window update the device saw was latched).
+  - Rate with the user's Steam client (4-6 steamwebhelper) and Edge running (they start about
+    20 s after logon since his installs between C91 and C92): about half of the runs, on every
+    binary.
+    - lf24: 2 of 4 (C107).
+    - lf24+D16: 1 of 1.
+    - train3: 2 of 2.
+    - final1: 5 of 11.
+    - lf23-remap: a TDR with FLR in C109, and a hang in C113.
+  - With Steam and Edge stopped before every run: 0 of 4 (C111). With them stopped and
+    present-probe (windowed, 60 presents/s) as the second client: 1 of 3 (C112, the hang).
+  - Ruled out:
+    - The shader cache: C105 passed fresh and from the cache; C106 crashed fresh.
+    - The guest's files: the display driver's 216 files are identical to the 617.14 package,
+      and Heaven's data is identical to its package (C108).
+    - Host builds: none ran during the crashes.
+    - Device stalls: lock holds, shadow applies and budget runs stay under 80 ms in passing
+      and failing runs alike.
+  - **Cause:** every failure follows, within 0-65 s, a refused
+    NV5080_CTRL_CMD_DEFERRED_API_INTERNAL (0x50800104). It came 13 times across C101-C114,
+    none in C100 or C111. Its nested command is NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO
+    (C115, diag2).
+    - An example: chid 22, the app's GR channel, moved to a 65536-entry GPFIFO at
+      0x2_2538_0000 and a new USERD (0xff00a002 + 0x400). WDDM grows a busy channel's ring
+      this way under contention, with the deferred call as the old ring's last entry.
+    - The device modelled only the legacy context requests. Before refusing, it marked the
+      owner for a management takeover, and that takeover cannot happen past a channel's
+      start (GPGet ≤ 32). This is the "harvested GPGet … outside the bounded 8192-entry
+      prefix" line in the same millisecond.
+    - The refused method never completed: a hang, or the KMD's engine timeout.
+    - C114's live dump (diag1, device-ctl) inside a recovered 19 s gap: every channel's work
+      consumed, no interrupt pending. The guest waited on the refused operation.
+  - **Fix** (deferred-v2-2026-09-30, 196b3f78), following GSP-RM's own path (ctrl5080.h:125-186;
+    deferred_api.c:345-398, :444-560):
+    - V2 and INTERNAL register into the same table as legacy.
+    - A host channel: the host RM registers the migration on the owner's host 0x5080 object
+      and moves the host channel in its own stream. The host channel gets a second private
+      USERD, and both rings are published until the new ring's GPGet moves.
+    - A software channel: the device's executor switches at the method.
+    - A direct 0x20801116 moves an idle channel now.
+  - **Validation:** 0 deferred refusals, 0 hangs, 0 crashes, 0 host Xid, 0 FLR. Every
+    migration was registered and then completed by the host in its stream (8192 -> 65536
+    entries each, 16-106 ms after the registration).
+    - C116 (fix1, the C112 repro: present-probe beside three Heavens): 3 of 3 passed, 154.6,
+      154.3 and 152.5 fps. 3 migrations.
+    - C117 (fix1, natural: Steam and Edge running): 4 of 4 passed. Heaven 158.3 and 153.9 fps,
+      Superposition 12247 and 12175 (min fps 52-59, before about 13). 3 migrations.
+    - C118 (fix2, the gate candidate, natural): stages 12/12, Heaven 155.9 and 153.3 fps,
+      Superposition 12228 and 12160. 2 migrations, each switched exactly at the old ring's end
+      (GPGet 8017 = last published GPPut 8017; 3334 = 3334).
+- **KNOWN BUG #2: 3DMark DX12 faults at VA 0, then TDR (open, after the gate):** the user's
+  session C122 (reconnect2, 08:23-08:39), most likely Steel Nomad windowed; exclusive fullscreen
+  still fails at dx12_swapchain.cpp:238.
+  - Two host Xid 31s on the Windows device, 76 s apart: "ENGINE GRAPHICS GPC1 GPCCLIENT_GCC
+    faulted @ 0x0_00000000, FAULT_PTE": a constant-cache read at VA 0. Then an FLR (TDR) at
+    +890 s. The device's RC event both times: exceptType 0x1f, info16 0xe9.
+  - The first fault came 1.3 s after an exact ring migration (chid 63); the second had no
+    migration near it.
+  - Open question: whether the shadow missed a mapping or the guest faults on its own. A
+    native run would tell.
+  - The run's times are in 3DMark's result files (C:\Users\silas\Documents\3DMark,
+    C:\ProgramData\UL\3DMark\Results): read them at the next Windows start, read-only.
+- **heaven.ps1** reported every finished run as "FAIL: no score". The PHORONIX define prints
+  only "FPS:". Now a run passes on an FPS or Score line (b0d6e05c).
+- Memory model: KNOWN BUG #1 was measured on the BAR1 pool (32 MiB), GPA DMA, and compression
+  off (D16). The reconnect fix releases guest RAM registrations (hostmem) and needs no other
+  model.

@@ -31,7 +31,7 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -599,6 +599,110 @@ pub fn dump_at_exit() {
     }
 }
 
+/// The trapped accesses the routes serve without the device mutex (device.rs `Routes`: the
+/// interrupt page's stores in exact mode, the MSI re-arm, the read-only display page, the
+/// display status registers), which the access rows do not see. Counted per route and
+/// direction with their device time, lock-free, while the profile is on.
+pub const ROUTES: [&str; 5] = [
+    "intr page 0 (PMC)",
+    "intr tree page",
+    "MSI re-arm (NV_PCFG)",
+    "display FE page",
+    "display status",
+];
+static ROUTE_N: [AtomicU64; 2 * ROUTES.len()] = [DB_ZERO; 2 * ROUTES.len()];
+static ROUTE_NS: [AtomicU64; 2 * ROUTES.len()] = [DB_ZERO; 2 * ROUTES.len()];
+
+/// Count one routed trapped access of route `route` (an index of [`ROUTES`]).
+#[inline]
+pub fn routed(route: usize, write: bool, dur: Duration) {
+    let i = route.min(ROUTES.len() - 1) * 2 + write as usize;
+    ROUTE_N[i].fetch_add(1, Ordering::Relaxed);
+    ROUTE_NS[i].fetch_add(dur.as_nanos() as u64, Ordering::Relaxed);
+}
+
+/// The window rows of [`routed`] (a [`Source`]): "routed trap: <route> R|W" counts the
+/// accesses, "routed trap ns: <route> R|W" their device time in nanoseconds.
+pub fn routed_rows() -> Vec<(&'static str, u64)> {
+    static NAMES: std::sync::OnceLock<Vec<(&'static str, &'static str)>> = std::sync::OnceLock::new();
+    let names = NAMES.get_or_init(|| {
+        (0..2 * ROUTES.len())
+            .map(|i| {
+                let (r, d) = (ROUTES[i / 2], if i % 2 == 1 { 'W' } else { 'R' });
+                (
+                    &*Box::leak(format!("routed trap: {r} {d}").into_boxed_str()),
+                    &*Box::leak(format!("routed trap ns: {r} {d}").into_boxed_str()),
+                )
+            })
+            .collect()
+    });
+    let mut rows = Vec::new();
+    for (i, (n, ns)) in names.iter().enumerate() {
+        let c = ROUTE_N[i].load(Ordering::Relaxed);
+        if c > 0 {
+            rows.push((*n, c));
+            rows.push((*ns, ROUTE_NS[i].load(Ordering::Relaxed)));
+        }
+    }
+    rows
+}
+
+/// Runlists and ChIDs of the trapped-doorbell rows ([`doorbell_token`]); a ChID at or above
+/// [`DB_CHIDS`] is counted in its runlist's overflow row.
+pub const DB_RUNLISTS: usize = 8;
+pub const DB_CHIDS: usize = 64;
+const DB_SLOTS: usize = DB_RUNLISTS * (DB_CHIDS + 1) + 1;
+#[allow(clippy::declare_interior_mutable_const)]
+const DB_ZERO: AtomicU64 = AtomicU64::new(0);
+static DB_TOKENS: [AtomicU64; DB_SLOTS] = [DB_ZERO; DB_SLOTS];
+
+/// The counter of a doorbell token: a work-submit token is `RUNLIST_ID` (bits 22:16) and
+/// `VECTOR`, the ChID (bits 11:0) (tu102/dev_ctrl.h:36-37); any other value (a pool token of
+/// tokens.rs among them) is the last slot.
+fn doorbell_slot(token: u32) -> usize {
+    let runlist = ((token >> 16) & 0x7F) as usize;
+    if token & !0x007F_0FFF != 0 || runlist >= DB_RUNLISTS {
+        return DB_SLOTS - 1;
+    }
+    runlist * (DB_CHIDS + 1) + ((token & 0xFFF) as usize).min(DB_CHIDS)
+}
+
+/// Count one trapped usermode-doorbell write of `token` (device.rs `post_doorbell`), for the
+/// trap census: which rings miss the token pool's and the guest tokens' ioeventfds. One
+/// relaxed add, no lock; the caller calls it only while the profile is on.
+#[inline]
+pub fn doorbell_token(token: u32) {
+    DB_TOKENS[doorbell_slot(token)].fetch_add(1, Ordering::Relaxed);
+}
+
+/// The window rows of [`doorbell_token`] (a [`Source`]): one per nonzero counter.
+pub fn doorbell_token_rows() -> Vec<(&'static str, u64)> {
+    static NAMES: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    let names = NAMES.get_or_init(|| {
+        (0..DB_SLOTS)
+            .map(|i| {
+                let (rl, c) = (i / (DB_CHIDS + 1), i % (DB_CHIDS + 1));
+                let s = if i == DB_SLOTS - 1 {
+                    "trapped doorbell: other value".to_string()
+                } else if c == DB_CHIDS {
+                    format!("trapped doorbell: runlist {rl} chid >= {DB_CHIDS}")
+                } else {
+                    format!("trapped doorbell: runlist {rl} chid {c}")
+                };
+                &*Box::leak(s.into_boxed_str())
+            })
+            .collect()
+    });
+    DB_TOKENS
+        .iter()
+        .zip(names)
+        .filter_map(|(c, n)| {
+            let v = c.load(Ordering::Relaxed);
+            (v > 0).then_some((*n, v))
+        })
+        .collect()
+}
+
 /// Add a window counter source (see [`Source`]).
 pub fn register_source(s: Source) {
     SOURCES.lock().unwrap_or_else(PoisonError::into_inner).push(s);
@@ -692,6 +796,39 @@ mod tests {
         assert_eq!(c.max_ns, 3_000_000);
         assert_eq!(c.status, vec![(0, 2), (0x56, 1)]);
         assert_eq!(c.label, "synthesized");
+    }
+
+    #[test]
+    fn routed_traps_by_route_and_direction() {
+        routed(1, true, Duration::from_micros(3));
+        routed(1, true, Duration::from_micros(5));
+        routed(99, false, Duration::from_nanos(10));
+        let rows = routed_rows();
+        let get = |n: &str| rows.iter().find(|r| r.0 == n).map(|r| r.1);
+        assert!(get("routed trap: intr tree page W").is_some_and(|c| c >= 2), "{rows:?}");
+        assert!(get("routed trap ns: intr tree page W").is_some_and(|ns| ns >= 8000), "{rows:?}");
+        // A route index past the table is the last route.
+        assert!(get("routed trap: display status R").is_some_and(|c| c >= 1), "{rows:?}");
+        assert_eq!(get("routed trap: MSI re-arm (NV_PCFG) W"), None);
+    }
+
+    #[test]
+    fn doorbell_tokens_by_runlist_and_chid() {
+        assert_eq!(doorbell_slot(0x0000_0000), 0);
+        assert_eq!(doorbell_slot(0x0001_0005), DB_CHIDS + 1 + 5);
+        assert_eq!(doorbell_slot(0x0007_0033), 7 * (DB_CHIDS + 1) + 0x33);
+        // A ChID past the rows goes to its runlist's overflow row.
+        assert_eq!(doorbell_slot(0x0002_0040), 2 * (DB_CHIDS + 1) + DB_CHIDS);
+        // A pool token (tokens.rs TOKEN_BASE), a runlist past the rows, bits outside the
+        // token's fields: the other-value row.
+        assert_eq!(doorbell_slot(0xCA70_0003), DB_SLOTS - 1);
+        assert_eq!(doorbell_slot(0x0008_0001), DB_SLOTS - 1);
+        assert_eq!(doorbell_slot(0x0000_1001), DB_SLOTS - 1);
+        doorbell_token(0x0003_0011);
+        doorbell_token(0x0003_0011);
+        let rows = doorbell_token_rows();
+        let row = rows.iter().find(|r| r.0 == "trapped doorbell: runlist 3 chid 17");
+        assert!(row.is_some_and(|r| r.1 >= 2), "{rows:?}");
     }
 
     #[test]

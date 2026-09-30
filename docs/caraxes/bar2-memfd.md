@@ -40,7 +40,7 @@ Sources:
    synchronisation points, which stay trapped, it compares every mapped memfd page against its
    snapshot:
    - the BAR2 flush read;
-   - the MMU invalidate;
+   - the MMU invalidate (the table pages only since 2026-09-29, §3 rules 2 and 3);
    - the BAR2 bind;
    - the GSP command-queue doorbell.
 4. A sync then does three things:
@@ -162,7 +162,7 @@ the card's registers and counted in the exit line (`full syncs by point: ...; ch
 |---|---|---|
 | flush read | `pReadToFlush`, FB address 0 through BAR2 (kern_bus_gv100.c:384-399) | nothing; the flush itself (a read completes after every earlier posted write) |
 | FB flush | `NV_UFLUSH_FB_FLUSH` 0x070000 (maxwell/gm107/dev_flush.h:30); semantics in kern_bus_gh100.c:2946-2950 | nothing; the sysmembar. Treated as a flush read: owed, or synced at once without the deferral |
-| MMU invalidate | `NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE(_PDB)` (turing/tu102/dev_vm.h:120-131) | the MMU (page tables) |
+| MMU invalidate | `NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE(_PDB)` (turing/tu102/dev_vm.h:120-131) | the MMU (page tables): the table pages are synced, an owed flush stays owed (§3 rules 2 and 3) |
 | GSP queue head | `NV_PGSP_QUEUE_HEAD(0)` (turing/tu102/dev_gsp.h:38) | GSP-RM; on a GSP system the runlist submit is GSP-RM's own write, and the CPU's equivalents (channel/TSG alloc, `NVA06F_CTRL_CMD_BIND`, `GPFIFO_SCHEDULE`, `FIFO_DISABLE_CHANNELS`) are RPCs through this queue |
 | BAR2 bind | `NV_PBUS_BAR2_BLOCK` | the BAR2 MMU |
 | channel doorbell | `NV_VIRTUAL_FUNCTION_DOORBELL` (turing/tu102/dev_vm.h:229) | the channel's PBDMA and engines: rule 4 of §3 |
@@ -241,8 +241,19 @@ guest's tables. So no other page needs to trap.
    So the invalidate is the sync point of the page tables: with no flush owed it compares and
    writes back exactly the live table pages the device follows (the walks of the guest roots,
    the BAR2 and BAR1 tables, the pool's area walk; `FakeFb::bar2_sync_tables`), and a BAR2 page
-   that the walk re-points is written back before it leaves the mapping. With a flush owed it
-   settles it with a full sync. A doorbell syncs only what its channel could observe (rule 4),
+   that the walk re-points is written back before it leaves the mapping. Each walk's list of
+   its live table pages is kept while the walk's table pages (its tables generation) and the
+   BAR2 live set (the remap generation) stay as they were. SotTR run F, per invalidate: 424 us
+   in the table sync, of it 62 us listing the table pages (about 112 live of every watched
+   page), 295 us scan and write-back (dirty table pages written back through the VRAM store's
+   BAR1 windows), 44 us following the BAR2 tables, 17 us drift samples.
+   The write-backs go to VRAM through the VRAM store's BAR2 windows (2 of 2 MiB, host-
+   resources.md), not the 32 MiB data windows: in run F a dirty page's write-back could cost a
+   window remap (about 270 us of host calls) and evict the executor's window. Page loads and
+   drift samples use them too; a page a data window holds is served by it.
+   A flush owed stays owed (rule 3). Only while a host VA space walks the guest's own tables (a mirror VAS,
+   `Mirror::walks_guest_tables`) is the invalidate a full sync. A doorbell syncs only what its
+   channel could observe (rule 4),
    page tables excluded; `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`, a full sync at every doorbell,
    is the reference setting that tests this rule. The channel's VAS leaves are taken as of the
    last walk update (the shadow's resync at the invalidate): a mapping the guest made without
@@ -250,9 +261,30 @@ guest's tables. So no other page needs to trap.
 3. BAR2 data the GPU consumes (instance memory, scrubbed buffers) is flushed by the RM before it
    is handed to the GPU (`kern_bus_gm107.c:3339-3342`), and reaches VRAM at that flush.
    Since 2026-09-26 the flush read only marks the sync owed, and the hand-over settles it: the
-   MMU invalidate, the GSP command-queue doorbell, a channel doorbell, or the 1 ms flush clock
+   GSP command-queue doorbell, a channel doorbell, or the 1 ms flush clock
    ([display-pacing.md](display-pacing.md) §3; `CARAXES_BAR2_MEMFD_DEFER_FLUSH=0` syncs at every
    flush read again).
+   - The MMU invalidate settled it too until 2026-09-29. It no longer does. On the card an engine
+     consumes data only after an MMIO write that starts it: a channel doorbell, a GSP command (the
+     runlist, a channel's bind and schedule are GSP-RM's), a BAR2 bind. Each of those is a sync
+     point.
+   - The invalidate starts no engine. It only makes the MMU drop cached translations, so the
+     next walk reads the tables. Those it gets (rule 2).
+   - An engine already running (a semaphore acquire polling memory) sees the data within the
+     flush clock's bound, as for any owed flush.
+   - Cost before: SotTR drsv3-on-2, 195193 invalidates with a flush owed, 93 s of full syncs
+     (477 us each) on the guest's invalidate path. A table-only sync cost 164 us.
+   - Counted: `MMU invalidates: N table sync(s) ..., M of them with a flush owed left to the next
+     engine start`.
+   - The BAR1 pool's replicas follow the same rule (`bar1pool::sync_untracked_tables`): at an
+     invalidate only the replicas whose home is a page table the device follows are merged;
+     the data replicas wait for the next engine start (SotTR run E: the full merge at every
+     invalidate cost 675 us, 144 s over the run).
+   - Tests: `an_invalidate_with_a_flush_owed_syncs_the_tables_and_leaves_the_data_to_the_engine_start`
+     (a PTE rewritten through a table mapped into BAR2 reaches VRAM and is followed at the
+     invalidate; the data waits for the doorbell and reads from the memfd meanwhile),
+     `a_flush_read_defers_its_sync_to_the_next_hand_over`,
+     `the_invalidate_the_gsp_queue_head_and_the_bar2_bind_sync`.
 4. **The doorbell rule** (2026-09-29, for guests whose flush the device does not see: nouveau
    reads FB address 0 through its own BAR2 mapping at 0x8000, not at the trapped 0xfea000). A
    channel doorbell with no flush owed syncs the live pages the rung channels could observe, and
@@ -272,7 +304,11 @@ guest's tables. So no other page needs to trap.
    - A channel whose memory the device cannot name (no VAS root, no cached walk of it) could observe
      anything: every live page is synced.
    The sets are cached per channel (channel, root, walk and table generations, set-B stamp) and
-   intersected with the live pages when those change. The cost is one `memcmp` of the BAR2 page
+   the live generation. A set is made again from the live pages, not from the VAS's leaves: the
+   walk keeps each 2 MiB unit's FB and guest-RAM span, and only a unit whose span holds a live
+   page is read (`WalkCache::observed_keys`; SotTR run F listed every leaf of the VAS for each of
+   82115 sets, the "BAR2 before the ring" of a trapped doorbell was 1.35 ms). The BAR1 pool's
+   replica homes (bar1-pool.md §16) are found the same way. The cost is one `memcmp` of the BAR2 page
    with its snapshot per observable live page per doorbell (0.14 us warm, 0.28 us for a set that
    no longer fits the cache, measured on this host); KVM dirty logging (§2) would make it one per
    dirty page. Write-protect tracking on the device's side cannot replace it: userfaultfd-wp,
@@ -293,6 +329,24 @@ guest's tables. So no other page needs to trap.
    drift counter samples it); and a guest BAR2 write that is not yet synced lands after a later
    BAR1 write to the same bytes. No trace shows either for the page-table and instance memory the
    guests read back through BAR2.
+6. **The victim cache** (2026-09-29, `Victims`). The 615 RM maps a page table into BAR2 for a
+   PTE update and unmaps it after (SotTR: 77051 pages entered BAR2 over the run, 32104 of them
+   loaded from VRAM, 157815 VRAM window maps). When a page the device follows as a table (a
+   cached walk reads it) leaves the mapping, its snapshot is kept: it equals VRAM (the sync
+   wrote the guest's bytes back first), and a page table has no other writer (the pool never
+   holds one, no host engine writes the guest's tables, the device's own writes patch the
+   entry, a write it only learns of, `note_range_changed`, drops it). It stays valid while some
+   cached walk reads the page as a table: when the last one stops (`Update::left`,
+   `FakeFb::forget_victims`), the snapshot is dropped, so a page table reused as data is never
+   served stale. Until 2026-09-29 a global table epoch moved whenever any walk dropped any table
+   page and made every snapshot stale (SotTR run D: 1653 kept, 994 stale at use, 0 reads
+   served). A page that enters BAR2 again
+   is loaded from it, and device reads of it are served from it, without an uncached BAR1 read
+   through a window that must be mapped first. At most 4096 pages (16 MiB). The exit line counts
+   kept, load hits and misses, reads served, stale, dropped (a write behind the device, no walk
+   any more) and evicted entries; the VRAM store
+   line is followed by its reads by caller (device data, page tables, BAR2 loads, drift samples,
+   other).
 
 **Hazards, counted or stated:**
 

@@ -368,3 +368,381 @@ Code: `D/invgate.rs`, `D/mirror.rs` `shadow_invalidated`, `invalidate_busy`, `Sh
 - **GPU run must confirm.** Kick rate while streaming (cursor test 25-60 kicks/s instead of
   8-25), Sunshine frame latency, reactor lock-wait p99 back near the 13.6 ms of no stream, the
   busy-read and fallback counters, and no Xid 31 over five Moonlight connect cycles.
+
+### 8.1 The invalidate's scope and an urgent-first worker (2026-09-29)
+
+Evidence: `/mnt/vmstore/caraxes/runs-2026-09-29/sottr-stall/` (SotTR stuck on its loading screen
+for 20+ minutes, P43, 4 GiB).
+
+- **What the guest did.** 90 % of the game's samples in `osDevReadReg032` polling TRIGGER under
+  `gvaspaceAlloc_IMPL` and `dmaUpdateVASpace_GF100`; VRAM allocations and DMA maps took 250-570 ms
+  each, 3-4 per second (guest perf and bpftrace, `guest-perf-1228.txt`, `guest-ioctl-hist-1227.txt`).
+- **What the device counted** (`gpu-exit.log`): 54213 held invalidates, 1850 s held in total
+  (34 ms mean, 794 ms longest), 3.47 M busy trigger reads (64 per hold); 42066 invalidates of other
+  roots deferred (lazy) and planned in 15762 batches. The per-shadow lines left at exit show only
+  seconds of apply time, and those roots were created and freed many times (131 channels; the
+  lines of those freed earlier went to the trace, which was off). The holds were most likely
+  waiting, behind other roots' jobs in the FIFO worker (the lazy batches a hold
+  flushed first, doorbell batches, new VASes' full syncs) and behind the device lock (pool polls
+  over 2 ms: 5924; the BAR2 memfd's full scans: 134277 syncs, 55 s).
+- **The card's rule.** An invalidate completes when the TLB holds no stale translation for its
+  target. So TRIGGER reads busy until the worker applied the jobs of the invalidate's scope only:
+  - the named root, or for `ALL_PDB` the roots whose GPPut store does not trap
+    (`untrapped::held_roots`); every other root's channel runs after a doorbell whose barrier
+    plans and waits for its root, so those follow the lazy rule (planned without a wait, or
+    deferred);
+  - the hold no longer flushes the other roots' deferred invalidates first.
+- **Urgent first.** The worker keeps one queue per root (`JobQueues`); a root someone waits for
+  (an armed gate, a doorbell or GPPut barrier, `Progress::wait`) has its jobs applied before older
+  jobs of other roots. A root's jobs never pass each other (Create, Apply, Free, Coverage). Progress
+  is per job (`Progress::begin`/`finish`), so `wait_all` (`Target::All`) still means every job up to
+  a number, and `wait_root` (`Target::Roots`) exactly the root's jobs.
+- **Kept.** Maps are applied before TRIGGER clears: a host channel whose GPPut store does not trap
+  may fetch the next work at once, and a missing leaf there is an MMU fault (Xid 31), so the
+  plan's unmaps and maps both belong to the hold. The MEM_OP hold (`memop_holds`) and the pool's
+  `shadow_barrier` are unchanged. Not done: coalescing queued plans of one root (a later plan
+  covers only its changed units) and parallel workers (the host RM serialises the calls anyway).
+- **Counters.** The mirror line ends with `shadow worker: N plan(s) applied in X ms, queued Y ms in
+  total (Z us max), P job(s) of a waited-for root applied before older ones`. With
+  `CARAXES_PROFILE=1` the rows `held invalidate: armed to TRIGGER read done` and
+  `shadow worker: plan queued before apply` give the distributions; the host RM rows give the
+  worker's call times.
+- **Tests.** `invgate::tests` (out-of-order finish, urgency while waiting and while a gate is
+  armed, a gate with nothing in flight), `untrapped::tests::a_held_invalidate_waits_for_its_scope_only`,
+  `mirror::tests::the_worker_takes_a_waited_for_root_first_and_keeps_each_roots_order`.
+
+## 9. Lock ordering and what may run under the device lock (2026-09-29)
+
+The device lock (D, `Arc<Mutex<Device>>`, device.rs) serialises every trapped access, every
+reactor wake-up and every clock. A long hold stops unrelated engines: Windows C61 timed out its
+VSync behind a 495 ms mirror build and 500-650 ms control replies; SotTR on Linux waited up to
+441 ms behind a pool poll. The card's rules bound what needs D:
+
+- a doorbell only promises that the GPU fetches the new entries eventually;
+- a control reply may take as long as it needs, but must not stop unrelated engines;
+- the held invalidate's trigger read waits at most 50 us per read (§8), and the guest polls it.
+
+**Order.** D first, then any of: the BAR1 pool's lock, the display engine's lock, the host RM
+mutex (`hm`, `HostMemory`), the shadow worker's and the builder's internals (`invgate::Progress`,
+job queues), the BAR2 flush state. A thread that holds any of these never takes D. The shadow
+worker, a builder, the pool's mover and the display clock hand their results to D-holders through
+queues or atomics (a completion drained at the next D hold, or a host doorbell write the worker
+does itself).
+
+**What runs under D.** Short state changes only: reading a guest structure, updating the
+registry and the mirror's maps, writing a reply or a register, submitting a job. Not under D:
+
+- waiting for the shadow worker, a builder or the pool (a doorbell holds its ring instead, §9.1);
+- host RM calls that build objects (a channel's mirror build, §9.2) or serve a slow control
+  (the RPC worker, §9.4);
+- a shadow full walk (bounded resumable steps, §9.3).
+
+The one wait that stays is the trigger read's `POLL_WAIT` (50 us). A wait under D that is not
+bounded is a bug; the D hold histogram in the exit summary names the holder of every long hold.
+
+§9.1-9.4 are the steps (branch lockfree-2026-09-29): the held ring, the build off D, bounded walks,
+the RPC worker. The pool's barrier becomes a held ring as well (the pool rework); the display
+clock's per-tick work takes the display engine's lock and never D.
+
+### 9.1 The held ring (2026-09-29)
+
+- A doorbell of a built shadow channel plans its root as before, then checks its target (the
+  root's last job, `invgate::Target`) and the ring gate (`ringgate.rs`). Applied and not held: it
+  rings at once. Otherwise it records a held ring for the channel (one per channel; later doorbells
+  join it with the newer target) and returns.
+- The shadow worker pokes the gate after every job. The completer thread (main.rs,
+  `ring-completer`) waits on the gate without D while rings are held and takes D briefly to
+  forward the ready ones (`Mirror::complete_held_rings`: FB flush, shadow USERD publish, the
+  forwarded GPPut, the host doorbell, the harvest).
+- Holds for other users (the BAR1 pool): `Mirror::hold_rings(roots) -> token`,
+  `Mirror::release_rings(token)`, `Mirror::submit_call(root, call, Some(token))` runs a host RM
+  call on the worker in order with the root's plans and releases the token after it. The gate is
+  process-wide (`ringgate::global`), so a model rebuilt at a reset keeps it.
+- A freed channel's held ring is dropped; a reset drops them all.
+- Counters: the mirror line's `held rings: ...` part; the device-lock holds by holder
+  (`dlock.rs`) at exit: count, total, p50/p99 bounds, max per holder, and the longest holds.
+- Still waiting under D: the preparation path (`submit` false), the trapped GPPut store's barrier
+  (`gp_put_barrier`), the software MEM_OP hold. The first doorbell's build moved off D in §9.2;
+  the pool's barrier holds rings instead (§9.5, bar1-pool.md §15).
+- Tests: `ringgate::tests` (a ring waits for its root's jobs and holds only; the completer wakes
+  on a poke while rings are held), `dlock::tests`.
+
+### 9.2 The mirror build off D (2026-09-29)
+
+- A shadow channel's first doorbell takes the build's inputs under D and hands the host RM calls
+  to the shadow worker as one job (`mirror.rs` `shadow_build`, `build_on_host`).
+  - The inputs: the VAS (made under D if the root is new) and its set-A plan, the USERD plan, the
+    error-notifier page, the engine objects, the preemption request, a reserved GFXP slot.
+  - The job is queued after the root's plans, and a root's jobs never pass each other, so the
+    set-A mirror is there before the host RM validates the GPFIFO VA. Nothing waits for it.
+- The job makes the host TSG, the USERD and error-notifier objects, the channel and the engine
+  objects, then binds GFXP and the compute preemption mode. It takes `hm` per RM call. It does not
+  schedule: the channel cannot run before the commit.
+- The builds of one guest TSG share a cell (`mbuild.rs` `TsgCell`): the first job the worker runs
+  makes the host TSG, the later ones join it, and the preemption check is claimed once.
+- The commit, under D briefly (`commit_build`), runs at the completer's next pass after the job
+  (the worker pokes the gate) or at the channel's next doorbell. It:
+  - takes the job's output into the maps;
+  - schedules the channel and gets its token (the host RM writes the token into the guest's
+    notifier; the dispatcher pins a pool token over it, `take_committed`);
+  - adds the engine objects the guest allocated during the build;
+  - writes back the GPPut the host RM cleared;
+  - rings once the root's jobs up to the newest doorbell are applied, else holds the ring (§9.1).
+- Doorbells during the build join it. The root is re-synced as for a built channel, the newest
+  nonzero GPPut and the root's last job are noted, and the commit rings for all of them.
+- The USERD clear: the host RM zeroes a sysmem USERD at the channel's allocation
+  (`kfifoSetupUserD_HAL`, kernel_channel.c 2435-2449 of 615.71.09), now on the worker.
+  - The commit writes the newest rung GPPut back only over a zero (`put_to_restore`).
+  - A store of the guest after the clear stays. The synchronous build restored the first
+    doorbell's GPPut over any other value, which also overwrote a newer store.
+- Teardown and the free path:
+  - A guest free of the channel, one of its engine objects, its TSG, its VAS or their client
+    first waits for the build and commits it (boot.rs FREE, `settle_builds_for_free`), so the free
+    finds a built channel.
+  - The mirror's own teardowns (`free_channel`, `free_tsg`, `drop_vas`, reset) wait for a build
+    in flight and put it in the maps unscheduled (token 0, context not ready) for the teardown to
+    free (`settle_build`). Its doorbells go with the channel.
+  - These are the only waits under D for a build; they are counted.
+- A preparation (`submit` false, the deferred context) waits for its build under D: its caller
+  needs the host context at once.
+- The BAR1 pool sees a channel in flight as mirrored (`pool_channels`), so it does not move the
+  USERD page the build took.
+- Counters (exit summary, the mirror line):
+  - `mirror builds (execution.md §9.2)`: started, committed, refused, dropped, in flight, joined
+    doorbells, host time on the worker, commit time under D, first doorbell to commit, and the
+    waits under D.
+  - The device-lock work table (`dlock::work`: every GSP RPC by function and command or class,
+    doorbells by software or host, the build's walk, snapshot and commit) and the tags a long hold
+    keeps (`dlock::tag`: what the hold did).
+- Still under D in a build: a new root's VAS allocation (one or two RM calls) and its full walk
+  (§9.3).
+- Tests: `mbuild::tests` (the TSG cell: the first build makes it, the next join, a refusal leaves
+  it empty; the preemption check is claimed once; the GPPut write-back only over the clear; the
+  counters), `dlock::tests` (tags of a long hold, the work table).
+
+### 9.5 The BAR1 pool (2026-09-29, bar1-pool.md §13-§15)
+
+- Under D:
+  - the poll's decision;
+  - the GPU check, with no worker drain;
+  - the moves in slices of about 500 us behind the invalidate trigger;
+  - the barrier's start (idle check, ring holds, preempt jobs queued) and its end (re-sync
+    plans, ring releases queued).
+- Waits for the worker: at most 50 us per poll (in-flight jobs, the barrier's preempts, its
+  re-sync), except with the invalidate page (as its held invalidate). The worker releases the
+  held rings itself.
+- Still under D: each slice's copies.
+- Next, within the order above (D, then the pool's lock, the display lock, `hm`, worker
+  internals): the copies on a pool mover thread that never takes D.
+  - The pool state goes behind its own lock.
+  - A page in transit stays at home for every device path; a device write to it marks it for a
+    second copy.
+  - The mover commits the remap switch under the pool lock.
+  - A commit that changes a record page the display core pinned tells the display core (pool
+    lock, then display lock, never the reverse).
+- `RingGate::clear_holds` at `Mirror::reset`: a reset drops the holds of a batch that went with
+  the model.
+
+### 9.6 The software executor's translations (step 5a, 2026-09-29)
+
+- Windows C65: the software doorbells of chid 15 (the KMD's paging channel) and chid 4 held D
+  for 200-540 ms each (357 doorbells, 21.8 s in total). Their copy-engine bytes were small, and the
+  device CE's large transfers never wait under D.
+- `GpuMem::pieces` translated every 4 KiB page separately: 4-5 uncached table words through the
+  BAR1 windows per page, each of which could evict the window the previous one mapped. An 8.8 MB
+  memset is about 2160 pages.
+- `FakeFb::translate_pages` gives every page of a range exactly what `walk_in` gives it. It reads
+  a 2 MiB unit's directory entries once and its page-table entries in one block per table.
+  Test: `a_range_translates_as_its_pages_do` (small and big pages and their precedence, a sparse
+  PTE, a 2 MiB page, a sysmem page table, a missing directory, partial pages, unit crossings).
+- A software doorbell's time is split (`dlock::Spend`): translations and the software CE's CPU
+  copies apart, in the long hold's tag and the work table (`software translate`,
+  `software CPU copy`; the rest is the doorbell's total minus both).
+- Next, if the split shows the copies or the rest dominate: the executor off D (step 5b), or the
+  paging channel on a host CE.
+
+### 9.7 The executor TLB and bounded software runs (step 5b, 2026-09-29)
+
+- Windows C67 (5a): software doorbells of the KMD's channel still held D 516-562 ms, about half
+  of it translating. A doorbell makes one or two translations per GPFIFO entry and per semaphore
+  or CE op, each 5-7 table words through the two BAR1 windows; table pages, GPFIFO, pushbuffers
+  and data sit in different 32 MiB regions and evict each other (C67: 38765 window maps).
+- The executor TLB (`fb.rs` `ExecTlb`): `(root, VA page)` to the page's target, filled by
+  `translate_pages` from walks that read only VRAM tables the device tracks (not sysmem, not the
+  BAR1 pool, not the private pages), with the table pages recorded.
+  - Flushed by a write to a recorded table page (the BAR TLB's three hooks: device writes,
+    BAR2 memfd syncs, writes of unknown content), by every MMU invalidate (register or the
+    invalidate page) and by every `MEM_OP` TLB invalidate the executor runs.
+  - That is the card's own rule: an engine may use cached translations until the next
+    invalidate, and a guest that changes a PTE invalidates before an engine uses it, so writers
+    the device cannot see are covered too.
+  - At most 2^18 entries. Counted: `executor tlb: page hits, unit walks, flushes`, and per long
+    software doorbell in its tag (hits, walks, window maps).
+- Bounded runs (`channel.rs` `RUN_BUDGET`, 2 ms): a software channel's run stops between two
+  GPFIFO entries once its budget is spent; the slice clock (the `ce-slices` thread, 1 ms, D taken
+  briefly) continues it at the same GPGet through the held replay, as a sliced CE transfer.
+  The CE slice is 4 ms (40 ms before).
+  - Order: the channel's own entries, semaphore releases and non-stall events stay in its order;
+    other channels, host or software, run in between, as on the GPU (a doorbell only promises
+    that the entries run eventually). Acquires go through the held replay as before.
+  - A hold of a software run is bounded by the budget plus one entry (a CE chunk at most).
+  Since 2026-09-29 (Windows C81) the clock continues a stopped run after 50 us instead of 1 ms:
+  the KMD's paging channel is the critical path of a context creation, and the 1 ms pause idled
+  a third of it; the accesses waiting for D take it in the pause. A CE copy of 1 KiB or more
+  that reads VRAM goes to the device CE (the CPU reads VRAM through BAR1 at about 10 MB/s;
+  C81: 63512 CPU copies, 19.9 s); memsets and copies from guest RAM stay on the CPU.
+- Tests: `the_executor_tlb_holds_until_a_table_write_or_an_invalidate`,
+  `a_run_past_its_budget_stops_between_entries_and_continues_in_order`,
+  `a_range_translates_as_its_pages_do`.
+- Not done: the executor on its own thread without D. It reads and writes the FB through FakeFb
+  (VRAM windows, walk-cache hooks, BAR2 memfd merges, victim patches, the pool's remap), all
+  owned under D; only if the hold histogram still shows long software holds.
+
+### 9.8 The invalidate page, held off the lock (2026-09-29)
+
+- Target: about 100 us per guest MMU invalidate end to end. Run D spent, per invalidate, three
+  trapped writes (19, 12 and 1180 us of device time), about 2.9 trapped TRIGGER polls (53 us
+  each) and 445 us from arming to applied, plus the vCPU exits of five traps.
+- The invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs, intr-page.md §11.3) makes the
+  PDB, UPPER and TRIGGER stores and the TRIGGER polls memory. Its reactor used to wait out a
+  held invalidate under D before it cleared TRIGGER.
+- Now the reactor runs the invalidate under D and takes the gate's hold (`InvalidateGate::
+  hand_off`: the roots and their last jobs, still urgent for the worker). The page's
+  completion thread (`inv-complete`) waits for the worker's progress without D and only then
+  clears TRIGGER; until then the reactor takes no new trigger (the guest stores none while
+  TRIGGER shows). The card's rule holds: TRIGGER reads busy until every root the invalidate
+  names (with the untrapped scope rules, untrapped.rs) has its jobs applied.
+- One completion thread in the guest's order: the guest RM waits for TRIGGER before its next
+  invalidate. Counted: the page line's "held until the worker applied their roots" with the
+  armed-to-done mean and max, and the profile's "held invalidate: armed to TRIGGER read done".
+- Still under D in the page path: the BAR1 pool's poll after the trigger (at `Pace::ALL`, it may
+  wait for the worker; the pool's own rework).
+- Tests: `a_held_trigger_completes_when_the_worker_applied_its_root` (busy until the root's job
+  is applied, no second trigger meanwhile, urgent while held), the page's existing tests.
+
+### 9.9 The posted doorbell (2026-09-29)
+
+- A trapped write of the usermode doorbell (`NOTIFY_CHANNEL_PENDING`) no longer takes D. The
+  vfio-user loop queues it in the ring gate (`RingGate::post`, one entry per token: a second write
+  of a queued token joins it, since a doorbell only makes the engine look at GPPut) and answers
+  at once. A trapped doorbell costs the guest one BAR0 exit, whatever the client does with its
+  token (a pool token the scan missed, a cached token, Windows).
+- The completer thread rings the queue under D, each write exactly as its trapped write was
+  handled (`Device::ring_posted`: `region_write` on BAR0, i.e. the trace, the BAR2 sync before
+  the ring, the ring, the steps after a BAR0 write).
+- Order: every other guest access rings the queue first, before its own work: every trapped
+  access (`SharedDevice::lock`), the eventfd readers, the page reactors (invalidate, usermode,
+  display kick), and a display channel's PUT that the routes serve without D (its USERD page,
+  `display::USERD_RANGE`: a flip's semaphore acquire may wait for work a posted doorbell
+  starts). No access passes a doorbell the guest wrote before it, as on PCIe, where a read
+  or write does not pass a posted write. The card promises no more: a doorbell only makes the GPU
+  fetch the new entries eventually.
+- Always on (its A/B switch `CARAXES_POSTED_DOORBELL=0` went on 2026-09-30, after the train's
+  four-guest gate).
+- Counted: the exit summary's `posted doorbells` line (writes, joined, rung by the completer or by
+  a later access, queue time mean and max, deepest queue); the profile's "posted doorbell: posted
+  to rung" and "posted doorbell: rung (device time)"; the D holders "posted doorbells" and the
+  work key "posted doorbell rings".
+- Tests: `a_trapped_doorbell_is_posted_and_rung_before_the_next_access` (answered while D is
+  held elsewhere, rung by the next access first, joined writes, other registers not posted),
+  `a_posted_doorbell_wakes_the_completer_and_keeps_the_order`.
+
+- Target: about 100 us per guest MMU invalidate end to end. Run D spent, per invalidate, three
+  trapped writes (19, 12 and 1180 us of device time), about 2.9 trapped TRIGGER polls (53 us
+  each) and 445 us from arming to applied, plus the vCPU exits of five traps.
+- The invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs, intr-page.md §11.3) makes the
+  PDB, UPPER and TRIGGER stores and the TRIGGER polls memory. Its reactor used to wait out a
+  held invalidate under D before it cleared TRIGGER.
+- Now the reactor runs the invalidate under D and takes the gate's hold (`InvalidateGate::
+  hand_off`: the roots and their last jobs, still urgent for the worker). The page's
+  completion thread (`inv-complete`) waits for the worker's progress without D and only then
+  clears TRIGGER; until then the reactor takes no new trigger (the guest stores none while
+  TRIGGER shows). The card's rule holds: TRIGGER reads busy until every root the invalidate
+  names (with the untrapped scope rules, untrapped.rs) has its jobs applied.
+- One completion thread in the guest's order: the guest RM waits for TRIGGER before its next
+  invalidate. Counted: the page line's "held until the worker applied their roots" with the
+  armed-to-done mean and max, and the profile's "held invalidate: armed to TRIGGER read done".
+- Still under D in the page path: the BAR1 pool's poll after the trigger (at `Pace::ALL`, it may
+  wait for the worker; the pool's own rework).
+- Tests: `a_held_trigger_completes_when_the_worker_applied_its_root` (busy until the root's job
+  is applied, no second trigger meanwhile, urgent while held), the page's existing tests.
+
+### 9.10 Status reads without the device lock (2026-09-29)
+
+- SotTR run E, benchmark window: 507 TRIGGER reads/s at 152 us and 587 flush-page reads/s at 95 us,
+  about 133 ms per second, mostly spent waiting for D. On the card both are plain status reads.
+- The vfio-user server answers them before it takes D (device.rs `SharedDevice::region_read`,
+  fastread.rs), from state that D-holders publish:
+  - **TRIGGER** (`NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE`, bit 31): the trapped trigger write
+    hands its held invalidate off (`Mirror::hand_off_invalidate`, as the invalidate page does).
+    A read returns the latched word, with TRIGGER set while the hold's jobs are not applied. It
+    waits at most `POLL_WAIT` for the worker, and past `FALLBACK` to the end. The first read that
+    finds a hold done finishes it: its roots stop being urgent, and it is counted.
+  - **The BAR2 flush page** (`pReadToFlush`, the RM ignores the value): a read marks the sync
+    owed (`DeferredFlush::mark`, atomic) and returns the page's bytes as the last locked read
+    published them. The copy goes on a device write to its FB page, on a BAR2 walk that
+    re-points pages, and at a reset.
+  - **The time** (`NV_PTIMER_TIME_0/1`, the usermode `TIME_0/1`), Windows line (2026-09-29):
+    the hottest trapped read of a Windows guest (C67: 119k). Answered from the device clock
+    (`channel::device_now_ns`, as the locked path). The PTIMER torn-read guard (the high word
+    of the last TIME_1 read, boot.rs `ptimer_word`) is one atomic in fastread.rs, shared by
+    both paths. On this line nothing else a guest sees is ordered by a time read (the
+    time-read display catch-up b4d8975d was reverted in 336caf59; the scan position is computed
+    from the time at its own read). Should it come back, the gate needs the next tick of each
+    active head (from `Head::t0_ns`, `ticks` and `period_ns`), published after every catch-up:
+    a read at `now` below it needs no catch-up.
+- These reads take D:
+  - TRIGGER while a BAR1 pool batch runs (its slices continue at those reads);
+  - a register the trace writes a line for (`CARAXES_TRACE_ACCESSES`, per kind: TRIGGER, the
+    flush page, PTIMER, the usermode time; a BAR0 range without them keeps them off D);
+  - reads narrower than a dword;
+  - the first read of the flush page after its copy went (it publishes a new one).
+- Card semantics: TRIGGER reads pending until the invalidate's roots have their jobs applied,
+  then idle; the flush read orders the guest's BAR2 writes (the owed sync, settled at the next
+  engine start or by the flush clock) and returns the page's content.
+- Order: the state's mutexes are leaves. Nothing on this path takes D, and D-holders only
+  publish. The posted doorbells (device agent) are not rung first by these reads: neither
+  result depends on a doorbell.
+- Counted at exit: `reads without the device lock: N TRIGGER read(s) (B busy), F flush-page
+  read(s); under the lock ...; H held invalidate(s) completed by a read (mean, max)`. Held
+  invalidates completed this way are counted there, not in the mirror line's hold count.
+- Tests: `fastread::tests` (busy until the hold's job is applied; a pool batch or the access
+  trace sends the read to the lock; the flush copy marks the sync owed and goes on a write to
+  its page), `boot::tests::the_flush_page_and_trigger_are_published_for_reads_without_the_lock`.
+
+### 9.11 The shadow USERD poll without the lock (2026-09-29, Windows line)
+
+- With `CARAXES_SHADOW_USERD=1` a guest sysmem USERD is shadowed by a private host USERD; a
+  thread polls them every 1 ms (entries the guest published without a doorbell the device
+  saw, and the GPU-owned words back to the guest). It took D for every poll: C75 897k holds,
+  19.9 s, max 298 ms.
+- On the card USERD GP_GET and GP_PUT are plain memory. The poller now runs without D: each
+  host channel's private USERD sits in a `UserdSlot` (mirror.rs) with its own mutex, a leaf
+  taken by the D-holders (publish, harvest, the takeovers, the free) and the poller. The
+  poller harvests under it (the GPU-owned words to the guest's USERD in guest RAM, as the
+  locked harvest) and posts a channel whose GPPut is in the ring and not the one last
+  published to the ring gate (`RingGate::post_userd`, one entry per channel).
+- The completer rings those under D after the locked poll's checks (`Mirror::userd_pending`:
+  context ready, the guest channel unchanged, still pending), as the locked poll rang them
+  (`doorbell_chid`).
+- The poller reads only what the mirror published (`mirror::userd_watch`: republished when a
+  channel is added or removed, by mirror id, dropped with the mirror). A free empties the
+  slot before the host USERD goes, so the poller never reads an unmapped window; a channel
+  not ready is skipped.
+- Counted: the exit summary's `shadow USERD poller` line, the D holder "shadow USERD rings",
+  the work key "rings of the poller".
+- Test: `the_userd_poller_harvests_and_finds_unforwarded_entries_off_the_lock`.
+
+### 9.12 The deferred context's preparation off the lock (2026-09-29, Windows line)
+
+- The Windows KMD prepares every GR context through its management channel (deferred API
+  Initialize). The preparation built the target's host mirror with `submit` false and waited
+  for the build under D (`wait_build`): C83, 57 preparations of 390-432 ms each, about 23 s of D.
+- Now `Mirror::start_deferred_context` hands the build to the worker as a doorbell's build is
+  (§9.2) and answers whether it is ready (finished and committed). Until then the deferred method
+  stays pending, the management channel is held (rc.rs `held`), and the slice clock replays it
+  (`channel::request_ce_slice`); the method completes when the build is committed, as the
+  synchronous preparation completed after its wait. A context built before is prepared as before.
+- The management channel still waits for the build, as it would wait for the card; D is free for
+  the executor, the display and the guest's other accesses meanwhile.
+

@@ -1,0 +1,34 @@
+09:53:19 vm up
+      1 <value name="ExtraCommandLine" type="string">-benchmark</value>
+      1 <value name="ExtraCommandLineEnabled" type="integer">1</value>
+      2 <value name="FullscreenHeight" type="integer">1080</value>
+      2 <value name="FullscreenWidth" type="integer">1920</value>
+      1 <value name="GameOptionsDialogShouldShow" type="integer">0</value>
+      3 <value name="ScreenH" type="integer">1080</value>
+      3 <value name="ScreenW" type="integer">1920</value>
+loaded /opt/caraxes/display-reserve-v2/6.8.0-136-generic: nvidia (NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 09:12:12 UTC 2026), nvidia_modeset display_reserve_mib=-1; RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+modules-ok
+sunshine: active 0::/user.slice/user-1000.slice/user@1000.service/session.slice/app-dev.lizardbyte.app.Sunshine.service
+caraxes-dmem-cap (off): inactive
+Starting caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: no dmem controller in kernel 6.8.0-136-generic (needs >= 6.14 with CONFIG_CGROUP_DMEM): no cap
+Finished caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+Stopping caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+Stopped caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+kernel 6.8.0-136-generic; dmem controller: no
+saves before: 24
+09:53:58 moonlight pid 3317075 alive=yes
+try 1: the game exited: [S_API FAIL] SteamAPI_Init() failed; connect to global user failed.
+steam -silent, game started directly (try 2)
+game window 8388612 after 6 s: game starting
+   4571       00:27  0.0  3364 ./signalwrapper /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/Shadow
+   4572       00:27 93.8 686788 /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaider
+cgroup steam 2912: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-rc7af66f0f6b54e8c9cd02e43987013ea.scope
+cgroup signalwrapper 4571: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-r56ef70cea1354839ad30ad69915c4f10.scope
+10:02:22 host-free=2377 host-mean=0.00208674 host-rmse=- guest-mean=? | 08:02:06 vram=466 free=3435 gpu=0 app=-/- session=- game=4571 nvkms_fail=0 xid=0 | result=Shadow of the Tomb Raider_benchmarkresults_X_2026-09-30_07.55.52.txt
+10:02:23 dmem (off): 0 cap line(s); nvkms_fail=nvkms_fail=0
+10:02:23 result:  Average FPS: 34.7
+after the game: 08:02:47 vram=441 free=3449 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+10:02:48 moonlight stopped
+restored
+conf-restored

@@ -33,11 +33,13 @@
 use std::cell::Cell;
 use std::time::{Duration, Instant};
 
-/// The floor in MiB; `0` turns it off.
-pub const FLOOR_ENV: &str = "CARAXES_HOST_VRAM_FLOOR_MIB";
-/// The default floor: 768 MiB, the host desktop's working headroom on the 8 GiB card
-/// beside a 3 GiB game VM and its own 2.1 GiB (2026-09-25).
-pub const DEFAULT_FLOOR_MIB: u64 = 768;
+/// The floor: 1024 MiB of free host VRAM. 768 MiB was the host desktop's working headroom
+/// on the 8 GiB card beside a 3 GiB game VM and its own 2.1 GiB (2026-09-25); every
+/// production launcher ran 1024 MiB (`CARAXES_HOST_VRAM_FLOOR_MIB=1024`: Linux B 615,
+/// nouveau+NVK, the Windows kit) until the variable went on 2026-09-30.
+pub const DEFAULT_FLOOR_MIB: u64 = 1024;
+/// What sets the VRAM floor, for the log.
+pub const VRAM_FLOOR: &str = "the device's host VRAM floor";
 /// How long a read free size stands.
 pub const FREE_TTL: Duration = Duration::from_millis(250);
 /// How long an RM `NV_ERR_NO_MEMORY` stops further host allocations.
@@ -56,30 +58,6 @@ const MIB: u64 = 1 << 20;
 /// argument): the statuses after which the device stops instead of splitting or retrying.
 pub fn is_exhaustion(st: u32) -> bool {
     st == NO_MEMORY
-}
-
-/// The floor in bytes from the variable's value (`None`: unset, the default).
-pub fn parse_floor(v: Option<&str>) -> Result<u64, String> {
-    match v.map(str::trim) {
-        None | Some("") => Ok(DEFAULT_FLOOR_MIB * MIB),
-        Some(s) => s
-            .parse::<u64>()
-            .ok()
-            .filter(|m| *m <= 1 << 20)
-            .map(|m| m * MIB)
-            .ok_or_else(|| format!("{FLOOR_ENV}={s:?}: a size in MiB (0 turns the floor off)")),
-    }
-}
-
-/// The floor from the environment; a malformed value is reported and the default used.
-pub fn floor_from_env() -> u64 {
-    match parse_floor(std::env::var(FLOOR_ENV).ok().as_deref()) {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!("vfio-user-nvgpu: ERROR: {e}; using the default {DEFAULT_FLOOR_MIB} MiB");
-            DEFAULT_FLOOR_MIB * MIB
-        }
-    }
 }
 
 /// Counters of the guard, for the soak line and the exit summary.
@@ -109,7 +87,7 @@ impl GuardStats {
 pub struct HostGuard {
     /// "VRAM" or "BAR1", for the log.
     resource: &'static str,
-    /// The variable that sets the floor, for the log.
+    /// What sets the floor, for the log.
     env: &'static str,
     floor: u64,
     cached: Cell<Option<(Instant, Option<u64>)>>,
@@ -125,7 +103,7 @@ pub struct HostGuard {
 impl HostGuard {
     /// The host VRAM guard.
     pub fn new(floor: u64) -> Self {
-        Self::with("VRAM", FLOOR_ENV, floor)
+        Self::with("VRAM", VRAM_FLOOR, floor)
     }
 
     /// A guard of `resource` (for the log) whose floor `env` sets.
@@ -144,8 +122,9 @@ impl HostGuard {
         }
     }
 
-    pub fn from_env() -> Self {
-        Self::new(floor_from_env())
+    /// The device's VRAM guard: [`DEFAULT_FLOOR_MIB`].
+    pub fn device() -> Self {
+        Self::new(DEFAULT_FLOOR_MIB * MIB)
     }
 
     /// The host BAR1 guard, its floor from `CARAXES_HOST_BAR1_FLOOR_MIB` (bar1pool.rs; a
@@ -305,7 +284,7 @@ impl HostGuard {
         let keep = self.floor.max(headroom);
         if size.saturating_add(keep) > free {
             return Err(format!(
-                "refused: reserving {} MiB would leave the host {} MiB of VRAM, below the {} MiB it keeps (floor {} MiB, {FLOOR_ENV}; headroom {} MiB) (free {} MiB = min(HEAP_FREE, nvidia-smi); shortfall {} MiB); choose a smaller profile or free host VRAM",
+                "refused: reserving {} MiB would leave the host {} MiB of VRAM, below the {} MiB it keeps (floor {} MiB, {VRAM_FLOOR}; headroom {} MiB) (free {} MiB = min(HEAP_FREE, nvidia-smi); shortfall {} MiB); choose a smaller profile or free host VRAM",
                 size / MIB,
                 free.saturating_sub(size) / MIB,
                 keep / MIB,
@@ -343,14 +322,10 @@ mod tests {
 
     const GIB: u64 = 1 << 30;
 
+    /// The device keeps 1 GiB of host VRAM free.
     #[test]
-    fn the_floor_parses_mib_and_zero_turns_it_off() {
-        assert_eq!(parse_floor(None), Ok(768 * MIB));
-        assert_eq!(parse_floor(Some("")), Ok(768 * MIB));
-        assert_eq!(parse_floor(Some("1024")), Ok(GIB));
-        assert_eq!(parse_floor(Some("0")), Ok(0));
-        assert!(parse_floor(Some("-1")).is_err());
-        assert!(parse_floor(Some("lots")).is_err());
+    fn the_device_floor_is_one_gib() {
+        assert_eq!(DEFAULT_FLOOR_MIB * MIB, GIB);
     }
 
     #[test]

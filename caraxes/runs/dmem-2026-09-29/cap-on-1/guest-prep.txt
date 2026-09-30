@@ -1,0 +1,20 @@
+modules-ok
+sunshine: active 0::/user.slice/user-1000.slice/user@1000.service/session.slice/app-dev.lizardbyte.app.Sunshine.service
+caraxes-dmem-cap (on): active
+Stopping caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: nvidia/00000000:00:06.0/vidmem: /user.slice/user-1000.slice/user@1000.service/app.slice/dmem.max = max
+Stopped caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+Starting caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: nvidia/00000000:00:06.0/vidmem: free 3639.00 MiB, app.slice current 0.00 MiB, reserve 84.00 MiB (DP-1 1920x1080 S=8.44 MiB R=52.00 MiB; session 32 MiB): app.slice/dmem.max = 3727687680 (3555.00 MiB), read back ok
+Finished caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+kernel 7.0.0-34-generic; dmem controller: yes
+== dmem.capacity
+nvidia/00000000:00:06.0/vidmem 4294967296
+== subtree_control: /[+dmem] /user.slice[+dmem] /user.slice/user-1000.slice[+dmem] /user.slice/user-1000.slice/user@1000.service[+dmem] 
+== /user.slice/user-1000.slice/user@1000.service nvidia/00000000:00:06.0/vidmem current 242422688 max max
+== /user.slice/user-1000.slice/user@1000.service/session.slice nvidia/00000000:00:06.0/vidmem current 103515968 max max
+== /user.slice/user-1000.slice/user@1000.service/app.slice nvidia/00000000:00:06.0/vidmem current 0 max 3727687680
+== /user.slice/user-1000.slice/user@1000.service/background.slice nvidia/00000000:00:06.0/vidmem current 0 max max
+pci.bus_id, memory.total [MiB], memory.reserved [MiB], memory.used [MiB], memory.free [MiB]
+00000000:00:06.0, 4096 MiB, 207 MiB, 252 MiB, 3639 MiB
+saves before: 0

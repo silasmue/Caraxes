@@ -1,0 +1,2 @@
+result vk-offscreen.ppm: sha256 ok
+result weston-vkcube.png: sha256 ok

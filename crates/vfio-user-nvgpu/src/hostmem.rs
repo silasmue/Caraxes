@@ -98,6 +98,22 @@ pub struct HostUserd {
 }
 
 impl HostUserd {
+    /// A USERD over `page` (a leaked host page standing in for the vidmem window), for tests.
+    #[cfg(test)]
+    pub(crate) fn for_test(page: &'static mut [u8; 4096]) -> Self {
+        HostUserd {
+            handle: 0,
+            gpu_addr: 0,
+            window: Window {
+                _fd: Box::new(()),
+                unmap: None,
+                ptr: page.as_mut_ptr(),
+                offset: 0,
+                len: 4096,
+            },
+        }
+    }
+
     pub fn handle(&self) -> u32 {
         self.handle
     }
@@ -130,9 +146,15 @@ fn valid_host_userd(addr: u64, size: u64, contiguous: bool) -> bool {
         && addr.checked_add(size).is_some_and(|end| end <= USERD_LIMIT)
 }
 
-// SAFETY: the mapping is owned by the window and only ever touched from the server
-// thread that owns the FB model; the raw pointer carries no thread affinity.
+// SAFETY: the mapping is owned by the window; the raw pointer carries no thread affinity.
 unsafe impl Send for Window {}
+// SAFETY: through `&Window` only `read`, `write` and `flush` touch the mapping: bounds-checked
+// volatile loads and stores of at most 16 bytes to device memory (VRAM behind BAR1) that the
+// GPU and other mappings of the same pages access concurrently anyway, and an sfence. The
+// descriptor and the unmap cookie are used only at drop (`&mut`). A window shared between
+// threads (the display core's record windows, fb.rs `SharedWindow`) is thus as safe to use
+// from two threads as the device memory under it is from the CPU and the GPU.
+unsafe impl Sync for Window {}
 
 impl Window {
     /// Whether `[pa, pa + len)` of the reservation (reservation offsets) lies in the window.
@@ -560,6 +582,46 @@ pub struct OsEvent {
     pub id: u32,
     pub handle: u32,
     pub notifier: u32,
+    /// How its notifier was armed.
+    pub armed: Armed,
+}
+
+/// `NV2080_CTRL_EVENT_SET_NOTIFICATION_ACTION_DISABLE` and `_REPEAT` (ctrl2080event.h).
+pub const NOTIFICATION_DISABLE: u32 = 0;
+pub const NOTIFICATION_REPEAT: u32 = 2;
+
+/// Arm a subdevice notifier to repeat through `set` (`NV2080_CTRL_CMD_EVENT_SET_NOTIFICATION`
+/// with an action, returning the RM status). The subdevice takes an active action only from
+/// DISABLE (subdevice_ctrl_event_kernel.c, NV_ERR_INVALID_STATE otherwise) and keeps it past
+/// the event, so a notifier still armed by an earlier mirror of the client is disabled and
+/// armed again. The error names every status.
+pub fn arm_notification(mut set: impl FnMut(u32) -> u32) -> Result<Armed, String> {
+    let st = set(NOTIFICATION_REPEAT);
+    if st == sys::NV_OK {
+        return Ok(Armed::Fresh);
+    }
+    if st != sys::NV_ERR_INVALID_STATE as u32 {
+        return Err(format!("REPEAT status {st:#x}"));
+    }
+    let off = set(NOTIFICATION_DISABLE);
+    let again = set(NOTIFICATION_REPEAT);
+    if again == sys::NV_OK {
+        Ok(Armed::Rearmed(st))
+    } else {
+        Err(format!(
+            "REPEAT status {st:#x} (still armed), DISABLE status {off:#x}, REPEAT again status {again:#x}"
+        ))
+    }
+}
+
+/// How [`HostMemory::os_event`] armed the notifier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Armed {
+    /// From DISABLE, as on a fresh subdevice.
+    Fresh,
+    /// The subdevice still had it armed (an earlier mirror of this client, before a
+    /// function-level reset; the RM status of the refused REPEAT): disabled and armed again.
+    Rearmed(u32),
 }
 
 impl OsEvent {
@@ -738,6 +800,34 @@ fn retire_ram_descriptors<E>(
 }
 
 #[cfg(test)]
+mod gather_cache_tests {
+    use super::*;
+
+    /// A freed gather comes back only for exactly the same pages in the same order; the
+    /// oldest goes when the cache is past its bound (run base-bench5: every other CUDA
+    /// context maps the same scattered pages, 30 gathers of about 3 ms each).
+    #[test]
+    fn a_freed_gather_is_taken_back_only_for_the_same_pages_in_the_same_order() {
+        let mut c = GatherCache::new(2);
+        let a: Vec<(u32, u64)> = vec![(1, 0x7000), (1, 0x3000), (2, 0x9000)];
+        let b: Vec<(u32, u64)> = vec![(1, 0x3000), (1, 0x7000), (2, 0x9000)];
+        assert_eq!(c.put(a.clone(), 10), None);
+        assert!(c.take(&b).is_none(), "the same pages in another order");
+        assert!(c.take(&a[..2]).is_none(), "a part of them");
+        assert_eq!(c.put(b.clone(), 11), None);
+        assert_eq!(c.take(&a), Some((a.clone(), 10)));
+        assert_eq!(c.len(), 1);
+        assert!(c.take(&a).is_none(), "taken once");
+        assert_eq!(c.put(a.clone(), 10), None);
+        assert!(c.take(&[(3, 0x7000), (1, 0x3000), (2, 0x9000)]).is_none(), "another descriptor");
+        assert_eq!(c.put(vec![(1, 0x1000)], 12), Some(11), "past the bound the oldest goes");
+        assert_eq!(c.pop_oldest(), Some(10));
+        assert_eq!(c.pop_oldest(), Some(12));
+        assert!(c.is_empty());
+    }
+}
+
+#[cfg(test)]
 mod ram_retirement_tests {
     use super::*;
 
@@ -839,6 +929,18 @@ pub struct HostMemory {
     /// Gather descriptors of the shadow (`gather`), live until the shadow frees them; the
     /// shadow teardown frees them before the guest-RAM descriptors (mirror.rs `wait_idle`).
     gathers: Vec<u32>,
+    /// The pages (registered guest-RAM descriptor and offset, in window order) of each live
+    /// gather descriptor. Host handles are never reused (nvrm-client `Handles::take`), so a
+    /// pair names the same pinned page as long as its descriptor is registered.
+    gather_keys: std::collections::HashMap<u32, Vec<(u32, u64)>>,
+    /// Gather descriptors the shadow freed, kept for a later gather of exactly the same pages
+    /// in the same order ([`GATHER_CACHE_MAX`], oldest first; docs/research/
+    /// ctxcreate-2026-09-29.md): the guest's page allocator hands the same scattered pages
+    /// to every other CUDA context. Freed for good when evicted, before a guest-RAM mapping
+    /// change (`check_gpa_mapping_update`) and at the teardown (`free_mirrors`).
+    gather_cache: GatherCache,
+    /// Gathers taken from the cache, made anew, and evicted from it.
+    pub gather_cache_stats: [u64; 3],
     /// Guest RAM zones mapped by the client but not registered yet (the linear
     /// registration waits for all of them, `CARAXES_GUEST_RAM_BYTES`).
     pending: Vec<(u64, u64, usize)>,
@@ -1030,6 +1132,61 @@ fn apply_leaf_free<T: PartialEq, E>(
     Ok(())
 }
 
+/// Freed gather descriptors kept for reuse at most (`HostMemory::gather_cache`): 64 of up to
+/// 2 MiB of pages each, about two CUDA contexts' worth (30 per context).
+pub const GATHER_CACHE_MAX: usize = 64;
+
+/// Gather descriptors the shadow is done with, by their pages (registered descriptor and
+/// offset, in window order), oldest first, at most `max`: a gather of exactly the same pages in
+/// the same order
+/// takes one back instead of a new descriptor (about 3 ms of mremaps, the host RM's pinning
+/// and the unmap for 2 MiB of scattered pages).
+#[derive(Debug, Default)]
+pub struct GatherCache {
+    entries: std::collections::VecDeque<(Vec<(u32, u64)>, u32)>,
+    max: usize,
+}
+
+impl GatherCache {
+    pub fn new(max: usize) -> Self {
+        GatherCache {
+            entries: std::collections::VecDeque::new(),
+            max,
+        }
+    }
+
+    /// The cached descriptor of exactly `pages`, taken out of the cache.
+    pub fn take(&mut self, pages: &[(u32, u64)]) -> Option<(Vec<(u32, u64)>, u32)> {
+        let i = self
+            .entries
+            .iter()
+            .position(|(k, _)| k.len() == pages.len() && k.first() == pages.first() && k.as_slice() == pages)?;
+        self.entries.remove(i)
+    }
+
+    /// Keep descriptor `h` of `pages`; the oldest one when the cache is past its bound (the
+    /// caller frees it).
+    pub fn put(&mut self, pages: Vec<(u32, u64)>, h: u32) -> Option<u32> {
+        self.entries.push_back((pages, h));
+        (self.entries.len() > self.max)
+            .then(|| self.entries.pop_front().map(|(_, h)| h))
+            .flatten()
+    }
+
+    /// The oldest descriptor, taken out (the caller frees it).
+    pub fn pop_oldest(&mut self) -> Option<u32> {
+        self.entries.pop_front().map(|(_, h)| h)
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
 /// `NV2080_CTRL_FB_INFO_INDEX_BAR1_SIZE` and `_BAR1_AVAIL_SIZE` (ctrl2080fb.h:323, :351;
 /// KiB), the host's BAR1 for the soak line.
 const FB_INFO_BAR1_SIZE: u32 = 0x05;
@@ -1143,6 +1300,9 @@ impl HostMemory {
             descriptors: Vec::new(),
             fillers: Vec::new(),
             gathers: Vec::new(),
+            gather_keys: std::collections::HashMap::new(),
+            gather_cache: GatherCache::new(GATHER_CACHE_MAX),
+            gather_cache_stats: [0; 3],
             pending: Vec::new(),
             live: Vec::new(),
             gpa_mappings_frozen: false,
@@ -1152,7 +1312,7 @@ impl HostMemory {
             closed: false,
             free_failures: Vec::new(),
             fail_closed: None,
-            guard: crate::hostfloor::HostGuard::from_env(),
+            guard: crate::hostfloor::HostGuard::device(),
             userd_bar1: crate::hostfloor::HostGuard::bar1_from_env(),
         })
     }
@@ -1329,7 +1489,7 @@ impl HostMemory {
             objects,
             descriptors: self.descriptors.len() + self.fillers.len(),
             pinned_bytes: self.pinned_bytes(),
-            gathers: self.gathers.len(),
+            gathers: self.gathers.len() + self.gather_cache.len(),
             foll_pin: self.foll_pin_delta(),
             floor_refused: g.refused(),
             no_memory: g.rm_no_memory,
@@ -1837,18 +1997,12 @@ impl HostMemory {
     /// reservation's kind 0x09 with physically based comptags, the kind the host scrubber
     /// writes with (compslice.rs), so every 64 KiB page ends up uncompressed zeros whatever
     /// its compbits said before. The host's scrub-on-free does the same at the free; this
-    /// is the device's own guarantee, after the allocation and before the free.
-    /// `CARAXES_COMPRESSION_CLEAR=0` skips it. `Err` when a window is refused.
+    /// is the device's own guarantee, after the allocation and before the free. `Err` when
+    /// a window is refused.
     pub fn clear_slice(&mut self, when: &str) -> Result<String, String> {
         let r = self.reservation.clone().ok_or("no reservation")?;
         if r.compression.is_none() {
             return Ok(format!("compression: nothing to clear {when} (uncompressed reservation)"));
-        }
-        if std::env::var(crate::compslice::CLEAR_ENV).as_deref() == Ok("0") {
-            return Ok(format!(
-                "WARN compression: the slice clear {when} is skipped ({}=0); the host's scrub-on-free still writes every freed page through its kind-0x09 alias",
-                crate::compslice::CLEAR_ENV
-            ));
         }
         let t = Instant::now();
         let step = crate::fb::bar1_budget().0 as u64;
@@ -2010,7 +2164,7 @@ impl HostMemory {
 
     /// P21: export `[fb, fb + len)` of the reservation as a dma-buf for the guest's
     /// BAR1 region (`Bar1Export`). The range must lie inside the reservation; the
-    /// caller has checked it against the usable part (`fb::bar1_passthrough_area`).
+    /// caller has checked it against the usable part (`bar1pool::check_size`).
     pub fn export_bar1_passthrough(&self, fb: u64, len: u64) -> Result<Bar1Export> {
         let r = self
             .reservation
@@ -2070,23 +2224,40 @@ impl HostMemory {
             .map_err(|st| {
                 anyhow::anyhow!("NV01_EVENT_OS_EVENT notifier {notifier:#x}: status {st:#x}")
             })?;
-        // NV2080_CTRL_EVENT_SET_NOTIFICATION_PARAMS {event u32 @0, action u32 @4,
-        // bNotifyState u8 @8, info32 u32 @12, info16 u16 @16} = 20 bytes
-        // (ctrl2080event.h; host-exec.rs EventSetNotification); action REPEAT = 2.
-        let mut sn = [0u8; 20];
-        sn[0..4].copy_from_slice(&(notifier & 0xFFFF).to_le_bytes());
-        sn[4..8].copy_from_slice(&2u32.to_le_bytes());
-        sn[8] = 1;
-        let st = self.control(self.subdevice, v::CMD_EVENT_SET_NOTIFICATION, &mut sn);
-        if st != sys::NV_OK {
-            bail!("EVENT_SET_NOTIFICATION notifier {notifier:#x}: status {st:#x}");
-        }
+        // Armed to repeat. The subdevice keeps one action per notifier, set only from
+        // DISABLE (subdevice_ctrl_event_kernel.c: "must be in disabled state to transition
+        // to an active state", NV_ERR_INVALID_STATE otherwise), and freeing an event does
+        // not disarm it (notifyActions is reset only when the subdevice is constructed).
+        // A notifier an earlier mirror of this client armed (before a function-level
+        // reset) is disarmed and armed again; without that the event never fires.
+        let armed = match arm_notification(|action| self.set_notification(notifier, action)) {
+            Ok(a) => a,
+            Err(why) => {
+                let _ = self.free_object(handle);
+                bail!("EVENT_SET_NOTIFICATION notifier {notifier:#x}: {why}; event freed");
+            }
+        };
         Ok(OsEvent {
             ctl,
             id,
             handle,
             notifier,
+            armed,
         })
+    }
+
+    /// `NV2080_CTRL_CMD_EVENT_SET_NOTIFICATION` on the subdevice: `notifier` (the
+    /// `NV01_EVENT_NONSTALL_INTR` flag is not part of the index) to `action`
+    /// ([`NOTIFICATION_DISABLE`], [`NOTIFICATION_REPEAT`]). Returns the RM status.
+    pub fn set_notification(&mut self, notifier: u32, action: u32) -> u32 {
+        // NV2080_CTRL_EVENT_SET_NOTIFICATION_PARAMS {event u32 @0, action u32 @4,
+        // bNotifyState u8 @8, info32 u32 @12, info16 u16 @16} = 20 bytes
+        // (ctrl2080event.h; host-exec.rs EventSetNotification).
+        let mut sn = [0u8; 20];
+        sn[0..4].copy_from_slice(&(notifier & 0xFFFF).to_le_bytes());
+        sn[4..8].copy_from_slice(&action.to_le_bytes());
+        sn[8] = (action != NOTIFICATION_DISABLE) as u8;
+        self.control(self.subdevice, v::CMD_EVENT_SET_NOTIFICATION, &mut sn)
     }
 
     pub fn reservation(&self) -> Option<&Reservation> {
@@ -2357,6 +2528,22 @@ impl HostMemory {
             }
             host.push(d.host_va + off as usize);
         }
+        // The same pages in the same order as a gather the shadow freed: that descriptor
+        // again (it maps exactly these pages of this VM's registered guest RAM).
+        if let Some((k, h)) = self.gather_cache.take(pages) {
+            self.gathers.push(h);
+            self.gather_keys.insert(h, k);
+            self.gather_cache_stats[0] += 1;
+            crate::profile::record(
+                crate::profile::Key::Window("gather: taken from the cache (units: pages)"),
+                std::time::Duration::ZERO,
+                pages.len() as u64,
+                None,
+                "",
+            );
+            return Ok(h);
+        }
+        self.gather_cache_stats[1] += 1;
         let len = pages.len() * PAGE as usize;
         // SAFETY: an anonymous PROT_NONE reservation; mremap places pages inside it below.
         let win = unsafe {
@@ -2406,11 +2593,63 @@ impl HostMemory {
         unmap(win);
         let h = r.map_err(|e| format!("{e:#}"))?;
         self.gathers.push(h);
+        self.gather_keys.insert(h, pages.to_vec());
         Ok(h)
     }
 
-    /// Free a gather descriptor (unpins its page references). Returns the status.
+    /// The shadow is done with a gather descriptor (its last mapping is gone): kept in the
+    /// cache for the same pages again ([`Self::gather_cache`]); the oldest cached one beyond
+    /// [`GATHER_CACHE_MAX`] is freed (unpins its page references). Returns the status.
     pub fn free_gather(&mut self, h: u32) -> Status {
+        if !self.gathers.contains(&h) {
+            return 0xFFFF_FFFE;
+        }
+        if let Some(k) = self.gather_keys.remove(&h) {
+            if let Some(i) = self.gathers.iter().position(|g| *g == h) {
+                self.gathers.swap_remove(i);
+            }
+            let mut st = sys::NV_OK;
+            if let Some(old) = self.gather_cache.put(k, h) {
+                self.gather_cache_stats[2] += 1;
+                self.gathers.push(old);
+                st = self.free_gather_now(old);
+            }
+            return st;
+        }
+        self.free_gather_now(h)
+    }
+
+    /// Free the oldest cached gather descriptor for good; a failed free keeps it tracked
+    /// as live (fail closed: a guest-RAM mapping change is refused while it stands).
+    fn free_cached_gather(&mut self) -> bool {
+        let Some(h) = self.gather_cache.pop_oldest() else {
+            return true;
+        };
+        self.gathers.push(h);
+        self.free_gather_now(h) == sys::NV_OK
+    }
+
+    /// Free every cached gather descriptor (before a guest-RAM mapping change and at the
+    /// teardown). Whether all went.
+    pub fn flush_gather_cache(&mut self) -> bool {
+        while !self.gather_cache.is_empty() {
+            if !self.free_cached_gather() {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// The gather cache's line for the exit summary.
+    pub fn gather_cache_line(&self) -> String {
+        let [hits, made, evicted] = self.gather_cache_stats;
+        format!(
+            "gather descriptors: {made} made, {hits} taken from the cache of freed ones, {evicted} evicted, {} cached now (at most {GATHER_CACHE_MAX})",
+            self.gather_cache.len()
+        )
+    }
+
+    fn free_gather_now(&mut self, h: u32) -> Status {
         if !self.gathers.contains(&h) {
             return 0xFFFF_FFFE;
         }
@@ -2477,10 +2716,11 @@ impl HostMemory {
         size: u64,
         host_va: *mut u8,
     ) -> Result<(Vec<DmaRange>, Vec<String>)> {
+        // The guest's RAM size, from the launcher: with it the registration is one linear
+        // IOVA offset for the whole guest (docs/caraxes/mapping.md §5).
         let total = std::env::var("CARAXES_GUEST_RAM_BYTES")
             .ok()
-            .and_then(|v| v.parse::<u64>().ok())
-            .filter(|_| std::env::var("CARAXES_LINEAR_IOVA").as_deref() != Ok("0"));
+            .and_then(|v| v.parse::<u64>().ok());
         let Some(total) = total else {
             return self.register_chunks(gpa, size, host_va, HUGE);
         };
@@ -2748,7 +2988,9 @@ impl HostMemory {
 
     /// A mapping change while channels or gather descriptors exist needs quiescing
     /// first. Refuse it before changing any descriptor or CPU mapping.
-    pub fn check_gpa_mapping_update(&self) -> Result<()> {
+    pub fn check_gpa_mapping_update(&mut self) -> Result<()> {
+        // Cached gather descriptors map no VA; they go before any mapping change.
+        self.flush_gather_cache();
         // Events and the subdevice doorbell mapping exist before guest RAM is
         // registered; neither can fetch RAM without a channel.
         if self.gpa_mappings_frozen
@@ -2763,6 +3005,32 @@ impl HostMemory {
     /// remain fixed, even before the first channel has been created.
     pub fn freeze_gpa_mappings(&mut self) {
         self.gpa_mappings_frozen = true;
+    }
+
+    /// A new client (vfio-user.rst "Client Disconnection", device.rs `client_gone`): the
+    /// old client's mappings may go once no GPU object can use a descriptor any more (the
+    /// device model reset freed the mirror's channels, VA spaces and shadows; the events
+    /// and the doorbell mapping fetch no RAM). Refused, and still frozen, otherwise.
+    pub fn thaw_gpa_mappings(&mut self) -> Result<()> {
+        self.flush_gather_cache();
+        if self.live.iter().any(|(_, _, what)| !matches!(*what, "os-event" | "usermode"))
+            || !self.gathers.is_empty() || !self.free_failures.is_empty() {
+            let held: Vec<&str> = self
+                .live
+                .iter()
+                .map(|(_, _, what)| *what)
+                .filter(|w| !matches!(*w, "os-event" | "usermode"))
+                .collect();
+            bail!(
+                "GPA mappings stay frozen: {} host object(s) still held ({}), {} gather(s), {} failed free(s)",
+                held.len(),
+                held.join(", "),
+                self.gathers.len(),
+                self.free_failures.len()
+            );
+        }
+        self.gpa_mappings_frozen = false;
+        Ok(())
     }
 
     /// Free an exact GPA mapping before its CPU mapping disappears. Failed frees
@@ -2878,6 +3146,8 @@ impl HostMemory {
     /// unmaps it). The GPU must be idle on the guest's channels first: in part 1 no
     /// host channel exists (docs/caraxes/memory-model.md §4).
     pub fn release_region(&mut self, gpa: u64, size: u64) -> Vec<String> {
+        // Cached gather descriptors pin guest pages and map no VA: they go first.
+        self.flush_gather_cache();
         // Deferred zones hold raw CPU pointers too; a later registration must
         // never pin a zone whose DMA_MAP has already gone away.
         self.pending.retain(|(g, s, _)| !(*g < gpa.saturating_add(size) && gpa < g.saturating_add(*s)));
@@ -2970,7 +3240,7 @@ impl TeardownOps for HostMemory {
     fn free_mirrors(&mut self, log: &mut Vec<String>) -> usize {
         // Mirror channels first (RM preempts and idles each channel in its free), so that
         // no host channel can still reach the IOVAs the descriptors unpin next.
-        if self.live.is_empty() && self.gathers.is_empty() {
+        if self.live.is_empty() && self.gathers.is_empty() && self.gather_cache.is_empty() {
             return 0;
         }
         let n = self.live.len();
@@ -2985,10 +3255,17 @@ impl TeardownOps for HostMemory {
         }
         // Gather descriptors the shadow did not free (it frees them with their mappings):
         // after the channels and VA spaces, before the guest-RAM descriptors.
-        let gather_count = self.gathers.len();
+        let gather_count = self.gathers.len() + self.gather_cache.len();
         let mut freed_gathers = 0;
+        self.gather_keys.clear();
         while let Some(g) = self.gathers.last().copied() {
-            if self.free_gather(g) != sys::NV_OK {
+            if self.free_gather_now(g) != sys::NV_OK {
+                break;
+            }
+            freed_gathers += 1;
+        }
+        while !self.gather_cache.is_empty() {
+            if !self.free_cached_gather() {
                 break;
             }
             freed_gathers += 1;
@@ -3369,5 +3646,69 @@ mod scan_tests {
         c[8..12].copy_from_slice(&P20_MAGIC.1.to_le_bytes());
         assert_eq!(count_pattern(&c), (0, 2));
         assert_eq!(count_pattern(&[0u8; 32]), (0, 0));
+    }
+}
+
+#[cfg(test)]
+mod event_arm_tests {
+    use super::*;
+
+    /// The subdevice's notification action as the RM keeps it
+    /// (subdevice_ctrl_event_kernel.c): an active action only from DISABLE, DISABLE always;
+    /// freeing an event leaves it as it is.
+    struct Subdevice {
+        action: u32,
+        calls: Vec<u32>,
+    }
+
+    impl Subdevice {
+        fn set(&mut self, action: u32) -> u32 {
+            self.calls.push(action);
+            if action != NOTIFICATION_DISABLE && self.action != NOTIFICATION_DISABLE {
+                return sys::NV_ERR_INVALID_STATE as u32;
+            }
+            self.action = action;
+            sys::NV_OK
+        }
+    }
+
+    /// C75-C89: the mirror after a function-level reset armed its notifiers on the same
+    /// subdevice while the old mirror's REPEAT was still set; the RM refused, no event ever
+    /// fired, and the guest waited for its GR completions for good. Now the second arm
+    /// disables and arms again; after a teardown's DISABLE it arms from DISABLE.
+    #[test]
+    fn a_notifier_still_armed_by_an_earlier_mirror_is_armed_again() {
+        let mut sd = Subdevice { action: NOTIFICATION_DISABLE, calls: Vec::new() };
+        assert_eq!(arm_notification(|a| sd.set(a)), Ok(Armed::Fresh));
+        assert_eq!(sd.action, NOTIFICATION_REPEAT);
+        // The old mirror's event freed without a DISABLE (before this fix): still armed.
+        sd.calls.clear();
+        assert_eq!(
+            arm_notification(|a| sd.set(a)),
+            Ok(Armed::Rearmed(sys::NV_ERR_INVALID_STATE as u32))
+        );
+        assert_eq!(sd.calls, vec![NOTIFICATION_REPEAT, NOTIFICATION_DISABLE, NOTIFICATION_REPEAT]);
+        assert_eq!(sd.action, NOTIFICATION_REPEAT);
+        // The teardown's DISABLE: the next mirror arms from DISABLE.
+        assert_eq!(sd.set(NOTIFICATION_DISABLE), sys::NV_OK);
+        assert_eq!(arm_notification(|a| sd.set(a)), Ok(Armed::Fresh));
+    }
+
+    /// Any other refusal is an error that names the status (no retry).
+    #[test]
+    fn another_refusal_is_an_error_with_its_status() {
+        let mut n = 0;
+        let r = arm_notification(|_| {
+            n += 1;
+            0x1f
+        });
+        assert_eq!(r, Err("REPEAT status 0x1f".to_string()));
+        assert_eq!(n, 1);
+        // Still refused after the DISABLE: every status named.
+        let r = arm_notification(|a| if a == NOTIFICATION_DISABLE { 0 } else { sys::NV_ERR_INVALID_STATE as u32 });
+        assert_eq!(
+            r,
+            Err("REPEAT status 0x40 (still armed), DISABLE status 0x0, REPEAT again status 0x40".to_string())
+        );
     }
 }

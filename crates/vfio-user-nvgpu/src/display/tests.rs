@@ -501,9 +501,9 @@ fn war_flags_case(g: crate::ver::GuestAbi) {
     assert!(disp.connector(DP).unwrap().sw_auto_read_war);
 }
 
-/// SYSTEM_GET_ACTIVE: no firmware-lit head, so from 615 on no stale head either: the output
-/// flag GOP_STALE_HEAD_NEEDS_CLEANUP is cleared and `staleSorIndex` is 0, whatever the
-/// caller left in them; the input flag CLIENT is kept.
+/// SYSTEM_GET_ACTIVE before any modeset: no firmware-lit head, so no active display and, from
+/// 615 on, no stale head either: the output flag GOP_STALE_HEAD_NEEDS_CLEANUP is cleared and
+/// `staleSorIndex` is 0, whatever the caller left in them; the input flag CLIENT is kept.
 #[test]
 fn get_active_reports_no_head_and_no_stale_head() {
     use crate::ver::{GuestAbi, TestGuest};
@@ -531,6 +531,49 @@ fn get_active_reports_no_head_and_no_stale_head() {
             None => assert_eq!((g, l.get_active_size), (GuestAbi::V610, 16)),
         }
     }
+}
+
+/// SYSTEM_GET_ACTIVE after a client's modeset (the Windows KMD asks right after it, the DP
+/// library's "is a head attached to this displayId"): the head a SOR drives returns that
+/// SOR's connector, with the CLIENT flag or without; other heads return 0; a head beyond the
+/// chip's heads is the header's INVALID_ARGUMENT; an idle head is 0 again.
+#[test]
+fn get_active_reports_the_display_a_client_lit() {
+    let mut disp = display();
+    let mut fb = FakeFb::new(1 << 20);
+    let mem = GuestMemory::new();
+    let lit = |on: bool| {
+        let mut armed = BTreeMap::new();
+        // SOR0 OWNER_MASK = head 0, PROTOCOL DP_A (clc57d.h SOR_SET_CONTROL).
+        armed.insert(0x300, if on { 0x1 | (8 << 8) } else { 0 });
+        // Head 0: raster 2200x1125, pixel clock 148.5 MHz, viewport 1920x1080.
+        armed.insert(0x2000 + 0x64, 2200 | (1125 << 16));
+        armed.insert(0x2000 + 0x0C, 148_500_000);
+        armed.insert(0x2000 + 0x4C, 1920 | (1080 << 16));
+        armed
+    };
+    let ask = |disp: &mut Display, head: u32, flags: u32| {
+        let l = &crate::ver::layouts().display;
+        let mut p = vec![0u8; l.get_active_size];
+        put32(&mut p, d::GET_ACTIVE_HEAD, head);
+        put32(&mut p, d::GET_ACTIVE_FLAGS, flags);
+        disp.control(d::CMD_SYSTEM_GET_ACTIVE, &p).unwrap()
+    };
+    disp.eng().core_update(&lit(true), 1_000, &mut fb, &mem);
+    for flags in [0, 1] {
+        let a = ask(&mut disp, 0, flags);
+        assert_eq!((a.status, get32(&a.params, d::GET_ACTIVE_DISPLAY_ID)), (NV_OK, DP), "{}", a.note);
+        assert!(a.note.contains("0x100 (SOR0"), "{}", a.note);
+    }
+    for head in 1..4 {
+        let a = ask(&mut disp, head, 0);
+        assert_eq!((a.status, get32(&a.params, d::GET_ACTIVE_DISPLAY_ID)), (NV_OK, 0));
+    }
+    let a = ask(&mut disp, 4, 0);
+    assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT, "{}", a.note);
+    disp.eng().core_update(&lit(false), 2_000, &mut fb, &mem);
+    let a = ask(&mut disp, 0, 0);
+    assert_eq!((a.status, get32(&a.params, d::GET_ACTIVE_DISPLAY_ID)), (NV_OK, 0));
 }
 
 /// DP_GET_CAPS: 615's `bIsInternalDpTunnelingSupported` (33, former padding) reads 0 (no
@@ -645,4 +688,155 @@ fn a_page_kick_is_the_trapped_kick() {
     assert!(notes[0].contains("2 method(s), 1 UPDATE(s)"), "{notes:?}");
     assert_eq!(disp.read32(w6 + 4), Some(16));
     assert_eq!(disp.channels[&w6].kicks, 1);
+}
+
+/// A channel page's lower half reads back the assembly state, the upper half (+2048) the
+/// ARMED state the last `UPDATE` promoted (dev_display_withoffset.ref.txt:5956-5973): the
+/// Windows KMD reads window 0's ARMED `SET_PARAMS` (+0xA2C) and `SET_COMPOSITION_CONTROL`
+/// (+0xAEC) after each flip. The ARMED half is read-only; the cursor's PIO methods arm too.
+#[test]
+fn channel_pages_read_back_assembly_and_armed_state() {
+    let mut disp = display();
+    let mut mem = GuestMemory::new();
+    let f = tempfile_4k();
+    mem.map(0x10_0000, 0x1000, 0, &f).unwrap();
+    // Window 0: SET_PARAMS (0x22C) = 0xCF, SET_COMPOSITION_CONTROL (0x2EC) = 0xFF0; then
+    // UPDATE; then SET_PARAMS = 0xE6 without UPDATE.
+    let words = [
+        1u32 << 18 | 0x22C, 0xCF,
+        1 << 18 | 0x2EC, 0xFF0,
+        1 << 18 | 0x200, 0,
+        1 << 18 | 0x22C, 0xE6,
+    ];
+    for (i, w) in words.iter().enumerate() {
+        assert!(mem.write(0x10_0000 + 4 * i as u64, &w.to_le_bytes()));
+    }
+    let mut p = vec![0u8; d::PUSHBUFFER_SIZE];
+    put32(&mut p, d::PUSHBUFFER_ADDRESS_SPACE, 1);
+    p[8..16].copy_from_slice(&0x10_0000u64.to_le_bytes());
+    p[16..24].copy_from_slice(&0xFFFu64.to_le_bytes());
+    put32(&mut p, d::PUSHBUFFER_HCLASS, d::NVC57E_WINDOW_CHANNEL_DMA);
+    p[d::PUSHBUFFER_VALID] = 1;
+    disp.control(d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER, &p);
+    disp.alloc(d::NVC57E_WINDOW_CHANNEL_DMA, &[0; d::CHANNELDMA_ALLOC_SIZE])
+        .unwrap();
+    let mut fb = crate::fb::FakeFb::new(1 << 20);
+    let w0 = WIN_USERD;
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x22C), Some(0));
+    disp.write32(w0, 24, &mem, &mut fb).unwrap();
+    assert_eq!(disp.read32(w0 + 0x22C), Some(0xCF));
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x22C), Some(0xCF));
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x2EC), Some(0xFF0));
+    // Assembly moves on; ARMED waits for the next UPDATE.
+    disp.write32(w0, 32, &mem, &mut fb).unwrap();
+    assert_eq!(disp.read32(w0 + 0x22C), Some(0xE6));
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x22C), Some(0xCF));
+    // PUT and GET are unchanged by the readback.
+    assert_eq!(disp.read32(w0), Some(32));
+    assert_eq!(disp.read32(w0 + 4), Some(32));
+    let notes = disp.write32(w0 + CHN_ARMED + 0x22C, 1, &mem, &mut fb).unwrap();
+    assert!(notes[0].contains("read-only"), "{notes:?}");
+    assert_eq!(disp.read32(w0 + CHN_ARMED + 0x22C), Some(0xCF));
+    // The cursor (PIO): a method write shows in the assembly half, UPDATE arms it.
+    let c0 = CURSOR_USERD;
+    disp.write32(c0 + 0x208, 0x0010_0020, &mem, &mut fb).unwrap();
+    assert_eq!(disp.read32(c0 + 0x208), Some(0x0010_0020));
+    assert_eq!(disp.read32(c0 + CHN_ARMED + 0x208), Some(0));
+    disp.write32(c0 + 0x200, 0, &mem, &mut fb).unwrap();
+    assert_eq!(disp.read32(c0 + CHN_ARMED + 0x208), Some(0x0010_0020));
+}
+
+/// The core channel's PIO registers (clc57d.h:285-297): SET_GET_BLANKING_CTRL takes a
+/// request (BLANK 0:0, UNBLANK 1:1, NO_CHANGE or ENABLE) that the model carries out at once,
+/// and a read gives the state reached in the same fields (the Windows KMD writes BLANK and
+/// waits for the read to show it); GET_RG_SCAN_LINE gives the raster line and the VBLANK bit
+/// and ignores writes.
+#[test]
+fn core_pio_blanking_and_scan_line() {
+    let mut disp = display();
+    let mut fb = FakeFb::new(1 << 20);
+    let mem = GuestMemory::new();
+    let blank = CORE_USERD + CORE_SET_GET_BLANKING_CTRL;
+    let n = disp.write32(blank, 0x1, &mem, &mut fb).unwrap();
+    assert!(n[0].contains("head 0 SET_GET_BLANKING_CTRL 0x1: blanked"), "{n:?}");
+    assert!(disp.eng().heads[0].blanked);
+    assert_eq!(disp.read32(blank), Some(0x1), "the state reached: BLANK");
+    let n = disp.write32(blank, 0x2, &mem, &mut fb).unwrap();
+    assert!(n[0].contains("unblanked"), "{n:?}");
+    assert!(!disp.eng().heads[0].blanked);
+    assert_eq!(disp.read32(blank), Some(0x2), "the state reached: UNBLANK");
+    let n = disp.write32(blank + 4, 0x3, &mem, &mut fb).unwrap();
+    assert!(n[0].contains("head 1") && n[0].contains("stays unblanked"), "BLANK then UNBLANK: {n:?}");
+    // A head beyond the chip's four: not a PIO register, latched as before.
+    assert_eq!(disp.write32(blank + 16, 0x1, &mem, &mut fb), Some(Vec::new()));
+    // An idle head: line 0, in the blank; an active one: a line below vtotal, VBLANK set
+    // outside [BLANK_END.Y, BLANK_START.Y) = [40, 1120).
+    let scan = CORE_USERD + CORE_GET_RG_SCAN_LINE;
+    assert_eq!(disp.read32(scan), Some(1 << 16));
+    let mut armed = BTreeMap::new();
+    armed.insert(0x300, 0x1 | (8 << 8));
+    armed.insert(0x2000 + 0x64, 2200 | (1125 << 16));
+    armed.insert(0x2000 + 0x6C, 191 | (40 << 16));
+    armed.insert(0x2000 + 0x70, 2111 | (1120 << 16));
+    armed.insert(0x2000 + 0x0C, 148_500_000);
+    armed.insert(0x2000 + 0x4C, 1920 | (1080 << 16));
+    disp.eng().core_update(&armed, engine::now_ns(), &mut fb, &mem);
+    let v = disp.read32(scan).unwrap();
+    let line = v & 0xFFFF;
+    assert!(line < 1125, "{v:#x}");
+    assert_eq!(v >> 16 & 1 == 1, !(40..1120).contains(&line), "{v:#x}");
+    {
+        let e = disp.eng();
+        assert!(e.in_vblank(0, 10) && e.in_vblank(0, 1121) && !e.in_vblank(0, 500));
+    }
+    let n = disp.write32(scan, 0x5, &mem, &mut fb).unwrap();
+    assert!(n[0].contains("read-only"), "{n:?}");
+}
+
+/// `dump auto`: window 0's scanout is written after a new latch, not again before the period,
+/// and the pixels come out of the pitch layout in the right order.
+#[test]
+fn auto_dump_writes_new_latches_rate_limited() {
+    let mut disp = display();
+    let mut fb = FakeFb::new(1 << 20);
+    let mem = GuestMemory::new();
+    // 16 x 2 pixels, A8R8G8B8, pitch layout (one 64-byte unit per row): pixel (x, y) = x + 16y.
+    for y in 0..2u64 {
+        for x in 0..16u64 {
+            let v = (x + 16 * y) as u32;
+            fb.write(y * 64 + x * 4, &(v | 0xFF00_0000).to_le_bytes());
+        }
+    }
+    let dir = std::env::temp_dir().join(format!("caraxes-autodump-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    disp.auto_dump = Some(AutoDump::new(dir.clone()));
+    {
+        let mut e = disp.eng();
+        let w = &mut e.windows[0];
+        w.head = Some(0);
+        w.flips = 1;
+        w.latched = engine::Surface {
+            mem: Some(engine::MemRef { target: 1, addr: 0 }),
+            width: 16,
+            height: 2,
+            format: 0xCF,
+            pitch: 1,
+            pitch_layout: true,
+            block_height_log2: 0,
+        };
+    }
+    disp.maybe_auto_dump(&fb, &mem);
+    disp.auto_dump.as_mut().unwrap().join();
+    let f = dir.join("scanout-auto-0.png");
+    let png = std::fs::read(&f).unwrap();
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    // IDAT holds stored rows: filter 0, then R, G, B of pixel 0 (0, 0, 0), pixel 1 (0, 0, 1).
+    let at = png.windows(4).position(|c| c == b"IDAT").unwrap() + 4 + 2 + 5;
+    assert_eq!(&png[at..at + 7], &[0, 0, 0, 0, 0, 0, 1]);
+    assert!(disp.notes.iter().any(|n| n.contains("auto dump #0") && n.contains("1 step(s)")), "{:?}", disp.notes);
+    // A new flip within the period: no second file.
+    disp.eng().windows[0].flips = 2;
+    disp.maybe_auto_dump(&fb, &mem);
+    assert!(!dir.join("scanout-auto-1.png").exists());
+    let _ = std::fs::remove_dir_all(&dir);
 }

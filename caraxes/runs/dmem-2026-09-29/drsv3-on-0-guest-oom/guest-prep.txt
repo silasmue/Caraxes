@@ -1,0 +1,11 @@
+loaded /opt/caraxes/display-reserve-v2/6.8.0-136-generic: nvidia (NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 09:12:12 UTC 2026), nvidia_modeset display_reserve_mib=-1; RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+modules-ok
+sunshine: active 0::/user.slice/user-1000.slice/user@1000.service/session.slice/app-dev.lizardbyte.app.Sunshine.service
+caraxes-dmem-cap (off): inactive
+Starting caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: no dmem controller in kernel 6.8.0-136-generic (needs >= 6.14 with CONFIG_CGROUP_DMEM): no cap
+Finished caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+Stopping caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+Stopped caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+kernel 6.8.0-136-generic; dmem controller: no
+saves before: 3

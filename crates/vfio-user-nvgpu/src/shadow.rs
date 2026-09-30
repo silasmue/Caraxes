@@ -53,13 +53,11 @@
 //!   is mapped from one gather descriptor (hostmem.rs `gather`): the stretch's pages, each
 //!   the filter's answer, back to back in one OS descriptor, so one `RM_MAP_MEMORY_DMA`
 //!   maps the whole stretch. The descriptor is freed when its last mapping is gone.
-//!   `CARAXES_SHADOW_GATHER=0` maps such stretches run by run.
 //! - *Whole-region frees.* When the guest empties a 2 MiB region that holds at least
 //!   [`BULK_MIN_RUNS`] runs, the shadow frees the region object with its mappings in one
 //!   `RM_FREE` (the RM unmaps them itself) instead of one NVOS47 per run; the teardown does
-//!   the same, about [`TEARDOWN_BATCH`] mappings per step. `CARAXES_SHADOW_BULK_FREE=0`
-//!   unmaps run by run.
-//! - *Deferred TLB invalidation* (`CARAXES_SHADOW_DEFER_TLB=1`, off by default: it measured
+//!   the same, about [`TEARDOWN_BATCH`] mappings per step.
+//! - *Deferred TLB invalidation* (off: it measured
 //!   no gain, the per-call cost is not the invalidate). Every map and unmap of a plan or a
 //!   teardown step then carries the RM's `DEFER_TLB_INVALIDATION` flag, and the shadow owes
 //!   the VAS one `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB`, paid ([`ShadowVas::settle`]) before
@@ -68,7 +66,7 @@
 //! - *Region free list.* A region object whose 2 MiB region the guest emptied, with every
 //!   run in it unmapped by the RM, goes on a bounded per-VAS free list instead of being
 //!   freed, and the next need of the same region and page class takes it back: two RM
-//!   calls fewer per churned region. `CARAXES_SHADOW_REGION_POOL=0` frees at once.
+//!   calls fewer per churned region.
 //! - *Counted.* Every RM call of the shadow is counted by kind with its time ([`RmCalls`]),
 //!   per sync line and in the summary.
 
@@ -435,11 +433,6 @@ impl RmCalls {
     }
 }
 
-/// `CARAXES_SHADOW_DEFER_TLB` and `CARAXES_SHADOW_REGION_POOL`: on unless set to 0.
-fn switch_on(var: &str) -> bool {
-    std::env::var(var).as_deref() != Ok("0")
-}
-
 /// `nvos46_flags::PAGE_SIZE_*` for a guest page size.
 fn page_size_flag(size: u64) -> u32 {
     use nvrm_abi::nvgpu::nvos46_flags as f;
@@ -652,8 +645,11 @@ pub struct ShadowStats {
     pub syncs: u64,
     /// Resync requests answered without a walk (no page-table write since the last).
     pub skipped: u64,
-    /// Syncs that walked the whole tree (first sync, sysmem tables, always-resync).
+    /// Syncs that walked the whole tree (the first sync, always-resync).
     pub full_walks: u64,
+    /// Syncs that re-read tables in guest sysmem (unwatchable), and the nodes re-read.
+    pub sys_syncs: u64,
+    pub sys_nodes: u64,
     /// Table blocks read over all syncs, and 2 MiB units diffed.
     pub table_reads: u64,
     pub units_diffed: u64,
@@ -754,14 +750,9 @@ impl MapBudget {
         }
     }
 
-    /// `CARAXES_MAP_BUDGET` (set by the launcher from `--map-budget`), else the default.
-    pub fn from_env() -> Self {
-        let limit = std::env::var("CARAXES_MAP_BUDGET")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .filter(|n: &usize| *n > 0)
-            .unwrap_or(DEFAULT_MAP_BUDGET);
-        MapBudget::new(limit)
+    /// The device's budget: [`DEFAULT_MAP_BUDGET`] live mappings.
+    pub fn device() -> Self {
+        MapBudget::new(DEFAULT_MAP_BUDGET)
     }
 
     pub fn live(&self) -> usize {
@@ -789,6 +780,8 @@ pub struct Plan {
     pub notes: Vec<String>,
     pub full: bool,
     pub reads: usize,
+    /// Nodes whose table lives in guest sysmem, re-read by this walk (ptcache.rs).
+    pub sys_nodes: usize,
     pub truncated: bool,
     pub walked: usize,
     pub want: usize,
@@ -800,6 +793,10 @@ pub struct Plan {
     pub walk_us: u128,
     /// Set by the worker: how long the plan waited in its queue.
     pub queued_us: u128,
+    /// FB ranges the walk update of this plan took out of the walk (ptcache.rs
+    /// `Update::removed`): the host shadow maps them until the plan is applied. The worker's
+    /// submit keeps them for the BAR1 pool (mirror.rs `Mirror::shadow_in_flight`).
+    pub ghosts: Vec<(u64, u64)>,
 }
 
 impl Plan {
@@ -922,7 +919,9 @@ impl ShadowFront {
             exclude: exclude.to_vec(),
             full: upd.full,
             reads: upd.reads,
+            sys_nodes: upd.sys_nodes,
             truncated: fb.with_walk(root, |c| c.truncated) == Some(true),
+            ghosts: upd.removed.clone(),
             ..Default::default()
         };
         plan.notes.extend(malformed_note);
@@ -1040,6 +1039,12 @@ pub struct ShadowVas {
     fence_span: Option<(u64, u64)>,
     /// Fence changes: pieces carved out for regions, pieces put back, placeholders refused.
     pub fence_stats: (u64, u64, u64),
+    /// Fence pieces freed by a batched carve of many per-leaf objects
+    /// ([`Self::fence_carve_many`]), and the regions carved that way.
+    pub fence_batched: u64,
+    pub fence_batch_regions: u64,
+    /// Fence pieces split at 2 MiB boundaries ([`Self::fence_piece`]).
+    pub fence_split: u64,
     /// Fence lines for the next sync's notes.
     fence_notes: Vec<String>,
     /// Set by the teardown: freed regions are not fenced again.
@@ -1065,20 +1070,18 @@ pub struct ShadowVas {
     teardown_objects: Vec<u32>,
     teardown_unmapped: usize,
     teardown_freed: usize,
-    /// Coalesce contiguous leaves into one RM mapping (`CARAXES_SHADOW_COALESCE=0`: one
-    /// mapping per leaf, the earlier behaviour, for A/B measurements).
+    /// Coalesce contiguous leaves into one RM mapping (on; the unit tests turn it off to
+    /// compare with one mapping per leaf).
     coalesce: bool,
-    /// Map and unmap with the RM's TLB invalidate deferred to [`Self::settle`]
-    /// (`CARAXES_SHADOW_DEFER_TLB=1`; off by default: measured without gain, memory-model.md
-    /// §7.5). Turned off for good when an invalidate fails.
+    /// Map and unmap with the RM's TLB invalidate deferred to [`Self::settle`] (off: measured
+    /// without gain, memory-model.md §7.5). Turned off for good when an invalidate fails.
     defer_tlb: bool,
-    /// Free an emptied region's object with its mappings in one call
-    /// (`CARAXES_SHADOW_BULK_FREE=0`: one unmap per run).
+    /// Free an emptied region's object with its mappings in one call (on; off: one unmap
+    /// per run, for the unit tests).
     bulk_on: bool,
     /// A deferred map or unmap was made since the last invalidate of the VAS.
     tlb_owed: bool,
-    /// Empty region objects kept for reuse, by region VA (`CARAXES_SHADOW_REGION_POOL=0`:
-    /// none). Every one of them had all its runs unmapped by the RM without a failure.
+    /// Empty region objects kept for reuse, by region VA (`pool_on`, on). Every one of them had all its runs unmapped by the RM without a failure.
     pool: BTreeMap<u64, Region>,
     pool_on: bool,
     /// Host RM calls by kind, since the VAS was created.
@@ -1089,8 +1092,8 @@ pub struct ShadowVas {
     teardown_calls0: Option<RmCalls>,
     /// Mappings the teardown removed with their region object.
     teardown_bulk: usize,
-    /// Map scattered sysmem stretches through gather descriptors
-    /// (`CARAXES_SHADOW_GATHER=0`: run by run from the registered descriptors).
+    /// Map scattered sysmem stretches through gather descriptors (on; off: run by run from
+    /// the registered descriptors, for the unit tests).
     gather_on: bool,
     /// Live gather descriptors and the runs mapped from each.
     gathers: BTreeMap<u32, usize>,
@@ -1167,6 +1170,44 @@ impl ShadowVas {
         }
     }
 
+    /// [`Self::fence_carve`] for many spans at once (sorted or not, not overlapping each
+    /// other): each fence piece that overlaps one of them is freed once, and what is left of
+    /// it outside every span goes back as one piece per gap. The per-leaf objects of a region
+    /// that touches set B were carved one at a time: one free and two allocations per leaf,
+    /// 140-200 ms of frees in the first plan of every Windows D3D device's VAS (C82).
+    fn fence_carve_many<H: ShadowHost>(&mut self, h: &mut H, spans: &[(u64, u64)]) {
+        let mut spans: Vec<(u64, u64)> = spans.iter().copied().filter(|(a, b)| a < b).collect();
+        if spans.is_empty() {
+            return;
+        }
+        spans.sort_unstable();
+        let lo = spans[0].0;
+        let hi = spans.iter().map(|s| s.1).max().expect("not empty");
+        let hit: Vec<(u64, u64, u32)> = self
+            .fence
+            .range(..hi)
+            .filter(|(a, (b, _))| **a < hi && *b > lo)
+            .filter(|(a, (b, _))| spans.iter().any(|(s, e)| **a < *e && *b > *s))
+            .map(|(a, (b, hd))| (*a, *b, *hd))
+            .collect();
+        for (a, b, hd) in hit {
+            self.fence.remove(&a);
+            self.free_virtual(h, hd);
+            self.fence_stats.0 += 1;
+            self.fence_batched += 1;
+            let mut cur = a;
+            for &(s, e) in spans.iter().filter(|(s, e)| *s < b && *e > a) {
+                if cur < s {
+                    self.fence_piece(h, cur, s);
+                }
+                cur = cur.max(e);
+            }
+            if cur < b {
+                self.fence_piece(h, cur, b);
+            }
+        }
+    }
+
     /// Put `[u, u + REGION)` back into the fence after its region object went.
     fn fence_back<H: ShadowHost>(&mut self, h: &mut H, u: u64) {
         self.fence_back_range(h, u, u + REGION);
@@ -1230,6 +1271,26 @@ impl ShadowVas {
     }
 
     fn fence_piece<H: ShadowHost>(&mut self, h: &mut H, lo: u64, hi: u64) {
+        // A long piece with an end off a 2 MiB boundary is split there: the unaligned ends
+        // hold 4 KiB pages, the aligned middle default pages. One 4 KiB-page object over
+        // hundreds of MiB (the fence's tail after a carve) cost 0.4-0.7 ms to free and about
+        // 0.16 ms to allocate on the host, at every carve (C82).
+        let (a, b) = ((lo + REGION - 1) & !(REGION - 1), hi & !(REGION - 1));
+        if a < b && (lo != a || hi != b) {
+            if lo < a {
+                self.fence_piece_one(h, lo, a);
+            }
+            self.fence_piece_one(h, a, b);
+            if b < hi {
+                self.fence_piece_one(h, b, hi);
+            }
+            self.fence_split += 1;
+            return;
+        }
+        self.fence_piece_one(h, lo, hi);
+    }
+
+    fn fence_piece_one<H: ShadowHost>(&mut self, h: &mut H, lo: u64, hi: u64) {
         // A piece not on 2 MiB boundaries holds 4 KiB pages at a forced 4 KiB alignment
         // (a default-page object there is refused, hostmem.rs `alloc_virtual_fixed`).
         let (page, force) = if lo % REGION == 0 && hi % REGION == 0 {
@@ -1258,6 +1319,9 @@ impl ShadowVas {
             fence: BTreeMap::new(),
             fence_span: None,
             fence_stats: (0, 0, 0),
+            fence_batched: 0,
+            fence_batch_regions: 0,
+            fence_split: 0,
             fence_notes: Vec::new(),
             tearing_down: false,
             fence_b: Vec::new(),
@@ -1272,17 +1336,17 @@ impl ShadowVas {
             teardown_objects: Vec::new(),
             teardown_unmapped: 0,
             teardown_freed: 0,
-            coalesce: switch_on("CARAXES_SHADOW_COALESCE"),
-            defer_tlb: std::env::var("CARAXES_SHADOW_DEFER_TLB").as_deref() == Ok("1"),
-            bulk_on: switch_on("CARAXES_SHADOW_BULK_FREE"),
+            coalesce: true,
+            defer_tlb: false,
+            bulk_on: true,
             tlb_owed: false,
             pool: BTreeMap::new(),
-            pool_on: switch_on("CARAXES_SHADOW_REGION_POOL"),
+            pool_on: true,
             calls: RmCalls::default(),
             settle_notes: Vec::new(),
             teardown_calls0: None,
             teardown_bulk: 0,
-            gather_on: switch_on("CARAXES_SHADOW_GATHER"),
+            gather_on: true,
             gathers: BTreeMap::new(),
             gathers_idle: Vec::new(),
             comp: None,
@@ -1731,6 +1795,9 @@ impl ShadowVas {
                 Vec::new()
             };
             let mut leaf_object_failures = 0usize;
+            // Regions whose per-leaf objects had the fence carved for all of them at once.
+            let mut carved: BTreeSet<u64> = BTreeSet::new();
+            let mut batch_spans: Vec<(u64, u64)> = Vec::new();
             for r in coalesce(&todo) {
                 let items = &todo[r];
                 let first = items[0];
@@ -1815,6 +1882,27 @@ impl ShadowVas {
                     Some(_) if self.coalesce => vec![items],
                     _ => items.chunks(1).collect(),
                 };
+                // Per-leaf objects inside the fence: carve the fence once for every leaf of the
+                // region this sync maps (the per-piece carve below then finds nothing to carve).
+                // Only when every one of them will be tried, so no carved span is left
+                // without its object.
+                if region.is_none() && self.fence_span.is_some() && !carved.contains(&rv) {
+                    let spans: Vec<(u64, u64)> = todo
+                        .iter()
+                        .filter(|m| m.va >= rv && m.va < rv + REGION)
+                        .map(|m| (m.va, m.va + m.leaf.size))
+                        .collect();
+                    if spans.len() > 1
+                        && exhausted.is_none()
+                        && leaf_object_failures < LEAF_OBJECT_FAILURES_PER_REGION
+                        && self.budget.live() + spans.len() <= self.budget.limit
+                    {
+                        self.fence_carve_many(&mut *h, &spans);
+                        self.fence_batch_regions += 1;
+                        batch_spans.extend(spans);
+                    }
+                    carved.insert(rv);
+                }
                 for piece in pieces {
                     if exhausted.is_some() || leaf_object_failures >= LEAF_OBJECT_FAILURES_PER_REGION {
                         for m in piece {
@@ -1940,6 +2028,11 @@ impl ShadowVas {
                     }
                 }
             }
+            // A leaf of a batched carve whose object or map the host refused: its span goes
+            // back into the fence (the next sync's retry carves it again).
+            for (a, b) in batch_spans {
+                self.fence_back_range(&mut *h, a, b);
+            }
             // A gather no map took (the host refused them all) is freed again.
             for g in made {
                 if self.gathers.get(&g) == Some(&0) {
@@ -1974,6 +2067,10 @@ impl ShadowVas {
         self.stats.syncs += 1;
         if plan.full {
             self.stats.full_walks += 1;
+        }
+        if plan.sys_nodes > 0 {
+            self.stats.sys_syncs += 1;
+            self.stats.sys_nodes += plan.sys_nodes as u64;
         }
         self.stats.table_reads += plan.reads as u64;
         self.stats.units_diffed += plan.units.len() as u64;
@@ -2143,10 +2240,12 @@ impl ShadowVas {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} left unmapped on an exhausted host in {} sync(s), {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects, {} gather descriptor(s) for {} leaves ({} refused, {} live); {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
+            "{} syncs ({} skipped clean, {} full walks, {} with tables in guest sysmem re-read ({} node(s)), {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} left unmapped on an exhausted host in {} sync(s), {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects, {} gather descriptor(s) for {} leaves ({} refused, {} live); {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
             s.syncs,
             s.skipped,
             s.full_walks,
+            s.sys_syncs,
+            s.sys_nodes,
             s.table_reads,
             s.units_diffed,
             s.max_sync_us,
@@ -2183,6 +2282,22 @@ impl ShadowVas {
             },
             s.extents()
         ) + &self.comp.as_ref().map(|p| format!("; {}", p.summary())).unwrap_or_default()
+            + &self.fence_span.map(|_| self.fence_line()).unwrap_or_default()
+    }
+
+    /// The fence's work for the summary: pieces freed for regions (of them in batched carves),
+    /// ranges put back, placeholders refused, pieces split at 2 MiB, pieces live.
+    fn fence_line(&self) -> String {
+        format!(
+            "; fence: {} piece(s) freed ({} in batched carves of {} region(s)), {} put back, {} refused, {} split at 2 MiB, {} live",
+            self.fence_stats.0,
+            self.fence_batched,
+            self.fence_batch_regions,
+            self.fence_stats.1,
+            self.fence_stats.2,
+            self.fence_split,
+            self.fence.len()
+        )
     }
 
     /// Free the shadow VAS incrementally: unmap its runs `TEARDOWN_BATCH` at a time with
@@ -2447,6 +2562,12 @@ mod tests {
         let items: Vec<ToMap> = p.units.iter().flat_map(|(_, w)| w.iter().copied()).collect();
         assert_eq!(coalesce(&items[1..]).len(), 3);
         assert!(!front.needs_sync(&fb, &[]));
+        assert!(p.ghosts.is_empty(), "a re-diff takes nothing out of the walk");
+        // The guest drops VA 0x1000: the plan names X by its guest address as taken out of
+        // the walk; the host maps it until the plan is applied (bar1-pool.md §14).
+        fb.write_u64(pt + 8, 0);
+        let p = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!(p.ghosts, vec![(x, x + 0x1000)]);
     }
 
     /// The Xid 31 of 2026-09-24 (docs/caraxes/memory-model.md §2, "The alias in the
@@ -2660,6 +2781,19 @@ mod tests {
     }
 
     /// A plan holding `leaves` (VA, FB PA, size, kind) in their 2 MiB units.
+    /// The fence as the VA it covers: adjacent pieces merged (a piece may be split at 2 MiB
+    /// boundaries, [`ShadowVas::fence_piece`]).
+    fn fence_cover(s: &ShadowVas) -> Vec<(u64, u64)> {
+        let mut out: Vec<(u64, u64)> = Vec::new();
+        for (a, (b, _)) in &s.fence {
+            match out.last_mut() {
+                Some(l) if l.1 == *a => l.1 = *b,
+                _ => out.push((*a, *b)),
+            }
+        }
+        out
+    }
+
     fn plan_of(leaves: &[(u64, u64, u64, u8)], units: &[u64]) -> Plan {
         let mut by: BTreeMap<u64, Vec<ToMap>> = units.iter().map(|u| (*u, Vec::new())).collect();
         for &(va, pa, size, kind) in leaves {
@@ -2979,10 +3113,7 @@ mod tests {
         p.exclude = vec![(b0, b1)];
         s.apply(&host, &p, &[]);
         assert_eq!(
-            s.fence
-                .iter()
-                .map(|(a, (b, _))| (*a, *b))
-                .collect::<Vec<_>>(),
+            fence_cover(&s),
             vec![(F0, b0), (b1, leaf), (leaf + 0x1000, F1)],
             "set B and the leaf carved out, nothing else"
         );
@@ -2993,19 +3124,74 @@ mod tests {
             &plan_of(&[(leaf, BASE + 0x1000, 0x1000, 6)], &[]),
             &[],
         );
-        assert_eq!(
-            s.fence
-                .iter()
-                .map(|(a, (b, _))| (*a, *b))
-                .collect::<Vec<_>>(),
-            vec![(F0, b0), (b0, b1), (b1, leaf), (leaf + 0x1000, F1)]
-        );
+        assert_eq!(fence_cover(&s), vec![(F0, leaf), (leaf + 0x1000, F1)]);
         // The leaf goes too: its range is fenced again.
         s.apply(&host, &plan_of(&[], &[F0 + REGION]), &[]);
-        assert!(s
-            .fence
-            .iter()
-            .any(|(a, (b, _))| (*a, *b) == (leaf, leaf + 0x1000)));
+        assert_eq!(fence_cover(&s), vec![(F0, F1)]);
+    }
+
+    /// Windows' D3D device VAS (C82): a region inside the fence that touches set B gets a
+    /// per-leaf object for each of its leaves. The fence is carved once for all of them, one
+    /// free of the piece and one placeholder per gap, not one free and two placeholders per
+    /// leaf; the result is the same fence as before, exact around set B and every leaf.
+    #[test]
+    fn the_fence_is_carved_once_for_all_per_leaf_objects_of_a_region() {
+        const F0: u64 = 0x1_2000_0000;
+        const F1: u64 = F0 + 4 * REGION;
+        let (b0, b1) = (F0 + REGION + 0x4000, F0 + REGION + 0x9000);
+        // 40 scattered leaves (physically not contiguous: one map each) after set B.
+        let leaves: Vec<(u64, u64, u64, u8)> = (0..40u64)
+            .map(|i| (F0 + REGION + 0x10_000 + i * 0x2000, BASE + 0x100_0000 - i * 0x3000, 0x1000, 6))
+            .collect();
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.fence_up(&mut *host.lock().unwrap(), F0, F1).unwrap();
+        host.lock().unwrap().seen.borrow_mut().clear();
+        let mut p = plan_of(&leaves, &[]);
+        p.exclude = vec![(b0, b1)];
+        s.apply(&host, &p, &[]);
+        let h = host.lock().unwrap();
+        let frees = h.calls(Call::ObjectFree).len();
+        let allocs = h.calls(Call::ObjectAlloc).len();
+        drop(h);
+        // The set-B carve and one batched carve: 2 frees; 40 leaf objects, the pieces
+        // around set B (2) and 41 gaps.
+        assert_eq!(frees, 2, "one free per fence piece, not per leaf");
+        // Splits at 2 MiB boundaries add at most two pieces per long piece.
+        assert!(allocs <= 40 + 2 + 41 + 4, "{allocs} allocations");
+        assert_eq!(s.fence_batch_regions, 1);
+        assert_eq!(s.fence_batched, 1);
+        let fence = fence_cover(&s);
+        assert_eq!(fence[0], (F0, b0));
+        assert_eq!(fence[1], (b1, F0 + REGION + 0x10_000));
+        for i in 0..39u64 {
+            let va = F0 + REGION + 0x10_000 + i * 0x2000;
+            assert!(fence.contains(&(va + 0x1000, va + 0x2000)), "gap after leaf {i}");
+            assert!(s.coverage(va, va + 0x1000).starts_with("covered"));
+        }
+        assert_eq!(*fence.last().unwrap(), (F0 + REGION + 0x10_000 + 39 * 0x2000 + 0x1000, F1));
+    }
+
+    /// A leaf of a batched carve whose map the host refuses leaves no hole: its span goes
+    /// back into the fence, and the fence is whole again around set B.
+    #[test]
+    fn a_refused_leaf_of_a_batched_carve_goes_back_into_the_fence() {
+        const F0: u64 = 0x1_2000_0000;
+        const F1: u64 = F0 + 4 * REGION;
+        let (b0, b1) = (F0 + REGION + 0x4000, F0 + REGION + 0x9000);
+        let leaves: Vec<(u64, u64, u64, u8)> = (0..3u64)
+            .map(|i| (F0 + REGION + 0x10_000 + i * 0x2000, BASE + 0x10_0000 - i * 0x3000, 0x1000, 6))
+            .collect();
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.fence_up(&mut *host.lock().unwrap(), F0, F1).unwrap();
+        host.lock().unwrap().map_status = Some(0x1f);
+        let mut p = plan_of(&leaves, &[]);
+        p.exclude = vec![(b0, b1)];
+        s.apply(&host, &p, &[]);
+        assert_eq!(s.fence_batch_regions, 1);
+        assert_eq!(fence_cover(&s), vec![(F0, b0), (b1, F1)], "no hole left");
+        assert!(s.fence_stats.1 >= 3, "{:?}", s.fence_stats);
     }
 
     /// The teardown frees the fence with everything else and puts nothing back.

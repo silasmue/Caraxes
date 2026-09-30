@@ -21,11 +21,12 @@ use vfio_user_nvgpu::compslice;
 use vfio_user_nvgpu::config::{self as pci_config, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
-    doorbell_ioeventfd_requested, doorbell_sub_region, doorbell_token_sub_regions, irqs,
+    doorbell_token_sub_regions,
+    doorbell_value_sub_regions, irqs,
     msi_rearm_ioeventfd_requested, msi_rearm_sub_region, region_size, regions_with_pages,
     rpc_head_sub_region, rpc_ioeventfd_requested, RPC_IOEVENTFD_ENV,
-    spawn_doorbell_reader_hooked, spawn_token_reader_hooked, Bar0Areas, Bar1Area, Bar2Region,
-    Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV, MSI_REARM_IOEVENTFD_ENV,
+    spawn_token_reader_hooked, Bar0Areas, Bar1Area, Bar2Region,
+    Device, GuestRam, Routes, SharedDevice, MSI_REARM_IOEVENTFD_ENV,
     NV_XVE_CYA_2,
 };
 use vfio_user_nvgpu::display::fe_page::{self, FePage};
@@ -54,7 +55,9 @@ vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-m
                 [--name-format <legacy|transport>]
 vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
 
-  --socket   vfio-user socket to create (a stale socket file is removed)
+  --socket   vfio-user socket to create (a stale socket file is removed). When the client closes the
+             connection, a client connecting within 2 s gets the device reset (a VMM reboot);
+             otherwise the device frees its host state and exits
   --trace    access log file (default: none; the summary always goes to stderr)
   --board-data  board data: a built-in board (rtx2070, rtx5060ti, rtx5060ti-on-tu106: the 5060 Ti's PCI identity
              and name on the TU106, docs/caraxes/costume-5060.md) or a boards/*.toml-shaped file (default: rtx2070)
@@ -89,7 +92,7 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --host-exec  execute on the physical GPU (E5b part 2, docs/caraxes/execution.md): the FB is the
              reserved VRAM through BAR1 windows, the guest's channels get host mirror channels bound
              to the guest's page tables at their first doorbell, GR0/CE non-stall events become guest
-             interrupts (needs --reserve-vram, --register-guest-ram and --host-rm)
+             interrupts; implies --boot-model, --host-rm, --reserve-vram and --register-guest-ram
   --display  present the display engine (docs/caraxes/display-ab.md): the display fuse reads 0,
              the display controls are answered from chips/<chip>/display.toml and the board's
              [display] connectors, each connector backed by a DisplayPort sink model; without
@@ -98,7 +101,7 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --persist  file for the settings a real card keeps across resets and power cycles (the ECC
              and MIG modes of a chip that models them, src/families): read at start, where the
              pending settings take effect, and written at every change
-  --guest-abi  pin the guest driver's GSP ABI (default: CARAXES_GUEST_ABI, else none): 570
+  --guest-abi  pin the guest driver's GSP ABI (default: none): 570
              (nova-core), 595 (experiment), 610 or 615 (also the 617 Windows guest); anything
              else is refused (fail closed). Without a pin the guest chooses: every build
              serves all of them and reads the guest's from its GSP boot (RMARGS magic 'GSP '
@@ -110,48 +113,20 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
              none: no table). A comma-separated list merges several captures, e.g. that file
              and falcon-pmu-sec2-2026-09-25.txt. A missing or malformed file, or one whose NV_PMC_BOOT_0 is not
              the presented chip's, leaves no table (those reads stay 0)
-Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
-  ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
-  Hypervisor, a client without it keeps trapping); the eventfd carries no token, so a
-  wakeup rings every channel whose GPPut moved since its last doorbell. Refused with
-  CARAXES_BAR1_PASSTHROUGH=1.
-  CARAXES_BAR1_PASSTHROUGH=pool (P21 design H, docs/caraxes/bar1-pool.md) carves a pool of
-  CARAXES_BAR1_POOL_MIB (even, 2-128, default 64) from the top of the usable FB, offers
-  guest BAR1 [0, pool) as one sparse mmap area backed by a dma-buf of it, and moves every
-  page the guest maps there into the pool; needs --reserve-vram, host execution and every
-  host channel on a shadow VA space (CARAXES_MIRROR_GR_SHADOW=1, not CARAXES_CE_SHADOW=0,
-  not CARAXES_MIRROR_GR=1). Refused with CARAXES_DOORBELL_IOEVENTFD=1.
-  CARAXES_BAR1_POOL_WARM=refuse never moves a page the GPU maps (no preempt barrier).
-  CARAXES_DOORBELL_TOKENS=N (1-253, or on = 64) offers the doorbell register as N
-  ioeventfd sub-regions with KVM datamatch, one eventfd per device-chosen token; a
-  channel's first doorbell traps and hands it a pool token through its work-submit-token
-  notifier entry, every later ring ends in the token's eventfd (needs patch 0005 and a
-  client announcing max_msg_fds; docs/caraxes/doorbell-token-pool.md). Excludes
-  CARAXES_DOORBELL_IOEVENTFD=1; combines with CARAXES_BAR1_PASSTHROUGH=1.
-  CARAXES_MSI_REARM_IOEVENTFD=1 offers the MSI re-arm register (NV_XVE_CYA_2 in the NV_PCFG
-  mirror, BAR0 0x88704 on Turing, value ignored) as one more ioeventfd sub-region, no
-  datamatch, read by the token pool's reactor, which does what the trapped write does
-  (docs/caraxes/intr-page.md §4); needs CARAXES_DOORBELL_TOKENS=N. A client that does not
-  register it keeps trapping the write.
-  CARAXES_EXT_CONFIG=1 shows the extended configuration space (0x100-0xFFF, the capture's
-  capabilities without SR-IOV, ARI and the serial number) in the vfio-user config region
-  too, so the guest OS sees VC, LTR, L1SS, Power Budgeting, AER, the VSEC, Secondary PCIe
-  and Resizable BAR (read-only); without it the region reads zeros there and only the
-  BAR0 mirror NV_PCFG serves those bytes (docs/caraxes/vfio-user.md).
-  CARAXES_FALCON_STALLACK=<hex> is what a falcon's ENGCTL (+0xa4) reads after a stall
-  request (a write with bit 1): default 0x200 (STALLACK_T), e.g. 0 or 600 to try the other
-  answers the Windows driver's PMU poll may want (boot.toml `stallack` sets the default).
-  CARAXES_DOORBELL_POLL=off|spin|hybrid chooses how the thread that reads those eventfds
-  waits: off blocks in epoll_wait (default), spin polls with epoll_wait timeout 0 and
-  never sleeps, hybrid spins CARAXES_DOORBELL_POLL_IDLE_US (default 200) after the last
-  event and then blocks. spin and hybrid pin the reader to CARAXES_DOORBELL_POLL_CPU=<n>,
-  or to a core chosen at start (auto, the default: not CPU 0, not a vCPU thread's, the
-  highest-numbered idle one), or not at all (none). Needs one of the two above
-  (docs/caraxes/doorbell-poll.md)
-  CARAXES_HOST_BOOST=0 turns off the host clock boost of --host-exec (on by default: a
-  3 s PERF_BOOST to the highest P-state on the device's own host subdevice, renewed at
-  most every second while the VM rings doorbells or its host engines raise events;
-  docs/research/host-boost-2026-09-28.md).
+Configuration: one set for every guest OS. With --host-exec every host channel runs on a
+  shadow VA space, guest DMA addresses are GPAs, and the interrupt page, the hybrid
+  doorbell reactor, the guest-token ioeventfds, a 32 MiB BAR1 pool (2 x 16 MiB windows
+  beside it) and the host clock boost are on; pure emulation keeps the trapped paths.
+  The knobs, besides --profile/--fb-mib and --display:
+  CARAXES_COMPRESSION=off|slice  real compression per VM slice (default off, D16b)
+  CARAXES_DOORBELL_POLL=off|hybrid|spin  how the doorbell reactor waits (default hybrid
+             with --host-exec, off without; off is refused with the interrupt page)
+  CARAXES_BAR1_POOL_MIB=<n>  the BAR1 pool, an even 2-128 MiB, 0 for none (default 32
+             with --host-exec; docs/caraxes/bar1-pool.md)
+  The open switches (kept until an A/B decides them), the diagnostics and the variables
+  removed on 2026-09-30 are listed in src/settings.rs. At start the device logs its
+  effective configuration in one block (\"config:\" lines) and one warning for every
+  removed variable that is still set.
 Paths default relative to LEA_ROOT or the current directory.";
 
 struct Args {
@@ -185,7 +160,7 @@ struct Args {
 /// The guest ABI as the start-up log names it: the pin, or that the guest chooses.
 fn describe_guest_abi(pin: Option<ver::GuestAbi>) -> String {
     match pin {
-        Some(g) => format!("{g}, pinned (--guest-abi / CARAXES_GUEST_ABI)"),
+        Some(g) => format!("{g}, pinned (--guest-abi)"),
         None => "chosen by the guest (570, 610 or 615; 610 until its GSP boot shows it)".to_string(),
     }
 }
@@ -307,17 +282,23 @@ fn parse_args() -> Result<Args> {
         }
     }
     a.chip = chip::by_name(&chip_name).map_err(|e| anyhow::anyhow!("--chip: {e}"))?;
-    a.guest_abi = ver::check_guest_abi(
-        guest_abi_flag,
-        std::env::var("CARAXES_GUEST_ABI").ok().as_deref(),
-    )
-    .map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
+    a.guest_abi =
+        ver::check_guest_abi(guest_abi_flag).map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
     ver::pin_guest(a.guest_abi).map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
     // The costume ladder's class translation for the mirror (board `class_map`).
     vfio_user_nvgpu::board::install_class_map(board_data.class_map.clone());
     a.board_data = board_data;
     if a.socket.is_none() && a.selftest.is_none() && !a.print_name {
         bail!("{USAGE}");
+    }
+    // Host execution needs the boot model, the host RM, the VRAM reservation and registered
+    // guest RAM, so --host-exec implies them (naming them as well changes nothing). An
+    // explicit --identity-dma-table is not overridden: it is refused below.
+    if a.host_exec {
+        a.boot_model = true;
+        a.host_rm = true;
+        a.reserve_vram = true;
+        a.register_guest_ram |= !a.identity_dma_table;
     }
     // The host paths talk to the house card, a TU106 (docs/caraxes/blackwell-gb206.md
     // section 4): any other chip identity runs in pure emulation, unless the board is a
@@ -338,10 +319,126 @@ fn parse_args() -> Result<Args> {
     if a.reserve_vram && !a.boot_model {
         bail!("--reserve-vram needs --boot-model (the FB layout lives in the boot model)");
     }
-    if a.host_exec && !(a.reserve_vram && a.register_guest_ram && a.host_rm) {
-        bail!("--host-exec needs --reserve-vram, --register-guest-ram and --host-rm (the guest's addresses must be the host's before anything runs on the physical GPU)");
+    if a.host_exec && !a.register_guest_ram {
+        bail!("--host-exec needs registered guest RAM, not --identity-dma-table (the guest's addresses must be the host's before anything runs on the physical GPU)");
     }
     Ok(a)
+}
+
+/// What the start-up resolved, for the configuration block.
+struct ConfigView<'a> {
+    a: &'a Args,
+    env: &'a [(String, String)],
+    poll: &'static str,
+    compression: bool,
+    pool_mib: Option<u64>,
+    doorbell_tokens: Option<usize>,
+    guest_tokens: Option<usize>,
+    msi_rearm: bool,
+    rpc_ioeventfd: bool,
+    intr_page: bool,
+    display_page: bool,
+    kick_page: bool,
+    usermode_page: bool,
+    invalidate_page: bool,
+    bar2_memfd: bool,
+    zero_fb: bool,
+}
+
+/// The effective configuration in one block (settings.rs): the mode, the five knobs with
+/// where each value came from, the fast paths in force, the open switches and diagnostics
+/// that are set, and the `CARAXES_` variables the device does not read.
+fn config_block(c: &ConfigView) -> Vec<String> {
+    use vfio_user_nvgpu::settings::{self, Class};
+    let a = c.a;
+    let on = |b: bool| if b { "on" } else { "off" };
+    let from = |name: &str| {
+        if c.env.iter().any(|(k, _)| k == name) {
+            "set"
+        } else {
+            "default"
+        }
+    };
+    let mode = if a.host_exec {
+        format!(
+            "host execution (boot model, host RM, VRAM reservation slot {}, registered guest RAM)",
+            a.reserve_slot
+        )
+    } else {
+        let mut parts = vec![if a.boot_model { "boot model" } else { "no boot model" }];
+        parts.extend(a.host_rm.then_some("host RM"));
+        parts.extend(a.reserve_vram.then_some("VRAM reservation"));
+        parts.extend(a.register_guest_ram.then_some("registered guest RAM"));
+        format!("emulation without host execution ({})", parts.join(", "))
+    };
+    let mut lines = vec![
+        format!(
+            "mode {mode}; chip {}, board {}; guest ABI {}",
+            a.chip.data().short_name,
+            a.board,
+            describe_guest_abi(a.guest_abi)
+        ),
+        format!(
+            "knobs: VRAM {} MiB (--fb-mib/--profile, LEA_VRAM_PROFILE_MIB); display {} (--display); {}={} ({}); {}={} ({}); {}={} ({})",
+            a.fb_mib,
+            on(a.display),
+            compslice::ENV,
+            if c.compression { "slice" } else { "off" },
+            from(compslice::ENV),
+            vfio_user_nvgpu::poll::POLL_ENV,
+            c.poll,
+            from(vfio_user_nvgpu::poll::POLL_ENV),
+            vfio_user_nvgpu::bar1pool::POOL_MIB_ENV,
+            c.pool_mib.unwrap_or(0),
+            from(vfio_user_nvgpu::bar1pool::POOL_MIB_ENV),
+        ),
+    ];
+    let mut paths = Vec::new();
+    if a.host_exec {
+        paths.push("every host channel on a shadow VA space, GPA DMA, host boost".to_string());
+    }
+    if a.reserve_vram {
+        let (w, n) = vfio_user_nvgpu::fb::bar1_budget();
+        paths.push(format!("BAR1 windows {n} x {} MiB", w >> 20));
+    }
+    paths.push(format!("interrupt page {}", on(c.intr_page)));
+    paths.push(format!(
+        "doorbell tokens {}, guest tokens {}",
+        c.doorbell_tokens.map_or("off".into(), |t| t.to_string()),
+        c.guest_tokens.map_or("off".into(), |t| t.to_string())
+    ));
+    paths.push(format!(
+        "MSI re-arm ioeventfd {}, GSP queue head ioeventfd {}",
+        on(c.msi_rearm),
+        on(c.rpc_ioeventfd)
+    ));
+    paths.push(format!(
+        "display page {}, kick page {}, usermode page {}, invalidate page {}",
+        on(c.display_page),
+        on(c.kick_page),
+        on(c.usermode_page),
+        on(c.invalidate_page)
+    ));
+    paths.push(format!("BAR2 memfd {}", on(c.bar2_memfd)));
+    if c.zero_fb {
+        paths.push("zero-based guest FB".to_string());
+    }
+    lines.push(format!("paths: {}", paths.join("; ")));
+    let or_none = |v: Vec<String>| if v.is_empty() { "none".to_string() } else { v.join(" ") };
+    lines.push(format!("open switches: {}", or_none(settings::set_of(c.env, Class::Open))));
+    lines.push(format!("diagnostics: {}", or_none(settings::set_of(c.env, Class::Diag))));
+    let inputs = settings::set_of(c.env, Class::Input);
+    if !inputs.is_empty() {
+        lines.push(format!("inputs: {}", inputs.join(" ")));
+    }
+    let unread = settings::unread(c.env);
+    if !unread.is_empty() {
+        lines.push(format!(
+            "not read by the device (launcher settings or misspelled): {}",
+            unread.join(" ")
+        ));
+    }
+    lines
 }
 
 fn config_space(a: &Args) -> Result<ConfigSpace> {
@@ -438,12 +535,17 @@ fn spawn_soak_thread(
                     continue;
                 }
                 next += every;
-                let counts = device
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .soak_counts();
+                let (counts, vectors) = {
+                    let d = device.lock().unwrap_or_else(PoisonError::into_inner);
+                    (d.soak_counts(), d.vector_summary())
+                };
                 let label = format!("{}s", every.as_secs());
                 eprintln!("vfio-user-nvgpu: {}", soak_line(&label, counts, hm.as_ref()));
+                // Which interrupt vectors the guest services (the NVENC async timeout,
+                // windows-findings.md): live, not only at exit.
+                if let Some(v) = vectors {
+                    eprintln!("vfio-user-nvgpu: {v}");
+                }
             }
         })
         .ok()
@@ -498,12 +600,21 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
 }
 
 fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
+    // The environment against the settings table (settings.rs): a removed variable that is
+    // still set is named at once, so an old wrapper is noticed; the whole configuration
+    // follows in one block before the server starts (`config_block`).
+    let env = vfio_user_nvgpu::settings::environment();
+    for w in vfio_user_nvgpu::settings::removed_warnings(&env) {
+        eprintln!("vfio-user-nvgpu: config: {w}");
+    }
     // The profile first, before any thread: SIGUSR2 must be blocked in every thread so
     // that only the dump thread's sigwait takes it (profile.rs).
     if profile::requested() {
         let prefix = profile::prefix(a.trace.as_deref());
         profile::start(prefix.clone()).context("profile")?;
         profile::spawn_dump_thread().context("profile dump thread")?;
+        profile::register_source(Box::new(profile::doorbell_token_rows));
+        profile::register_source(Box::new(profile::routed_rows));
         eprintln!(
             "vfio-user-nvgpu: profile on ({}=1): dumps to {}.<n>.tsv on SIGUSR2 and {}.exit.tsv at exit (src/profile.rs)",
             profile::PROFILE_ENV,
@@ -511,40 +622,55 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             prefix.display()
         );
     }
-    // The eventfd does not carry the token: the reader rings the channels whose GPPut
-    // moved since their last doorbell (`Dispatcher::doorbell_pending`), on every path.
-    let doorbell_ioeventfd = doorbell_ioeventfd_requested();
     // The datamatch token pool: one eventfd per pool token, so the eventfd names the
     // channel (docs/caraxes/doorbell-token-pool.md).
     let doorbell_tokens = tokens::requested().map_err(anyhow::Error::msg)?;
-    if doorbell_tokens.is_some() && doorbell_ioeventfd {
-        // Both would be ioeventfds of the one doorbell register: KVM refuses a wildcard
-        // next to datamatch entries at the same address and length (EEXIST;
-        // caraxes/runs/doorbell-tokens-2026-09-24/kvm-ioeventfd-probe.txt, cases b, c).
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 and {}=N exclude each other: choose the token-less ioeventfd or the token pool", tokens::TOKENS_ENV);
-    }
     // The MSI re-arm write as an ioeventfd, read by the token pool's reactor
     // (docs/caraxes/intr-page.md §4).
     let msi_rearm = msi_rearm_ioeventfd_requested();
-    if msi_rearm && doorbell_tokens.is_none() {
+    // The command-queue head write as an ioeventfd, read by the token pool's reactor
+    // (docs/caraxes/gsp-transport-615.md §11).
+    let rpc_ioeventfd = rpc_ioeventfd_requested();
+    // The guest's own tokens as datamatch ioeventfds (docs/caraxes/doorbell-token-pool.md
+    // (g)): for guests that never read the notifier entry the pool hands tokens out through.
+    // By default the set comes from the engines this device offers, sized to the eventfds
+    // one reply can carry beside the pool's and the re-arm and head eventfds. They need the
+    // boot model (the channels live there).
+    let guest_tokens = if a.boot_model {
+        let budget = tokens::MAX_TOKENS
+            .saturating_sub(doorbell_tokens.unwrap_or(0))
+            .saturating_sub(msi_rearm as usize + rpc_ioeventfd as usize);
+        let d = a.chip.data();
+        let engines: Vec<(&str, u32, bool)> = d
+            .device_info
+            .engines
+            .iter()
+            .map(|e| (e.name.as_str(), e.runlist, e.host_driven == 1))
+            .collect();
+        tokens::GuestTokens::auto(&engines, d.fifo.num_channels.value, budget)
+    } else {
+        None
+    };
+    // The pool's reactor reads every datamatch doorbell eventfd, the pool's and the guest
+    // tokens'; the MSI re-arm and command-queue head eventfds ride on it.
+    let token_reactor_on = doorbell_tokens.is_some() || guest_tokens.is_some();
+    if msi_rearm && !token_reactor_on {
         bail!(
-            "{MSI_REARM_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd: {}=N",
-            tokens::TOKENS_ENV
+            "{MSI_REARM_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd: {}=N or the guest tokens (--boot-model)",
+            tokens::TOKENS_ENV,
         );
     }
-    // The command-queue head write as an ioeventfd, read by the token pool's reactor
-    // (docs/caraxes/gsp-transport-615.md §11). Fail closed: without the pool's reactor or
-    // the boot model the register stays trapped.
-    let rpc_ioeventfd = rpc_ioeventfd_requested();
-    if rpc_ioeventfd && (doorbell_tokens.is_none() || !a.boot_model) {
+    // Fail closed: without the pool's reactor or the boot model the register stays trapped.
+    if rpc_ioeventfd && (!token_reactor_on || !a.boot_model) {
         bail!(
-            "{RPC_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd ({}=N) and the boot model (--boot-model)",
+            "{RPC_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd ({}=N or the guest tokens) and the boot model (--boot-model)",
             tokens::TOKENS_ENV
         );
     }
     let mut rpc_head = None;
-    // How the doorbell eventfds are read (docs/caraxes/doorbell-poll.md).
-    let poll = vfio_user_nvgpu::poll::requested().map_err(anyhow::Error::msg)?;
+    // How the doorbell eventfds are read (docs/caraxes/doorbell-poll.md): the knob, hybrid
+    // with host execution unless set.
+    let poll = vfio_user_nvgpu::poll::requested(a.host_exec).map_err(anyhow::Error::msg)?;
     if let Some(hold) = vfio_user_nvgpu::launch::configure_gate().map_err(anyhow::Error::msg)? {
         eprintln!(
             "vfio-user-nvgpu: intr gate: host non-stall events held up to {} ms while this device wrote no host doorbell for {} ms ({}, backlog item 5, docs/caraxes/launch-path.md)",
@@ -553,30 +679,24 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             vfio_user_nvgpu::launch::GATE_ENV
         );
     }
-    if vfio_user_nvgpu::launch::configure_fast().map_err(anyhow::Error::msg)? {
-        eprintln!(
-            "vfio-user-nvgpu: launch fast: one USERD read per step, the BAR1 flush only after a device store, no note_rung read under the token pool, one trace flush per ring{} (the default; {}=0 turns it off, docs/caraxes/launch-path.md)",
-            if vfio_user_nvgpu::launch::lean() { ", the ran-ahead read only with plans pending" } else { "" },
-            vfio_user_nvgpu::launch::FAST_ENV
-        );
-    }
+    vfio_user_nvgpu::launch::configure_fast();
     if vfio_user_nvgpu::launch::configure().map_err(anyhow::Error::msg)? {
         eprintln!(
             "vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary ({}=1, docs/caraxes/launch-path.md)",
             vfio_user_nvgpu::launch::TIMING_ENV
         );
     }
-    if poll.mode != vfio_user_nvgpu::poll::Mode::Off && doorbell_tokens.is_none() && !doorbell_ioeventfd {
+    if poll.mode != vfio_user_nvgpu::poll::Mode::Off && !token_reactor_on {
         bail!(
-            "{}={} needs a doorbell eventfd to poll: {}=N or {DOORBELL_IOEVENTFD_ENV}=1",
+            "{}={} needs a doorbell eventfd to poll: {}=N or the guest tokens (--boot-model)",
             vfio_user_nvgpu::poll::POLL_ENV,
             poll.mode.name(),
             tokens::TOKENS_ENV
         );
     }
-    // The interrupt page (docs/caraxes/intr-page.md): the guest's acks and enable writes
-    // land in memory and are seen only by a polling reactor.
-    let intr_page_config = intr_page::requested().map_err(anyhow::Error::msg)?;
+    // The interrupt page (docs/caraxes/intr-page.md), on with host execution: the guest's
+    // acks and enable writes land in memory and are seen only by a polling reactor.
+    let intr_page_config = intr_page::requested(a.host_exec);
     let intr_direct = intr_page::direct_requested(
         std::env::var(intr_page::DIRECT_ENV).ok().as_deref(),
         intr_page_config.is_some(),
@@ -587,12 +707,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         fe_page::requested(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
     if ["CARAXES_SHADOW_USERD", "CARAXES_DEFERRED_API_CAPTURE", "CARAXES_DEFERRED_CONTEXT"].iter()
         .any(|key| std::env::var(key).as_deref() == Ok("1"))
-        && (!a.host_exec || !a.boot_model
-            || std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() != Ok("1")
-            || std::env::var("CARAXES_CE_SHADOW").as_deref() == Ok("0")
-            || std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1"))
+        && !a.host_exec
     {
-        bail!("private USERD/deferred API capture needs --host-exec, --boot-model and shadow-only GR/CE execution");
+        bail!("private USERD/deferred API capture needs --host-exec");
     }
     if std::env::var("CARAXES_DEFERRED_CONTEXT").as_deref() == Ok("1")
         && (std::env::var("CARAXES_SHADOW_USERD").as_deref() != Ok("1")
@@ -600,56 +717,26 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         bail!("deferred context execution needs private USERD and capture mode off");
     }
     let zero_fb = std::env::var("CARAXES_FB_ZERO_BASED").as_deref() == Ok("1");
-    if zero_fb {
-        if !a.reserve_vram || !a.host_exec || !a.boot_model {
-            bail!("CARAXES_FB_ZERO_BASED=1 needs --reserve-vram, --host-exec and --boot-model");
-        }
-        if std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() != Ok("1")
-            || std::env::var("CARAXES_CE_SHADOW").as_deref() == Ok("0")
-            || std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1")
-            || doorbell_ioeventfd
-        {
-            bail!("CARAXES_FB_ZERO_BASED=1 requires shadow GR/CE and refuses raw GR or token-less direct doorbells");
-        }
-        if vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
-            bail!("CARAXES_FB_ZERO_BASED=1 does not support fixed BAR1 passthrough; use the BAR1 pool or trapped BAR1");
-        }
+    if zero_fb && !a.host_exec {
+        bail!("CARAXES_FB_ZERO_BASED=1 needs --host-exec");
     }
     // D16b (compslice.rs): real compression per VM slice. The reservation is allocated
     // compressed, and only shadow-only host execution may run on it (invariant (b)).
     let compression = compslice::requested().map_err(anyhow::Error::msg)?;
     if compression == compslice::Mode::Slice {
-        if !a.reserve_vram || !a.host_exec || !a.boot_model {
-            bail!("{}=slice needs --reserve-vram, --host-exec and --boot-model", compslice::ENV);
+        if !a.host_exec {
+            bail!("{}=slice needs --host-exec", compslice::ENV);
         }
-        let env = |k: &str| std::env::var(k).ok();
-        compslice::check_shadow_only(
-            compression,
-            env("CARAXES_MIRROR_GR_SHADOW").as_deref(),
-            env("CARAXES_CE_SHADOW").as_deref(),
-            env("CARAXES_MIRROR_GR").as_deref(),
-            doorbell_ioeventfd,
-        )
-        .map_err(anyhow::Error::msg)?;
         eprintln!(
             "vfio-user-nvgpu: compression: {}=slice: the reservation is allocated compressed and the shadow maps compressible guest kinds on its pages (D16b)",
             compslice::ENV
         );
     }
-    if intr_page_config.is_some() {
-        if poll.mode == vfio_user_nvgpu::poll::Mode::Off {
-            bail!(
-                "{}=1 needs {}=spin or hybrid: the guest's acks and enable writes in the page are seen only by the polling reactor (docs/caraxes/intr-page.md §5)",
-                intr_page::INTR_PAGE_ENV,
-                vfio_user_nvgpu::poll::POLL_ENV
-            );
-        }
-        if !a.boot_model {
-            bail!(
-                "{}=1 needs --boot-model (the interrupt tree lives in the boot model)",
-                intr_page::INTR_PAGE_ENV
-            );
-        }
+    if intr_page_config.is_some() && poll.mode == vfio_user_nvgpu::poll::Mode::Off {
+        bail!(
+            "{}=off: host execution runs the interrupt page, whose acks and enable writes only a polling reactor sees (docs/caraxes/intr-page.md §5); use hybrid or spin",
+            vfio_user_nvgpu::poll::POLL_ENV
+        );
     }
     // Refuse at start when a poll mode cannot pin its reader (no core to choose).
     let reactor = |name| {
@@ -657,51 +744,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .map_err(anyhow::Error::msg)
     };
     let token_reactor = reactor("tokens")?;
-    let ioeventfd_reactor = reactor("ioeventfd")?;
-    if doorbell_tokens.is_some() && !a.boot_model {
+    if token_reactor_on && !a.boot_model {
         bail!(
             "{}=N needs --boot-model (the channels live in the boot model)",
-            tokens::TOKENS_ENV
+            tokens::TOKENS_ENV,
         );
     }
-    let bar1_pool = vfio_user_nvgpu::bar1pool::config().map_err(anyhow::Error::msg)?;
-    if doorbell_ioeventfd && bar1_pool.is_some() {
-        // The same reason as for the prototype below: GPPut writes through the area never
-        // reach the device, and the token-less path has nothing else to go by.
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=pool: use the token pool ({}=N) instead", tokens::TOKENS_ENV);
-    }
-    if bar1_pool.is_some() {
-        // Every GPU access must go through a translation the device controls: a host
-        // channel on an externally-owned VA space (CE without the shadow, or the replayed
-        // VAS of CARAXES_MIRROR_GR=1) walks the guest's own tables and would reach a page
-        // at its old place (docs/caraxes/bar1-pool.md, isolation and rules).
-        let env = |k: &str| std::env::var(k).ok();
-        if env("CARAXES_MIRROR_GR_SHADOW").as_deref() != Some("1")
-            || env("CARAXES_CE_SHADOW").as_deref() == Some("0")
-            || env("CARAXES_MIRROR_GR").as_deref() == Some("1")
-        {
-            bail!("CARAXES_BAR1_PASSTHROUGH=pool needs every host channel on a shadow VA space: CARAXES_MIRROR_GR_SHADOW=1, and neither CARAXES_CE_SHADOW=0 nor CARAXES_MIRROR_GR=1");
-        }
-        if !a.reserve_vram || !a.boot_model || !a.host_exec {
-            bail!("CARAXES_BAR1_PASSTHROUGH=pool needs --reserve-vram, --boot-model and host execution (the FB on the reserved VRAM)");
-        }
-    }
-    if doorbell_ioeventfd && vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
-        // The token-less ioeventfd path rings the channels whose GPPut moved, read from the
-        // FB store's watched copy that the trapped BAR1 writes keep current; with the
-        // passthrough area those writes bypass the device, the copy stays stale, no channel
-        // is ever rung and the guest waits forever (caraxes/runs/p21-bar1-2026-09-24/
-        // B-on-with-ioeventfd-hung). The token pool (CARAXES_DOORBELL_TOKENS=N) needs no
-        // GPPut: the eventfd names the channel, so it combines with the area.
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=1: the ioeventfd carries no token and the passthrough area hides the GPPut writes the token-less path relies on; use the token pool ({}=N) instead", tokens::TOKENS_ENV);
-    }
+    // The BAR1 pool (docs/caraxes/bar1-pool.md), on with host execution: every GPU access
+    // goes through a translation the device controls, since every host channel runs on a
+    // shadow VA space. CARAXES_BAR1_POOL_MIB sizes it (0: none).
+    let bar1_pool = vfio_user_nvgpu::bar1pool::config(a.host_exec).map_err(anyhow::Error::msg)?;
     let cfg = config_space(a)?;
-    if let Some(v) = vfio_user_nvgpu::falcon::stallack_from_env().map_err(anyhow::Error::msg)? {
-        eprintln!(
-            "vfio-user-nvgpu: {}={v:#x}: falcon ENGCTL reads {v:#x} after a stall request",
-            vfio_user_nvgpu::falcon::STALLACK_ENV
-        );
-    }
     let rom = std::fs::read(&a.rom).with_context(|| {
         format!(
             "read {} (the PCI-visible ROM of the card; capture it with `cat /sys/bus/pci/devices/<bdf>/rom` after `echo 1 > rom`)",
@@ -956,12 +1009,10 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             let host = HostRmClient::open().context("open the host RM (decision D10)")?;
             eprintln!("vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)");
             // Static per-card getters answered from their first host answer (fwdcache.rs).
-            let host = vfio_user_nvgpu::fwdcache::CachingHost::from_env(Box::new(host));
+            let host = vfio_user_nvgpu::fwdcache::CachingHost::on(Box::new(host));
             eprintln!(
-                "vfio-user-nvgpu: forward cache {} ({} static getters; {}=0 turns it off)",
-                if host.enabled() { "on" } else { "off" },
+                "vfio-user-nvgpu: forward cache on ({} static getters)",
                 vfio_user_nvgpu::fwdcache::STATIC.len(),
-                vfio_user_nvgpu::fwdcache::FORWARD_CACHE_ENV
             );
             if profile::on() && host.enabled() {
                 profile::register_source(Box::new(vfio_user_nvgpu::fwdcache::counters));
@@ -980,49 +1031,20 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 (wlen >> 20) * wn
             );
             // The host clock boost (hostboost.rs): the host card does the guest's work, so
-            // it leaves its idle P-state while the VM is active. On unless switched off.
+            // it leaves its idle P-state while the VM is active.
             use vfio_user_nvgpu::hostboost;
-            if hostboost::enabled(std::env::var(hostboost::ENV).ok().as_deref()) {
-                let flags = vfio_user_nvgpu::hostabi::current().perf_boost_flags;
-                match hostboost::start(flags) {
-                    Ok(()) => eprintln!(
-                        "vfio-user-nvgpu: host boost on: PERF_BOOST {{BOOST_TO_MAX, {} s}} on the subdevice of its own unprivileged host RM client, renewed at most every {} ms while the VM rings or its host engines raise events, then left to lapse; the guest's PERF_BOOST passes its command (host flag bits {flags:#x}), never its CUDA bits or duration ({}=0 turns it off; docs/research/host-boost-2026-09-28.md)",
-                        hostboost::DURATION_S,
-                        hostboost::RENEW.as_millis(),
-                        hostboost::ENV
-                    ),
-                    Err(e) => {
-                        eprintln!("vfio-user-nvgpu: WARNING host boost: {e}; running without it");
-                        hostboost::set_off(&format!("failed to start: {e}"));
-                    }
+            let flags = vfio_user_nvgpu::hostabi::current().perf_boost_flags;
+            match hostboost::start(flags) {
+                Ok(()) => eprintln!(
+                    "vfio-user-nvgpu: host boost on: PERF_BOOST {{BOOST_TO_MAX, {} s}} on the subdevice of its own unprivileged host RM client, renewed at most every {} ms while the VM rings or its host engines raise events, then left to lapse; the guest's PERF_BOOST passes its command (host flag bits {flags:#x}), never its CUDA bits or duration (docs/research/host-boost-2026-09-28.md)",
+                    hostboost::DURATION_S,
+                    hostboost::RENEW.as_millis(),
+                ),
+                Err(e) => {
+                    eprintln!("vfio-user-nvgpu: WARNING host boost: {e}; running without it");
+                    hostboost::set_off(&format!("failed to start: {e}"));
                 }
-            } else {
-                eprintln!("vfio-user-nvgpu: host boost off ({}=0)", hostboost::ENV);
-                hostboost::set_off(&format!("{}=0", hostboost::ENV));
             }
-        }
-        if let Some((off, len)) = vfio_user_nvgpu::fb::bar1_passthrough_config() {
-            if !a.host_exec {
-                bail!(
-                    "CARAXES_BAR1_PASSTHROUGH=1 needs host execution (the FB on the reserved VRAM)"
-                );
-            }
-            let bar1 = region_size(&a.board_data, 1);
-            let (fb0, len) = vfio_user_nvgpu::fb::bar1_passthrough_area(&layout, off, len, bar1)
-                .map_err(anyhow::Error::msg)?;
-            let hm = host_mem.as_ref().expect("checked in parse_args");
-            let ex = hm
-                .lock()
-                .unwrap()
-                .export_bar1_passthrough(fb0, len)
-                .context("BAR1 passthrough (CARAXES_BAR1_PASSTHROUGH=1)")?;
-            let (_, root) = layout.bar_roots().expect("a reserved layout");
-            model.fb.set_bar1_passthrough(root, fb0, len);
-            eprintln!(
-                "vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [{fb0:#x}, {:#x}) (reservation offset {off:#x}); {len:#x} of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=1, docs/caraxes/bar1-passthrough.md)",
-                fb0 + len
-            );
-            bar1_export = Some(ex);
         }
         if let Some((pool0, pool_end)) = layout.pool_range() {
             let len = pool_end - pool0;
@@ -1036,31 +1058,29 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 .lock()
                 .unwrap()
                 .export_bar1_passthrough(host_pool0, len)
-                .context("BAR1 pool (CARAXES_BAR1_PASSTHROUGH=pool)")?;
+                .context("BAR1 pool")?;
             let (_, root) = layout.bar_roots().expect("a reserved layout");
             let usable = layout.usable().expect("a reserved layout");
             model.fb.set_bar1_pool(root, pool0, len, usable);
             // The device's own mapping of the pool (the dma-buf's BAR1 range, no extra host
             // BAR1): pool copies and replica merges stop mapping and evicting the FB
-            // store's two LRU windows (docs/caraxes/bar1-pool.md §12). Without it the pool
-            // works as before, through the windows.
-            if std::env::var("CARAXES_BAR1_POOL_PIN").as_deref() == Ok("0") {
-                eprintln!("vfio-user-nvgpu: bar1 pool: the device reaches the pool through the FB store's windows (CARAXES_BAR1_POOL_PIN=0)");
-            } else {
-                match ex.map_self(layout.host_reservation.expect("a reserved layout").0) {
-                    Ok(w) => {
-                        if model.fb.pin_store_window(Box::new(w)) {
-                            eprintln!("vfio-user-nvgpu: bar1 pool: the device maps the pool through its own dma-buf mapping, outside the FB store's windows (docs/caraxes/bar1-pool.md §12; CARAXES_BAR1_POOL_PIN=0 turns it off)");
-                        }
+            // store's two LRU windows (docs/caraxes/bar1-pool.md §12). Without the mapping
+            // the pool works through the windows.
+            match ex.map_self(layout.host_reservation.expect("a reserved layout").0) {
+                Ok(w) => {
+                    if model.fb.pin_store_window(Box::new(w)) {
+                        eprintln!("vfio-user-nvgpu: bar1 pool: the device maps the pool through its own dma-buf mapping, outside the FB store's windows (docs/caraxes/bar1-pool.md §12)");
                     }
-                    Err(e) => eprintln!(
-                        "vfio-user-nvgpu: bar1 pool: no mapping of the pool's dma-buf ({e:#}); the pool is reached through the FB store's windows"
-                    ),
                 }
+                Err(e) => eprintln!(
+                    "vfio-user-nvgpu: bar1 pool: no mapping of the pool's dma-buf ({e:#}); the pool is reached through the FB store's windows"
+                ),
             }
             eprintln!(
-                "vfio-user-nvgpu: bar1 pool: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [{pool0:#x}, {pool_end:#x}) below the carve-out; the guest's usable FB ends at {:#x} (fbRegionInfo region 0), the pool is reported reserved; every page the guest maps into the area is moved to its pool page; {len:#x} of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=pool, docs/caraxes/bar1-pool.md)",
-                usable.1
+                "vfio-user-nvgpu: bar1 pool: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [{pool0:#x}, {pool_end:#x}) below the carve-out; the guest's usable FB ends at {:#x} (fbRegionInfo region 0), the pool is reported reserved; every page the guest maps into the area is moved to its pool page; {len:#x} of host BAR1 held while the client maps it ({}={}, docs/caraxes/bar1-pool.md)",
+                usable.1,
+                vfio_user_nvgpu::bar1pool::POOL_MIB_ENV,
+                len >> 20
             );
             bar1_export = Some(ex);
         }
@@ -1076,17 +1096,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             match made {
                 Ok(r) => {
                     eprintln!(
-                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at {}, NV_UFLUSH_FB_FLUSH writes (as a flush read), MMU invalidates, BAR2 binds and GSP doorbells; a channel doorbell syncs the live pages its channel could observe (its VAS leaves less set B, page tables, USERD, instance block){} (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md §3)",
+                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at {}, NV_UFLUSH_FB_FLUSH writes (as a flush read), MMU invalidates, BAR2 binds and GSP doorbells; a channel doorbell syncs the live pages its channel could observe (its VAS leaves less set B, page tables, USERD, instance block) (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md §3)",
                         r.areas.len(),
                         cfg.traps.iter().map(|t| format!("{t:#x}")).collect::<Vec<_>>(),
                         if cfg.flush_page_memory {
                             "every hand-over (MMU invalidate, GSP or channel doorbell) and the flush clock 1 ms after the last sync: the flush page is memory, no BAR2 page traps (CARAXES_BAR2_FLUSH_PAGE=memory, docs/caraxes/intr-page.md §12.1)"
-                        } else if cfg.defer_flush {
-                            "the first hand-over after a flush read (the next MMU invalidate, GSP or channel doorbell, else the flush clock after 1 ms; CARAXES_BAR2_MEMFD_DEFER_FLUSH=0 syncs at every flush read, docs/caraxes/display-pacing.md)"
                         } else {
-                            "the trapped pages (CARAXES_BAR2_MEMFD_DEFER_FLUSH=0)"
+                            "the first hand-over after a flush read (the next MMU invalidate, GSP or channel doorbell, else the flush clock after 1 ms, docs/caraxes/display-pacing.md)"
                         },
-                        if cfg.sync_doorbell { "; CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1: every doorbell syncs all" } else { "" }
                     );
                     bar2_region = Some(r);
                 }
@@ -1121,7 +1138,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 intr_shared.clone(),
                 cfg,
             )
-            .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
+            .map_err(|e| anyhow::anyhow!("intr page: {e}"))?;
             let vectors: Vec<u32> = d
                 .interrupts
                 .entries
@@ -1133,8 +1150,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 d.registers.intr_tree_size,
                 &vectors,
             )
-            .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
+            .map_err(|e| anyhow::anyhow!("intr page: {e}"))?;
             page.enable_vectors(&vectors);
+            page.set_hint_vectors(&vfio_user_nvgpu::mirror::hint_vectors(d));
             if profile::on() {
                 let p = page.clone();
                 profile::register_source(Box::new(move || {
@@ -1156,13 +1174,12 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             }
             bar0 = bar0.with_intr_page(page.clone());
             eprintln!(
-                "vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [{:#x}, {:#x}) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound {} ms, retrigger watchdog {}) ({}=1, docs/caraxes/intr-page.md)",
+                "vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [{:#x}, {:#x}) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound {} ms, retrigger watchdog {}) (host execution, docs/caraxes/intr-page.md)",
                 d.registers.intr_tree,
                 d.registers.intr_tree + intr_page::PAGE,
                 cfg.sleep_ms,
                 cfg.retrigger
                     .map_or("off".into(), |p| format!("{} ms", p.as_millis())),
-                intr_page::INTR_PAGE_ENV
             );
             Some(page)
         }
@@ -1195,7 +1212,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 }));
             }
             match bar0.boot_mut() {
-                Some(b) if b.ctrl.display.enabled => b.ctrl.display.engine.attach_page(fe.clone()),
+                Some(b) if b.ctrl.display.enabled => b.ctrl.display.eng().attach_page(fe.clone()),
                 _ => bail!(
                     "{}=1: the display engine is not present",
                     fe_page::DISPLAY_PAGE_ENV
@@ -1235,20 +1252,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
-    // The display kick page (display/chan_page.rs, docs/caraxes/intr-page.md §12.3): the
-    // window channels' USERD pages.
-    let kicks = if vfio_user_nvgpu::display::chan_page::requested(fe.is_some())
-        .map_err(anyhow::Error::msg)?
-    {
-        let env = vfio_user_nvgpu::display::chan_page::KICK_PAGE_ENV;
+    // The display kick page (display/chan_page.rs, docs/caraxes/intr-page.md §12.3), on with
+    // the display page: the window channels' USERD pages.
+    let kicks = if fe.is_some() {
         let page = intr_page.as_ref().expect("the display page needs the interrupt page");
         let k = vfio_user_nvgpu::display::chan_page::ChanPage::create(page)
-            .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("display kick page: {e}"))?;
         vfio_user_nvgpu::display::set_chan_page(k.clone());
         bar0 = bar0.with_chan_page(k.clone());
         let (base, len) = k.area();
         eprintln!(
-            "vfio-user-nvgpu: display kick page: BAR0 [{base:#x}, {:#x}) (the window channels' USERD pages, PUT and GET) offered as a sparse mmap area; the reactor runs the kick of each PUT change and stores GET ({env}=1, docs/caraxes/intr-page.md §12.3)",
+            "vfio-user-nvgpu: display kick page: BAR0 [{base:#x}, {:#x}) (the window channels' USERD pages, PUT and GET) offered as a sparse mmap area; the reactor runs the kick of each PUT change and stores GET (with the display page, docs/caraxes/intr-page.md §12.3)",
             base + len
         );
         Some(k)
@@ -1295,10 +1309,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 );
             }
             let hook = match &fe {
-                Some(f) => hook.with_display(f.clone()).with_vblank_spin(
-                    intr_page::vblank_spin(std::env::var(intr_page::VBLANK_SPIN_ENV).ok().as_deref())
-                        .map_err(anyhow::Error::msg)?,
-                ),
+                Some(f) => hook.with_display(f.clone()),
                 None => hook,
             };
             Some(hook)
@@ -1311,7 +1322,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         (_, _, true) => GuestRam::Identity,
         _ => GuestRam::Plain,
     };
+    // With host execution the guest's DMA addresses are its GPAs: its shadow maps translate
+    // registered RAM, and the guest loads no helper (every production launcher set
+    // CARAXES_GUEST_DMA_GPA=1 with host execution until 2026-09-30).
     let mut device = Device::new(cfg, bar0, trace)
+        .with_guest_dma_gpa(a.host_exec)
         .with_guest_ram(guest_ram, a.dma_ranges.clone())
         .with_intr_shared(intr_shared.clone());
     if let Some(r) = host_mem
@@ -1348,32 +1363,47 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .chain(kicks.as_ref().map(|k| k.area()))
             .collect(),
     });
-    let mut server = Server::new(
-        socket,
+    for l in config_block(&ConfigView {
+        a,
+        env: &env,
+        poll: poll.mode.name(),
+        compression: compression == compslice::Mode::Slice,
+        pool_mib: bar1_pool.map(|b| b >> 20),
+        doorbell_tokens,
+        guest_tokens: guest_tokens.as_ref().map(|g| g.len()),
+        msi_rearm,
+        rpc_ioeventfd,
+        intr_page: intr_page.is_some(),
+        display_page: fe.is_some(),
+        kick_page: kicks.is_some(),
+        usermode_page: um.is_some(),
+        invalidate_page: inv.is_some(),
+        bar2_memfd: bar2_region.is_some(),
+        zero_fb,
+    }) {
+        eprintln!("vfio-user-nvgpu: config: {l}");
+    }
+    // The listening socket stays open across clients (a VMM reboot connects a new client,
+    // `client_waiting`); a duplicate of it tells whether one is waiting.
+    let listener = std::os::unix::net::UnixListener::bind(socket)
+        .with_context(|| format!("vfio-user server: bind {}", socket.display()))?;
+    let _socket_file = SocketFile(socket.to_path_buf());
+    let waiting = listener.try_clone().context("vfio-user server: duplicate the listener")?;
+    let mut server = Server::from_owned_fd(
+        std::os::fd::OwnedFd::from(listener),
         true,
         irqs(),
         regions_with_pages(&a.board_data, bar1_area, bar2_region.as_ref(), bar0_areas),
-    )
-    .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"))?;
-    let doorbell = if doorbell_ioeventfd {
+    );
+    // The datamatch doorbell eventfds: the pool's first (registered first, so KVM passes
+    // them first: Linux's libcuda rings pool tokens), then the guest tokens'. Both only
+    // when the reactor reads them; with the usermode page the doorbell is memory, so no
+    // ioeventfd could fire and none is offered (the reactor still runs, with the page's
+    // scan).
+    let token_readers = if token_reactor_on {
         let offset = chip.data().registers.usermode_doorbell;
-        let (sub_region, reader) = doorbell_sub_region(offset).context("doorbell eventfd")?;
-        server
-            .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, sub_region)
-            .map_err(|e| anyhow::anyhow!("doorbell sub-region: {e}"))?;
-        eprintln!(
-            "vfio-user-nvgpu: doorbell ioeventfd: BAR0 {offset:#x}, 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS ({DOORBELL_IOEVENTFD_ENV}=1)"
-        );
-        Some((offset, reader))
-    } else {
-        None
-    };
-    let token_readers = match doorbell_tokens {
-        Some(n) => {
-            let offset = chip.data().registers.usermode_doorbell;
-            let mut readers = Vec::with_capacity(n);
-            // With the usermode page the doorbell is memory: no ioeventfd could fire, so
-            // none is offered (the reactor still runs, with the page's scan).
+        let mut readers = Vec::new();
+        if let Some(n) = doorbell_tokens {
             let subs = if um.is_some() {
                 Vec::new()
             } else {
@@ -1391,9 +1421,48 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 tokens::TOKEN_BASE + n as u32 - 1,
                 tokens::TOKENS_ENV
             );
-            Some((offset, readers))
         }
-        None => None,
+        let mut guest = Vec::new();
+        if let Some(g) = guest_tokens.as_ref() {
+            let values = g.values();
+            let subs = if um.is_some() {
+                Vec::new()
+            } else {
+                doorbell_value_sub_regions(offset, &values).context("guest token eventfds")?
+            };
+            for ((sub_region, reader), v) in subs.into_iter().zip(values) {
+                server
+                    .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, sub_region)
+                    .map_err(|e| anyhow::anyhow!("guest token sub-region: {e}"))?;
+                guest.push((v, reader));
+            }
+            eprintln!(
+                "vfio-user-nvgpu: doorbell guest tokens: BAR0 {offset:#x}, 4 bytes, {} sub-region(s) with datamatch runlist << 16 | chid, runlists {:?} interleaved per ChID then {:?} one by one, ChIDs 0..{}, one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a write of one of them is rung as its trapped write (docs/caraxes/doorbell-token-pool.md (g))",
+                g.len(),
+                g.hot,
+                g.rest,
+                g.chids,
+            );
+        }
+        Some((offset, readers, guest))
+    } else {
+        None
+    };
+    // Trapped accesses served without the device mutex (device.rs `Routes`,
+    // docs/caraxes/display-own-clock.md §2.4): the interrupt page's two pages and, with the
+    // page, the MSI re-arm; with the display, its status registers (display/core_path.rs).
+    let display_route = a.display.then(|| vfio_user_nvgpu::device::DisplayRoute {
+        slot: device.display_slot(),
+        mem: device.mem_view(),
+    });
+    let routes = Routes {
+        intr_page: intr_page.clone(),
+        rearm: intr_page.as_ref().and_then(|_| {
+            let b = &chip.data().bar0;
+            (b.pcfg_size >= NV_XVE_CYA_2 + 4).then_some(b.pcfg + NV_XVE_CYA_2)
+        }),
+        display: display_route.clone(),
+        fe_page: fe.clone(),
     };
     let rearm = if msi_rearm {
         let b = &chip.data().bar0;
@@ -1457,9 +1526,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 h.with_invalidate(
                     i.clone(),
                     Arc::new(move |t| {
-                        d.lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .invalidate_from_page(t)
+                        vfio_user_nvgpu::dlock::lock(&d, "invalidate page").invalidate_from_page(t)
                     }),
                 )
             }
@@ -1490,7 +1557,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                         if hint.is_some() {
                             vfio_user_nvgpu::launch::begin(std::time::Instant::now(), false);
                         }
-                        let mut dev = d.lock().unwrap_or_else(PoisonError::into_inner);
+                        let mut dev = vfio_user_nvgpu::dlock::lock(&d, "usermode page reactor");
                         vfio_user_nvgpu::launch::mark(vfio_user_nvgpu::launch::Step::Lock);
                         let rung = dev.doorbell_from_page(hint);
                         drop(dev);
@@ -1503,16 +1570,52 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         };
         Box::new(h) as Box<dyn vfio_user_nvgpu::poll::Hook>
     });
-    if fe.is_some() {
-        // The display clock advances the engine at its ticks (the guest's status reads
-        // no longer trap and so no longer do it).
+    if a.display {
+        // The display clock advances the engine at its ticks, as the card's display runs on
+        // its own clock: latches, a flip's FINISHED one frame later and LAST_DATA happen at
+        // the tick whether or not the guest reads a display register then (with the display
+        // page its status reads no longer trap at all; without it a KMD waiting for FINISHED
+        // in memory reads none either).
+        // While the device mutex is held (a mirror build, a shadow walk) the tick runs
+        // without it, through guest memory and the pinned FB record windows
+        // (display/core_path.rs, docs/caraxes/display-own-clock.md §2.5); what those cannot
+        // reach waits for the next tick that gets the mutex.
         let d = device.clone();
+        let route = display_route.clone();
         vfio_user_nvgpu::display::engine::ticker().set_driver(Arc::new(move || {
-            d.lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .display_tick()
+            match vfio_user_nvgpu::dlock::try_lock(&d, "display clock tick") {
+                Some(mut g) => g.display_tick(),
+                None => route.as_ref().is_some_and(|r| r.tick()),
+            }
         }));
     }
+    // The held-ring completer (ringgate.rs, docs/caraxes/execution.md §9.1): while doorbells
+    // are held for their root's shadow jobs, it waits for the worker's progress without the
+    // device lock and takes the lock briefly to forward the rings that are ready. It also
+    // rings the doorbell writes the vfio-user loop posted without the lock (§9.9).
+    let completer = {
+        let d = device.clone();
+        let gate = vfio_user_nvgpu::ringgate::global();
+        std::thread::Builder::new()
+            .name("ring-completer".into())
+            .spawn(move || {
+                let mut seen = u64::MAX;
+                while let Some(g) = gate.wait_ready(seen, std::time::Duration::from_millis(50)) {
+                    seen = g;
+                    if gate.has_posted() {
+                        vfio_user_nvgpu::dlock::lock(&d, "posted doorbells").ring_posted(&gate, false);
+                    }
+                    if gate.has_userd() {
+                        vfio_user_nvgpu::dlock::lock(&d, "shadow USERD rings").ring_polled_userds(&gate);
+                    }
+                    if gate.waiting() == 0 {
+                        continue;
+                    }
+                    vfio_user_nvgpu::dlock::lock(&d, "held ring completer").complete_held_rings();
+                }
+            })
+            .context("spawn the ring completer")?
+    };
     // The BAR2 memfd's flush clock: a flush read's owed sync that no hand-over settled
     // within the bound (bar2area.rs `DeferredFlush`, docs/caraxes/display-pacing.md).
     let flush_clock = device
@@ -1522,54 +1625,37 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     if let Some(c) = flush_clock {
         let d = device.clone();
         c.spawn_clock(Box::new(move || {
-            d.lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .settle_bar2_flush()
+            vfio_user_nvgpu::dlock::lock(&d, "bar2 flush clock").settle_bar2_flush()
         }))
         .context("bar2 flush clock")?;
     }
     let mut readers = Vec::new();
-    if let Some((offset, reader)) = doorbell {
-        readers.push((
-            "ioeventfd",
-            spawn_doorbell_reader_hooked(
-                device.clone(),
-                offset,
-                reader,
-                ioeventfd_reactor,
-                page_hook.take(),
-            )
-            .context("doorbell reader")?,
-        ));
-    }
-    if let Some((offset, token_eventfds)) = token_readers {
+    if let Some((offset, token_eventfds, guest_eventfds)) = token_readers {
         readers.push((
             "tokens",
             spawn_token_reader_hooked(
                 device.clone(),
                 offset,
                 token_eventfds,
+                guest_eventfds,
                 token_reactor,
                 page_hook.take(),
                 rearm,
                 rpc,
+                routes.clone(),
             )
             .context("doorbell token reader")?,
         ));
     }
     if page_hook.is_some() {
-        bail!(
-            "{}=1: no doorbell reactor to run the page in",
-            intr_page::INTR_PAGE_ENV
-        );
+        bail!("intr page: no doorbell reactor to run the page in");
     }
     if poll.mode != vfio_user_nvgpu::poll::Mode::Off {
         eprintln!(
-            "vfio-user-nvgpu: doorbell poll: {} reader ({}={}, {}={:?})",
+            "vfio-user-nvgpu: doorbell poll: {} reader ({}={}, pin {:?})",
             poll.mode.name(),
             vfio_user_nvgpu::poll::POLL_ENV,
             poll.mode.name(),
-            vfio_user_nvgpu::poll::POLL_CPU_ENV,
             poll.pin
         );
     }
@@ -1580,11 +1666,32 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let userd_poll = if std::env::var("CARAXES_SHADOW_USERD").as_deref() == Ok("1") {
         let d = device.clone();
         let stop = soak_stop.clone();
+        // Without the device lock (docs/caraxes/execution.md §9.11): USERD GP_GET and GP_PUT
+        // are plain memory on the card. The poller harvests the GPU-owned words under each
+        // channel's own USERD mutex and posts the channels with entries not yet forwarded;
+        // the ring completer rings those under the lock. C75: the locked poll held the lock
+        // 897k times (19.9 s).
+        let view = d.lock().unwrap_or_else(PoisonError::into_inner).mem_view();
+        let gate = vfio_user_nvgpu::ringgate::global();
         Some(std::thread::Builder::new().name("shadow-userd".into()).spawn(move || {
+            let mut cursor = 0usize;
             while !stop.load(std::sync::atomic::Ordering::Acquire) {
                 std::thread::sleep(std::time::Duration::from_millis(1));
                 if stop.load(std::sync::atomic::Ordering::Acquire) { break }
-                d.lock().unwrap_or_else(PoisonError::into_inner).poll_shadow_userds();
+                let watch = vfio_user_nvgpu::mirror::userd_watch();
+                if watch.is_empty() {
+                    continue;
+                }
+                let mem = view.read().unwrap_or_else(PoisonError::into_inner).clone();
+                // At most 32 channels a tick, round-robin, as the locked poll did.
+                let n = watch.len().min(32);
+                for k in 0..n {
+                    let (chid, slot) = &watch[(cursor + k) % watch.len()];
+                    if slot.poll(&mem) {
+                        gate.post_userd(*chid);
+                    }
+                }
+                cursor = (cursor + n) % watch.len();
             }
         }).context("spawn shadow USERD poller")?)
     } else {
@@ -1599,12 +1706,31 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         std::thread::Builder::new()
             .name("ce-slices".into())
             .spawn(move || {
+                // Whether the last pass continued a run: the next one comes after 50 us.
+                let mut busy = false;
                 while !stop.load(std::sync::atomic::Ordering::Acquire) {
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                    if vfio_user_nvgpu::channel::ce_slices_pending() {
+                    // A run stopped at its budget continues after a short pause, in which the
+                    // accesses waiting for the device lock take it (Windows C81: the KMD's
+                    // paging channel is the critical path of a context creation; a 1 ms pause
+                    // after every 2 ms run idled a third of it). The flag is read once per
+                    // pass: reading it takes it.
+                    std::thread::sleep(if busy {
+                        std::time::Duration::from_micros(50)
+                    } else {
+                        std::time::Duration::from_millis(1)
+                    });
+                    busy = vfio_user_nvgpu::channel::ce_slices_pending();
+                    if busy {
+                        vfio_user_nvgpu::dlock::lock(&d, "software run continuation")
+                            .continue_ce_slices();
+                    }
+                    // A software channel blocked on a semaphore acquire continues once the
+                    // release is there, as the host re-evaluates an acquire (channel.rs
+                    // `AcquireWait`), not at the next doorbell of any channel.
+                    if vfio_user_nvgpu::channel::acquire_waits_pending() {
                         d.lock()
                             .unwrap_or_else(PoisonError::into_inner)
-                            .continue_ce_slices();
+                            .recheck_acquires();
                     }
                     // Guest RAM registered off the loop joins the table without waiting
                     // for the next access (registrar.rs).
@@ -1617,16 +1743,80 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             })
             .context("spawn the software CE slice clock")?
     };
-    let result = server
-        .run(&mut SharedDevice(device.clone()))
-        .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+    // A live state dump on request: `echo state > <state dir>/device-ctl` prints every
+    // channel, host object and the interrupt state into this log (device.rs `state_dump`).
+    let device_ctl = {
+        let d = device.clone();
+        let stop = soak_stop.clone();
+        let page = intr_page.clone();
+        let path = socket.parent().map(|p| p.join("device-ctl"));
+        std::thread::Builder::new()
+            .name("device-ctl".into())
+            .spawn(move || {
+                let Some(path) = path else { return };
+                let _ = std::fs::remove_file(&path);
+                let mut n = 0u32;
+                while !stop.load(std::sync::atomic::Ordering::Acquire) {
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    let Ok(cmd) = std::fs::read_to_string(&path) else { continue };
+                    let _ = std::fs::remove_file(&path);
+                    if cmd.trim() != "state" {
+                        eprintln!("vfio-user-nvgpu: device-ctl: unknown command {:?} (known: state)", cmd.trim());
+                        continue;
+                    }
+                    n += 1;
+                    let t0 = std::time::Instant::now();
+                    let mut lines = d.lock().unwrap_or_else(PoisonError::into_inner).state_dump();
+                    if let Some(p) = &page {
+                        lines.push(p.state_line());
+                    }
+                    for l in &lines {
+                        eprintln!("vfio-user-nvgpu: state {n}: {l}");
+                    }
+                    eprintln!(
+                        "vfio-user-nvgpu: state {n}: {} line(s) in {} us",
+                        lines.len(),
+                        t0.elapsed().as_micros()
+                    );
+                }
+            })
+            .context("spawn the device-ctl reader")?
+    };
+    let mut backend = SharedDevice::new(device.clone(), routes);
+    let mut clients = 1u32;
+    let result = loop {
+        let r = server
+            .run(&mut backend)
+            .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+        if r.is_err() || !client_waiting(&waiting, RECONNECT_WINDOW) {
+            break r;
+        }
+        let mut d = device.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Err(e) = d.client_gone() {
+            eprintln!(
+                "vfio-user-nvgpu: a new client connected, but the previous client's state was not released ({e}); ending the session"
+            );
+            break r;
+        }
+        clients += 1;
+        eprintln!(
+            "vfio-user-nvgpu: client {clients}: the previous client closed the connection and a new one connected (a VMM reboot): device reset, the previous client's memory regions and IRQ eventfds released; {}",
+            soak_line("new client", d.soak_counts(), host_mem.as_ref())
+        );
+    };
     soak_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = ce_slices.join();
+    let _ = device_ctl.join();
     if let Some(t) = userd_poll {
         let _ = t.join();
     }
     if let Some(t) = soak {
         let _ = t.join();
+    }
+    vfio_user_nvgpu::ringgate::global().stop();
+    let _ = completer.join();
+    for l in vfio_user_nvgpu::dlock::summary() {
+        eprintln!("vfio-user-nvgpu: {l}");
     }
     let mut device = device.lock().unwrap_or_else(PoisonError::into_inner);
     // The soak line at exit, before the teardown (what the guest's session left held), and
@@ -1705,6 +1895,44 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
 
 /// Exit status of a teardown that failed closed (hostmem.rs `run_teardown`).
 const FAIL_CLOSED_EXIT: i32 = 3;
+
+/// How long the device waits for a new client after one closed the connection. Cloud
+/// Hypervisor's reboot connects its new client within about 0.7 s (C100: the reset event
+/// at 439.62 s, the new client's connection at 440.46 s); a VMM that exited sends none,
+/// and the device's exit waits this long.
+const RECONNECT_WINDOW: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Whether a client connects to `listener` within `window` (one already waiting in the
+/// backlog counts): poll(2) for POLLIN on the listening socket.
+fn client_waiting(listener: &impl std::os::fd::AsRawFd, window: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + window;
+    loop {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        let mut p = libc::pollfd {
+            fd: listener.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: one valid pollfd for the duration of the call.
+        let n = unsafe { libc::poll(&mut p, 1, left.as_millis().min(i32::MAX as u128) as i32) };
+        if n > 0 {
+            return p.revents & libc::POLLIN != 0;
+        }
+        if n == 0 || std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted {
+            return false;
+        }
+    }
+}
+
+/// The socket file goes when `serve` returns (as `vfio_user::Server` removes a socket it
+/// bound itself; this one is bound here so that it outlives one client).
+struct SocketFile(PathBuf);
+
+impl Drop for SocketFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
 
 fn device_rom_len(p: &Path) -> u64 {
     std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)

@@ -185,7 +185,7 @@ pub struct Bar0 {
     served_captured: bool,
     boot: Option<BootModel>,
     notes: Vec<String>,
-    /// `CARAXES_INTR_PAGE=1`: page 0 and the interrupt tree's page are memory the guest
+    /// The interrupt page (host execution): page 0 and the interrupt tree's page are memory the guest
     /// maps (intr_page.rs); a trapped access there goes to that memory too.
     page: Option<std::sync::Arc<crate::intr_page::IntrPage>>,
     /// `CARAXES_DISPLAY_PAGE=1`: the display front-end page 0x611000 is memory too
@@ -334,11 +334,15 @@ impl Bar0 {
         if let Some((r, v)) = crate::families::devinit_scratch(self.chip.data()) {
             self.latched.insert(r, v);
         }
-        if let Some(p) = &self.page {
-            p.reset();
-        }
+        // The boot model first: its old interrupt sources (the mirror's host event thread,
+        // joined when the old mirror drops) stop before the interrupt page forgets what was
+        // raised (C65: two host notifier raises of the old mirror reached the fresh tree,
+        // the guest enabled the vector and never serviced it).
         if let Some(b) = self.boot.as_mut() {
             b.reset();
+        }
+        if let Some(p) = &self.page {
+            p.reset();
         }
     }
 
@@ -430,7 +434,8 @@ impl Bar0 {
         data: &[u8],
     ) -> WriteEffect {
         if let Some(p) = self.page.as_ref().filter(|p| p.covers(offset)) {
-            // The reactor applies it as it applies the guest's own stores.
+            // The tree page: applied at once with the register's semantics (exact mode,
+            // intr_page.rs); page 0: stored as the guest would store it.
             p.write(offset, data);
             return WriteEffect::Model;
         }

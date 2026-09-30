@@ -1,0 +1,18 @@
+07:23:48 start: 199 MiB, 626 MiB
+fill: holding 526 MiB
+07:24:03 filled: 821 MiB, 3 MiB
+07:24:06 dumb 1: dumb 1920x1080: ok handle 1 pitch 7680 size 0x7e9000
+dumb destroyed
+07:24:08 after dumb 1 freed: 821 MiB, 3 MiB
+07:24:16 dumb 2: dumb 1920x1080: ok handle 1 pitch 7680 size 0x7e9000
+dumb destroyed
+07:24:18 after dumb 2 freed: 821 MiB, 3 MiB
+[ 1199.999497] NVRM: GPU0 displayReserveRelease: display reserve: released 10240 KiB for a refused display allocation of 8100 KiB, holds 41984 of 52224 KiB
+[ 1203.084507] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 51 MiB
+[ 1210.127030] NVRM: GPU0 displayReserveRelease: display reserve: released 10240 KiB for a refused display allocation of 8100 KiB, holds 41984 of 52224 KiB
+[ 1213.208511] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 51 MiB
+07:24:22 filler gone: 199 MiB, 626 MiB
+[ 1199.999497] NVRM: GPU0 displayReserveRelease: display reserve: released 10240 KiB for a refused display allocation of 8100 KiB, holds 41984 of 52224 KiB
+[ 1203.084507] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 51 MiB
+[ 1210.127030] NVRM: GPU0 displayReserveRelease: display reserve: released 10240 KiB for a refused display allocation of 8100 KiB, holds 41984 of 52224 KiB
+[ 1213.208511] NVRM: GPU0 _displayReserveFillWorkItem: display reserve: holds 51 MiB

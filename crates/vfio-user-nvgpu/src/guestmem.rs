@@ -12,19 +12,44 @@
 //! addresses. [`GuestMemory::translate`] is the one place that maps them back: every
 //! read and write goes through it. Without a table it is the identity.
 
-use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::os::fd::AsRawFd;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::dmamap::{DmaRange, DmaTable};
 use crate::registrar::Registrar;
 
+/// One `DMA_MAP` mapping, unmapped when the last region and view holding it is gone.
+struct Mapping {
+    ptr: *mut u8,
+    size: u64,
+}
+
+// SAFETY: plain shared memory of the guest; the device copies bytes in and out of it, as
+// the guest's vCPUs and the GPU do concurrently (the hardware's DMA has the same races).
+unsafe impl Send for Mapping {}
+// SAFETY: as above; the mapping itself is never changed after mmap.
+unsafe impl Sync for Mapping {}
+
+impl Drop for Mapping {
+    fn drop(&mut self) {
+        // SAFETY: pointer and size come from a successful mmap in `GuestMemory::map`.
+        unsafe { libc::munmap(self.ptr.cast(), self.size as usize) };
+    }
+}
+
+#[derive(Clone)]
 struct Region {
     address: u64,
     size: u64,
-    ptr: *mut u8,
+    map: Arc<Mapping>,
 }
+
+/// A read-mostly view of guest memory for threads that must not take the device mutex
+/// (the display clock, docs/caraxes/display-own-clock.md §2.2): the same mappings, the
+/// same translation, replaced by the owner at every change of either.
+pub type MemView = Arc<RwLock<Arc<GuestMemory>>>;
 
 #[derive(Default)]
 pub struct GuestMemory {
@@ -37,19 +62,46 @@ pub struct GuestMemory {
     aliases: Vec<DmaRange>,
     /// DMA addresses the table does not cover (count, first few) since the table
     /// was set: each one is an access the device refused.
-    misses: Cell<u64>,
-    first_misses: RefCell<Vec<u64>>,
+    misses: AtomicU64,
+    first_misses: Mutex<Vec<u64>>,
     /// Guest RAM answered at `DMA_MAP` whose registration runs off the loop (registrar.rs).
     registrar: Option<Arc<Registrar>>,
+    /// The published view ([`GuestMemory::view`]), replaced at every change.
+    view: Option<MemView>,
 }
-
-// SAFETY: the mappings are plain shared memory owned by this struct; access is
-// serialized by the single-threaded server loop.
-unsafe impl Send for GuestMemory {}
 
 impl GuestMemory {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The same mappings and translation, without the view and with fresh counters.
+    fn snapshot(&self) -> GuestMemory {
+        GuestMemory {
+            regions: self.regions.clone(),
+            table: self.table.clone(),
+            aliases: self.aliases.clone(),
+            misses: AtomicU64::new(0),
+            first_misses: Mutex::new(Vec::new()),
+            registrar: self.registrar.clone(),
+            view: None,
+        }
+    }
+
+    /// The view other threads read guest memory through; this memory replaces it at every
+    /// change of its mappings or translation from now on.
+    pub fn view(&mut self) -> MemView {
+        if self.view.is_none() {
+            self.view = Some(Arc::new(RwLock::new(Arc::new(self.snapshot()))));
+        }
+        self.view.clone().expect("set above")
+    }
+
+    fn republish(&self) {
+        if let Some(v) = &self.view {
+            let snap = Arc::new(self.snapshot());
+            *v.write().unwrap_or_else(std::sync::PoisonError::into_inner) = snap;
+        }
     }
 
     /// Map `size` bytes at `offset` of `fd` as guest physical range `address..`.
@@ -72,21 +124,19 @@ impl GuestMemory {
         self.regions.push(Region {
             address,
             size,
-            ptr: ptr.cast(),
+            map: Arc::new(Mapping {
+                ptr: ptr.cast(),
+                size,
+            }),
         });
+        self.republish();
         Ok(())
     }
 
+    /// Drop the region; its mapping goes when no view holds it any more.
     pub fn unmap(&mut self, address: u64, size: u64) {
-        self.regions.retain(|r| {
-            if r.address == address && r.size == size {
-                // SAFETY: pointer and size come from a successful mmap above.
-                unsafe { libc::munmap(r.ptr.cast(), r.size as usize) };
-                false
-            } else {
-                true
-            }
-        });
+        self.regions.retain(|r| !(r.address == address && r.size == size));
+        self.republish();
     }
 
     /// Guest physical `gpa..gpa + len` in one mapping: the host pointer.
@@ -94,7 +144,7 @@ impl GuestMemory {
         self.regions
             .iter()
             .find(|r| gpa >= r.address && gpa - r.address <= r.size && len <= r.size - (gpa - r.address))
-            .map(|r| r.ptr.wrapping_add((gpa - r.address) as usize))
+            .map(|r| r.map.ptr.wrapping_add((gpa - r.address) as usize))
     }
 
     /// The guest physical address of `len` bytes at the DMA address `addr`: through
@@ -126,8 +176,8 @@ impl GuestMemory {
                             .map(|_| addr)
                     });
                 if gpa.is_none() {
-                    self.misses.set(self.misses.get() + 1);
-                    let mut f = self.first_misses.borrow_mut();
+                    self.misses.fetch_add(1, Ordering::Relaxed);
+                    let mut f = self.first_misses.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                     if f.len() < 16 {
                         f.push(addr);
                     }
@@ -151,14 +201,16 @@ impl GuestMemory {
     pub fn set_table(&mut self, table: Option<DmaTable>) {
         self.table = table;
         self.aliases.clear();
-        self.misses.set(0);
-        self.first_misses.borrow_mut().clear();
+        self.misses.store(0, Ordering::Relaxed);
+        self.first_misses.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear();
+        self.republish();
     }
 
     /// Accept the guest's aliases (dmamap.rs `aliases_of`, which checked them against the
     /// active table) for every later access.
     pub fn set_aliases(&mut self, aliases: Vec<DmaRange>) {
         self.aliases = aliases;
+        self.republish();
     }
 
     pub fn aliases(&self) -> &[DmaRange] {
@@ -168,6 +220,7 @@ impl GuestMemory {
     /// Consult `registrar` for guest RAM answered but not registered yet.
     pub fn set_registrar(&mut self, registrar: Option<Arc<Registrar>>) {
         self.registrar = registrar;
+        self.republish();
     }
 
     /// The host IOVA of `len` bytes at the guest's DMA address `addr`: the address itself
@@ -207,7 +260,10 @@ impl GuestMemory {
 
     /// Refused DMA addresses: how many, and the first few.
     pub fn misses(&self) -> (u64, Vec<u64>) {
-        (self.misses.get(), self.first_misses.borrow().clone())
+        (
+            self.misses.load(Ordering::Relaxed),
+            self.first_misses.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone(),
+        )
     }
 
     /// The device's own mapping of guest physical `gpa..gpa + len` (for registering
@@ -251,15 +307,6 @@ impl GuestMemory {
     pub fn read_u64(&self, pa: u64) -> Option<u64> {
         let mut b = [0u8; 8];
         self.read(pa, &mut b).then(|| u64::from_le_bytes(b))
-    }
-}
-
-impl Drop for GuestMemory {
-    fn drop(&mut self) {
-        for r in &self.regions {
-            // SAFETY: see unmap().
-            unsafe { libc::munmap(r.ptr.cast(), r.size as usize) };
-        }
     }
 }
 
@@ -321,6 +368,43 @@ mod tests {
         assert_eq!(m.misses(), (1, vec![0x20_0100]));
         m.set_table(None);
         assert_eq!(m.read_u32(0x20_0104), Some(1));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The published view follows every change of mappings and translation, reads from
+    /// another thread, and keeps a mapping alive until the last view that holds it is gone.
+    #[test]
+    fn the_view_follows_changes_and_keeps_its_mappings() {
+        let path = std::env::temp_dir().join(format!("nvgpu-guestmem-v-{}", std::process::id()));
+        let f = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        f.set_len(2 << 20).unwrap();
+        let mut m = GuestMemory::new();
+        let view = m.view();
+        assert_eq!(view.read().unwrap().read_u32(0x20_0000), None);
+        m.map(0x20_0000, 2 << 20, 0, &f).unwrap();
+        assert!(m.write(0x20_0040, &[5, 0, 0, 0]));
+        let seen = std::thread::spawn({
+            let view = view.clone();
+            move || view.read().unwrap().read_u32(0x20_0040)
+        })
+        .join()
+        .unwrap();
+        assert_eq!(seen, Some(5));
+        // A table: the view translates as the owner does.
+        m.set_table(Some(DmaTable::parse("200000:7f0000200000:200000").unwrap()));
+        assert_eq!(view.read().unwrap().read_u32(0x7f00_0020_0040), Some(5));
+        assert_eq!(view.read().unwrap().read_u32(0x20_0040), None);
+        // Unmapped: gone for the owner and the next view; a view taken before still reads.
+        let old = view.read().unwrap().clone();
+        m.unmap(0x20_0000, 2 << 20);
+        assert_eq!(view.read().unwrap().read_u32(0x7f00_0020_0040), None);
+        assert_eq!(old.read_u32(0x7f00_0020_0040), Some(5));
         let _ = std::fs::remove_file(&path);
     }
 

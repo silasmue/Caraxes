@@ -44,16 +44,6 @@ pub type PageBuf = [u64; WORDS];
 
 /// The switch.
 pub const ENV: &str = "CARAXES_BAR2_MEMFD";
-/// Comma-separated BAR2 offsets of pages that stay trapped (hex or decimal, page
-/// aligned), or `none`; default [`DEFAULT_TRAP`].
-pub const TRAP_ENV: &str = "CARAXES_BAR2_MEMFD_TRAP";
-/// `1`: sync before every doorbell as well (the reference for the doorbell rule).
-pub const SYNC_DOORBELL_ENV: &str = "CARAXES_BAR2_MEMFD_SYNC_DOORBELL";
-/// `0`: every trapped flush read syncs at once (the behaviour before
-/// docs/caraxes/display-pacing.md). On by default: a flush read only marks the sync owed
-/// ([`DeferredFlush`]); the next hand-over to the GPU (MMU invalidate, GSP command-queue
-/// doorbell, channel doorbell) or the flush clock after [`DEFER_BOUND`] settles it.
-pub const DEFER_FLUSH_ENV: &str = "CARAXES_BAR2_MEMFD_DEFER_FLUSH";
 /// How long an owed flush may wait for a hand-over before the flush clock settles it.
 pub const DEFER_BOUND: Duration = Duration::from_millis(1);
 /// `memory`: the flush page is memory as well, no longer trapped (docs/caraxes/intr-page.md
@@ -68,16 +58,21 @@ pub const FLUSH_PAGE_ENV: &str = "CARAXES_BAR2_FLUSH_PAGE";
 pub const DEFAULT_TRAP: u64 = 0xfe_a000;
 /// Page key tag for a guest sysmem page (FB pages are plain page numbers).
 const SYS: u64 = 1 << 63;
+// One key space with the walks' (ptcache.rs `observed_keys`).
+const _: () = assert!(SYS == crate::ptcache::SYS_KEY);
 /// Leaves the BAR2 walk cache holds at most.
 const MAX_LEAVES: usize = 1 << 20;
 
 /// The switch's settings.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// BAR2 offsets of the trapped pages.
+    /// BAR2 offsets of the trapped pages (the device's: [`DEFAULT_TRAP`], none with the flush
+    /// page as memory; the unit tests choose others).
     pub traps: Vec<u64>,
-    pub sync_doorbell: bool,
-    /// Flush reads defer their sync to the next hand-over ([`DEFER_FLUSH_ENV`]).
+    /// Flush reads defer their sync to the next hand-over (on: a flush read only marks the
+    /// sync owed, [`DeferredFlush`]; the next hand-over to the GPU, MMU invalidate, GSP
+    /// command-queue doorbell or channel doorbell, or the flush clock after [`DEFER_BOUND`]
+    /// settles it, docs/caraxes/display-pacing.md; the unit tests also run it off).
     pub defer_flush: bool,
     /// `CARAXES_BAR2_FLUSH_PAGE=memory`: the flush page is not trapped; the owed flush
     /// stands from every sync on ([`DeferredFlush::standing`]).
@@ -89,13 +84,7 @@ pub fn config() -> Result<Option<Config>, String> {
     if std::env::var(ENV).as_deref() != Ok("1") {
         return Ok(None);
     }
-    config_from(
-        std::env::var(TRAP_ENV).ok().as_deref(),
-        std::env::var(SYNC_DOORBELL_ENV).as_deref() == Ok("1"),
-        std::env::var(DEFER_FLUSH_ENV).as_deref() != Ok("0"),
-        std::env::var(FLUSH_PAGE_ENV).ok().as_deref(),
-    )
-    .map(Some)
+    config_from(None, true, std::env::var(FLUSH_PAGE_ENV).ok().as_deref()).map(Some)
 }
 
 /// The settings from the variables' values (unset: `None`). Fail closed: the flush page as
@@ -104,7 +93,6 @@ pub fn config() -> Result<Option<Config>, String> {
 /// between hand-overs); with it the trap list defaults to none.
 pub fn config_from(
     traps: Option<&str>,
-    sync_doorbell: bool,
     defer_flush: bool,
     flush_page: Option<&str>,
 ) -> Result<Config, String> {
@@ -121,18 +109,17 @@ pub fn config_from(
     if flush_page_memory {
         if traps.contains(&DEFAULT_TRAP) {
             return Err(format!(
-                "{FLUSH_PAGE_ENV}=memory with {TRAP_ENV} holding the flush page {DEFAULT_TRAP:#x}"
+                "{FLUSH_PAGE_ENV}=memory with a trap list holding the flush page {DEFAULT_TRAP:#x}"
             ));
         }
         if !defer_flush {
             return Err(format!(
-                "{FLUSH_PAGE_ENV}=memory needs the deferred flush and its clock ({DEFER_FLUSH_ENV} not 0)"
+                "{FLUSH_PAGE_ENV}=memory needs the deferred flush and its clock"
             ));
         }
     }
     Ok(Config {
         traps,
-        sync_doorbell,
         defer_flush,
         flush_page_memory,
     })
@@ -151,7 +138,7 @@ fn parse_traps(v: &str) -> Result<Vec<u64>, String> {
                 None => t.parse().ok(),
             };
             n.filter(|n| n % PAGE == 0)
-                .ok_or_else(|| format!("{TRAP_ENV}: {t:?} is not a page-aligned offset"))
+                .ok_or_else(|| format!("trap list: {t:?} is not a page-aligned offset"))
         })
         .collect()
 }
@@ -393,10 +380,13 @@ pub fn target_of(key: u64) -> Target {
 }
 
 /// What one [`RemapTable::set`] did.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Change {
     /// The page that left the BAR2 mapping (its last BAR2 page went).
     pub left: Option<u64>,
+    /// Its snapshot as it left (what VRAM holds: the sync wrote the guest's bytes back
+    /// first), for the victim cache ([`Victims`]).
+    pub left_snap: Option<Box<PageBuf>>,
     /// The page the BAR2 page now maps.
     pub entered: Option<u64>,
     /// `entered` was loaded from its backing (it was not mapped elsewhere in BAR2).
@@ -522,9 +512,10 @@ impl RemapTable {
             if let Some(l) = self.live.get_mut(&o) {
                 l.vas.retain(|&v| v != va);
                 if l.vas.is_empty() {
-                    self.live.remove(&o);
+                    let gone = self.live.remove(&o).expect("present");
                     self.generation += 1;
                     ch.left = Some(o);
+                    ch.left_snap = Some(gone.snap);
                 }
             }
         }
@@ -744,6 +735,7 @@ pub fn identity(pa: u64) -> u64 {
 /// wrote, overlaid for a page behind BAR2 with the bytes the guest wrote through BAR2 since
 /// the last sync ([`RemapTable::overlay`]). FB is one memory on the card: a write through any
 /// aperture or engine is what the next read of any other returns.
+#[allow(clippy::too_many_arguments)]
 fn read_merged(
     remap: &RemapTable,
     mem: &SharedView,
@@ -751,6 +743,8 @@ fn read_merged(
     tr: Translate,
     pa: u64,
     buf: &mut [u8],
+    victims: &mut Victims,
+    epoch: u64,
 ) {
     let mut done = 0usize;
     while done < buf.len() {
@@ -758,8 +752,15 @@ fn read_merged(
         let in_page = a % PAGE;
         let n = (PAGE - in_page).min((buf.len() - done) as u64) as usize;
         let piece = &mut buf[done..done + n];
-        store.read(tr(a), piece);
-        remap.overlay(mem, a / PAGE, in_page as usize, piece);
+        if remap.home(a / PAGE).is_none() {
+            // Not behind BAR2: a page table that left it is what VRAM holds ([`Victims`]).
+            if !victims.read(a / PAGE, in_page as usize, piece, epoch) {
+                store.read(tr(a), piece);
+            }
+        } else {
+            store.read(tr(a), piece);
+            remap.overlay(mem, a / PAGE, in_page as usize, piece);
+        }
         done += n;
     }
 }
@@ -775,15 +776,24 @@ fn read_through(
     tr: Translate,
     pa: u64,
     buf: &mut [u8],
+    mut victims: Option<(&mut Victims, u64)>,
 ) {
     let mut done = 0usize;
     while done < buf.len() {
         let a = pa + done as u64;
         let in_page = a % PAGE;
         let n = (PAGE - in_page).min((buf.len() - done) as u64) as usize;
+        let piece = &mut buf[done..done + n];
         match remap.home(a / PAGE) {
-            Some(va) => mem.read(va * PAGE + in_page, &mut buf[done..done + n]),
-            None => store.read(tr(a), &mut buf[done..done + n]),
+            Some(va) => mem.read(va * PAGE + in_page, piece),
+            None => {
+                let hit = victims
+                    .as_mut()
+                    .is_some_and(|(v, e)| v.read(a / PAGE, in_page as usize, piece, *e));
+                if !hit {
+                    store.read(tr(a), piece);
+                }
+            }
         }
         done += n;
     }
@@ -815,7 +825,7 @@ impl TableReader for Reader<'_> {
                 if pa + b.len() as u64 <= self.fb_size
                     && !overlaps(self.private, pa, b.len() as u64) =>
             {
-                read_through(self.remap, self.mem, self.store, self.tr, pa, &mut b)
+                read_through(self.remap, self.mem, self.store, self.tr, pa, &mut b, None)
             }
             Target::Sys(pa) => {
                 if !self.sys?.read(pa, &mut b) {
@@ -835,8 +845,9 @@ impl TableReader for Reader<'_> {
 /// What settled an owed flush ([`Bar2Area::flush_settled`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Settle {
-    /// A sync point that syncs anyway: the MMU invalidate, the GSP command-queue doorbell,
-    /// or a flush read with the deferral off.
+    /// A sync point that syncs anyway: the GSP command-queue doorbell, the BAR2 bind, the
+    /// MMU invalidate while a host VA space walks the guest's tables, or a flush read with
+    /// the deferral off.
     SyncPoint,
     /// A channel doorbell (trapped, ioeventfd or token): the GPU may fetch what the guest
     /// wrote before it.
@@ -864,7 +875,10 @@ pub enum Point {
     /// nvkm/subdev/bar/g84.c:29-40).
     FbFlush,
     /// `NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE` with TRIGGER (turing/tu102/dev_vm.h:120-131):
-    /// the MMU walks the page tables again.
+    /// the MMU walks the page tables again. A full sync only while a host VA space walks the
+    /// guest's own tables (mirror.rs `walks_guest_tables`); otherwise the invalidate syncs the
+    /// table pages alone and an owed flush waits for the next engine start (bar2-memfd.md §3
+    /// rule 3).
     MmuInvalidate,
     /// `NV_PGSP_QUEUE_HEAD(0)` (turing/tu102/dev_gsp.h:38): GSP-RM consumes the command
     /// queue. On a GSP system the runlist submit is GSP-RM's own register write; the CPU's
@@ -1063,9 +1077,15 @@ pub struct Bar2Stats {
     pub doorbell_ns_max: u64,
     /// Time in the full syncs by [`Point`], in nanoseconds.
     pub point_ns: [u64; POINTS],
-    /// MMU invalidates that synced only the live table pages (no flush owed) and the pages.
+    /// MMU invalidates that synced only the live table pages, and the pages; of them, those
+    /// that found a flush owed and left it to the next engine start (bar2-memfd.md §3 rule 3).
     pub table_syncs: u64,
+    pub table_syncs_owed: u64,
     pub table_sync_pages: u64,
+    /// The walks' live table page lists those syncs reused (the walk's table pages and the
+    /// BAR2 live set unchanged since) and listed again (fb.rs `bar2_sync_tables`).
+    pub table_key_lists_reused: u64,
+    pub table_key_lists_listed: u64,
     pub table_sync_ns: u64,
     /// The doorbell rule's sets as last computed per channel: how many times, and the most
     /// live pages one held; the most live table pages of a channel left to the invalidate.
@@ -1083,13 +1103,167 @@ pub struct SyncReport {
     pub left: usize,
 }
 
+/// Pages the victim cache keeps at most (16 MiB of snapshots).
+pub const VICTIMS_MAX: usize = 4096;
+
+/// What the victim cache needs from the FB (fb.rs): the table epoch, which moves whenever a
+/// cached guest walk stops reading a table page (a page table may then be reused as data
+/// that a GPU engine writes), and which pages a walk reads as tables now.
+pub struct TableView<'a> {
+    pub epoch: u64,
+    pub walked: &'a dyn Fn(u64) -> bool,
+}
+
+impl TableView<'_> {
+    /// No victim is ever kept (tests, and callers without the FB's walks).
+    pub fn none() -> TableView<'static> {
+        TableView {
+            epoch: u64::MAX,
+            walked: &|_| false,
+        }
+    }
+}
+
+/// The victim cache (docs/caraxes/bar2-memfd.md §3, rule 6): the snapshots of page-table
+/// pages that left the BAR2 mapping, keyed by FB page. A snapshot equals VRAM when the page
+/// leaves (the sync wrote the guest's BAR2 bytes back first), and a page table has no other
+/// writer: the BAR1 pool never holds one, no host engine writes the guest's tables (the
+/// host MMU reads the shadow's), the device's own writes patch the entry, and a write it
+/// only learns of (`FakeFb::note_range_changed`) drops it. So while the table epoch stands,
+/// the snapshot is what VRAM holds: a page that enters BAR2 again is loaded from it, and a
+/// table read of it is served from it, both without an uncached BAR1 read through a window
+/// that must be mapped first. The 615 RM maps a page table into BAR2 for every PTE update
+/// and unmaps it after (vm SotTR run: 365 BAR2 walks and 457 window maps per second).
+#[derive(Default)]
+pub struct Victims {
+    pages: HashMap<u64, (Box<PageBuf>, u64)>,
+    /// Insertion order for the bound: (key, the insertion's number).
+    order: std::collections::VecDeque<(u64, u64)>,
+    seq: u64,
+    stamp: HashMap<u64, u64>,
+    pub stats: VictimStats,
+}
+
+/// The victim cache's counters.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct VictimStats {
+    pub kept: u64,
+    /// Loads of an entering page served from the cache, and those read from VRAM.
+    pub load_hits: u64,
+    pub load_misses: u64,
+    /// Device reads served from the cache.
+    pub read_hits: u64,
+    /// Entries dropped: a stale epoch at use, a write of unknown content, the bound.
+    pub stale: u64,
+    pub dropped: u64,
+    pub evicted: u64,
+    /// Entries dropped because no walk reads the page as a table any more.
+    pub unwalked: u64,
+}
+
+impl Victims {
+    /// Keep `snap` for FB page `key` (not a sysmem key) as of table epoch `epoch`.
+    fn keep(&mut self, key: u64, snap: Box<PageBuf>, epoch: u64) {
+        if key & SYS != 0 {
+            return;
+        }
+        self.seq += 1;
+        self.pages.insert(key, (snap, epoch));
+        self.stamp.insert(key, self.seq);
+        self.order.push_back((key, self.seq));
+        self.stats.kept += 1;
+        while self.pages.len() > VICTIMS_MAX {
+            let Some((k, s)) = self.order.pop_front() else { break };
+            if self.stamp.get(&k) == Some(&s) {
+                self.pages.remove(&k);
+                self.stamp.remove(&k);
+                self.stats.evicted += 1;
+            }
+        }
+        // Stale order entries of re-kept or taken pages are skipped at their turn; compact
+        // when they pile up.
+        if self.order.len() > 4 * VICTIMS_MAX {
+            let stamp = &self.stamp;
+            self.order.retain(|(k, s)| stamp.get(k) == Some(s));
+        }
+    }
+
+    /// The snapshot of FB page `key`, taken out, when it is valid at `epoch`.
+    fn take(&mut self, key: u64, epoch: u64) -> Option<Box<PageBuf>> {
+        let (snap, e) = self.pages.remove(&key)?;
+        self.stamp.remove(&key);
+        if e != epoch {
+            self.stats.stale += 1;
+            return None;
+        }
+        Some(snap)
+    }
+
+    /// Copy bytes `[in_page, in_page + buf.len())` of FB page `key` into `buf` when a valid
+    /// snapshot is held; whether it was.
+    fn read(&mut self, key: u64, in_page: usize, buf: &mut [u8], epoch: u64) -> bool {
+        let Some((snap, e)) = self.pages.get(&key) else {
+            return false;
+        };
+        if *e != epoch {
+            self.pages.remove(&key);
+            self.stamp.remove(&key);
+            self.stats.stale += 1;
+            return false;
+        }
+        // SAFETY: as `page_bytes`, read-only.
+        let bytes: &[u8; 4096] = unsafe { &*(&**snap as *const PageBuf as *const [u8; 4096]) };
+        buf.copy_from_slice(&bytes[in_page..in_page + buf.len()]);
+        self.stats.read_hits += 1;
+        true
+    }
+
+    /// A device write of `data` at FB address `pa`: patch the snapshots it touches.
+    fn write(&mut self, pa: u64, data: &[u8]) {
+        if self.pages.is_empty() {
+            return;
+        }
+        let mut done = 0usize;
+        while done < data.len() {
+            let a = pa + done as u64;
+            let in_page = (a % PAGE) as usize;
+            let n = (PAGE as usize - in_page).min(data.len() - done);
+            if let Some((snap, _)) = self.pages.get_mut(&(a / PAGE)) {
+                page_bytes(snap)[in_page..in_page + n].copy_from_slice(&data[done..done + n]);
+            }
+            done += n;
+        }
+    }
+
+    /// FB pages `first..=last` changed in VRAM without the device knowing the bytes: drop
+    /// them.
+    fn drop_pages(&mut self, first: u64, last: u64) {
+        if self.pages.is_empty() {
+            return;
+        }
+        for p in first..=last.min(first + (1 << 20)) {
+            if self.pages.remove(&p).is_some() {
+                self.stamp.remove(&p);
+                self.stats.dropped += 1;
+            }
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.pages.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pages.is_empty()
+    }
+}
+
 /// The BAR2 memfd, its remap table and the cached walk of the BAR2 tables.
 pub struct Bar2Area {
     pub mem: MemfdArea,
     size: u64,
     /// Trapped pages (page numbers), ascending.
     traps: Vec<u64>,
-    pub sync_doorbell: bool,
     pub remap: RemapTable,
     cache: RefCell<Option<WalkCache>>,
     cache_root: Cell<u64>,
@@ -1105,6 +1279,13 @@ pub struct Bar2Area {
     private: Vec<(u64, u64)>,
     /// The live page keys, ascending, as of the remap generation they were listed at.
     live_sorted: RefCell<(u64, Vec<u64>)>,
+    /// Page tables that left the BAR2 mapping ([`Victims`]).
+    pub victims: RefCell<Victims>,
+    /// The display's FB record windows granted over pages not behind BAR2 (fb.rs
+    /// `share_record_window`): `(first page, end page, owner)`. A page of one about to
+    /// enter the BAR2 mapping revokes it first (`revoke_record_grant`).
+    pub records: RefCell<Vec<crate::fb::RecordGrant>>,
+    pub records_revoked: std::cell::Cell<u64>,
 }
 
 impl Bar2Area {
@@ -1121,7 +1302,6 @@ impl Bar2Area {
             mem,
             size,
             traps,
-            sync_doorbell: cfg.sync_doorbell,
             remap: RemapTable::default(),
             cache: RefCell::new(None),
             cache_root: Cell::new(u64::MAX),
@@ -1138,6 +1318,9 @@ impl Bar2Area {
             drift_cursor: 0,
             drift_at: None,
             live_sorted: RefCell::new((0, Vec::new())),
+            victims: RefCell::new(Victims::default()),
+            records: RefCell::new(Vec::new()),
+            records_revoked: std::cell::Cell::new(0),
         })
     }
 
@@ -1171,6 +1354,12 @@ impl Bar2Area {
     /// Whether page `page` is a table page of the BAR2 walk.
     pub fn watches_table(&self, page: u64) -> bool {
         self.cache.borrow().as_ref().is_some_and(|c| c.watches(page))
+    }
+
+    /// The BAR2 walk's tables generation (ptcache.rs `WalkCache::tables_generation`):
+    /// equal generations, equal table pages. `None` before the walk exists.
+    pub fn tables_generation(&self) -> Option<u64> {
+        self.cache.borrow().as_ref().map(|c| c.tables_generation())
     }
 
     /// The table pages of the BAR2 walk.
@@ -1286,8 +1475,16 @@ impl Bar2Area {
     /// Read guest FB `[pa, pa + buf.len())` as the device and the GPU see it: VRAM (the
     /// store at `tr(address)`) with the bytes the guest wrote through BAR2 since the last
     /// sync over it ([`read_merged`]).
-    pub fn read_merged(&self, store: &dyn FbStore, tr: Translate, pa: u64, buf: &mut [u8]) {
-        read_merged(&self.remap, self.mem.view(), store, tr, pa, buf);
+    pub fn read_merged(
+        &self,
+        store: &dyn FbStore,
+        tr: Translate,
+        pa: u64,
+        buf: &mut [u8],
+        epoch: u64,
+    ) {
+        let mut v = self.victims.borrow_mut();
+        read_merged(&self.remap, self.mem.view(), store, tr, pa, buf, &mut v, epoch);
     }
 
     /// Read page-table memory `[pa, pa + buf.len())`: the memfd for pages behind BAR2, the
@@ -1297,13 +1494,44 @@ impl Bar2Area {
     /// (bar1-pool.md, the page-table hazard) and no host engine writes the guest's tables
     /// (the shadow's are its own; the device CE takes no page behind the memfd). So the
     /// memfd is what [`Self::read_merged`] would return, at RAM speed.
-    pub fn read_tables(&self, store: &dyn FbStore, tr: Translate, pa: u64, buf: &mut [u8]) {
-        read_through(&self.remap, self.mem.view(), store, tr, pa, buf);
+    pub fn read_tables(
+        &self,
+        store: &dyn FbStore,
+        tr: Translate,
+        pa: u64,
+        buf: &mut [u8],
+        epoch: u64,
+    ) {
+        let mut v = self.victims.borrow_mut();
+        read_through(&self.remap, self.mem.view(), store, tr, pa, buf, Some((&mut v, epoch)));
+    }
+
+    /// FB page `page` (4 KiB page number) is no table of any cached walk any more: its
+    /// snapshot may go stale (the page may be reused as data another writer changes), so the
+    /// victim cache drops it.
+    pub fn forget_victim(&self, page: u64) {
+        let mut v = self.victims.borrow_mut();
+        if v.pages.remove(&page).is_some() {
+            v.stamp.remove(&page);
+            v.stats.unwalked += 1;
+        }
+    }
+
+    /// FB `[pa, pa + len)` changed in VRAM without the device knowing the bytes (a host
+    /// engine wrote it): the victim cache drops those pages.
+    pub fn drop_victims(&self, pa: u64, len: u64) {
+        if len == 0 {
+            return;
+        }
+        self.victims
+            .borrow_mut()
+            .drop_pages(pa / PAGE, (pa + len - 1) / PAGE);
     }
 
     /// See [`RemapTable::device_write`]; `pa` is the guest FB address (before the pool's
     /// remap), the memfd's key.
     pub fn device_write(&mut self, pa: u64, data: &[u8]) {
+        self.victims.get_mut().write(pa, data);
         if self.remap.device_write(&self.mem.view, pa, data) {
             self.stats.device_writes += 1;
         }
@@ -1381,13 +1609,14 @@ impl Bar2Area {
         sys: Option<&GuestMemory>,
         tr: Translate,
     ) -> SyncReport {
-        self.sync_only(store, fb_size, root, sys, tr, None)
+        self.sync_only(store, fb_size, root, sys, tr, None, &TableView::none())
     }
 
     /// [`Self::sync`] whose scan covers only the live pages among `only` (all for `None`):
     /// the MMU invalidate's sync of the table pages ([`crate::fb::FakeFb::bar2_sync_tables`]).
     /// A page that leaves the BAR2 mapping is written back first all the same
     /// ([`Self::apply_work`]).
+    #[allow(clippy::too_many_arguments)]
     pub fn sync_only(
         &mut self,
         store: &mut dyn FbStore,
@@ -1396,16 +1625,23 @@ impl Bar2Area {
         sys: Option<&GuestMemory>,
         tr: Translate,
         only: Option<&[u64]>,
+        view: &TableView,
     ) -> SyncReport {
         let t0 = std::time::Instant::now();
         let mut rep = SyncReport::default();
         let scan = self.scan_back(store, sys, tr, only, &mut rep);
         self.stats.syncs += 1;
         self.stats.compared += scan.compared as u64;
+        let kind = if only.is_some() { "BAR2 table sync" } else { "BAR2 full sync" };
+        crate::dlock::work(kind, "scan and write-back".into(), t0.elapsed());
+        let t1 = std::time::Instant::now();
         if let Some(root) = root {
-            self.follow_tables(store, fb_size, root, sys, tr, &mut rep);
+            self.follow_tables(store, fb_size, root, sys, tr, &mut rep, view);
         }
+        crate::dlock::work(kind, "BAR2 table walk".into(), t1.elapsed());
+        let t2 = std::time::Instant::now();
         self.check_drift(store, tr, t0);
+        crate::dlock::work(kind, "drift sample".into(), t2.elapsed());
         self.stats.max_live = self.stats.max_live.max(self.remap.live_pages() as u64);
         self.stats.max_aliases = self.stats.max_aliases.max(self.remap.max_aliases() as u64);
         let ns = t0.elapsed().as_nanos() as u64;
@@ -1467,7 +1703,10 @@ impl Bar2Area {
             &self.mem.view,
             only,
             &mut |key, off, bytes| match target_of(key) {
-                Target::Fb(pa) => store.write(tr(pa) + off as u64, bytes),
+                Target::Fb(pa) => {
+                    let _why = crate::fb::ReadWhy::Bar2WriteBack.scope();
+                    store.write(tr(pa) + off as u64, bytes)
+                }
                 Target::Sys(pa) => match sys {
                     Some(m) => {
                         m.write(pa + off as u64, bytes);
@@ -1515,7 +1754,10 @@ impl Bar2Area {
             return;
         };
         let mut vram = vec![0u8; PAGE as usize];
-        store.read(tr(pa), &mut vram);
+        {
+            let _why = crate::fb::ReadWhy::Bar2Drift.scope();
+            store.read(tr(pa), &mut vram);
+        }
         self.stats.drift_checked += 1;
         if self.remap.drifted(key, &vram) {
             self.stats.drift_found += 1;
@@ -1526,6 +1768,7 @@ impl Bar2Area {
     }
 
     /// Bring the BAR2 translation up to date with the tables rooted at `root`.
+    #[allow(clippy::too_many_arguments)]
     fn follow_tables(
         &mut self,
         store: &mut dyn FbStore,
@@ -1534,6 +1777,7 @@ impl Bar2Area {
         sys: Option<&GuestMemory>,
         tr: Translate,
         rep: &mut SyncReport,
+        view: &TableView,
     ) {
         if self.cache_root.get() != root {
             // A new root (first sync, or the guest moved it): walk from scratch; the
@@ -1572,7 +1816,7 @@ impl Bar2Area {
             drop(guard);
             self.stats.walks += 1;
             crate::profile::window("bar2 memfd: table walks", 0);
-            self.apply_work(work, store, fb_size, sys, tr, rep);
+            self.apply_work(work, store, fb_size, sys, tr, rep, view);
             return;
         }
         let work: Vec<(u64, Vec<Leaf>)> = {
@@ -1600,12 +1844,13 @@ impl Bar2Area {
         };
         self.stats.walks += 1;
         crate::profile::window("bar2 memfd: table walks", 0);
-        self.apply_work(work, store, fb_size, sys, tr, rep);
+        self.apply_work(work, store, fb_size, sys, tr, rep, view);
     }
 
     /// Re-point the BAR2 pages of the changed units `work` from their leaves. What the guest
     /// wrote through a BAR2 page that now maps another page is written back first (with a
     /// full scan before it finds nothing; a restricted one may not have covered it).
+    #[allow(clippy::too_many_arguments)]
     fn apply_work(
         &mut self,
         work: Vec<(u64, Vec<Leaf>)>,
@@ -1614,6 +1859,7 @@ impl Bar2Area {
         sys: Option<&GuestMemory>,
         tr: Translate,
         rep: &mut SyncReport,
+        view: &TableView,
     ) {
         let wants: Vec<(u64, HashMap<u64, u64>)> = work
             .iter()
@@ -1635,7 +1881,7 @@ impl Bar2Area {
             self.scan_back(store, sys, tr, Some(&leaving), rep);
         }
         for (unit, want) in wants {
-            self.apply_unit(unit, want, &*store, sys, tr, rep);
+            self.apply_unit(unit, want, &*store, sys, tr, rep, view);
         }
     }
 
@@ -1669,6 +1915,7 @@ impl Bar2Area {
     }
 
     /// Re-point every BAR2 page of the 2 MiB unit at `unit` to `want`.
+    #[allow(clippy::too_many_arguments)]
     fn apply_unit(
         &mut self,
         unit: u64,
@@ -1677,6 +1924,7 @@ impl Bar2Area {
         sys: Option<&GuestMemory>,
         tr: Translate,
         rep: &mut SyncReport,
+        view: &TableView,
     ) {
         let first = unit / PAGE;
         let end = (unit + UNIT).min(self.size) / PAGE;
@@ -1685,11 +1933,35 @@ impl Bar2Area {
             mem,
             traps,
             stats,
+            victims,
+            records,
+            records_revoked,
             ..
         } = self;
+        let victims = victims.get_mut();
+        let mut kept: Vec<(u64, Box<PageBuf>)> = Vec::new();
         let mut loads = 0u64;
         let mut load = |key: u64| -> Box<PageBuf> {
             loads += 1;
+            // A page under a display record window enters the mapping: the window goes
+            // first (the display then writes through the device, which keeps the memfd), and
+            // the region's snapshots with it (the window's writes bypassed them).
+            if key & SYS == 0 {
+                for (first, end) in crate::fb::revoke_grants(&mut records.borrow_mut(), key, key + 1) {
+                    records_revoked.set(records_revoked.get() + 1);
+                    victims.drop_pages(first, end - 1);
+                }
+            }
+            if key & SYS == 0 && !victims.is_empty() {
+                if let Some(snap) = victims.take(key, view.epoch) {
+                    victims.stats.load_hits += 1;
+                    return snap;
+                }
+            }
+            if key & SYS == 0 {
+                victims.stats.load_misses += 1;
+            }
+            let _why = crate::fb::ReadWhy::Bar2Load.scope();
             let mut b = vec![0u8; PAGE as usize];
             match target_of(key) {
                 Target::Fb(pa) => store.read(tr(pa), &mut b),
@@ -1711,6 +1983,12 @@ impl Bar2Area {
                 continue;
             }
             let ch = remap.set(vp, want.get(&vp).copied(), &mem.view, &mut load);
+            if let (Some(k), Some(snap)) = (ch.left, ch.left_snap) {
+                // A page table the device follows leaves BAR2: keep what VRAM holds.
+                if (view.walked)(k) {
+                    kept.push((k, snap));
+                }
+            }
             if ch.left.is_some() {
                 stats.left += 1;
                 rep.left += 1;
@@ -1721,14 +1999,28 @@ impl Bar2Area {
             }
         }
         stats.loads += loads;
+        for (k, snap) in kept {
+            victims.keep(k, snap, view.epoch);
+        }
     }
 
     /// Before a function-level reset hands the area to the fresh model: forget every
     /// mapping and the BAR2 walk (the caller has synced).
     pub fn reset_mapping(&mut self) {
+        *self.victims.get_mut() = Victims::default();
         self.remap.clear();
         *self.cache.borrow_mut() = None;
         self.cache_root.set(u64::MAX);
+    }
+
+    /// The victim cache's part of the summary line.
+    fn victims_line(&self) -> String {
+        let v = self.victims.borrow();
+        let s = &v.stats;
+        format!(
+            "victim cache (page tables that left BAR2): {} kept, entries loaded from it {} (from VRAM {}), reads served {}, {} stale at use, {} dropped by a write behind the device, {} dropped when no walk read them any more, {} evicted, {} held now",
+            s.kept, s.load_hits, s.load_misses, s.read_hits, s.stale, s.dropped, s.unwalked, s.evicted, v.len()
+        )
     }
 
     /// The sync points' part of the summary line.
@@ -1737,7 +2029,7 @@ impl Bar2Area {
             format!("{} ({} us)", s.by_point[x as usize], s.point_ns[x as usize] / 1000)
         };
         format!(
-            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates with no flush owed: {} table sync(s) of {} live table page(s) ({} us); channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
+            "full syncs by point: {} flush read(s), {} FB flush(es) ({} NV_UFLUSH_FB_FLUSH write(s)), {} MMU invalidate(s), {} GSP queue head(s), {} BAR2 bind(s), {} doorbell(s) with a flush owed, {} by the clock; MMU invalidates: {} table sync(s) of {} live table page(s) ({} us; walks' live lists {} reused, {} listed), {} of them with a flush owed left to the next engine start; channel doorbells: {} set(s) computed (at most {} live page(s), at most {} live table page(s) left to the invalidate), {} checked, {} with nothing observable behind the memfd, {} with memory the device cannot name (all live pages), {} partial sync(s) ({} page compare(s), {} dirty page(s), {} us total, {} us max)",
             p(Point::FlushRead),
             p(Point::FbFlush),
             s.fb_flushes,
@@ -1749,6 +2041,9 @@ impl Bar2Area {
             s.table_syncs,
             s.table_sync_pages,
             s.table_sync_ns / 1000,
+            s.table_key_lists_reused,
+            s.table_key_lists_listed,
+            s.table_syncs_owed,
             s.observe_sets,
             s.observe_pages_max,
             s.observe_tables_max,
@@ -1800,7 +2095,7 @@ impl Bar2Area {
             } else {
                 "sync at once".to_string()
             },
-            self.points_line(&s),
+            self.points_line(&s) + "; " + &self.victims_line(),
             s.drift_found,
             s.drift_checked,
             if s.drift_first.is_empty() {
@@ -1823,16 +2118,16 @@ mod flush_page_tests {
     /// on a trap list with the flush page or the deferred flush off.
     #[test]
     fn flush_page_as_memory_settings() {
-        let c = config_from(None, false, true, None).unwrap();
+        let c = config_from(None, true, None).unwrap();
         assert_eq!(c.traps, vec![DEFAULT_TRAP]);
         assert!(!c.flush_page_memory && c.defer_flush);
-        let c = config_from(None, false, true, Some("memory")).unwrap();
+        let c = config_from(None, true, Some("memory")).unwrap();
         assert!(c.traps.is_empty() && c.flush_page_memory);
-        assert!(config_from(None, false, false, Some("memory")).is_err());
-        assert!(config_from(Some("0xfea000"), false, true, Some("memory")).is_err());
-        assert!(config_from(Some("0x1000"), false, true, Some("memory")).is_ok());
-        assert!(config_from(None, false, true, Some("maybe")).is_err());
-        assert!(!config_from(None, false, true, Some("trap")).unwrap().flush_page_memory);
+        assert!(config_from(None, false, Some("memory")).is_err());
+        assert!(config_from(Some("0xfea000"), true, Some("memory")).is_err());
+        assert!(config_from(Some("0x1000"), true, Some("memory")).is_ok());
+        assert!(config_from(None, true, Some("maybe")).is_err());
+        assert!(!config_from(None, true, Some("trap")).unwrap().flush_page_memory);
     }
 
     /// Standing mode: owed from the start and again after every sync, the bound counting
@@ -1971,7 +2266,7 @@ mod tests {
     /// only those and leaves the others' changes to a later scan.
     #[test]
     fn observed_pages_and_a_keyed_scan() {
-        let cfg = config_from(Some("none"), false, true, None).unwrap();
+        let cfg = config_from(Some("none"), true, None).unwrap();
         let mut a = Bar2Area::create(16 * PAGE, &cfg).unwrap();
         let guest = a.mem.map_again().unwrap();
         assert!(a.observed(&[(Target::Fb(0), u64::MAX)], &[]).is_empty(), "nothing live");

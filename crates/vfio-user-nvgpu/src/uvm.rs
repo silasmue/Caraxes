@@ -37,6 +37,16 @@ pub struct VfRegs {
     access_counter_get: u32,
 }
 
+/// The usermode `TIME_0` (`hi` false: NSEC 31:5) or `TIME_1` (`hi` true: NSEC 28:0) at `now`
+/// ns of the device clock (also answered without the device lock, fastread.rs).
+pub fn usermode_time_word(now_ns: u64, hi: bool) -> u32 {
+    if hi {
+        (now_ns >> 32) as u32 & 0x1FFF_FFFF
+    } else {
+        now_ns as u32 & !0x1F
+    }
+}
+
 impl VfRegs {
     pub fn new(chip: &ChipData) -> Self {
         VfRegs {
@@ -69,8 +79,8 @@ impl VfRegs {
         match off {
             o if o == r.access_counter_notify_buffer_size => self.access_counter_entries,
             o if o == r.access_counter_get => self.access_counter_get,
-            o if o == r.usermode_time_0 => now_ns as u32 & !0x1F,
-            o if o == r.usermode_time_1 => (now_ns >> 32) as u32 & 0x1FFF_FFFF,
+            o if o == r.usermode_time_0 => usermode_time_word(now_ns, false),
+            o if o == r.usermode_time_1 => usermode_time_word(now_ns, true),
             o if o == r.fault_buffer_get[0] => self.fault_get[0],
             o if o == r.fault_buffer_get[1] => self.fault_get[1],
             _ => 0,

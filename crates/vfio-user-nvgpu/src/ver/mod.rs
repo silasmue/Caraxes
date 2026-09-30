@@ -564,8 +564,8 @@ pub static L610: GuestLayouts = guest_layouts!(v610);
 /// The 615.71.09 layouts (also the 617.14 Windows guest's).
 pub static L615: GuestLayouts = guest_layouts!(v615);
 
-/// The guest ABI `--guest-abi` or `CARAXES_GUEST_ABI` pinned for this process
-/// ([`pin_guest`], main.rs at start-up). Unset: the environment, read once.
+/// The guest ABI `--guest-abi` pinned for this process ([`pin_guest`], main.rs at
+/// start-up). Unset: none, the guest chooses.
 static PIN: std::sync::OnceLock<Option<GuestAbi>> = std::sync::OnceLock::new();
 /// The guest ABI the boot model detected last ([`set_guest`]; 0: none yet).
 #[cfg_attr(test, allow(dead_code))]
@@ -598,7 +598,7 @@ impl TestGuest {
         }
     }
 
-    /// Serve `g` as if `CARAXES_GUEST_ABI` pinned it (`None`: no pin), nothing detected.
+    /// Serve `g` as if `--guest-abi` pinned it (`None`: no pin), nothing detected.
     pub(crate) fn pin(g: Option<GuestAbi>) -> TestGuest {
         TestGuest {
             guest: TEST_GUEST.with(|c| c.replace(None)),
@@ -615,7 +615,7 @@ impl Drop for TestGuest {
     }
 }
 
-/// Install the pin of `--guest-abi` / `CARAXES_GUEST_ABI` ([`check_guest_abi`]); `None`
+/// Install the pin of `--guest-abi` ([`check_guest_abi`]); `None`
 /// lets the guest choose. Once per process; a second, different pin is an error.
 pub fn pin_guest(p: Option<GuestAbi>) -> Result<(), String> {
     let got = *PIN.get_or_init(|| p);
@@ -634,12 +634,7 @@ pub fn pinned() -> Option<GuestAbi> {
     }
     #[cfg(not(test))]
     {
-        *PIN.get_or_init(|| {
-            std::env::var("CARAXES_GUEST_ABI")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .and_then(GuestAbi::from_number)
-        })
+        *PIN.get_or_init(|| None)
     }
 }
 
@@ -670,23 +665,11 @@ pub fn layouts() -> &'static GuestLayouts {
     guest().layouts()
 }
 
-/// `--guest-abi` and `CARAXES_GUEST_ABI` (fail closed): either may pin one of 570, 595, 610
-/// and 615, and both together must agree. Neither: `None`, the guest chooses (every build
-/// serves every guest ABI).
-pub fn check_guest_abi(flag: Option<u32>, env: Option<&str>) -> Result<Option<GuestAbi>, String> {
-    let env = match env {
-        None | Some("") => None,
-        Some(v) => Some(
-            v.parse::<u32>()
-                .map_err(|_| format!("CARAXES_GUEST_ABI={v:?} is not 570, 595, 610 or 615"))?,
-        ),
-    };
-    if let (Some(f), Some(e)) = (flag, env) {
-        if f != e {
-            return Err(format!("--guest-abi {f} but CARAXES_GUEST_ABI={e}"));
-        }
-    }
-    match flag.or(env) {
+/// `--guest-abi` (fail closed): it may pin one of 570, 595, 610 and 615. Unset: `None`, the
+/// guest chooses (every build serves every guest ABI; the variable `CARAXES_GUEST_ABI` went
+/// on 2026-09-30, the launcher passes the flag).
+pub fn check_guest_abi(flag: Option<u32>) -> Result<Option<GuestAbi>, String> {
+    match flag {
         None => Ok(None),
         Some(n) => GuestAbi::from_number(n)
             .map(Some)
@@ -727,19 +710,12 @@ mod abi_tests {
 
     #[test]
     fn the_guest_abi_is_pinned_or_chosen_by_the_guest() {
-        assert_eq!(check_guest_abi(None, None), Ok(None));
-        assert_eq!(check_guest_abi(None, Some("")), Ok(None));
+        assert_eq!(check_guest_abi(None), Ok(None));
         for g in GuestAbi::ALL {
-            let n = g.number();
-            assert_eq!(check_guest_abi(Some(n), None), Ok(Some(g)));
-            assert_eq!(check_guest_abi(None, Some(&n.to_string())), Ok(Some(g)));
-            assert_eq!(check_guest_abi(Some(n), Some(&n.to_string())), Ok(Some(g)));
+            assert_eq!(check_guest_abi(Some(g.number())), Ok(Some(g)));
         }
-        assert!(check_guest_abi(Some(610), Some("615")).is_err());
-        assert!(check_guest_abi(Some(570), Some("595")).is_err());
-        assert!(check_guest_abi(None, Some("6x5")).is_err());
-        assert!(check_guest_abi(Some(617), None).is_err());
-        assert!(check_guest_abi(Some(580), None).is_err());
+        assert!(check_guest_abi(Some(617)).is_err());
+        assert!(check_guest_abi(Some(580)).is_err());
     }
 
     #[test]

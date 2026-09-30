@@ -1,0 +1,5 @@
+vfio-user-nvgpu: hostmem: refused: the host RM did not give [0x69800000, 0xa9800000) (RM status 0x51 (NV_ERR_NO_MEMORY) on ioctl 0x2b); the host holds part of the range or the heap is fragmented (largest free region 6123 MiB at 0x6ad20000); no floating fallback (the guest's FB layout is fixed at start)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d7f020 freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 0
+Error: VRAM reservation refused: refused: the host RM did not give [0x69800000, 0xa9800000) (RM status 0x51 (NV_ERR_NO_MEMORY) on ioctl 0x2b); the host holds part of the range or the heap is fragmented (largest free region 6123 MiB at 0x6ad20000); no floating fallback (the guest's FB layout is fixed at start)
+ERROR: server did not create /mnt/vmstore/caraxes/vm10/gpu.sock

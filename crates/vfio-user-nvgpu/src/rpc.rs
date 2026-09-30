@@ -94,6 +94,24 @@ pub fn packed_registry(payload: &[u8]) -> Vec<(String, crate::gmcapi::RegValue)>
     out
 }
 
+/// The key of a request in the device lock's work table (dlock.rs `work`): the function,
+/// with the command of a control and the class of an allocation.
+pub fn work_key(function: u32, payload: &[u8]) -> String {
+    match function {
+        FN_GSP_RM_CONTROL => format!(
+            "{} {:#x}",
+            function_name(function),
+            u32_at(payload, v::RM_CONTROL_CMD)
+        ),
+        FN_GSP_RM_ALLOC => format!(
+            "{} class {:#x}",
+            function_name(function),
+            u32_at(payload, v::RM_ALLOC_H_CLASS)
+        ),
+        _ => function_name(function).to_string(),
+    }
+}
+
 /// One line describing a request payload, for the trace.
 pub fn describe(function: u32, payload: &[u8]) -> String {
     match function {

@@ -386,6 +386,21 @@ Pass criteria:
 - `display page:` shows as many markers as `CORE_RESET` acks and `inconsistencies: none`.
 - There are 0 host Xid lines in the ten GNOME starts.
 
+## 6b. Exact mode: the tree page read-only (2026-09-29)
+
+- With the tree page mapped read-only (Cloud Hypervisor `x_readonly_mmap_areas`, patch 0007)
+  or not mapped, the guest's stores to it trap. The first one switches the page to exact
+  mode (intr_page.rs): the registers' own values (turing/tu102/dev_vm.h:31-67), each store
+  applied as it arrives, no tag, no scan for stores; reads stay memory.
+- Values: a leaf its pending bits; `LEAF_EN_SET` and `LEAF_EN_CLEAR` the enable mask;
+  `TOP_EN_SET` and `TOP_EN_CLEAR` the top enables; `LEAF_TRIGGER` (write-only) 0; enables
+  from their reset value 0.
+- Why: the Windows 617 KMD cannot live with the tag (windows-findings.md P37 arm 2: three
+  GSP resets, 3898 watchdog MSIs). Page 0 stays writable memory (its registers are latched
+  in the trapped path too).
+- Windows launcher: run-ch-gpu.sh maps BAR0 0xb81000 read-only with `CARAXES_INTR_PAGE=1`.
+  Linux B keeps the writable, tagged page until an A/B measures the trapped stores' cost.
+
 ## 7. Switches
 
 | Variable | Default | Meaning |

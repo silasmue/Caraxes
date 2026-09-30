@@ -45,6 +45,53 @@ pub const DEFAULT_TOKENS: usize = 64;
 /// `kchannelNotifyWorkSubmitToken` (kernel_channel.c:4015-4030).
 pub const NOTIFIER_TOKEN_OFFSET: u64 = 16 + 8;
 
+/// A client may keep its token at another notifier index
+/// (`NVC36F_CTRL_CMD_GPFIFO_SET_WORK_SUBMIT_TOKEN_NOTIF_INDEX`, which the guest RM of a GSP
+/// system handles alone, kernel_channel.c:3455-3496 of 615): the entries scanned for it.
+pub const TOKEN_SCAN_ENTRIES: usize = 64;
+
+/// The status `kchannelNotifyWorkSubmitToken` writes with a token (kernel_channel.c
+/// :4359-4372 of 615): IN_PROGRESS (15:15) TRUE and VALUE (14:0) 0x7FFF; info16 is 0.
+pub const TOKEN_ENTRY_STATUS: u16 = 0xFFFF;
+
+/// The notifier entries (index, from 2) of a 16-byte `NvNotification` array `buf` that
+/// hold one of `tokens` as the RM writes a work-submit token: info32 the token, info16 0,
+/// status [`TOKEN_ENTRY_STATUS`]. Entries 0 (errors) and 1 (the default index) are not
+/// scanned.
+pub fn token_entries(buf: &[u8], tokens: &[u32]) -> Vec<usize> {
+    (2..buf.len() / 16)
+        .filter(|&i| {
+            let e = &buf[16 * i..16 * i + 16];
+            let info32 = u32::from_le_bytes(e[8..12].try_into().unwrap());
+            let info16 = u16::from_le_bytes(e[12..14].try_into().unwrap());
+            let status = u16::from_le_bytes(e[14..16].try_into().unwrap());
+            info16 == 0 && status == TOKEN_ENTRY_STATUS && tokens.contains(&info32)
+        })
+        .collect()
+}
+
+/// A notifier page: in FB (true) or guest RAM, and the page number.
+pub type NotifierPage = (bool, u64);
+
+/// Whether a value that is `chid`'s token (the one it rang with, or its mirror's host
+/// token) is only `chid`'s where it stands on `chid`'s notifier page `page`: no other
+/// channel a ring of it rings (`targets`, ctrl.rs `doorbell_targets`) keeps its notifier on
+/// that page, so no other channel's token entry there can hold the same value (a guest
+/// token that is also a mirrored channel's host token, both channels on one notifier
+/// page). `page_of(c)` is channel `c`'s notifier page, `None` for a channel without one
+/// the guest announced.
+pub fn own_on_page(
+    chid: u32,
+    targets: &[u32],
+    page: NotifierPage,
+    page_of: impl Fn(u32) -> Option<NotifierPage>,
+) -> bool {
+    targets
+        .iter()
+        .filter(|&&c| c != chid)
+        .all(|&c| page_of(c) != Some(page))
+}
+
 /// The pool size `CARAXES_DOORBELL_TOKENS` asks for: `None` when unset, empty or 0.
 pub fn requested() -> Result<Option<usize>, String> {
     let Ok(v) = std::env::var(TOKENS_ENV) else {
@@ -101,6 +148,8 @@ pub struct PoolStats {
     pub no_notifier: u64,
     pub mismatch: u64,
     pub exhausted: u64,
+    /// Pool tokens written into a token entry at another index than the default one.
+    pub elsewhere: u64,
     /// The first few stale tokens and mismatches, for the log.
     pub first: Vec<String>,
 }
@@ -198,7 +247,7 @@ impl TokenPool {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "doorbell tokens: {} offered ({TOKEN_BASE:#x}..), {} handed out, {} written again, {} assigned at exit (peak {}); {} eventfd wakeup(s) for {} guest write(s); {} pool token(s) trapped; {} trapped ring(s) with a channel's own token after its hand-out; {} stale; left on their own token: {} without notifier, {} notifier mismatch, {} pool exhausted{}",
+            "doorbell tokens: {} offered ({TOKEN_BASE:#x}..), {} handed out, {} written again, {} assigned at exit (peak {}); {} eventfd wakeup(s) for {} guest write(s); {} pool token(s) trapped; {} trapped ring(s) with a channel's own token after its hand-out; {} written into the token entry at another notifier index; {} stale; left on their own token: {} without notifier, {} notifier mismatch, {} pool exhausted{}",
             self.slots.len(),
             s.handed_out,
             s.rewritten,
@@ -208,6 +257,7 @@ impl TokenPool {
             s.eventfd_writes,
             s.trapped_pool_rings,
             s.own_token_after_handout,
+            s.elsewhere,
             s.stale,
             s.no_notifier,
             s.mismatch,
@@ -218,6 +268,127 @@ impl TokenPool {
                 format!(" (first: {})", s.first.join("; "))
             }
         )
+    }
+}
+
+// The guest-token ioeventfds (docs/caraxes/doorbell-token-pool.md (g)), with the boot
+// model: the set is derived from the engines the device offers ([`GuestTokens::auto`]).
+// Each value `runlist << 16 | chid` is one datamatch sub-region of the doorbell register
+// with its own eventfd; a write of such a value ends in its eventfd, and the device rings it
+// exactly as the trapped write of that value (ctrl.rs `doorbell`). For guests that ring
+// their own tokens and never read the work-submit-token notifier entry: the Windows KMD
+// computes its tokens itself (the pool's hand-out cannot reach it).
+
+/// `NV_CTRL_VF_DOORBELL` (tu102/dev_ctrl.h:36-37): VECTOR (the ChID) 11:0, RUNLIST_ID 22:16.
+pub const TOKEN_VECTOR_BITS: u32 = 12;
+pub const TOKEN_RUNLIST_SHIFT: u32 = 16;
+pub const TOKEN_RUNLIST_MAX: u32 = 0x7F;
+
+/// ChIDs per runlist in the automatic set: the Windows KMD and its applications used ChIDs up
+/// to 37 (the ring census of doorbell-token-pool.md (g)); ChIDs are one space for all
+/// runlists on Turing, so a guest with more live channels than this has its higher ones trap.
+pub const AUTO_CHIDS: u32 = 48;
+
+/// The guest token of `chid` on `runlist` (kfifoGenerateWorkSubmitTokenHal_TU102,
+/// kernel_fifo_tu102.c:75-130).
+pub fn guest_token(runlist: u32, chid: u32) -> u32 {
+    (runlist << TOKEN_RUNLIST_SHIFT) | chid
+}
+
+/// The guest tokens declared as ioeventfds, in registration order: KVM passes the entries
+/// of one address in that order, about 25 ns each, so the busiest values go first. The
+/// `hot` runlists are interleaved per ChID (ChID 0 of each, then ChID 1, ...): the graphics
+/// runlist and the first async copy runlist, which carry most rings (the KMD's paging copies
+/// and the applications' GR channels); the `rest` follow runlist by runlist.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuestTokens {
+    pub hot: Vec<u32>,
+    pub rest: Vec<u32>,
+    pub chids: u32,
+}
+
+impl GuestTokens {
+    /// The automatic set from the device-info table the device presents: the graphics
+    /// engine's runlist and the lowest async copy runlist interleaved first, then the
+    /// video encoders', the other copy runlists and the video decoders', as many as
+    /// `budget` eventfds allow at `chids` ChIDs each (at most `AUTO_CHIDS`). Engines that
+    /// are not host-driven, SEC2, NVJPG and OFA get none. `engines`: (name, runlist,
+    /// host_driven) of each entry.
+    pub fn auto(engines: &[(&str, u32, bool)], chids: u32, budget: usize) -> Option<Self> {
+        let chids = chids.min(AUTO_CHIDS);
+        let rls = |prefix: &str| {
+            let mut v: Vec<u32> = engines
+                .iter()
+                .filter(|(n, _, hd)| *hd && n.starts_with(prefix))
+                .map(|(_, r, _)| *r)
+                .collect();
+            v.sort_unstable();
+            v.dedup();
+            v
+        };
+        let gr = *rls("gr").first()?;
+        let ce: Vec<u32> = rls("ce").into_iter().filter(|r| *r != gr).collect();
+        let mut hot = vec![gr];
+        hot.extend(ce.first());
+        let mut rest: Vec<u32> = Vec::new();
+        for r in rls("nvenc").into_iter().chain(ce.iter().skip(1).copied()).chain(rls("nvdec")) {
+            if !hot.contains(&r) && !rest.contains(&r) {
+                rest.push(r);
+            }
+        }
+        if chids == 0 {
+            return None;
+        }
+        let fit = budget / chids as usize;
+        if fit < hot.len() {
+            return None;
+        }
+        rest.truncate(fit - hot.len());
+        let t = GuestTokens { hot, rest, chids };
+        t.check().ok()?;
+        Some(t)
+    }
+
+    pub(crate) fn check(&self) -> Result<(), String> {
+        let all: Vec<u32> = self.hot.iter().chain(&self.rest).copied().collect();
+        for (i, r) in all.iter().enumerate() {
+            if *r > TOKEN_RUNLIST_MAX || all[..i].contains(r) {
+                return Err(format!("guest tokens: runlist {r} repeated or beyond RUNLIST_ID 22:16"));
+            }
+        }
+        if self.hot.is_empty() {
+            return Err("guest tokens: no runlist".into());
+        }
+        if self.chids == 0 || self.chids > 1 << TOKEN_VECTOR_BITS {
+            return Err(format!("guest tokens: chids must be 1 to {} (VECTOR 11:0)", 1 << TOKEN_VECTOR_BITS));
+        }
+        if self.len() > MAX_TOKENS {
+            return Err(format!(
+                "guest tokens: {} tokens, at most {MAX_TOKENS} (SCM_MAX_FD: one eventfd each, one reply)",
+                self.len()
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn runlists(&self) -> Vec<u32> {
+        self.hot.iter().chain(&self.rest).copied().collect()
+    }
+
+    pub fn len(&self) -> usize {
+        (self.hot.len() + self.rest.len()) * self.chids as usize
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The tokens in registration order: the hot runlists interleaved per ChID, then the
+    /// rest runlist by runlist, ChIDs ascending.
+    pub fn values(&self) -> Vec<u32> {
+        let hot = (0..self.chids).flat_map(|c| self.hot.iter().map(move |&r| guest_token(r, c)));
+        let rest = self.rest.iter().flat_map(|&r| (0..self.chids).map(move |c| guest_token(r, c)));
+        hot.chain(rest).collect()
     }
 }
 
@@ -251,6 +422,24 @@ mod tests {
         assert!(!is_pool_token(TOKEN_BASE + 1, 1));
     }
 
+    /// A value of a channel is its own on its notifier page only if every other channel a
+    /// ring of it rings keeps its notifier elsewhere.
+    #[test]
+    fn a_shared_value_is_own_only_off_the_other_channels_page() {
+        let page = (false, 0x40080);
+        let pages = |c: u32| match c {
+            9 => Some(page),
+            10 => Some((false, 0x40081)),
+            11 => Some(page),
+            _ => None,
+        };
+        assert!(own_on_page(9, &[9], page, pages));
+        assert!(own_on_page(9, &[54], page, pages), "chid 54 has no notifier");
+        assert!(own_on_page(9, &[9, 10], page, pages), "chid 10's entries are on its own page");
+        assert!(!own_on_page(9, &[9, 11], page, pages), "chid 11 shares the page");
+        assert!(!own_on_page(9, &[11], page, pages));
+    }
+
     #[test]
     fn lowest_free_first_and_release() {
         let mut p = TokenPool::new(3);
@@ -279,5 +468,50 @@ mod tests {
     fn pool_is_bounded() {
         assert_eq!(TokenPool::new(1000).len(), MAX_TOKENS);
         assert_eq!(MAX_TOKENS, 253);
+    }
+
+    #[test]
+    fn guest_tokens_check_and_order() {
+        use super::{guest_token, GuestTokens};
+        let set = |hot: &[u32], rest: &[u32], chids| GuestTokens { hot: hot.to_vec(), rest: rest.to_vec(), chids };
+        let t = set(&[0, 1], &[7], 2);
+        assert!(t.check().is_ok());
+        assert_eq!(t.values(), vec![0x0, 0x10000, 0x1, 0x10001, 0x70000, 0x70001]);
+        assert_eq!(guest_token(1, 15), 0x1000f);
+        assert!(set(&[0], &[0], 4).check().is_err());
+        assert!(set(&[128], &[], 4).check().is_err());
+        assert!(set(&[0], &[], 0).check().is_err());
+        assert!(set(&[0], &[], 4097).check().is_err());
+        assert!(set(&[0, 1], &[2, 3, 7, 8], 51).check().is_err(), "306 > SCM_MAX_FD");
+        // Never a pool token: the pool's bits 31:23 lie above RUNLIST_ID 22:16.
+        let t = set(&[0], &[127], 1);
+        for v in t.values() {
+            assert!(!super::is_pool_token(v, super::MAX_TOKENS));
+        }
+        assert!(!super::is_pool_token(guest_token(127, 4095), super::MAX_TOKENS));
+        let _ = GuestTokens::auto(&[], 48, 253);
+    }
+
+    /// The automatic set from TU106's device-info table (chips/tu106/device-info.toml):
+    /// GR (0) and CE2 (1) interleaved, then NVENC (7), CE3 (2), CE4 (3); the NVDECs do not
+    /// fit 253 eventfds at 48 ChIDs. With the pool's 64 fewer, only NVENC follows.
+    #[test]
+    fn automatic_guest_tokens_on_tu106() {
+        use super::GuestTokens;
+        let engines = [
+            ("gr0", 0, true), ("ce0", 0, true), ("ce1", 0, true), ("ce2", 1, true),
+            ("ce3", 2, true), ("ce4", 3, true), ("nvdec0", 4, true), ("nvdec1", 5, true),
+            ("nvdec2", 6, true), ("nvenc0", 7, true), ("sec2", 8, true), ("sw", 0, false),
+        ];
+        let t = GuestTokens::auto(&engines, 512, 252).unwrap();
+        assert_eq!((t.hot.clone(), t.rest.clone(), t.chids, t.len()), (vec![0, 1], vec![7, 2, 3], 48, 240));
+        let v = t.values();
+        assert_eq!(&v[..4], &[0x0, 0x10000, 0x1, 0x10001]);
+        assert_eq!(v.iter().position(|&x| x == 0x1000f), Some(31), "the KMD's paging CE");
+        assert_eq!(v.iter().position(|&x| x == 0x1a), Some(52), "a GR channel");
+        assert_eq!(v.iter().position(|&x| x == 0x70024), Some(132), "NVENC");
+        let t = GuestTokens::auto(&engines, 512, 253 - 64 - 2).unwrap();
+        assert_eq!(t.runlists(), vec![0, 1, 7]);
+        assert!(GuestTokens::auto(&engines, 512, 50).is_none());
     }
 }

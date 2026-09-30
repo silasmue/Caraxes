@@ -1,0 +1,36 @@
+10:36:04 vm up
+      1 <value name="ExtraCommandLine" type="string">-benchmark</value>
+      1 <value name="ExtraCommandLineEnabled" type="integer">1</value>
+      2 <value name="FullscreenHeight" type="integer">1080</value>
+      2 <value name="FullscreenWidth" type="integer">1920</value>
+      1 <value name="GameOptionsDialogShouldShow" type="integer">0</value>
+      3 <value name="ScreenH" type="integer">1080</value>
+      3 <value name="ScreenW" type="integer">1920</value>
+loaded /opt/caraxes/display-reserve-v2/6.8.0-136-generic: nvidia (NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 08:27:07 UTC 2026), nvidia_modeset display_reserve_mib=-1; RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+modules-ok
+sunshine: active 0::/user.slice/user-1000.slice/user@1000.service/session.slice/app-dev.lizardbyte.app.Sunshine.service
+caraxes-dmem-cap (off): inactive
+Starting caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: no dmem controller in kernel 6.8.0-136-generic (needs >= 6.14 with CONFIG_CGROUP_DMEM): no cap
+Finished caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+Stopping caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+Stopped caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+kernel 6.8.0-136-generic; dmem controller: no
+saves before: 2
+10:36:43 moonlight pid 3295704 alive=yes
+try 1: the game exited: [S_API FAIL] SteamAPI_Init() failed; connect to global user failed.
+steam -silent, game started directly (try 2)
+game window 8388612 after 36 s: game starting
+   3674       00:58  0.0  3400 ./signalwrapper /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/Shadow
+   3675       00:58 95.9 798872 /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaider
+cgroup steam 2622: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-r0b8c25d72ba149c786ca9b02e185de0c.scope
+cgroup signalwrapper 3674: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-rb5e2ff5cbb804297aa8900819bf7900a.scope
+Terminated
+10:43:32 host-free=2415 host-mean=0.236424 host-rmse=- guest-mean=? | 08:43:03 vram=503 free=3398 gpu=1 app=-/- session=- game=none nvkms_fail=1 xid=0 | result=none
+10:43:32 NVKMS refusal seen: ending the game now (host Xid 109 risk of a frozen run)
+10:43:33 dmem (off): 0 cap line(s); nvkms_fail=nvkms_fail=1
+10:43:33 result: 
+after the game: 08:43:57 vram=430 free=3460 gpu=9 app=-/- session=- game=none nvkms_fail=1 xid=0
+10:43:59 moonlight stopped
+restored
+conf-restored

@@ -509,10 +509,8 @@ fn fill_value(b: &mut [u8], st: &str, ty: u32, e: Option<&Entry>) {
 /// to the host's table ([`SliceZbc`]). Anything else keeps this VM's local table. The one
 /// parser of the switch is compslice.rs [`requested`](crate::compslice::requested).
 pub const COMPRESSION_ENV: &str = crate::compslice::ENV;
-/// `CARAXES_ZBC_MAX`: how many free slots of each host table (colour, depth, stencil) one VM
-/// may fill, 0-15; an equal entry the host already holds costs nothing.
-pub const ZBC_MAX_ENV: &str = "CARAXES_ZBC_MAX";
-/// The default cap: each host table has 15 slots, 2-3 of them the chip defaults; at most
+/// How many free slots of each host table (colour, depth, stencil) one VM may fill; an equal
+/// entry the host already holds costs nothing. Each host table has 15 slots, 2-3 of them the chip defaults; at most
 /// two VMs run beside the desktop, so two full shares still leave the desktop four or more.
 pub const DEFAULT_MAX: u32 = 4;
 
@@ -530,7 +528,7 @@ pub const HOST_SET: &str =
 pub const HOST_VIEW: &str = "host (the host's ZBC table as this VM sees it: the chip defaults and this VM's entries at their host indices; other tenants' entries read as empty)";
 /// D9 label of a setter refused at the cap.
 pub const CAPPED: &str =
-    "refused (this VM filled CARAXES_ZBC_MAX slots of the host table: the answer of a full table)";
+    "refused (this VM filled its share of the host table: the answer of a full table)";
 /// D9 label of a setter refused here, never forwarded.
 pub const REFUSED_HERE: &str =
     "refused (isolation: never forwarded to the host's shared ZBC table)";
@@ -542,21 +540,6 @@ pub const REFERENCED: &str =
 /// it refuses ends start-up in main.rs before this is read).
 pub fn slice_from_env() -> bool {
     crate::compslice::requested() == Ok(crate::compslice::Mode::Slice)
-}
-
-/// `CARAXES_ZBC_MAX`, or [`DEFAULT_MAX`].
-pub fn max_from_env() -> u32 {
-    parse_max(std::env::var(ZBC_MAX_ENV).ok().as_deref())
-}
-
-fn parse_max(v: Option<&str>) -> u32 {
-    match v.map(str::trim) {
-        None | Some("") => DEFAULT_MAX,
-        Some(s) => s.parse::<u32>().map(|n| n.min(15)).unwrap_or_else(|_| {
-            log::warn!("{ZBC_MAX_ENV}={s:?} is no number; the cap stays {DEFAULT_MAX}");
-            DEFAULT_MAX
-        }),
-    }
 }
 
 /// A host slot this VM's guest set.
@@ -1645,15 +1628,6 @@ mod tests {
         .unwrap();
         assert_eq!((a.status, a.label), (0, RECORDED));
         assert_eq!(s.view.color.used(), 4);
-    }
-
-    #[test]
-    fn the_cap_from_the_environment_value() {
-        assert_eq!(parse_max(None), DEFAULT_MAX);
-        assert_eq!(parse_max(Some(" 2 ")), 2);
-        assert_eq!(parse_max(Some("0")), 0);
-        assert_eq!(parse_max(Some("99")), 15);
-        assert_eq!(parse_max(Some("many")), DEFAULT_MAX);
     }
 
     fn dispatcher(host: FakeZbcHost) -> crate::ctrl::Dispatcher {

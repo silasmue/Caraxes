@@ -331,6 +331,39 @@ pub fn finish(view: &GuestView, cmd: u32, a: &mut Answer) {
     }
 }
 
+/// `NV2080_CTRL_FB_INFO_INDEX_1TO1_COMPTAG_ENABLED` (ctrl2080fb.h:362).
+pub const FB_INFO_INDEX_1TO1_COMPTAG_ENABLED: u32 = 0x28;
+
+/// The same answers for a VM without compression (D16): `FB_GET_INFO_V2` says "0 indicates
+/// the GPU does not support compression" (ctrl2080fb.h:53-56) and no 1:1 comptag lines,
+/// as the memsys static config already does (`bOneToOneComptagLineAllocation` 0,
+/// `bDisableCompbitBacking` 1). The forwarded or replayed card's figures made the Windows
+/// KMD, which chooses its kinds itself, allocate kind 0x09 surfaces that the shadow then
+/// refused (C87/C88: 1.5 MiB per D3D device at VA 0x9e400000).
+pub fn finish_off(cmd: u32, a: &mut Answer) {
+    if cmd != FB_GET_INFO_V2 || a.status != NV_OK {
+        return;
+    }
+    let count = (get32(&a.params, 0) as usize).min(a.params.len().saturating_sub(4) / 8);
+    let mut cleared = Vec::new();
+    for i in 0..count {
+        let o = 4 + 8 * i;
+        let index = get32(&a.params, o);
+        if (index == FB_INFO_INDEX_COMPRESSION_SIZE || index == FB_INFO_INDEX_1TO1_COMPTAG_ENABLED)
+            && get32(&a.params, o + 4) != 0
+        {
+            put(&mut a.params, o + 4, 0, 4);
+            cleared.push(format!("{index:#x}"));
+        }
+    }
+    if !cleared.is_empty() {
+        a.note.push_str(&format!(
+            "; index {} answered 0 (no compression, D16)",
+            cleared.join(", ")
+        ));
+    }
+}
+
 /// The guest registry under compression. A Linux guest with `RMDisableScrubOnFree` set
 /// gets no compressible surface at all: without scrub on free and without the Windows
 /// (WDDM), vGPU-host or VF exemptions `kmemsysAllocComprResources_KERNEL` returns
@@ -650,9 +683,9 @@ mod tests {
         assert_eq!(b.label, LABEL_COMPBITCOPY);
     }
 
-    /// FB_GET_INFO_V2 COMPRESSION_SIZE: off is today's answer (the recording in pure
-    /// emulation, the host's with a host RM); the slice's is this VM's, every other index
-    /// stays.
+    /// FB_GET_INFO_V2 COMPRESSION_SIZE: off says no compression (0, and no 1:1 comptag
+    /// lines, D16) whatever the recording in pure emulation or the host RM answers; the
+    /// slice's is this VM's, every other index stays.
     #[test]
     fn fb_info_compression_size_off_and_slice() {
         let req = fb_info_request(&[0x07, 0x01, 0x28, 0x0D]);
@@ -661,13 +694,14 @@ mod tests {
         let off = ask(&mut dispatcher(Some(layout(false)), None), INTERNAL_SUBDEVICE, FB_GET_INFO_V2, &req);
         let on = ask(&mut dispatcher(Some(layout(true)), None), INTERNAL_SUBDEVICE, FB_GET_INFO_V2, &req);
         assert_eq!((off.status, on.status), (NV_OK, NV_OK));
-        assert_eq!(data(&off, 1), 0xF7D0_0000, "the card's, as before");
+        assert_eq!(data(&off, 1), 0, "no compression (D16)");
         assert_eq!(data(&on, 1), 0xE8E0_0000, "this VM's lines");
-        for i in [0, 2, 3] {
+        assert_eq!((data(&off, 2), data(&on, 2)), (0, 1), "1TO1_COMPTAG_ENABLED");
+        for i in [0, 3] {
             assert_eq!(data(&off, i), data(&on, i), "index {i}");
         }
         assert!(on.note.contains("COMPRESSION_SIZE 0xe8e00000"), "{}", on.note);
-        assert!(!off.note.contains("COMPRESSION_SIZE"));
+        assert!(off.note.contains("no compression, D16"), "{}", off.note);
         // With a host RM (nvml.rs forwards the list): the host card's value, and the slice's.
         struct Host;
         impl HostRm for Host {
@@ -683,8 +717,8 @@ mod tests {
         let off = ask(&mut dispatcher(Some(layout(false)), Some(Box::new(Host))), INTERNAL_SUBDEVICE, FB_GET_INFO_V2, &req);
         let on = ask(&mut dispatcher(Some(layout(true)), Some(Box::new(Host))), INTERNAL_SUBDEVICE, FB_GET_INFO_V2, &req);
         assert!(off.label.starts_with("host") && on.label == off.label, "{}", on.label);
-        assert_eq!((data(&off, 1), data(&on, 1)), (0xF7D0_0000, 0xE8E0_0000));
-        assert_eq!((data(&off, 2), data(&on, 2)), (0x1234, 0x1234));
+        assert_eq!((data(&off, 1), data(&on, 1)), (0, 0xE8E0_0000));
+        assert_eq!((data(&off, 2), data(&on, 2)), (0, 0x1234));
         assert_eq!(data(&on, 0), ((4 * GIB) >> 10) as u32, "sizes stay the profile's");
     }
 
@@ -896,5 +930,33 @@ mod tests {
             no_policy.one_to_one = false;
             assert_eq!(alloc_compr_resources(&no_policy, linux), Err(NV_ERR_INVALID_STATE));
         }
+    }
+
+    /// Without compression the FB info says so (D16): the card's COMPRESSION_SIZE and
+    /// 1TO1_COMPTAG_ENABLED, forwarded or replayed, are answered 0, other indices keep
+    /// their answer, and the compbit store is left to the chip table's refusal.
+    #[test]
+    fn without_compression_the_fb_info_says_none() {
+        let mut a = crate::recorded::answer(
+            FB_GET_INFO_V2,
+            &fb_info_request(&[0x28, 0x01, 0x02]),
+            &FACTS,
+        )
+        .unwrap();
+        assert_eq!(get32(&a.params, 8), 1, "the card's 1TO1_COMPTAG_ENABLED");
+        assert_ne!(get32(&a.params, 16), 0, "the card's COMPRESSION_SIZE");
+        let other = get32(&a.params, 24);
+        finish_off(FB_GET_INFO_V2, &mut a);
+        assert_eq!((get32(&a.params, 8), get32(&a.params, 16)), (0, 0));
+        assert_eq!(get32(&a.params, 24), other, "index 0x02 changed");
+        assert!(a.note.contains("no compression, D16"), "{}", a.note);
+        // Other controls pass untouched.
+        let mut b =
+            crate::recorded::answer(FB_GET_INFO_V2, &fb_info_request(&[0x01]), &FACTS).unwrap();
+        let before = b.params.clone();
+        finish_off(FB_GET_COMPBIT_STORE_INFO, &mut b);
+        assert_eq!(b.params, before);
+        // CARAXES_WIN_COMPBIT is retired: the store is never a recorded override.
+        assert!(!crate::recorded::overrides(FB_GET_COMPBIT_STORE_INFO));
     }
 }

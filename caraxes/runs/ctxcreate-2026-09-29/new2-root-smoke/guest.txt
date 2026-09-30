@@ -1,0 +1,62 @@
+=== user bench-cu copy
+BW dir=h2d mem=pinned size_mib=1 reps=15 med_us=239.4 min_us=225.1 gbps=4.380
+BW dir=d2h mem=pinned size_mib=1 reps=15 med_us=225.9 min_us=224.4 gbps=4.642
+BW dir=d2d mem=device size_mib=1 reps=15 med_us=244.3 min_us=227.6 gbps=4.292
+BW dir=h2d mem=pageable size_mib=1 reps=15 med_us=294.9 min_us=284.7 gbps=3.556
+BW dir=d2h mem=pageable size_mib=1 reps=15 med_us=327.9 min_us=301.0 gbps=3.198
+CHECK size_mib=1 bad_words=0
+BW dir=h2d mem=pinned size_mib=16 reps=6 med_us=1322.5 min_us=1306.2 gbps=12.686
+BW dir=d2h mem=pinned size_mib=16 reps=6 med_us=2180.6 min_us=1308.3 gbps=7.694
+BW dir=d2d mem=device size_mib=16 reps=6 med_us=114.7 min_us=97.7 gbps=146.232
+BW dir=h2d mem=pageable size_mib=16 reps=6 med_us=2437.2 min_us=2141.0 gbps=6.884
+BW dir=d2h mem=pageable size_mib=16 reps=6 med_us=2324.6 min_us=2018.3 gbps=7.217
+CHECK size_mib=16 bad_words=0
+BW dir=h2d mem=pinned size_mib=256 reps=5 med_us=20569.1 min_us=20562.1 gbps=13.050
+BW dir=d2h mem=pinned size_mib=256 reps=5 med_us=20581.6 min_us=20540.0 gbps=13.043
+BW dir=d2d mem=device size_mib=256 reps=5 med_us=1791.0 min_us=1640.5 gbps=149.882
+BW dir=h2d mem=pageable size_mib=256 reps=5 med_us=41804.3 min_us=37677.4 gbps=6.421
+BW dir=d2h mem=pageable size_mib=256 reps=5 med_us=42312.8 min_us=35133.3 gbps=6.344
+CHECK size_mib=256 bad_words=0
+--- xid: 0
+=== root bench-cu copy
+BW dir=h2d mem=pinned size_mib=1 reps=15 med_us=94.2 min_us=92.5 gbps=11.130
+BW dir=d2h mem=pinned size_mib=1 reps=15 med_us=90.5 min_us=90.1 gbps=11.584
+BW dir=d2d mem=device size_mib=1 reps=15 med_us=13.3 min_us=12.9 gbps=78.722
+BW dir=h2d mem=pageable size_mib=1 reps=15 med_us=148.7 min_us=147.7 gbps=7.054
+BW dir=d2h mem=pageable size_mib=1 reps=15 med_us=184.4 min_us=171.1 gbps=5.686
+CHECK size_mib=1 bad_words=0
+BW dir=h2d mem=pinned size_mib=16 reps=6 med_us=1311.8 min_us=1305.7 gbps=12.789
+BW dir=d2h mem=pinned size_mib=16 reps=6 med_us=1300.5 min_us=1297.5 gbps=12.901
+BW dir=d2d mem=device size_mib=16 reps=6 med_us=96.9 min_us=95.7 gbps=173.104
+BW dir=h2d mem=pageable size_mib=16 reps=6 med_us=2089.0 min_us=1900.4 gbps=8.031
+BW dir=d2h mem=pageable size_mib=16 reps=6 med_us=2437.9 min_us=2212.7 gbps=6.882
+CHECK size_mib=16 bad_words=0
+BW dir=h2d mem=pinned size_mib=256 reps=5 med_us=20594.7 min_us=20579.0 gbps=13.034
+BW dir=d2h mem=pinned size_mib=256 reps=5 med_us=20543.5 min_us=20516.4 gbps=13.067
+BW dir=d2d mem=device size_mib=256 reps=5 med_us=1389.3 min_us=1348.8 gbps=193.218
+BW dir=h2d mem=pageable size_mib=256 reps=5 med_us=33448.9 min_us=31609.9 gbps=8.025
+BW dir=d2h mem=pageable size_mib=256 reps=5 med_us=38536.5 min_us=37348.4 gbps=6.966
+CHECK size_mib=256 bad_words=0
+--- xid: 0
+=== root bench-cu init
+INIT cuinit_ms=62.879 devget_ms=0.000 ctxcreate_ms=1448.762 ctxdestroy_ms=1239.870
+INIT cuinit_ms=35.458 devget_ms=0.001 ctxcreate_ms=1509.650 ctxdestroy_ms=1226.496
+INIT cuinit_ms=38.527 devget_ms=0.001 ctxcreate_ms=1350.207 ctxdestroy_ms=1263.333
+--- xid: 0
+=== root bench-cu churn
+CHURN blocks=64 block_mib=1 cycles=10 alloc_med_us=578.9 free_med_us=1128.3 cycle_med_ms=207.211 total_ms=2060.1
+CHURN blocks=8 block_mib=64 cycles=10 alloc_med_us=4254.6 free_med_us=4565.5 cycle_med_ms=77.039 total_ms=807.0
+--- xid: 0
+=== root transformer
+# TRANSFORMER steps_per_s=36.476 step_med_ms=27.135 step_p10_ms=23.271 step_p90_ms=30.399 tokens_per_s=74703 steps=1095 first_step_ms=161.8 loss_first=8.3663 loss_last=0.0089 amp=0 batch=8 seq=256 lay
+--- xid: 0
+=== root convnet
+# CONVNET images_per_s=342.33 step_med_ms=46.665 step_p10_ms=42.322 step_p90_ms=50.395 steps=642 first_step_ms=1901.6 loss_first=7.0384 loss_last=0.0021 amp=0 channels_last=0 batch=16 size=224 mem_pea
+--- xid: 0
+=== user convnet
+# CONVNET images_per_s=371.55 step_med_ms=42.951 step_p10_ms=39.612 step_p90_ms=45.917 steps=697 first_step_ms=1730.7 loss_first=7.0384 loss_last=0.0018 amp=0 channels_last=0 batch=16 size=224 mem_pea
+--- xid: 0
+=== root llama1b
+llama_bench: error: failed to load model 'model.gguf'
+--- xid: 0
+=== guest xid lines

@@ -1,0 +1,16 @@
+07:24:43 ecc unloaded (dependency test)
+07:24:43 == load
+loaded /opt/caraxes/display-reserve/6.8.0-136-generic/nvidia.ko (NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 07:21:13 UTC 2026): RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0;RmDisplayReserve=0"
+RegistryDwordsPerDevice: ""
+load rc=0
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 07:21:13 UTC 2026
+modeset-drm-ok
+07:24:47 before gdm: 1 MiB, 823 MiB
+07:24:58 gdm +10s: 148 MiB, 677 MiB
+07:25:08 gdm +20s: 148 MiB, 677 MiB
+07:25:18 gdm +30s: 148 MiB, 677 MiB
+07:25:33 gdm +45s: 148 MiB, 677 MiB
+07:25:33 == reserve lines
+07:25:33 == other NVRM
+[ 1240.053809] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[ 1242.061696] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 07:21:13 UTC 2026

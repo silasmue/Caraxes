@@ -1,0 +1,276 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# caraxes-dmem-cap: keep a display reserve R of VRAM free for the compositor and NVKMS by
+# capping the desktop user's applications (user@UID.service/app.slice) with the dmem cgroup
+# controller (Linux >= 6.14, Documentation/admin-guide/cgroup-v2.rst "DMEM"). NVIDIA's open
+# modules (610 and later) charge their VRAM allocations to it when they are built against a
+# dmem kernel. Design and sources: docs/research/dmem-cap-2026-09-29.md.
+#
+#   caraxes-dmem-cap delegate UID  root (user@UID.service ExecStartPre): enable dmem in
+#                                  cgroup.subtree_control of /, user.slice and user-UID.slice,
+#                                  so that user@UID.service lists it in cgroup.controllers
+#   caraxes-dmem-cap apply         the user (caraxes-dmem-cap.service): enable dmem in the
+#                                  delegated user@UID.service and set, per NVIDIA region,
+#                                  APP_SLICE/dmem.max = dmem.current + free VRAM - R,
+#                                  R = display reserve + session reserve
+#   caraxes-dmem-cap clear         the user: APP_SLICE/dmem.max back to "max"
+#   caraxes-dmem-cap status        regions, limits, usage and free VRAM
+#
+# Settings in /etc/caraxes/dmem-cap.conf (KEY=value lines, see dmem-cap.conf):
+#   DISPLAY_RESERVE_MIB  -1 = automatic from the connected displays (default), 0 = no cap,
+#                        N = N MiB per GPU
+#   SESSION_RESERVE_MIB  growth of session.slice after the cap is set, added to R when there
+#                        is a display reserve: a stream server's encoder buffers (default 32)
+#   APP_SLICE            the capped slice below user@UID.service (default app.slice)
+#
+# Every run logs what it read and what it wrote to stdout, which systemd puts in the journal.
+# CARAXES_DMEM_CGROOT, CARAXES_DMEM_DRM and CARAXES_DMEM_CONF point it at another tree (tests).
+set -euo pipefail
+
+CG=${CARAXES_DMEM_CGROOT:-/sys/fs/cgroup}
+DRM=${CARAXES_DMEM_DRM:-/sys/class/drm}
+CONF=${CARAXES_DMEM_CONF:-/etc/caraxes/dmem-cap.conf}
+MIB=$((1 << 20))
+PAGE2M=$((2 << 20))
+
+log() { printf 'caraxes-dmem-cap: %s\n' "$*"; }
+die() { log "error: $*" >&2; exit 1; }
+mib() { awk -v b="$1" 'BEGIN { printf "%.2f", b / 1048576 }'; }
+
+conf() {  # KEY DEFAULT: the value of the last "KEY=value" line of $CONF, else DEFAULT
+    local v=""
+    [[ -r $CONF ]] && v=$(sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\([^[:space:]#]*\).*/\1/p" "$CONF" | tail -n 1)
+    printf '%s\n' "${v:-$2}"
+}
+
+have_dmem() { [[ -r $CG/cgroup.controllers ]] && grep -qw dmem "$CG/cgroup.controllers"; }
+no_dmem_msg() { log "no dmem controller in kernel $(uname -r) (needs >= 6.14 with CONFIG_CGROUP_DMEM): $1"; }
+
+# "domain:bus:device" in decimal, from an NVIDIA region name (nvidia/%08X:%02X:%02X.0/vidmem,
+# 615 os.c osCgroupRegisterRegion) or from a PCI address (0000:00:05.0 in sysfs,
+# 00000000:00:05.0 from nvidia-smi).
+region_key() {
+    [[ $1 =~ ^nvidia/([0-9A-Fa-f]+):([0-9A-Fa-f]+):([0-9A-Fa-f]+)\.0/vidmem$ ]] || return 1
+    printf '%d:%d:%d\n' "$((16#${BASH_REMATCH[1]}))" "$((16#${BASH_REMATCH[2]}))" "$((16#${BASH_REMATCH[3]}))"
+}
+pci_key() {
+    [[ $1 =~ ^([0-9A-Fa-f]+):([0-9A-Fa-f]+):([0-9A-Fa-f]+)\.[0-7]$ ]] || return 1
+    printf '%d:%d:%d\n' "$((16#${BASH_REMATCH[1]}))" "$((16#${BASH_REMATCH[2]}))" "$((16#${BASH_REMATCH[3]}))"
+}
+
+nvidia_regions() {  # the NVIDIA region names in dmem.capacity (root cgroup only)
+    [[ -r $CG/dmem.capacity ]] || return 0
+    awk '$1 ~ /^nvidia\/.*\/vidmem$/ { print $1 }' "$CG/dmem.capacity"
+}
+
+value_of() {  # FILE REGION: the value of REGION in a nested-keyed dmem file, else ""
+    [[ -r $1 ]] || { echo ""; return 0; }
+    awk -v r="$2" '$1 == r { v = $2 } END { print v }' "$1"
+}
+
+# ---- delegate (root) -----------------------------------------------------------------
+
+delegate() {
+    local uid=${1:-} d f
+    [[ $uid =~ ^[0-9]+$ ]] || die "delegate needs a numeric UID, got '$uid'"
+    if ! have_dmem; then no_dmem_msg "nothing to delegate"; return 0; fi
+    # cgroup-v2.rst "Top-down Constraint": a controller can be enabled only where the parent
+    # enabled it. Slices hold no processes, so "No Internal Process Constraint" is met.
+    for d in "" /user.slice "/user.slice/user-$uid.slice"; do
+        f=$CG$d/cgroup.subtree_control
+        [[ -e $f ]] || die "$f missing"
+        if grep -qw dmem "$f"; then
+            log "dmem already enabled in ${d:-/}"
+        else
+            echo +dmem > "$f" || die "cannot enable dmem in ${d:-/}"
+            log "enabled dmem in ${d:-/}/cgroup.subtree_control"
+        fi
+    done
+}
+
+# ---- display reserve -----------------------------------------------------------------
+
+# R in bytes for the GPU with key $1 (domain:bus:device), from its DRM connectors; prints
+# "BYTES DETAIL". Per connected connector: the largest mode it offers (any mode a compositor
+# can set is at most that large, so a mode change needs no recompute); S = align(4W, 64) x
+# align(H, 128) rounded up to 64 KiB (the XRGB8888 pitch-linear scanout surface as
+# libnvidia-allocator sizes it, v1 guest-module/virtio_nvrm/nvrm_vram.c); R = 5 x S rounded
+# up to 2 MiB (the PMA page of these buffers) + 2 MiB for cursors
+# (docs/research/display-balloon-2026-09-29.md "Sizing").
+reserve_auto() {
+    local key=$1 total=0 detail="" card dev c m w h best bw bh s r
+    for card in "$DRM"/card[0-9]*; do
+        [[ ${card##*/} =~ ^card[0-9]+$ ]] || continue
+        dev=$(readlink -f "$card/device" 2>/dev/null) || continue
+        [[ $(pci_key "${dev##*/}" 2>/dev/null) == "$key" ]] || continue
+        for c in "$card"-*; do
+            [[ -r $c/status && $(< "$c/status") == connected ]] || continue
+            best=0 bw=0 bh=0
+            while read -r m; do
+                [[ $m =~ ^([0-9]+)x([0-9]+) ]] || continue
+                w=${BASH_REMATCH[1]} h=${BASH_REMATCH[2]}
+                if (( w * h > best )); then best=$((w * h)) bw=$w bh=$h; fi
+            done < "$c/modes"
+            (( best > 0 )) || continue
+            s=$(( ((4 * bw + 63) / 64 * 64) * ((bh + 127) / 128 * 128) ))
+            s=$(( (s + 65535) / 65536 * 65536 ))
+            r=$(( 5 * ((s + PAGE2M - 1) / PAGE2M * PAGE2M) + PAGE2M ))
+            total=$((total + r))
+            detail+="${detail:+, }${c##*/"${card##*/}"-} ${bw}x${bh} S=$(mib "$s") MiB R=$(mib "$r") MiB"
+        done
+    done
+    printf '%s %s\n' "$total" "${detail:-no connected display}"
+}
+
+# ---- apply / clear / status (the user) -------------------------------------------------
+
+delegation_root() {  # the cgroup directory of this user's user@UID.service
+    local self uid
+    uid=$(id -u)
+    self=$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)
+    if [[ $self =~ ^(.*/user@${uid}\.service)(/|$) ]]; then
+        printf '%s\n' "$CG${BASH_REMATCH[1]}"
+    else
+        printf '%s\n' "$CG/user.slice/user-$uid.slice/user@$uid.service"
+    fi
+}
+
+app_slice_name() {
+    local s
+    s=$(conf APP_SLICE app.slice)
+    [[ $s =~ ^[A-Za-z0-9_.:@-]+\.slice$ ]] || die "APP_SLICE '$s' is not a slice name"
+    printf '%s\n' "$s"
+}
+
+# "KEY FREE_BYTES" per GPU. NVML's memory.free is the PMA's HEAP_FREE. NVIDIA 615's userspace
+# also reads the caller's dmem.max, so this runs in session.slice, which has no limit.
+gpu_free() {
+    command -v nvidia-smi > /dev/null || die "nvidia-smi missing"
+    local bus free
+    nvidia-smi --query-gpu=pci.bus_id,memory.free --format=csv,noheader,nounits |
+        while IFS=', ' read -r bus free; do
+            [[ $free =~ ^[0-9]+$ ]] || continue
+            printf '%s %s\n' "$(pci_key "$bus")" "$((free * MIB))"
+        done
+}
+
+wait_for_display() {  # up to 20 s for a lit connector: the compositor's buffers exist then
+    local c
+    for _ in $(seq 40); do
+        for c in "$DRM"/card[0-9]*-*; do
+            [[ -r $c/enabled && $(< "$c/enabled") == enabled ]] && return 0
+        done
+        sleep 0.5
+    done
+    log "no lit connector after 20 s; measuring anyway"
+}
+
+apply() {
+    if ! have_dmem; then no_dmem_msg "no cap"; return 0; fi
+    local base slice app reserve session r key cur free rbytes detail max got k f
+    local -a regions
+    local -A curof=() freeof=()
+    base=$(delegation_root)
+    slice=$(app_slice_name)
+    reserve=$(conf DISPLAY_RESERVE_MIB -1)
+    [[ $reserve =~ ^(-1|[0-9]+)$ ]] || die "DISPLAY_RESERVE_MIB '$reserve' is not -1, 0 or a size in MiB"
+    session=$(conf SESSION_RESERVE_MIB 32)
+    [[ $session =~ ^[0-9]+$ ]] || die "SESSION_RESERVE_MIB '$session' is not a size in MiB"
+    grep -qw dmem "$base/cgroup.controllers" ||
+        die "dmem is not delegated to ${base#"$CG"} (did user@.service's ExecStartPre 'caraxes-dmem-cap delegate' run?)"
+    # The delegatee's half (cgroup-v2.rst "Model of Delegation"): distribute dmem inside the
+    # delegated sub-tree. The dmem files this creates below belong to this user.
+    if ! grep -qw dmem "$base/cgroup.subtree_control"; then
+        echo +dmem > "$base/cgroup.subtree_control" || die "cannot enable dmem in ${base#"$CG"}"
+        log "enabled dmem in ${base#"$CG"}/cgroup.subtree_control"
+    fi
+    app=$base/$slice
+    [[ -d $app ]] || systemctl --user start "$slice" || die "cannot start $slice"
+    [[ -w $app/dmem.max ]] || die "${app#"$CG"}/dmem.max missing or not writable"
+
+    mapfile -t regions < <(nvidia_regions)
+    if (( ${#regions[@]} == 0 )); then
+        command -v nvidia-smi > /dev/null && nvidia-smi -L > /dev/null 2>&1 &&
+            die "no NVIDIA region in dmem.capacity: nvidia.ko was built without dmem (conftest NV_DMEM_CGROUP_PRESENT) or memacct is off (RmMemacctMode)"
+        log "no NVIDIA GPU: nothing to do"
+        return 0
+    fi
+    if [[ $reserve == -1 ]]; then wait_for_display; fi
+    # dmem.current before the free VRAM: an allocation between the two reads then lowers the
+    # cap instead of raising it.
+    for r in "${regions[@]}"; do cur=$(value_of "$app/dmem.current" "$r"); curof[$r]=${cur:-0}; done
+    while read -r k f; do freeof[$k]=$f; done < <(gpu_free)
+
+    for r in "${regions[@]}"; do
+        key=$(region_key "$r") || { log "skipping region $r (unknown name format)"; continue; }
+        cur=${curof[$r]}
+        free=${freeof[$key]:-}
+        [[ -n $free ]] || die "nvidia-smi reports no GPU for region $r"
+        if [[ $reserve == -1 ]]; then
+            read -r rbytes detail < <(reserve_auto "$key")
+        else
+            rbytes=$((reserve * MIB)) detail="DISPLAY_RESERVE_MIB=$reserve"
+        fi
+        if (( rbytes == 0 )); then
+            printf '%s max\n' "$r" > "$app/dmem.max"
+            log "$r: display reserve 0 ($detail): no cap, $slice/dmem.max = $(value_of "$app/dmem.max" "$r")"
+            continue
+        fi
+        # session.slice (compositor, Xwayland, stream server) is not capped; what it allocates
+        # after this point comes out of R.
+        rbytes=$((rbytes + session * MIB)) detail+="; session $session MiB"
+        max=$((cur + free - rbytes))
+        if (( max < cur )); then
+            log "$r: warning: free VRAM $(mib "$free") MiB is below the reserve $(mib "$rbytes") MiB; $slice stays at its current $(mib "$cur") MiB"
+            max=$cur
+        fi
+        printf '%s %s\n' "$r" "$max" > "$app/dmem.max"
+        # Linux <= 7.2 ignores a dmem.max below the usage without an error (dmem.c
+        # set_resource_max drops page_counter_set_max's -EBUSY): read it back.
+        got=$(value_of "$app/dmem.max" "$r")
+        [[ $got == "$max" ]] || die "$r: wrote $slice/dmem.max $max, read back '$got'"
+        log "$r: free $(mib "$free") MiB, $slice current $(mib "$cur") MiB, reserve $(mib "$rbytes") MiB ($detail): $slice/dmem.max = $max ($(mib "$max") MiB), read back ok"
+    done
+}
+
+clear_cap() {
+    have_dmem || return 0
+    local app r
+    app=$(delegation_root)/$(app_slice_name)
+    [[ -w $app/dmem.max ]] || { log "${app#"$CG"}/dmem.max absent: nothing to clear"; return 0; }
+    while read -r r; do
+        printf '%s max\n' "$r" > "$app/dmem.max"
+        log "$r: ${app#"$CG"}/dmem.max = $(value_of "$app/dmem.max" "$r")"
+    done < <(nvidia_regions)
+}
+
+status() {
+    local base d r line=""
+    echo "kernel $(uname -r); dmem controller: $(have_dmem && echo yes || echo no)"
+    have_dmem || return 0
+    echo "== dmem.capacity"; cat "$CG/dmem.capacity"
+    base=$(delegation_root)
+    for d in "" /user.slice "$(dirname "${base#"$CG"}")" "${base#"$CG"}"; do
+        line+="${d:-/}[$(grep -qw dmem "$CG$d/cgroup.subtree_control" 2>/dev/null && echo +dmem || echo -)] "
+    done
+    echo "== subtree_control: $line"
+    for d in "$base" "$base/session.slice" "$base/$(app_slice_name)" "$base/background.slice"; do
+        if [[ ! -r $d/dmem.current ]]; then echo "== ${d#"$CG"}: no dmem files"; continue; fi
+        while read -r r; do
+            echo "== ${d#"$CG"} $r current $(value_of "$d/dmem.current" "$r") max $(value_of "$d/dmem.max" "$r")"
+        done < <(nvidia_regions)
+    done
+    if command -v nvidia-smi > /dev/null; then
+        nvidia-smi --query-gpu=pci.bus_id,memory.total,memory.reserved,memory.used,memory.free --format=csv
+    fi
+}
+
+case ${1:-} in
+    delegate) delegate "${2:-}" ;;
+    apply) apply ;;
+    clear) clear_cap ;;
+    status) status ;;
+    *) echo "usage: ${0##*/} delegate UID | apply | clear | status" >&2; exit 2 ;;
+esac

@@ -1,0 +1,88 @@
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:13:01 == load
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+loaded /opt/caraxes/display-reserve-v2/6.8.0-136-generic: nvidia (NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 09:12:12 UTC 2026), nvidia_modeset display_reserve_mib=-1; RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+drm-uvm-ok
+09:13:06 no mode: 1 MiB, 823 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:13:06 == modes (DRM master)
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== mode 1920x1080
+  used 60 MiB, 764 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+  [  105.972233] NVRM: GPU0 displayReserveSetNeed: display reserve: declared 44224 KiB for 8640 KiB scanout surfaces
+  [  105.972274] NVRM: GPU0 _displayReserveRecut: display reserve: 44224 KiB for 8640 KiB scanout surfaces, 6 runs, 52224 KiB in PMA
+  [  105.972290] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== mode 1280x720
+  used 34 MiB, 790 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+  [  111.047394] NVRM: GPU0 displayReserveSetNeed: display reserve: declared 20224 KiB for 3840 KiB scanout surfaces
+  [  111.047444] NVRM: GPU0 _displayReserveRecut: display reserve: 20224 KiB for 3840 KiB scanout surfaces, 6 runs, 21504 KiB in PMA
+  [  111.047492] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 21504 KiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== off
+  used 13 MiB, 811 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+  [  116.091913] NVRM: GPU0 displayReserveSetNeed: display reserve: declared 0 KiB for 0 KiB scanout surfaces
+  [  116.091941] NVRM: GPU0 _displayReserveRecut: display reserve: 0 KiB for 0 KiB scanout surfaces, 0 runs, 0 KiB in PMA
+  [  116.091961] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 0 KiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:13:21 == GNOME
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:13:52 gnome +30s: 199 MiB, 626 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+[  124.756473] NVRM: GPU0 displayReserveSetNeed: display reserve: declared 52224 KiB for 10240 KiB scanout surfaces
+[  124.756643] NVRM: GPU0 _displayReserveRecut: display reserve: 52224 KiB for 10240 KiB scanout surfaces, 6 runs, 52224 KiB in PMA
+[  124.756674] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:13:52 == serve: CUDA fills the free VRAM and keeps grabbing, then dumb buffers
+fill: holding 526 MiB
+09:14:07 filled: 821 MiB, 4 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:14:10 run shape: dumb 1920x1152: ok pitch 7680 size 0x870000; destroyed
+09:14:13 after: 821 MiB, 4 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+[  166.865922] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  167.865996] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  168.866048] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  169.967894] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  170.866108] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:14:13 run shape, two at once:
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+dumb 1920x1152: ok pitch 7680 size 0x870000; destroyed
+dumb 1920x1152: ok pitch 7680 size 0x870000; destroyed
+09:14:22 after: 821 MiB, 4 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+[  173.027719] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  174.027783] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  174.033266] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  175.033343] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  176.033388] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  177.139141] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  178.033441] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 4 s
+[  179.133069] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  182.033598] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:14:25 smaller: dumb 1920x1080: ok pitch 7680 size 0x7e9000; destroyed
+09:14:30 after: 821 MiB, 4 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+[  182.179767] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 8192 KiB, holds 41984 of 52224 KiB
+[  183.179849] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  184.179907] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  186.179990] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 4 s
+[  190.180041] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 8 s
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+fill: holding 526 MiB
+fill: grabbed 10 MiB more, holding 536 MiB
+09:14:57 filler gone: 199 MiB, 626 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+[  198.180098] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 16 s
+[  214.180175] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution

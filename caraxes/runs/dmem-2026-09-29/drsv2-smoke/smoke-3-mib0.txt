@@ -1,0 +1,51 @@
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:33:26 ecc unloaded (dependency test)
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:33:26 == load
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+loaded /opt/caraxes/display-reserve-v2/6.8.0-136-generic: nvidia (NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 08:27:07 UTC 2026), nvidia_modeset display_reserve_mib=0; RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+drm-uvm-ok
+08:33:31 no mode: 1 MiB, 823 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:33:31 == modes (DRM master)
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== mode 1920x1080
+  used 9 MiB, 815 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== mode 1280x720
+  used 13 MiB, 811 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== off
+  used 13 MiB, 811 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:33:46 == GNOME
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:34:17 gnome +30s: 148 MiB, 677 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:34:17 == serve: CUDA fills the free VRAM, then 1080p dumb buffers
+fill: holding 576 MiB
+08:34:32 filled: 820 MiB, 5 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:34:32 dumb 1: dumb 1920x1080: FAILED errno 12 (Cannot allocate memory)
+08:34:35 after dumb 1: 820 MiB, 5 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:34:35 dumb 2: dumb 1920x1080: FAILED errno 12 (Cannot allocate memory)
+08:34:38 after dumb 2: 820 MiB, 5 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+08:34:42 filler gone: 148 MiB, 677 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution

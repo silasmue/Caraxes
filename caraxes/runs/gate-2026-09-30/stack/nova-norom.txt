@@ -1,0 +1,1 @@
+ERROR: /mnt/vmstore/caraxes/wt-flagsrb/caraxes/reference/rtx2070/rom.bin missing (git-ignored capture of the card's ROM)

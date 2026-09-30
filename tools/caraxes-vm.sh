@@ -28,31 +28,27 @@
 # `sudo -n setcap`), CARAXES_DMA=identity publishes an identity table. `dma` (also run by
 # `probe` and `uvm`) loads the guest module caraxes_dma_range with that table before
 # nvidia binds (guest-module/caraxes_dma_range/README.md); the guest keeps nvidia
-# blacklisted from autoloading so that it never binds without the table.
+# blacklisted from autoloading so that it never binds without the table. With
+# CARAXES_HOST_EXEC=1 the guest's DMA addresses are its GPAs and `dma` loads nothing.
 # CARAXES_DISPLAY=1 presents the display engine (--display, docs/caraxes/display-ab.md).
 # CARAXES_DISPLAY_PAGE_READONLY=1 retains direct display-status reads but traps writes;
 # it requires CARAXES_DISPLAY_PAGE=1 and Cloud Hypervisor patch 0007.
 # E5b part 2 (docs/caraxes/execution.md): CARAXES_HOST_EXEC=1 executes on the physical GPU
 # (the FB is the reserved VRAM, guest channels get host mirror channels, engine non-stall
-# events become guest interrupts); it needs the three flags above. The device maps the
-# reservation through the host's shared BAR1 (256 MiB on the RTX 2070): at most
-# CARAXES_BAR1_WINDOWS (default 2) windows of CARAXES_BAR1_WINDOW_MIB (default 32) MiB
-# each, so several devices and the desktop fit (docs/caraxes/parallel.md §2).
-# Mapping package (docs/caraxes/mapping.md): CARAXES_MAP_BUDGET caps the device's live RM
-# mappings of the shadow VA spaces (default 32768; beyond it guest leaves are refused with an
-# error line, protecting the host RM); CARAXES_SHADOW_ALWAYS_RESYNC=1 walks and diffs the whole
-# guest tree at every resync (the reference); CARAXES_SHADOW_COALESCE=0 maps one leaf per RM
-# call; CARAXES_BAR_TLB=0 walks the BAR tables at every trapped access; CARAXES_CE_SHADOW=0
-# runs copy-engine channels on the guest's own (unfiltered) tables; CARAXES_LINEAR_IOVA=0 keeps
-# the independent 1 GiB chunks instead of IOVA = GPA + one offset.
+# events become guest interrupts); it needs the three flags above (the device implies them
+# with --host-exec). With host execution the device runs its one configuration: every host
+# channel on a shadow VA space, guest DMA addresses as GPAs (no caraxes_dma_range in the
+# guest), the interrupt page, the hybrid doorbell reactor, a 32 MiB BAR1 pool beside two
+# 16 MiB BAR1 windows (the host's shared BAR1 is 256 MiB on the RTX 2070, parallel.md §2) and
+# the host boost. The device's knobs are CARAXES_COMPRESSION=off|slice,
+# CARAXES_DOORBELL_POLL=off|hybrid|spin and CARAXES_BAR1_POOL_MIB (0: no pool); the device
+# logs its configuration in one block of "config:" lines in gpu.log and warns about every
+# variable it no longer reads (crates/vfio-user-nvgpu/src/settings.rs).
 # Guest driver ABI (docs/research/one-abi-binary-2026-09-28.md): one device binary serves
 # every guest ABI and reads the guest's at its GSP boot (570 nova-core, 610, 615 Linux, the
 # 617 Windows guest on the 615 model). CARAXES_GUEST_ABI=570|595|610|615 is optional: it is
 # passed as --guest-abi and pins the device (fail closed on a guest that shows another);
 # 595 is the pre-610 element experiment of docs/caraxes/guest-driver-versions.md, pin only.
-# CARAXES_GUEST_DMA_GPA=1 tests stock guest DMA addresses without caraxes_dma_range.
-# It requires registered RAM and host-managed GR/CE shadow mappings. The guest
-# helper must be absent; do not combine its IOVA translation with GPA aliases.
 # CARAXES_INPUT=fifo gives the guest a virtio-input device (docs/caraxes/display-e.md §8)
 # without patching Cloud Hypervisor: a vhost-user-input backend (CARAXES_INPUT_SERVER, default
 # vhost-user-input from PATH, else the Leandro build) serves it on $W/input.sock and Cloud
@@ -191,21 +187,15 @@ up() {
         1) trace=(--trace "$W/gpu-trace.log") ;;
         *) error "CARAXES_TRACE must be 0 or 1" ;;
     esac
-    if [[ ${CARAXES_GUEST_DMA_GPA:-0} == 1 ]]; then
-        [[ ${CARAXES_DMA:-} == register && ${CARAXES_HOST_EXEC:-0} == 1 &&
-           ${CARAXES_MIRROR_CHANNELS:-0} == 1 && ${CARAXES_MIRROR_GR_SHADOW:-0} == 1 &&
-           ${CARAXES_CE_SHADOW:-1} != 0 ]] ||
-            error "GPA guest mode requires registered RAM, host execution and GR/CE shadow mappings"
-    fi
     [[ -x $SERVER ]] || error "$SERVER missing: cargo build --release -p vfio-user-nvgpu"
     [[ -x $LEA_CH ]] || error "cloud-hypervisor missing at $LEA_CH"
     local user_device="socket=$W/gpu.sock,id=gpu0"
     case ${CARAXES_DISPLAY_PAGE_READONLY:-0} in
         0) ;;
         1)
-            [[ ${CARAXES_DISPLAY_PAGE:-0} == 1 && ${CARAXES_INTR_PAGE:-0} == 1 &&
+            [[ ${CARAXES_DISPLAY_PAGE:-0} == 1 && ${CARAXES_HOST_EXEC:-0} == 1 &&
                ${CARAXES_DISPLAY:-0} == 1 ]] ||
-                error "CARAXES_DISPLAY_PAGE_READONLY=1 requires display and interrupt pages"
+                error "CARAXES_DISPLAY_PAGE_READONLY=1 requires the display page and host execution"
             local ch_help
             ch_help=$("$LEA_CH" --help)
             [[ $ch_help == *x_readonly_mmap_areas* ]] ||
@@ -264,7 +254,9 @@ up() {
     # lifecycle when tracing is off, immediately before the new backend starts, so
     # status and later diagnostics cannot mistake an older run's trace for this one.
     [[ ${CARAXES_TRACE:-1} == 0 ]] && rm -f "$W/gpu-trace.log"
-    LEA_ROOT=$LEA_ROOT "$server" --socket "$W/gpu.sock" "${trace[@]}" \
+    # CARAXES_GUEST_ABI reaches the device as --guest-abi; the device no longer reads the
+    # variable and would warn about it.
+    env -u CARAXES_GUEST_ABI LEA_ROOT="$LEA_ROOT" "$server" --socket "$W/gpu.sock" "${trace[@]}" \
         --config "$CONFIG" --rom "$REF/rom.bin" "${vbios[@]}" > "$W/gpu.log" 2>&1 &
     echo $! > "$W/gpu.pid"
     for _ in $(seq 50); do [[ -S $W/gpu.sock ]] && break; sleep 0.1; done
@@ -431,7 +423,7 @@ privileged_server() {
 # Reloads the module only when the table changed; then nvidia is unloaded first and
 # the device gets a function-level reset, so that the next modprobe starts clean.
 dma_load() {
-    if [[ ${CARAXES_GUEST_DMA_GPA:-0} == 1 ]]; then
+    if [[ ${CARAXES_HOST_EXEC:-0} == 1 && ${CARAXES_DMA:-} == register ]]; then
         [[ -s $W/dma-ranges ]] || error "GPA guest mode has no registered RAM table"
         do_ssh 'test ! -d /sys/module/caraxes_dma_range' ||
             error "GPA guest mode requires caraxes_dma_range to be absent; use a fresh guest boot without the helper"
@@ -468,8 +460,9 @@ dma_load() {
 }
 
 down() {
-    # Stop the VM first; the server then sees the socket close, prints its access
-    # summary into gpu.log and exits on its own. Kill it only if it does not.
+    # Stop the VM first; the server then sees the socket close, waits 2 s for a new
+    # client (a VMM reboot), prints its access summary into gpu.log and exits on its
+    # own. Kill it only if it does not.
     if alive "$W/ch.pid"; then kill "$(cat "$W/ch.pid")" 2>/dev/null || true; fi
     for _ in $(seq 50); do alive "$W/gpu.pid" || break; sleep 0.1; done
     if alive "$W/gpu.pid"; then kill "$(cat "$W/gpu.pid")" 2>/dev/null || true; fi

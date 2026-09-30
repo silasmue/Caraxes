@@ -69,7 +69,7 @@ pub fn parse(v: Option<&str>, intr_page: bool, display: bool) -> Result<bool, St
     };
     if on && !intr_page {
         return Err(format!(
-            "{DISPLAY_PAGE_ENV}=1 needs CARAXES_INTR_PAGE=1: the page is a third area of its memfd and the interrupt page's reactor scans it"
+            "{DISPLAY_PAGE_ENV}=1 needs the interrupt page, which host execution runs: the page is a third area of its memfd and the interrupt page's reactor scans it"
         ));
     }
     if on && !display {
@@ -196,6 +196,9 @@ pub struct Stats {
     pub raises: AtomicU64,
     pub watchdog: AtomicU64,
     pub cas_retries: AtomicU64,
+    /// Trapped accesses of the page (a VMM that maps it read-only, or not at all) served
+    /// without the device mutex (device.rs `Routes`).
+    pub routed: AtomicU64,
     pub odd: [AtomicU64; 5],
     pub marker_us_max: AtomicU64,
     /// From the display clock's raise to the reactor applying the guest's EVT_STAT ack:
@@ -338,6 +341,11 @@ impl FePage {
 
     /// Apply a trapped write before the guest resumes. Unlike a shared-memory store,
     /// the transaction exposes an AWAKEN_WIN echo even when its value is unchanged.
+    ///
+    /// Only the page's status changes here, under the page's own lock: no FB, BAR1 or guest
+    /// memory is touched, so the write needs neither the device mutex nor the BAR1 pool's
+    /// poll (device.rs `Routes`, docs/research/vblank-path-2026-09-29.md). The cost is the
+    /// lock, a scan of the 28 watched words and at most one raise (an eventfd write).
     pub fn write(&self, off: u64, data: &[u8]) {
         let raise = {
             let mut st = self.lock();
@@ -356,7 +364,7 @@ impl FePage {
                 match (0..WATCHED).find(|&w| watched_offset(w) == o & !3) {
                     Some(w) if w < W_AWAKEN_WIN => {
                         st.irq.evt[w] &= !(value & !TAG);
-                        bump(&self.stats.evt_acks);
+                        self.note_evt_ack();
                         signal = true;
                     }
                     Some(W_AWAKEN_WIN) => {
@@ -371,10 +379,7 @@ impl FePage {
                             st.irq.awaken_other &= !AWAKEN_CORE;
                             st.shown = 0;
                             st.retriggered = None;
-                            bump(&self.stats.marker_acks);
-                            self.stats.marker_us_max.fetch_max(
-                                t.elapsed().as_micros() as u64, Ordering::Relaxed,
-                            );
+                            self.note_marker_ack(t);
                             signal = true;
                         }
                     }
@@ -424,6 +429,34 @@ impl FePage {
         let m = self.marker_ns.load(Ordering::Relaxed);
         m != 0
             && now.saturating_duration_since(self.epoch + Duration::from_nanos(m - 1)) < MARKER_SPIN
+    }
+
+    /// A guest `EVT_STAT` ack, from memory (`sync`) or trapped (`write`): counted, and the
+    /// delivery from the clock's raise to it (docs/caraxes/intr-page.md §11.4) goes into
+    /// the histogram. With the read-only page every ack is trapped, so this is the
+    /// device's own measure of the vblank handler's latency.
+    fn note_evt_ack(&self) {
+        bump(&self.stats.evt_acks);
+        if let Some(t) = super::engine::ticker().take_raise_for_ack() {
+            let us = super::engine::now_ns().saturating_sub(t) / 1000;
+            self.stats
+                .service
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .add(us);
+        }
+    }
+
+    /// A guest `CORE_RESET` acknowledged the marker opened at `t`.
+    fn note_marker_ack(&self, t: Instant) {
+        bump(&self.stats.marker_acks);
+        let us = t.elapsed().as_micros() as u64;
+        self.stats.marker_us_max.fetch_max(us, Ordering::Relaxed);
+        self.stats
+            .marker_ack
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .add(us);
     }
 
     fn odd(&self, st: &mut State, what: Odd) {
@@ -517,15 +550,7 @@ impl FePage {
                 }
                 st.irq.evt[h] &= !(v & !TAG);
                 acked = true;
-                bump(&self.stats.evt_acks);
-                if let Some(t) = super::engine::ticker().take_raise_for_ack() {
-                    let us = super::engine::now_ns().saturating_sub(t) / 1000;
-                    self.stats
-                        .service
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .add(us);
-                }
+                self.note_evt_ack();
             }
         }
         if changed(W_AWAKEN_WIN) {
@@ -548,14 +573,7 @@ impl FePage {
                 st.shown = 0;
                 st.retriggered = None;
                 acked = true;
-                bump(&self.stats.marker_acks);
-                let us = t.elapsed().as_micros() as u64;
-                self.stats.marker_us_max.fetch_max(us, Ordering::Relaxed);
-                self.stats
-                    .marker_ack
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .add(us);
+                self.note_marker_ack(t);
             } else {
                 self.odd(st, Odd::StaleCoreAck);
             }
@@ -659,7 +677,7 @@ impl FePage {
             .map(|(what, n)| format!("{} x {what}", l(n)))
             .collect();
         format!(
-            "display page: {} scan(s) with work; guest stores applied: {} EVT_STAT ack(s), {} RM_INTR_EN store(s); {} awaken marker(s), {} acked by CORE_RESET (longest {:.1} ms); {} raise(s) after an ack, {} by the watchdog; {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
+            "display page: {} scan(s) with work; guest stores applied: {} EVT_STAT ack(s), {} RM_INTR_EN store(s); {} awaken marker(s), {} acked by CORE_RESET (longest {:.1} ms); {} raise(s) after an ack, {} by the watchdog; {} compare-and-swap(s) lost to a guest store; {} trapped access(es) served without the device mutex; inconsistencies: {}\n",
             l(&s.scans),
             l(&s.evt_acks),
             l(&s.en_stores),
@@ -669,6 +687,7 @@ impl FePage {
             l(&s.raises),
             l(&s.watchdog),
             l(&s.cas_retries),
+            l(&s.routed),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
         ) + &format!(
             "display page delivery: raise to the guest's EVT_STAT ack {}; marker to CORE_RESET {}\n",
@@ -716,6 +735,27 @@ mod tests {
 
     const H3: u64 = 12;
 
+    /// A VMM that maps the page read-only traps the guest's stores: the server applies them
+    /// under the page's own lock, without the device mutex (device.rs `Routes`; Linux SotTR
+    /// spent 42.6 s of its load in 41k EVT_STAT acks waiting for the device mutex).
+    #[test]
+    fn routed_trapped_acks_do_not_need_the_device_mutex() {
+        let (_intr, fe, _) = page();
+        fe.update(|i| i.evt[3] = super::super::engine::LAST_DATA);
+        let routes = crate::device::Routes { fe_page: Some(fe.clone()), ..Default::default() };
+        let device = std::sync::Mutex::new(());
+        let _held = device.lock().unwrap();
+        let ack = FE_EVT_STAT_HEAD_TIMING + H3;
+        let mut b = [0u8; 4];
+        assert!(routes.read(0, ack, &mut b));
+        assert_eq!(u32::from_le_bytes(b) & !TAG, super::super::engine::LAST_DATA);
+        assert!(routes.write(0, ack, &super::super::engine::LAST_DATA.to_le_bytes()));
+        assert_eq!(fe.irq().evt[3], 0, "the ack applied");
+        assert_eq!(fe.stats.routed.load(Ordering::Relaxed), 2);
+        assert!(!routes.write(1, ack, &[0; 4]), "BAR0 only");
+        assert!(fe.summary().contains("2 trapped access(es) served without the device mutex"));
+    }
+
     #[test]
     fn trapped_echo_clears_before_another_guest_pass_without_a_scan() {
         let (_intr, fe, _) = page();
@@ -738,6 +778,33 @@ mod tests {
         assert!(!fe.dirty());
         assert!(!fe.scan());
         assert!(fe.summary().contains("inconsistencies: none"));
+    }
+
+    /// With the read-only page every ack is trapped: `write` counts them and feeds the
+    /// delivery histograms as the reactor's scan does (the summary's `display page
+    /// delivery` line, docs/research/vblank-path-2026-09-29.md).
+    #[test]
+    fn trapped_acks_feed_the_delivery_histograms() {
+        let (_intr, fe, raises) = page();
+        fe.update(|i| {
+            i.en[3] = LAST_DATA;
+            i.evt[3] = LAST_DATA;
+            i.awaken_win = 0x40;
+        });
+        // kdispServiceAwakenIntr, then the vblank's LAST_DATA reset: the level stays up
+        // after each awaken ack (vblank pending), so each raises once, as the scan would.
+        fe.write(FE_EVT_STAT_AWAKEN_WIN, &0x40u32.to_le_bytes());
+        fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
+        fe.write(FE_EVT_STAT_HEAD_TIMING + H3, &LAST_DATA.to_le_bytes());
+        assert_eq!(raises.load(Ordering::Relaxed), 2);
+        assert!(!fe.irq().pending());
+        assert_eq!(fe.stats.evt_acks.load(Ordering::Relaxed), 1);
+        assert_eq!(fe.stats.marker_acks.load(Ordering::Relaxed), 1);
+        assert_eq!(fe.stats.marker_ack.lock().unwrap().n, 1);
+        let s = fe.summary();
+        assert!(s.contains("marker to CORE_RESET p50 <= "), "{s}");
+        assert!(s.contains("of 1 at 1 ms or more\n"), "{s}");
+        assert!(!fe.dirty());
     }
 
     #[test]
@@ -773,7 +840,7 @@ mod tests {
         assert_eq!(parse(Some("1"), true, true), Ok(true));
         assert!(parse(Some("1"), false, true)
             .unwrap_err()
-            .contains("CARAXES_INTR_PAGE"));
+            .contains("interrupt page"));
         assert!(parse(Some("1"), true, false)
             .unwrap_err()
             .contains("--display"));

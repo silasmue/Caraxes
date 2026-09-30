@@ -453,7 +453,7 @@ mod tests {
         assert!(DmaTable::parse("0:0").is_err());
     }
 
-    /// A guest that speaks GPA (Windows, CARAXES_GUEST_DMA_GPA): the identity of a linearly
+    /// A guest that speaks GPA (host execution): the identity of a linearly
     /// registered table is accepted as aliases, one per range; a registration that put some RAM
     /// at IOVAs inside the GPA space would make an identity alias ambiguous and is refused.
     #[test]

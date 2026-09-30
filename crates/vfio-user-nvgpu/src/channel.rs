@@ -103,19 +103,18 @@ impl GpuMem<'_> {
     }
 
     /// Resolve `len` bytes at `va` page by page (4 KiB is the smallest GMMU page,
-    /// so every larger page splits consistently) into physical pieces.
+    /// so every larger page splits consistently) into physical pieces. The tables are read
+    /// once per 2 MiB unit (fb.rs `translate_pages`), not per page.
     fn pieces(&self, root: Target, va: u64, len: u64) -> Result<Vec<(Target, usize)>, String> {
+        let _spent = crate::dlock::Spend::new(crate::dlock::Part::Translate);
         let mut out = Vec::new();
-        let mut done = 0u64;
-        while done < len {
-            let a = va + done;
-            let n = (0x1000 - (a & 0xFFF)).min(len - done);
-            let t = self.fb.translate_in(Some(self.sys), root, a);
+        let mut a = va;
+        for (t, n) in self.fb.translate_pages(Some(self.sys), root, va, len) {
             match t {
-                Target::Fb(_) | Target::Sys(_) => out.push((t, n as usize)),
+                Target::Fb(_) | Target::Sys(_) => out.push((t, n)),
                 other => return Err(format!("va {a:#x}: {other:?}")),
             }
-            done += n;
+            a += n as u64;
         }
         Ok(out)
     }
@@ -173,7 +172,16 @@ struct DeviceWait {
     seq: u32,
     ranges: Vec<(u64, u64)>,
     engine: crate::devce::SharedEngine,
+    /// A remap with NO_WRITE components: the FB address of its first element and the bytes
+    /// it must hold afterwards (its old bytes with the written components replaced), checked
+    /// when the push is done ([`DEVCE_NO_WRITE_BAD`]).
+    check: Option<(u64, Vec<u8>)>,
 }
+
+/// Set when the host engine's result for a NO_WRITE remap differed from the class's
+/// semantics (the first element read back): later such remaps stay on the CPU.
+static DEVCE_NO_WRITE_BAD: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 impl std::fmt::Debug for DeviceWait {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -217,8 +225,69 @@ enum CeOutcome {
 static CE_SLICES_PENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Whether a software CE transfer waits for its next slice (cleared by the check).
+/// Ask the slice clock for a pass (a deferred method waiting for its context's build).
+pub fn request_ce_slice() {
+    CE_SLICES_PENDING.store(true, std::sync::atomic::Ordering::Release);
+}
+
 pub fn ce_slices_pending() -> bool {
     CE_SLICES_PENDING.swap(false, std::sync::atomic::Ordering::AcqRel)
+}
+
+/// A software channel waits on a semaphore acquire ([`AcquireWait`]): the `ce-slices` clock
+/// re-reads the semaphore ([`Registry::ready_acquires`]).
+static ACQUIRE_WAITS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether a software channel may wait on a semaphore acquire (cleared by the check; the
+/// check sets it again while one still waits).
+pub fn acquire_waits_pending() -> bool {
+    ACQUIRE_WAITS.swap(false, std::sync::atomic::Ordering::AcqRel)
+}
+
+/// The semaphore acquire a software channel is blocked on: the host re-evaluates an acquire
+/// until it is satisfied (clc46f.h SEM_EXECUTE ACQUIRE*, the legacy SEMAPHORED ACQUIRE
+/// forms), so the executor re-reads this word at every tick of the `ce-slices` clock and
+/// continues the channel as soon as the release is there. Until 2026-09-29 a blocked acquire
+/// was retried only at the next doorbell or budget stop of any channel: C79's Sunshine
+/// capture setup lost 1.58 s in 59 such waits of the Windows KMD's channel (up to 401 ms).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AcquireWait {
+    pub root: Target,
+    pub va: u64,
+    /// 8-byte payload (SEM_EXECUTE PAYLOAD_SIZE_64BIT), else 4.
+    pub wide: bool,
+    pub payload: u64,
+    pub op: AcquireOp,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AcquireOp {
+    /// `== payload`.
+    Eq,
+    /// `>= payload`.
+    Geq,
+    /// `(cur - payload)` as signed `>= 0` (ACQ_CIRC_GEQ).
+    CircGeq,
+    /// `cur & payload != 0` (the legacy ACQUIRE_AND).
+    And,
+}
+
+impl AcquireOp {
+    fn ready(self, cur: u64, want: u64, wide: bool) -> bool {
+        let (cur, want) = if wide { (cur, want) } else { (cur & 0xFFFF_FFFF, want & 0xFFFF_FFFF) };
+        match self {
+            AcquireOp::Eq => cur == want,
+            AcquireOp::Geq => cur >= want,
+            AcquireOp::CircGeq => {
+                if wide {
+                    (cur.wrapping_sub(want) as i64) >= 0
+                } else {
+                    ((cur as u32).wrapping_sub(want as u32) as i32) >= 0
+                }
+            }
+            AcquireOp::And => cur & want != 0,
+        }
+    }
 }
 
 /// Compute-class stub state (`clc5c0.h`, E5c): report semaphores and inline-to-memory.
@@ -332,6 +401,13 @@ pub struct Channel {
     /// src/nvidia/generated/g_kernel_channel_nvoc.h:199-202 of 615;
     /// kernel_channel.c:2786-2799), which GSP-RM creates under that id.
     pub internal_tsg_id: Option<u32>,
+    /// The privilege level the guest kernel gave the channel
+    /// (`NV_KERNELCHANNEL_ALLOC_INTERNALFLAGS_PRIVILEGE` 1:0 of `internalFlags`: USER 0,
+    /// ADMIN 1, KERNEL 2; 615 tree: src/nvidia/generated/g_kernel_channel_nvoc.h:173-176).
+    /// A GSP client passes it because GSP-RM cannot check the client itself (615 tree:
+    /// src/nvidia/src/kernel/gpu/fifo/kernel_channel.c:2767-2770): a kernel client's channels
+    /// are KERNEL, an admin (root) process's ADMIN, and both are PRIVILEGED_CHANNEL (:288-297).
+    pub alloc_privilege: u32,
     gp_get: u32,
     /// USERD GPPut as read at the channel's last doorbell on any path (software, shadow,
     /// mirror): the token-less ioeventfd doorbell path rings a channel only when the
@@ -360,12 +436,36 @@ pub struct Channel {
     software_fb_range: Option<(u64, u64)>,
     /// The software CE's slice ([`CE_SLICE`]; the registry's, copied at each run).
     ce_slice: std::time::Duration,
+    /// The last run stopped at its budget ([`RUN_BUDGET`]) with entries left: the slice
+    /// clock continues it at the same GPGet ([`Registry::blocked_software_channels`]).
+    budget_stop: bool,
     /// Fail-closed software execution for management channels whose deferred APIs are
     /// completed by the dispatcher through a prepared host context.
     deferred_management: bool,
     deferred: Option<DeferredState>,
     /// Semaphore diagnostics already emitted as `(VA, payload)`; bounds retry logging.
     sem_diag_seen: std::collections::BTreeSet<(u64, u32)>,
+    /// The acquire the channel's last run blocked on ([`AcquireWait`]).
+    acquire_wait: Option<AcquireWait>,
+    /// Deferred ring migrations registered on this channel's 0x5080 object ([`RingSwitch`]).
+    ring_switches: Vec<RingSwitch>,
+    /// Those whose method ran in the current entry: applied after it.
+    switched: Vec<RingSwitch>,
+}
+
+/// A deferred NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO (ctrl2080fifo.h:693-725) for a channel
+/// the device executes itself, registered on the owner channel's 0x5080 object: at the
+/// owner's `NV5080` method 0x200 with this API handle (the deferred call, run where GSP-RM
+/// runs it, deferred_api.c `_class5080DeferredApiV2`), the target moves to the new ring after
+/// that pushbuffer entry, as the host fetches the next entry from the new GPFIFO.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RingSwitch {
+    pub api: u32,
+    pub target: u32,
+    pub target_generation: u64,
+    pub userd: Target,
+    pub gpfifo_va: u64,
+    pub entries: u32,
 }
 
 impl Channel {
@@ -449,6 +549,23 @@ impl Channel {
     }
 }
 
+/// The device clock's epoch: one per device process, the base of `NV_PTIMER_TIME_0/1`,
+/// the usermode TIME_0/1, semaphore timestamps, the time correlation, and the display
+/// engine's vblank clock and notifier timestamps (display/engine.rs), so every time the
+/// guest reads or finds in memory is on one base. A function-level reset does not restart
+/// it: the RM sets PTIMER to the wall-clock time before every GSP boot
+/// (`kernel_gsp.c:5677-5682`, `tmrSetCurrentTime_GV100`, timer_gv100.c:47-72), so on the
+/// card the timer never goes back across a reset either.
+pub fn device_epoch() -> std::time::Instant {
+    static EPOCH: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    *EPOCH.get_or_init(std::time::Instant::now)
+}
+
+/// Nanoseconds of the device clock ([`device_epoch`]).
+pub fn device_now_ns() -> u64 {
+    device_epoch().elapsed().as_nanos() as u64
+}
+
 /// Completed software work or a terminal method failure, drained by the dispatcher.
 pub struct SoftwareEvent {
     pub chid: u32,
@@ -515,7 +632,8 @@ pub struct Registry {
     channels: BTreeMap<u32, Channel>,
     /// Last generation assigned to an accepted channel allocation.
     channel_generation: u64,
-    /// Device clock base for semaphore timestamps.
+    /// Device clock base for semaphore timestamps: [`device_epoch`], shared with PTIMER
+    /// and the display engine and kept across a function-level reset.
     start: Option<std::time::Instant>,
     pub doorbells: u64,
     /// TLB invalidates the software executor ran into (`MEM_OP` MMU_TLB_INVALIDATE):
@@ -536,6 +654,8 @@ pub struct Registry {
     pub software_fb_range: Option<(u64, u64)>,
     /// The software CE's slice ([`CE_SLICE`]; shorter in tests).
     pub ce_slice: std::time::Duration,
+    /// A software run's budget between GPFIFO entries ([`RUN_BUDGET`]; other in tests).
+    pub run_budget: std::time::Duration,
     /// Lets the dispatcher avoid software-event scans on the mirrored hot path.
     pub software_runs: u64,
     sem_diag: bool,
@@ -588,7 +708,7 @@ impl Registry {
             client_share: BTreeMap::new(),
             channels: BTreeMap::new(),
             channel_generation: 0,
-            start: Some(std::time::Instant::now()),
+            start: Some(device_epoch()),
             doorbells: 0,
             tlb_invalidates: Vec::new(),
             memop_hold: None,
@@ -597,6 +717,8 @@ impl Registry {
             tokens: None,
             software_fb_range: None,
             ce_slice: CE_SLICE,
+            // Unit tests run whole doorbells unless they test the budget.
+            run_budget: if cfg!(test) { std::time::Duration::from_secs(1) } else { RUN_BUDGET },
             software_runs: 0,
             sem_diag: std::env::var("CARAXES_SEMAPHORE_DIAG").as_deref() == Ok("1"),
             sem_diag_chid: std::env::var("CARAXES_SEMAPHORE_DIAG_CHID")
@@ -960,11 +1082,150 @@ impl Registry {
         self.channels.get(&chid).map(|c| c.gp_get)
     }
 
+    /// The software channels whose blocked acquire ([`AcquireWait`]) is satisfied now, read
+    /// through the same path as the acquire itself. The flag of [`acquire_waits_pending`]
+    /// stays set while a channel still waits.
+    pub fn ready_acquires(&self, mem: &GpuMem) -> Vec<u32> {
+        let mut ready = Vec::new();
+        let mut waiting = false;
+        for ch in self.channels.values() {
+            let Some(w) = ch.acquire_wait else { continue };
+            if ch.mirrored || ch.software_failed || ch.resume.is_none() {
+                continue;
+            }
+            let n = if w.wide { 8 } else { 4 };
+            let mut b = [0u8; 8];
+            let read = ce_pieces(mem, w.root, false, 0, w.va, n as u64, ch.software_fb_range)
+                .and_then(|pieces| ce_read(mem, &pieces, &mut b[..n]));
+            match read {
+                Ok(()) if w.op.ready(u64::from_le_bytes(b), w.payload, w.wide) => ready.push(ch.chid),
+                // Unreadable now: the channel's next run reports it.
+                Err(_) => ready.push(ch.chid),
+                Ok(()) => waiting = true,
+            }
+        }
+        if waiting {
+            ACQUIRE_WAITS.store(true, std::sync::atomic::Ordering::Release);
+        }
+        ready
+    }
+
+    /// One line per guest channel for a live state dump (main.rs `device-ctl`, "state"):
+    /// where the device is in the channel, what its guest USERD says now, and a blocked
+    /// acquire with the value at its address now. Read only.
+    pub fn state_lines(&self, mem: &GpuMem) -> Vec<String> {
+        let at = |t: Target, off: u64| match t {
+            Target::Fb(pa) => Some(Target::Fb(pa + off)),
+            Target::Sys(pa) => Some(Target::Sys(pa + off)),
+            _ => None,
+        };
+        let word = |t: Option<Target>| t.and_then(|t| mem.read_u32(t)).map_or("-".to_string(), |v| format!("{v:#x}"));
+        self.channels
+            .values()
+            .map(|ch| {
+                let userd = ch.userd.map_or("no USERD".to_string(), |u| {
+                    format!(
+                        "USERD {u:?}: GP_GET {} GP_PUT {} GET {} PUT {} REF {}",
+                        word(at(u, 0x88)),
+                        word(at(u, 0x8c)),
+                        word(at(u, 0x44)),
+                        word(at(u, 0x40)),
+                        word(at(u, 0x48))
+                    )
+                });
+                let acquire = ch.acquire_wait.map_or(String::new(), |w| {
+                    let n = if w.wide { 8 } else { 4 };
+                    let mut b = [0u8; 8];
+                    let now = ce_pieces(mem, w.root, false, 0, w.va, n as u64, ch.software_fb_range)
+                        .and_then(|pieces| ce_read(mem, &pieces, &mut b[..n]))
+                        .map_or_else(|e| format!("unreadable ({e})"), |()| format!("{:#x}", u64::from_le_bytes(b)));
+                    format!("; blocked acquire va {:#x} {:?} {:#x}, now {now}", w.va, w.op, w.payload)
+                });
+                format!(
+                    "chid {} {:#x}/{:#x} engine {:#x} privilege {} {}{}{}; device gp_get {} put_seen {} entries {} resume {:?}{}; {userd}{acquire}",
+                    ch.chid,
+                    ch.h_client,
+                    ch.h_object,
+                    ch.engine_type,
+                    ch.alloc_privilege,
+                    if ch.mirrored { "host" } else { "software" },
+                    if ch.stopped { " stopped" } else { "" },
+                    if ch.software_failed { " FAILED" } else { "" },
+                    ch.gp_get,
+                    ch.gp_put_seen,
+                    ch.entries_done,
+                    ch.resume,
+                    if ch.budget_stop { " budget-stop" } else { "" },
+                )
+            })
+            .collect()
+    }
+
+    /// Register a deferred ring migration on software channel `owner` (the device runs its
+    /// method, [`RingSwitch`]).
+    pub fn add_ring_switch(&mut self, owner: u32, s: RingSwitch) -> Result<(), String> {
+        let ch = self.channels.get_mut(&owner).ok_or("the deferred object's channel is gone")?;
+        if ch.mirrored {
+            return Err("the owner runs on the host".into());
+        }
+        if ch.ring_switches.iter().any(|r| r.api == s.api) {
+            return Err("deferred API handle already registered".into());
+        }
+        ch.ring_switches.push(s);
+        Ok(())
+    }
+
+    /// A REMOVE_API of a registered ring migration; whether it was one.
+    pub fn remove_ring_switch(&mut self, owner: u32, api: u32) -> bool {
+        self.channels.get_mut(&owner).is_some_and(|ch| {
+            let n = ch.ring_switches.len();
+            ch.ring_switches.retain(|r| r.api != api);
+            ch.ring_switches.len() != n
+        })
+    }
+
+    /// Channel `chid` moves to a new ring now: its USERD, GPFIFO and entry count, and, for a
+    /// software channel, the device's position (the new USERD's GPGet, where the guest starts
+    /// it). For a mirrored channel it is the registry's view after the host moved (mirror.rs
+    /// `settle_migrations`, `migrate_now`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn switch_ring(
+        &mut self,
+        chid: u32,
+        generation: Option<u64>,
+        userd: Target,
+        gpfifo_va: u64,
+        entries: u32,
+        get: u32,
+    ) -> Result<String, String> {
+        let ch = self
+            .channels
+            .get_mut(&chid)
+            .filter(|c| generation.is_none_or(|g| g == c.generation))
+            .ok_or_else(|| format!("chid {chid}: gone or replaced"))?;
+        if get >= entries {
+            return Err(format!("chid {chid}: GPGet {get} is outside the new {entries}-entry ring"));
+        }
+        let note = format!(
+            "chid {chid}: ring switched at gp {} of {} entries (GPFIFO va {:#x}) to gp {get} of {entries} (GPFIFO va {gpfifo_va:#x}), USERD {:?} -> {userd:?}",
+            ch.gp_get, ch.gpfifo_entries, ch.gpfifo_va, ch.userd
+        );
+        ch.userd = Some(userd);
+        ch.gpfifo_va = gpfifo_va;
+        ch.gpfifo_entries = entries;
+        if !ch.mirrored {
+            ch.gp_get = get;
+            ch.gp_put_seen = get;
+            ch.resume = None;
+        }
+        Ok(note)
+    }
+
     /// Software acquires may wait for a host GPU write without another guest doorbell.
     pub fn blocked_software_channels(&self) -> Vec<u32> {
         self.channels
             .values()
-            .filter(|ch| !ch.mirrored && !ch.software_failed && ch.resume.is_some())
+            .filter(|ch| !ch.mirrored && !ch.software_failed && (ch.resume.is_some() || ch.budget_stop))
             .map(|ch| ch.chid)
             .collect()
     }
@@ -1020,9 +1281,9 @@ impl Registry {
     /// Whether the guest has published GPFIFO entries the device has neither run nor
     /// forwarded: for a software channel GPGet is behind GPPut, for a mirrored one GPPut
     /// moved since its last doorbell ([`Self::note_rung`]). A channel the guest never
-    /// rang has GPPut 0 on both sides and is not pending, so the token-less ioeventfd
-    /// doorbell path (device.rs `doorbell_ioeventfd`) never creates a host mirror for
-    /// it. One FB-store or guest-RAM read per call.
+    /// rang has GPPut 0 on both sides and is not pending, so a token-less doorbell
+    /// (ctrl.rs `doorbell_pending`) never creates a host mirror for it. One FB-store or
+    /// guest-RAM read per call.
     pub fn pending(&self, mem: &GpuMem, chid: u32) -> bool {
         let Some((ch, gp_put)) = self.gp_put_of(mem, chid) else {
             return false;
@@ -1411,6 +1672,10 @@ impl Registry {
                     ))
                     .filter(|f| f & (1 << 24) != 0)
                     .map(|f| (f >> 8) & 0xFFFF),
+                    alloc_privilege: rd32(
+                        params,
+                        <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags,
+                    ) & 3,
                     gp_get: 0,
                     gp_put_seen: 0,
                     resume: None,
@@ -1428,9 +1693,13 @@ impl Registry {
                     software_nonstall: false,
                     software_fb_range: None,
                     ce_slice: CE_SLICE,
+                    budget_stop: false,
                     deferred_management: false,
                     deferred: None,
                     sem_diag_seen: std::collections::BTreeSet::new(),
+                    acquire_wait: None,
+                    ring_switches: Vec::new(),
+                    switched: Vec::new(),
                 };
                 let mut note = format!(
                     "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?}{} alloc_flags {flags:#x} [guest]",
@@ -2061,6 +2330,7 @@ impl Registry {
         loop {
             let inv = std::mem::take(&mut self.tlb_invalidates);
             if !inv.is_empty() {
+                let _spent = crate::dlock::Spend::new(crate::dlock::Part::Invalidate);
                 notes.extend(on_invalidates(self, mem, &inv));
             }
             // The invalidates of every stopped channel were handed over above: continuing
@@ -2131,6 +2401,10 @@ impl Registry {
         self.software_runs = self.software_runs.wrapping_add(1);
         ch.software_fb_range = self.software_fb_range;
         ch.ce_slice = self.ce_slice;
+        ch.budget_stop = false;
+        ch.acquire_wait = None;
+        let started = std::time::Instant::now();
+        let budget = self.run_budget;
         let Some(userd) = ch.userd else {
             notes.push(format!("chid {chid}: no USERD, nothing run"));
             return notes;
@@ -2151,7 +2425,11 @@ impl Registry {
             guard += 1;
             let mut e = [0u8; 8];
             let entry_va = ch.gpfifo_va + 8 * ch.gp_get as u64;
-            if let Err(err) = mem.read_va(root, entry_va, &mut e) {
+            let fetched = {
+                let _spent = crate::dlock::Spend::new(crate::dlock::Part::Fetch);
+                mem.read_va(root, entry_va, &mut e)
+            };
+            if let Err(err) = fetched {
                 notes.push(format!("chid {chid}: gpfifo entry {}: {err}", ch.gp_get));
                 break;
             }
@@ -2233,17 +2511,59 @@ impl Registry {
             }
             ch.gp_get = (ch.gp_get + 1) % entries;
             ch.entries_done += 1;
-            if !mem.write(userd_at(USERD_GP_GET), &ch.gp_get.to_le_bytes()) {
+            let stored = {
+                let _spent = crate::dlock::Spend::new(crate::dlock::Part::GpGet);
+                mem.write(userd_at(USERD_GP_GET), &ch.gp_get.to_le_bytes())
+            };
+            if !stored {
                 notes.push(format!("chid {chid}: GPGet write to {userd:?} failed"));
+            }
+            // A ring migration whose method ran in this entry: the next entry comes from
+            // the new ring (applied after the run, with any other channel's).
+            if !ch.switched.is_empty() {
+                break;
+            }
+            // The run's budget: stop between two entries, the slice clock continues.
+            if ch.gp_get != gp_put % entries && started.elapsed() >= budget {
+                ch.budget_stop = true;
+                CE_SLICES_PENDING.store(true, std::sync::atomic::Ordering::Release);
+                notes.push(format!(
+                    "chid {chid}: run stopped at gp {} after {} us ({} us budget); the slice clock continues it",
+                    ch.gp_get,
+                    started.elapsed().as_micros(),
+                    budget.as_micros()
+                ));
+                break;
             }
         }
         let inv = std::mem::take(&mut ch.tlb_invalidates);
+        let switched = std::mem::take(&mut ch.switched);
         for pdb in &inv {
             self.pdb_watch.note_invalidate(*pdb);
         }
         self.tlb_invalidates.extend(inv);
         if held {
             self.held_at_invalidate.push(chid);
+        }
+        for s in switched {
+            let get = match s.userd {
+                Target::Fb(pa) => mem.read_u32(Target::Fb(pa + USERD_GP_GET)),
+                Target::Sys(pa) => mem.read_u32(Target::Sys(pa + USERD_GP_GET)),
+                _ => None,
+            };
+            let switched = match get {
+                Some(get) => self.switch_ring(s.target, Some(s.target_generation), s.userd, s.gpfifo_va, s.entries, get),
+                None => Err(format!("chid {}: the new USERD {:?} is unreadable", s.target, s.userd)),
+            };
+            match switched {
+                Ok(n) => notes.push(format!("deferred API {:#x}: {n}", s.api)),
+                Err(e) => notes.push(format!("deferred API {:#x}: ring switch failed: {e}", s.api)),
+            }
+            // The switched channel goes on from its new ring at the slice clock's next pass.
+            if let Some(t) = self.channels.get_mut(&s.target) {
+                t.budget_stop = true;
+            }
+            CE_SLICES_PENDING.store(true, std::sync::atomic::Ordering::Release);
         }
         notes
     }
@@ -2265,8 +2585,11 @@ impl Registry {
         hold: Option<&std::collections::BTreeSet<u64>>,
     ) -> Result<(Vec<String>, Stop), String> {
         let mut raw = vec![0u8; dwords * 4];
-        mem.read_va(root, va, &mut raw)
-            .map_err(|e| format!("pushbuffer: {e}"))?;
+        {
+            let _spent = crate::dlock::Spend::new(crate::dlock::Part::Fetch);
+            mem.read_va(root, va, &mut raw)
+        }
+        .map_err(|e| format!("pushbuffer: {e}"))?;
         let w: Vec<u32> = raw
             .chunks_exact(4)
             .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
@@ -2345,6 +2668,15 @@ impl Registry {
                     Self::host_method(ch, mem, root, subch, a, data, now, ch.deferred_management)
                 } else if ch.deferred_management && class == 0x5080 {
                     Self::deferred_management_method(ch, binding, a, data)
+                } else if class == 0x5080 && a == 0x200 && ch.ring_switches.iter().any(|s| s.api == data) {
+                    // A registered ring migration's deferred call ([`RingSwitch`]).
+                    let i = ch.ring_switches.iter().position(|s| s.api == data).unwrap();
+                    let s = ch.ring_switches.remove(i);
+                    ch.switched.push(s);
+                    Ok(Some(format!(
+                        "deferred API {data:#x} (UpdateChannelInfo): chid {} moves to its new ring after this entry",
+                        s.target
+                    )))
                 } else if ch.deferred_management && class == 0xc597 {
                     Self::strict_report_method(ch, mem, root, subch, a, data)
                 } else if ch.deferred_management && class == classes.compute {
@@ -2534,6 +2866,18 @@ impl Registry {
                         _ => cur & payload != 0,
                     };
                     if !ready {
+                        ch.acquire_wait = Some(AcquireWait {
+                            root,
+                            va,
+                            wide: false,
+                            payload: payload as u64,
+                            op: match op {
+                                1 => AcquireOp::Eq,
+                                4 => AcquireOp::Geq,
+                                _ => AcquireOp::And,
+                            },
+                        });
+                        ACQUIRE_WAITS.store(true, std::sync::atomic::Ordering::Release);
                         return Err(MethodError::Blocked(format!("host legacy semaphore acquire va {va:#x}: {cur:#x} vs {payload:#x}, channel waits")));
                     }
                     None
@@ -2588,6 +2932,8 @@ impl Registry {
                 if op == 9 || op == 0xA {
                     let pdb = crate::pdbwatch::memop_pdb(h.mem_op[2], data);
                     ch.tlb_invalidates.push(pdb);
+                    // The executor's own cached translations end here too (fb.rs `ExecTlb`).
+                    mem.fb.exec_tlb_flush();
                     pdb_note = match pdb {
                         Some(p) => format!(" pdb {p:?}"),
                         None => " all pdbs".into(),
@@ -2710,6 +3056,18 @@ impl Registry {
                             }
                         };
                         if !ok {
+                            ch.acquire_wait = Some(AcquireWait {
+                                root,
+                                va,
+                                wide,
+                                payload,
+                                op: match op {
+                                    0 => AcquireOp::Eq,
+                                    2 => AcquireOp::Geq,
+                                    _ => AcquireOp::CircGeq,
+                                },
+                            });
+                            ACQUIRE_WAITS.store(true, std::sync::atomic::Ordering::Release);
                             return Err(MethodError::Blocked(format!(
                                 "host semaphore acquire va {va:#x} op {op}: {cur:#x} vs {want:#x}, channel waits"
                             )));
@@ -3182,7 +3540,17 @@ impl Registry {
                 "CE LAUNCH_DMA {v:#x}: protected/reserved operation refused"
             ));
         }
-        if multi && transfer != 0 && ((v & (1 << 8) == 0) || (!remap && v & (1 << 7) == 0)) {
+        // SET_REMAP_COMPONENTS as far as this transfer uses it: a constant remap (a memset)
+        // reads no source; a general one (a source component or NO_WRITE) runs on the CPU
+        // element by element ([`RemapShape`]).
+        let shape = if remap && transfer != 0 {
+            Some(RemapShape::of(c.remap_components)?)
+        } else {
+            None
+        };
+        let general = shape.is_some_and(|s| !s.constant());
+        let reads_src = shape.is_none_or(|s| s.reads_source());
+        if multi && transfer != 0 && ((v & (1 << 8) == 0) || (reads_src && v & (1 << 7) == 0)) {
             return Err("CE multiline block-linear transfer is not implemented".into());
         }
         let src = ((c.offset_in.0 as u64) << 32) | c.offset_in.1 as u64;
@@ -3216,6 +3584,14 @@ impl Registry {
             } else {
                 c.line_length_in as u64
             };
+            // With a remap LINE_LENGTH_IN counts elements: the source reads NUM_SRC_COMPONENTS
+            // components of each, the destination writes NUM_DST_COMPONENTS.
+            let src_bytes_per_line = match shape {
+                Some(s) => (c.line_length_in as u64)
+                    .checked_mul(s.src_elem() as u64)
+                    .ok_or("CE remap size overflow")?,
+                None => bytes_per_line,
+            };
             let bytes = bytes_per_line
                 .checked_mul(lines)
                 .ok_or("CE transfer size overflow")?;
@@ -3223,8 +3599,16 @@ impl Registry {
             // size of the transfer, so it gets the larger fill budget: the guest's scrubber
             // clears freed allocations in one LAUNCH_DMA (132448256 bytes seen, 615 with
             // scrub-on-free, 2026-09-28). A copy keeps the copy budget.
-            let max = if remap { CE_MAX_FILL_BYTES } else { CE_MAX_BYTES };
-            if lines > CE_MAX_LINES || bytes_per_line > max || bytes > max {
+            let max = if remap && !reads_src {
+                CE_MAX_FILL_BYTES
+            } else {
+                CE_MAX_BYTES
+            };
+            if lines > CE_MAX_LINES
+                || bytes_per_line > max
+                || bytes > max
+                || (reads_src && src_bytes_per_line.saturating_mul(lines) > max)
+            {
                 return Err(format!(
                     "CE transfer {lines} lines/{bytes} bytes exceeds software budget"
                 ));
@@ -3243,7 +3627,13 @@ impl Registry {
             let row_at = |base: u64, pitch: u32, line: u64| {
                 base.checked_add(if multi { line * pitch as u64 } else { 0 })
             };
-            let what = if remap { "memset" } else { "memcopy" };
+            let what = if general {
+                "remap"
+            } else if remap {
+                "memset"
+            } else {
+                "memcopy"
+            };
             // The device CE (devce.rs): a large transfer's bytes on the device-owned host copy
             // engine, submitted once and waited for through the held replay (the vfio-user
             // loop never waits for it). The guest's semaphore follows as on the CPU path; a
@@ -3260,6 +3650,17 @@ impl Registry {
                         for &(pa, len) in &w.ranges {
                             mem.fb.note_range_changed(pa, len);
                         }
+                        if let Some((pa, want)) = &w.check {
+                            let mut got = vec![0u8; want.len()];
+                            if !mem.read(Target::Fb(*pa), &mut got) || &got != want {
+                                DEVCE_NO_WRITE_BAD
+                                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                                parts.push(format!(
+                                    "ERROR device CE: NO_WRITE remap (components {:#x}) left {got:02x?} at FB {pa:#x}, the class says {want:02x?}; later NO_WRITE remaps stay on the CPU",
+                                    c.remap_components
+                                ));
+                            }
+                        }
                         on_device = Some(w.seq);
                     }
                     crate::devce::Poll::Pending => {
@@ -3274,7 +3675,13 @@ impl Registry {
                         c.progress = None;
                     }
                 }
-            } else if c.progress.is_none() && bytes >= crate::devce::MIN_BYTES {
+            } else if c.progress.is_none()
+                // A remap that reads no source (constants and NO_WRITE components) runs on
+                // the host engine as the guest set it; a remap copy stays on the CPU.
+                && shape.is_none_or(|s| !s.reads_source())
+                && !(general && DEVCE_NO_WRITE_BAD.load(std::sync::atomic::Ordering::Relaxed))
+                && (bytes >= crate::devce::MIN_BYTES || (!remap && bytes >= DEVCE_VRAM_READ_MIN))
+            {
                 if let Some(engine) = mem.fb.device_ce() {
                     let mut e = engine.lock().unwrap_or_else(|e| e.into_inner());
                     if e.off().is_none() {
@@ -3307,17 +3714,30 @@ impl Registry {
                                         fb_range,
                                     )?);
                                 }
+                                // A small copy goes to the device CE only when it reads VRAM:
+                                // the CPU reads VRAM through the BAR1 windows at about 10 MB/s
+                                // (Windows C81: 63512 CPU copies, 19.9 s), while writes and guest
+                                // RAM reads are fast on the CPU.
+                                if !remap
+                                    && bytes < crate::devce::MIN_BYTES
+                                    && !from.iter().any(|(t, _)| matches!(t, Target::Fb(_)))
+                                {
+                                    return Err("a small copy without a VRAM source stays on the CPU".into());
+                                }
                                 let ops = if remap {
                                     let r = crate::devce::Remap {
                                         const_a: c.remap_const_a,
                                         const_b: c.remap_const_b,
-                                        components: c.remap_components,
+                                        // No component reads the source here, so
+                                        // NUM_SRC_COMPONENTS (21:20) is ONE, as in the
+                                        // engine's own memsets: nothing else changes.
+                                        components: c.remap_components & !(3 << 20),
                                     };
                                     crate::devce::plan_fill(
                                         &w,
                                         mem.fb,
                                         &to,
-                                        remap_elem(c)?.len() as u64,
+                                        shape.map_or(1, |s| s.dst_elem()) as u64,
                                         r,
                                     )?
                                 } else {
@@ -3335,7 +3755,28 @@ impl Registry {
                                 }
                                 Ok((ops, ranges))
                             })();
-                        if let Ok((ops, ranges)) = plan {
+                        // A NO_WRITE remap: the first element's old bytes, to check the result.
+                        let check = match (&plan, shape) {
+                            (Ok((_, ranges)), Some(s)) if general => {
+                                ranges.first().and_then(|&(pa, _)| {
+                                    let mut old = vec![0u8; s.dst_elem()];
+                                    mem.read(Target::Fb(pa), &mut old).then(|| {
+                                        let (out, mask) =
+                                            s.apply(&[], 1, c.remap_const_a, c.remap_const_b);
+                                        for (i, b) in old.iter_mut().enumerate() {
+                                            if mask[i] {
+                                                *b = out[i];
+                                            }
+                                        }
+                                        (pa, old)
+                                    })
+                                })
+                            }
+                            _ => None,
+                        };
+                        if let Some((ops, ranges)) =
+                            plan.ok().filter(|_| !general || check.is_some())
+                        {
                             match e.submit(mem.fb, &ops) {
                                 Ok(seq) => {
                                     drop(e);
@@ -3344,6 +3785,7 @@ impl Registry {
                                         seq,
                                         ranges,
                                         engine,
+                                        check,
                                     });
                                     return Ok(CeOutcome::Sliced(format!(
                                         "ce {what} of {bytes} bytes submitted to the device CE as push {seq} ({} op(s)) [host]",
@@ -3372,14 +3814,14 @@ impl Registry {
                                 .ok_or("CE source address overflow")?;
                             let d_at = row_at(dst, c.pitch_out, line)
                                 .ok_or("CE destination address overflow")?;
-                            if !remap {
+                            if reads_src {
                                 ce_pieces(
                                     mem,
                                     root,
                                     src_phys,
                                     c.src_phys,
                                     s_at,
-                                    bytes_per_line,
+                                    src_bytes_per_line,
                                     fb_range,
                                 )?;
                             }
@@ -3397,13 +3839,24 @@ impl Registry {
                     (0, 0)
                 }
             };
-            let elem = if remap { remap_elem(c)? } else { Vec::new() };
-            // A fill chunk is written from one pattern buffer; a copy chunk is read into a
-            // buffer first (VRAM reads through the BAR1 windows ran at 10 MB/s, run P29).
-            let chunk = if remap {
-                CE_FILL_CHUNK as u64
+            let elem = if remap && !general {
+                remap_elem(c)?
             } else {
-                CE_COPY_CHUNK as u64
+                Vec::new()
+            };
+            // A fill chunk is written from one pattern buffer; a copy chunk is read into a
+            // buffer first (VRAM reads through the BAR1 windows ran at 10 MB/s, run P29). A
+            // general remap works in whole destination elements (a row is a whole number of
+            // them, so every chunk and slice starts on one).
+            let chunk = match shape {
+                // Masked stores cost about 1.7 us per run through the store windows (C91):
+                // 16 KiB keeps a chunk near 2 ms, inside the slice bound.
+                Some(s) if general => {
+                    let e = s.dst_elem() as u64;
+                    ((16 << 10) / e).max(1) * e
+                }
+                Some(_) => CE_FILL_CHUNK as u64,
+                None => CE_COPY_CHUNK as u64,
             };
             let mut data = Vec::new();
             while line < lines {
@@ -3415,7 +3868,23 @@ impl Registry {
                     .ok_or("CE destination address overflow")?;
                 let n = (bytes_per_line - offset).min(chunk);
                 let to = ce_pieces(mem, root, dst_phys, c.dst_phys, d_at, n, fb_range)?;
-                if remap {
+                if let Some(s) = shape.filter(|_| general) {
+                    // Elements [first, first + count) of this row.
+                    let first = offset / s.dst_elem() as u64;
+                    let count = (n / s.dst_elem() as u64) as usize;
+                    data.clear();
+                    if s.reads_source() {
+                        let s_at = row_at(src, c.pitch_in, line)
+                            .and_then(|a| a.checked_add(first * s.src_elem() as u64))
+                            .ok_or("CE source address overflow")?;
+                        let len = (count * s.src_elem()) as u64;
+                        let from = ce_pieces(mem, root, src_phys, c.src_phys, s_at, len, fb_range)?;
+                        data.resize(len as usize, 0);
+                        ce_read(mem, &from, &mut data)?;
+                    }
+                    let (out, mask) = s.apply(&data, count, c.remap_const_a, c.remap_const_b);
+                    ce_write_masked(mem, &to, &out, &mask)?;
+                } else if remap {
                     // The pattern continues at this offset of the row.
                     let phase = (offset % elem.len().max(1) as u64) as usize;
                     let rotated: Vec<u8> = elem[phase..]
@@ -3439,8 +3908,7 @@ impl Registry {
                     mem.fb.flush();
                     c.progress = Some(CeProgress { key, line, offset });
                     return Ok(CeOutcome::Sliced(format!(
-                        "ce {} {} of {bytes} bytes in this slice's {} us; continued in the next slice [guest]",
-                        if remap { "memset" } else { "memcopy" },
+                        "ce {what} {} of {bytes} bytes in this slice's {} us; continued in the next slice [guest]",
                         line * bytes_per_line + offset,
                         start.elapsed().as_micros()
                     )));
@@ -3459,7 +3927,12 @@ impl Registry {
                 format!("va {dst:#x}")
             };
             parts.push(format!(
-                "ce {what} {bytes} bytes -> {dst_desc} [guest{}]",
+                "ce {what} {bytes} bytes -> {dst_desc}{} [guest{}]",
+                if general {
+                    format!(" (components {:#x})", c.remap_components)
+                } else {
+                    String::new()
+                },
                 on_device.map_or(String::new(), |seq| format!(", device CE push {seq}"))
             ));
         }
@@ -3509,10 +3982,22 @@ impl Registry {
 const CE_MAX_BYTES: u64 = 4 << 30;
 /// The longest one call of the software CE works on a transfer before the rest continues in
 /// the next slice: the vfio-user loop answers within that (QEMU's reply timeout is 5 s) and
-/// the guest's other channels run in between.
-const CE_SLICE: std::time::Duration = std::time::Duration::from_millis(40);
+/// the guest's other channels run in between. 40 ms until 2026-09-29; 4 ms since, so a
+/// slice under the device lock stays within a few milliseconds (execution.md §9.7).
+const CE_SLICE: std::time::Duration = std::time::Duration::from_millis(4);
+/// The longest a software channel's run works through its GPFIFO under the device lock
+/// before it stops between two entries; the slice clock (the device's `ce-slices` thread,
+/// 1 ms) continues it at the same GPGet (docs/caraxes/execution.md §9.7). A doorbell only
+/// promises that the entries run eventually; the channel's own entries, semaphores and
+/// events keep their order, and other channels run in between as on the GPU. Windows C67:
+/// software doorbells of the KMD's channel held the lock 516-562 ms.
+pub const RUN_BUDGET: std::time::Duration = std::time::Duration::from_millis(2);
+/// A copy that reads VRAM goes to the device CE from this size on (below
+/// [`crate::devce::MIN_BYTES`] the rest stays on the CPU): at 10 MB/s a CPU read of 1 KiB of
+/// VRAM costs about 100 us, a device CE push and its completion about as much.
+const DEVCE_VRAM_READ_MIN: u64 = 1 << 10;
 /// A copy's chunk between two slice checks: 64 KiB take 6.5 ms at the 10 MB/s of VRAM reads
-/// through the BAR1 windows (run P29), so a slice ends within 50 ms.
+/// through the BAR1 windows (run P29), so a slice ends within about 11 ms.
 const CE_COPY_CHUNK: usize = 64 << 10;
 /// Transfers up to this size are validated whole before their first write.
 const CE_VALIDATE_WHOLE: u64 = 16 << 20;
@@ -3579,6 +4064,7 @@ fn ce_pieces(
 }
 
 fn ce_read(mem: &GpuMem, pieces: &[(Target, usize)], data: &mut [u8]) -> Result<(), String> {
+    let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
     let mut off = 0;
     for &(target, n) in pieces {
         let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
@@ -3593,6 +4079,7 @@ fn ce_read(mem: &GpuMem, pieces: &[(Target, usize)], data: &mut [u8]) -> Result<
 }
 
 fn ce_write(mem: &mut GpuMem, pieces: &[(Target, usize)], data: &[u8]) -> Result<(), String> {
+    let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
     let mut off = 0;
     for &(target, n) in pieces {
         let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
@@ -3677,10 +4164,22 @@ const MAX_INVALIDATE_ROUNDS: usize = 256;
 /// Write the element `elem` repeated over `pieces` (the destination rows of a memset),
 /// in [`CE_FILL_CHUNK`] writes, the pattern continuing across pieces.
 fn ce_fill(mem: &mut GpuMem, pieces: &[(Target, usize)], elem: &[u8]) -> Result<(), String> {
+    let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
     let e = elem.len().max(1);
-    // One chunk of whole elements plus one element of slack for the phase at a piece start.
-    let reps = CE_FILL_CHUNK.div_ceil(e) + 1;
-    let pattern: Vec<u8> = elem.iter().copied().cycle().take(reps * e).collect();
+    // One chunk of whole elements plus one element of slack for the phase at a piece start;
+    // never longer than the fill itself (Windows C83: every memset, 8 bytes or not, built a
+    // 1 MiB pattern first, about a millisecond each).
+    let total: usize = pieces.iter().map(|&(_, n)| n).sum();
+    let reps = total.min(CE_FILL_CHUNK).div_ceil(e) + 1;
+    let mut pattern: Vec<u8> = Vec::with_capacity(reps * e);
+    pattern.extend_from_slice(&elem[..elem.len().min(e)]);
+    if pattern.is_empty() {
+        pattern.push(0);
+    }
+    while pattern.len() < reps * e {
+        let n = pattern.len().min(reps * e - pattern.len());
+        pattern.extend_from_within(..n);
+    }
     let mut row_off = 0usize;
     for &(target, n) in pieces {
         let mut done = 0usize;
@@ -3705,6 +4204,147 @@ fn ce_fill(mem: &mut GpuMem, pieces: &[(Target, usize)], elem: &[u8]) -> Result<
     Ok(())
 }
 
+/// `SET_REMAP_COMPONENTS_DST_*` selects (clc5b5.h:160-191): SRC_X..SRC_W are 0-3.
+const REMAP_CONST_A: u8 = 4;
+const REMAP_CONST_B: u8 = 5;
+const REMAP_NO_WRITE: u8 = 6;
+
+/// `SET_REMAP_COMPONENTS` (clc5b5.h:159-206): DST_X/Y/Z/W (2:0, 6:4, 10:8, 14:12) each
+/// select a source component (SRC_X..SRC_W, 0-3), CONST_A (4), CONST_B (5) or NO_WRITE (6);
+/// COMPONENT_SIZE (17:16), NUM_SRC_COMPONENTS (21:20) and NUM_DST_COMPONENTS (25:24) are
+/// one less than the size in bytes and the counts. With the remap on, LINE_LENGTH_IN counts
+/// elements: a source element is NUM_SRC_COMPONENTS components of COMPONENT_SIZE bytes, a
+/// destination element NUM_DST_COMPONENTS of them. A NO_WRITE component keeps the
+/// destination's bytes: they are not written at all (Heaven on Windows, C87/C88: a remap
+/// with DST_Z NO_WRITE on the KMD's paging channel, until lf23 an RC and a TDR).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RemapShape {
+    comp: usize,
+    nsrc: usize,
+    ndst: usize,
+    /// The select of each destination component; the first `ndst` are used.
+    sel: [u8; 4],
+}
+
+impl RemapShape {
+    /// The shape of `components`; a select of a source component beyond
+    /// NUM_SRC_COMPONENTS or the reserved select 7 is refused (an RC, as before).
+    fn of(components: u32) -> Result<Self, String> {
+        let comp = ((components >> 16) & 3) as usize + 1;
+        let nsrc = ((components >> 20) & 3) as usize + 1;
+        let ndst = ((components >> 24) & 3) as usize + 1;
+        let mut sel = [REMAP_NO_WRITE; 4];
+        for (k, s) in sel.iter_mut().enumerate().take(ndst) {
+            let v = ((components >> (4 * k)) & 7) as u8;
+            if v <= 3 && v as usize >= nsrc {
+                return Err(format!(
+                    "remap component {k} selects source component {v} of {nsrc} (components {components:#x})"
+                ));
+            }
+            if v == 7 {
+                return Err(format!(
+                    "remap component {k} selects 7, reserved (components {components:#x})"
+                ));
+            }
+            *s = v;
+        }
+        Ok(RemapShape {
+            comp,
+            nsrc,
+            ndst,
+            sel,
+        })
+    }
+
+    fn used(&self) -> &[u8] {
+        &self.sel[..self.ndst]
+    }
+
+    /// Every destination component a constant: a memset ([`remap_elem`], [`ce_fill`]).
+    fn constant(&self) -> bool {
+        self.used()
+            .iter()
+            .all(|&s| s == REMAP_CONST_A || s == REMAP_CONST_B)
+    }
+
+    fn reads_source(&self) -> bool {
+        self.used().iter().any(|&s| s <= 3)
+    }
+
+    fn src_elem(&self) -> usize {
+        self.comp * self.nsrc
+    }
+
+    fn dst_elem(&self) -> usize {
+        self.comp * self.ndst
+    }
+
+    /// `count` destination elements from `src` (`count` source elements, empty when no
+    /// component reads it) and the constants: the bytes and which of them are written.
+    fn apply(&self, src: &[u8], count: usize, a: u32, b: u32) -> (Vec<u8>, Vec<bool>) {
+        let (e, c) = (self.dst_elem(), self.comp);
+        let (ca, cb) = (a.to_le_bytes(), b.to_le_bytes());
+        let mut out = vec![0u8; count * e];
+        let mut mask = vec![false; count * e];
+        for i in 0..count {
+            for (k, &s) in self.used().iter().enumerate() {
+                let bytes = match s {
+                    REMAP_CONST_A => &ca[..c],
+                    REMAP_CONST_B => &cb[..c],
+                    REMAP_NO_WRITE => continue,
+                    s => {
+                        let from = i * self.src_elem() + s as usize * c;
+                        &src[from..from + c]
+                    }
+                };
+                let at = i * e + k * c;
+                out[at..at + c].copy_from_slice(bytes);
+                mask[at..at + c].fill(true);
+            }
+        }
+        (out, mask)
+    }
+}
+
+/// Write the bytes of `data` that `mask` marks over `pieces`, each run of marked bytes in one
+/// write; unmarked bytes (NO_WRITE components) are never touched.
+fn ce_write_masked(
+    mem: &mut GpuMem,
+    pieces: &[(Target, usize)],
+    data: &[u8],
+    mask: &[bool],
+) -> Result<(), String> {
+    let _spent = crate::dlock::Spend::new(crate::dlock::Part::Copy);
+    let mut off = 0usize;
+    for &(target, n) in pieces {
+        let mut i = 0usize;
+        while i < n {
+            if !mask[off + i] {
+                i += 1;
+                continue;
+            }
+            let mut j = i;
+            while j < n && mask[off + j] {
+                j += 1;
+            }
+            let at = match target {
+                Target::Fb(pa) => Target::Fb(pa + i as u64),
+                Target::Sys(pa) => Target::Sys(pa + i as u64),
+                t => t,
+            };
+            let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
+            if !mem.write(at, &data[off + i..off + j])
+                || mem.fb.vram_stats().map_or(0, |s| s.failed) != failed
+            {
+                return Err(format!("CE write {at:?}+{:#x} failed", j - i));
+            }
+            i = j;
+        }
+        off += n;
+    }
+    Ok(())
+}
+
 /// One element of a constant remap (memset): the components the remap selects, each the
 /// component size wide.
 fn remap_elem(c: &CeState) -> Result<Vec<u8>, String> {
@@ -3718,7 +4358,7 @@ fn remap_elem(c: &CeState) -> Result<Vec<u8>, String> {
             5 => c.remap_const_b,
             s => {
                 return Err(format!(
-                    "remap component {k} selects {s}, only constants modelled"
+                    "remap component {k} selects {s}: not a constant remap (RemapShape::apply runs it)"
                 ))
             }
         };
@@ -4058,12 +4698,23 @@ mod tests {
         };
         let mut ce = physical_copy(0, 1 << 30, 1 << 30);
         let bound = CE_SLICE + std::time::Duration::from_millis(10);
+        // The copy's own time is this thread's CPU time: the slice ends by the clock, so a
+        // slice never works longer than the bound, but a thread descheduled under parallel
+        // load (the test harness) may take longer by the wall clock. The wall clock is only
+        // checked against a loose sanity bound.
+        let cpu = || {
+            let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+            // SAFETY: a valid clock id and a local timespec.
+            unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) };
+            std::time::Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32)
+        };
         let mut done = 0u64;
         for _ in 0..4 {
-            let t = std::time::Instant::now();
+            let (t, c) = (std::time::Instant::now(), cpu());
             let r = Registry::launch_dma(&mut ce, &mut gm, root, PHYS_COPY, 1, None, CE_SLICE);
-            let took = t.elapsed();
-            assert!(took <= bound, "one slice took {took:?}");
+            let (took, worked) = (t.elapsed(), cpu() - c);
+            assert!(worked <= bound, "one slice worked {worked:?}");
+            assert!(took <= std::time::Duration::from_secs(1), "one slice took {took:?}");
             assert!(matches!(r, Ok(CeOutcome::Sliced(_))), "{r:?}");
             let p = ce.progress.expect("a sliced copy keeps its progress");
             let now = p.line * p.key.bytes_per_line + p.offset;
@@ -4256,14 +4907,25 @@ mod tests {
                     } => {
                         let comp = ((remap.components >> 16) & 3) as usize + 1;
                         let ncomp = ((remap.components >> 24) & 3) as usize + 1;
+                        let sel = |k: usize| (remap.components >> (4 * k)) & 7;
                         let mut elem = Vec::new();
                         for k in 0..ncomp {
-                            let v = if (remap.components >> (4 * k)) & 7 == 5 {
+                            let v = if sel(k) == 5 {
                                 remap.const_b
                             } else {
                                 remap.const_a
                             };
                             elem.extend_from_slice(&v.to_le_bytes()[..comp]);
+                        }
+                        if (0..ncomp).any(|k| sel(k) == 6) {
+                            // NO_WRITE: the engine stores only the other components.
+                            for i in 0..elements {
+                                for k in (0..ncomp).filter(|&k| sel(k) != 6) {
+                                    let at = i * elem.len() as u64 + (k * comp) as u64;
+                                    fb.write_behind(pa(dst) + at, &elem[k * comp..(k + 1) * comp]);
+                                }
+                            }
+                            continue;
                         }
                         let bytes: Vec<u8> = elem
                             .iter()
@@ -4330,6 +4992,35 @@ mod tests {
             fb.read_u64(0x30_0000 + (1 << 20) - 8).unwrap() as u32,
             0xAABB_CCDD
         );
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A large remap with NO_WRITE components and no source (Windows C91: 210 of them,
+    /// 36.8 s of CPU slices at about 9 MB/s) runs on the device CE with the guest's
+    /// components; the engine leaves the NO_WRITE bytes alone.
+    #[test]
+    fn a_large_no_write_remap_runs_on_the_device_ce() {
+        let elements = 1u32 << 13;
+        let mut pb = physical_fill(0x30_0000, elements);
+        // X CONST_A, Y CONST_B, Z/W NO_WRITE; COMPONENT_SIZE FOUR, NUM_DST_COMPONENTS FOUR.
+        pb[3..6].copy_from_slice(&[0x1122_3344, 0x5566_7788, 0x0303_6654]);
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("devce-nowrite", &pb);
+        reg.software_fb_range = Some((0, 64 << 20));
+        let len = elements as usize * 16;
+        assert!(fb.write(0x30_0000, &vec![0xEE; len]));
+        let engine = TestEngine::shared(48 << 20, 2, false);
+        fb.set_device_ce(Some(engine.clone()));
+        doorbell_until_done(&mut fb, &sys, &mut reg);
+        assert_eq!(engine.lock().unwrap().submitted, 1, "one device-CE push");
+        assert_eq!(sys.read_u32(0x4000_1004), Some(1));
+        let mut got = vec![0u8; len];
+        assert!(fb.read(0x30_0000, &mut got));
+        for (i, e) in got.chunks(16).enumerate() {
+            let want = [0x44, 0x33, 0x22, 0x11, 0x88, 0x77, 0x66, 0x55];
+            assert_eq!(&e[..8], &want, "element {i}");
+            assert_eq!(&e[8..], &[0xEE; 8], "NO_WRITE bytes of element {i}");
+        }
         std::fs::remove_file(path).ok();
     }
 
@@ -4614,6 +5305,104 @@ mod tests {
         );
         assert!(reg.blocked_software_channels().is_empty());
         assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A blocked acquire is kept on the channel (`AcquireWait`) and re-read without a
+    /// doorbell: not ready while the semaphore lags, ready once the release lands, and the
+    /// wait is gone after the channel's next run (C79: the Windows KMD's channel waited for
+    /// the next unrelated doorbell, up to 401 ms).
+    #[test]
+    fn a_blocked_acquire_is_rechecked_without_a_doorbell() {
+        let pb = inc(0, 0x10, &[0, 0x1000_9000, 7, 4]);
+        let (mut fb, sys, path, mut reg) = software_fixture("ce-acquire-recheck", &pb);
+        reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert_eq!(reg.blocked_software_channels(), vec![9]);
+        assert_eq!(
+            reg.channel(9).and_then(|c| c.acquire_wait).map(|w| (w.va, w.payload, w.op)),
+            Some((0x1000_9000, 7, AcquireOp::Geq))
+        );
+        assert!(acquire_waits_pending());
+        assert!(reg.ready_acquires(&GpuMem { fb: &mut fb, sys: &sys }).is_empty());
+        assert!(acquire_waits_pending(), "still waiting: the flag stays for the next tick");
+        assert!(sys.write(0x4000_1000, &9u32.to_le_bytes()));
+        assert_eq!(reg.ready_acquires(&GpuMem { fb: &mut fb, sys: &sys }), vec![9]);
+        reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert!(reg.blocked_software_channels().is_empty());
+        assert_eq!(reg.channel(9).and_then(|c| c.acquire_wait), None);
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        std::fs::remove_file(path).ok();
+    }
+
+    /// KNOWN BUG #1 (Windows step 23): a deferred NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO
+    /// on a channel the device executes. The ring switches after the entry that carries the
+    /// 0x5080 method with its API handle; nothing of the old ring runs again, and the new
+    /// ring's first entry runs from the new USERD's GPGet.
+    #[test]
+    fn a_software_channel_moves_to_its_new_ring_at_the_deferred_method() {
+        let mut pb = inc(5, 0, &[0x5080]);
+        pb.extend(inc(5, 0x200, &[0x4000_007e]));
+        let (mut fb, sys, path, mut reg) = software_fixture("ring-switch", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
+        // The new ring: 16 entries at VA 0x1000_1000 (FB 0x101000), USERD at FB 0x20_1000,
+        // one entry published: a semaphore release of 0x55 (pushbuffer at VA 0x1000_8100).
+        let release = inc(0, 0x10, &[0, 0x1000_9000, 0x55, 0x0110_0002]);
+        let bytes: Vec<u8> = release.iter().flat_map(|w| w.to_le_bytes()).collect();
+        assert!(sys.write(0x4000_0100, &bytes));
+        fb.write_u64(0x101000, 0x1000_8100 | (((release.len() as u64) << 10) << 32));
+        fb.write(0x20_1000 + USERD_GP_GET, &0u32.to_le_bytes());
+        fb.write(0x20_1000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        let generation = reg.channel(9).unwrap().generation;
+        let switch = RingSwitch {
+            api: 0x4000_007e,
+            target: 9,
+            target_generation: generation,
+            userd: Target::Fb(0x20_1000),
+            gpfifo_va: 0x1000_1000,
+            entries: 16,
+        };
+        reg.add_ring_switch(9, switch).unwrap();
+        assert!(reg.add_ring_switch(9, switch).is_err(), "one registration per handle");
+
+        let first = reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert!(first.iter().any(|n| n.contains("moves to its new ring after this entry")), "{first:?}");
+        assert!(first.iter().any(|n| n.contains("ring switched at gp 1 of 32 entries")), "{first:?}");
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1, "the old ring's entry done");
+        let ch = reg.channel(9).unwrap();
+        assert_eq!((ch.userd, ch.gpfifo_va, ch.gpfifo_entries), (Some(Target::Fb(0x20_1000)), 0x1000_1000, 16));
+        assert_eq!(sys.read_u32(0x4000_1000), Some(0), "the new ring has not run yet");
+
+        let second = reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert_eq!(sys.read_u32(0x4000_1000), Some(0x55), "{second:?}");
+        assert_eq!(fb.read_u64(0x20_1000 + USERD_GP_GET).unwrap() as u32, 1);
+        assert!(!reg.remove_ring_switch(9, 0x4000_007e), "consumed at its method");
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A REMOVE_API of a registered ring migration drops it: its method no longer switches.
+    #[test]
+    fn a_removed_ring_migration_does_not_switch() {
+        let mut pb = inc(5, 0, &[0x5080]);
+        pb.extend(inc(5, 0x200, &[0x4000_007e]));
+        let (mut fb, sys, path, mut reg) = software_fixture("ring-switch-removed", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
+        let generation = reg.channel(9).unwrap().generation;
+        reg.add_ring_switch(
+            9,
+            RingSwitch {
+                api: 0x4000_007e,
+                target: 9,
+                target_generation: generation,
+                userd: Target::Fb(0x20_1000),
+                gpfifo_va: 0x1000_1000,
+                entries: 16,
+            },
+        )
+        .unwrap();
+        assert!(reg.remove_ring_switch(9, 0x4000_007e));
+        let notes = reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert!(!notes.iter().any(|n| n.contains("ring switched")), "{notes:?}");
+        assert_eq!(reg.channel(9).unwrap().gpfifo_entries, 32);
         std::fs::remove_file(path).ok();
     }
 
@@ -4996,6 +5785,70 @@ mod tests {
         std::fs::remove_file(path).ok();
     }
 
+    /// A software run stops between two GPFIFO entries once its budget is spent
+    /// ([`RUN_BUDGET`], execution.md §9.7): the entries before ran with their semaphore
+    /// release, GPGet stands after them, the channel waits for the slice clock, and the next
+    /// run continues at the same GPGet with the rest, in order.
+    #[test]
+    fn a_run_past_its_budget_stops_between_entries_and_continues_in_order() {
+        let (mut fb, sys, _path, _root) = world("budget");
+        let mut reg = Registry::new(classes());
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        reg.record_alloc(
+            1,
+            0x30,
+            0x40,
+            TURING_CHANNEL_GPFIFO_A,
+            &channel_params(9, 0x1000_0000, 0x20_0000, 0),
+        )
+        .unwrap();
+        // Two pushbuffers in guest RAM (VA pages 8 and 9): host semaphore releases of 1
+        // and 2 into VA page 10 (GPA 0x4000_2000).
+        let push = |payload: u32| -> Vec<u8> {
+            inc(0, 0x5C, &[0x1000_A000, 0x0, payload, 0, 1])
+                .iter()
+                .flat_map(|d| d.to_le_bytes())
+                .collect()
+        };
+        let (p1, p2) = (push(1), push(2));
+        assert!(sys.write(0x4000_0000, &p1));
+        assert!(sys.write(0x4000_1000, &p2));
+        let entry = |va: u32, len: usize| -> Vec<u8> {
+            let mut e = va.to_le_bytes().to_vec();
+            e.extend_from_slice(&(((len / 4) as u32) << 10).to_le_bytes());
+            e
+        };
+        let mut gp = entry(0x1000_8000, p1.len());
+        gp.extend(entry(0x1000_9000, p2.len()));
+        fb.write(0x100000, &gp);
+        fb.write(0x20_0000 + USERD_GP_PUT, &2u32.to_le_bytes());
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        reg.run_budget = std::time::Duration::ZERO;
+        let all = reg.doorbell(&mut mem, (1 << 16) | 9).join("\n");
+        assert!(all.contains("run stopped at gp 1"), "{all}");
+        assert_eq!(sys.read_u32(0x4000_2000), Some(1), "the first entry's release");
+        assert_eq!(mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET)), Some(1));
+        // Held for the slice clock (its flag is process-wide, so other tests share it).
+        assert_eq!(reg.blocked_software_channels(), vec![9]);
+        // The next run (the slice clock's held replay) continues with the second entry.
+        reg.run_budget = std::time::Duration::from_secs(1);
+        reg.doorbell(&mut mem, (1 << 16) | 9);
+        assert_eq!(sys.read_u32(0x4000_2000), Some(2), "the second release, after the first");
+        assert_eq!(mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET)), Some(2));
+        assert!(reg.blocked_software_channels().is_empty());
+        assert_eq!(reg.channels().next().unwrap().entries_done, 2);
+    }
+
     #[test]
     fn uvm_style_pushes_execute() {
         let (mut fb, sys, path, _root) = world("channel");
@@ -5218,6 +6071,80 @@ mod tests {
         let mut b = vec![0u8; n];
         assert!(fb.read(0x40_0000, &mut b));
         assert!(b.chunks(2).all(|c| c[0] == 0x5A && (c.len() == 1 || c[1] == 0x5B)));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A client that keeps its token at another notifier index (SET_WORK_SUBMIT_TOKEN_NOTIF_
+    /// INDEX, handled by the guest RM alone): the entry is found by the RM's signature and
+    /// gets the pool token, both when the default entry holds nothing and when the pool
+    /// token was written to the default entry before.
+    #[test]
+    fn a_token_at_another_notifier_index_gets_the_pool_token() {
+        use crate::tokens::{TokenPool, NOTIFIER_TOKEN_OFFSET, TOKEN_BASE, TOKEN_ENTRY_STATUS};
+        let (mut fb, sys, path, _root) = world("tokens-index");
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        d.channels.tokens = Some(TokenPool::new(4));
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        let with_notifier = |chid: u32, userd: u64, notifier: u64| {
+            let mut p = channel_params(chid, 0x1000_0000, userd, 0);
+            let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem;
+            p[o + v::MEM_DESC_BASE..o + v::MEM_DESC_BASE + 8]
+                .copy_from_slice(&notifier.to_le_bytes());
+            p[o + v::MEM_DESC_ADDRESS_SPACE..o + v::MEM_DESC_ADDRESS_SPACE + 4]
+                .copy_from_slice(&ADDR_SYSMEM.to_le_bytes());
+            p
+        };
+        let (n9, n10) = (0x4008_0000u64, 0x4008_1000u64);
+        reg.record_alloc(1, 0x30, 0x40, TURING_CHANNEL_GPFIFO_A, &with_notifier(9, 0x20_0000, n9))
+            .unwrap();
+        reg.record_alloc(1, 0x30, 0x41, TURING_CHANNEL_GPFIFO_A, &with_notifier(10, 0x20_1000, n10))
+            .unwrap();
+        let entry = |notifier: u64, index: u64, token: u32| {
+            let mut e = [0u8; 16];
+            e[8..12].copy_from_slice(&token.to_le_bytes());
+            e[14..16].copy_from_slice(&TOKEN_ENTRY_STATUS.to_le_bytes());
+            assert!(sys.write(notifier + 16 * index, &e));
+        };
+        // Channel 9: entry 1 holds 0, the token is at index 5. Index 6 holds its value
+        // without the RM's signature (info16 set), index 8 another channel's token and
+        // index 64 its token past the scanned entries: none of them is touched.
+        let (t9, t10) = ((1u32 << 16) | 9, (1u32 << 16) | 10);
+        entry(n9, 5, t9);
+        entry(n9, 6, t9);
+        assert!(sys.write(n9 + 16 * 6 + 12, &1u16.to_le_bytes()));
+        entry(n9, 8, t10);
+        entry(n9, 64, t9);
+        fb.write(0x100000, &[0u8; 16]);
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let notes = d.doorbell(&mut mem, t9);
+        assert!(notes.iter().any(|n| n.contains("chid 9 gets pool token 0xca700000")), "{notes:#?}");
+        assert_eq!(sys.read_u32(n9 + 16 * 5 + 8), Some(TOKEN_BASE));
+        assert_eq!(sys.read_u32(n9 + NOTIFIER_TOKEN_OFFSET), Some(0), "entry 1 left alone");
+        assert_eq!(sys.read_u32(n9 + 16 * 6 + 8), Some(t9), "no signature, not the RM's entry");
+        assert_eq!(sys.read_u32(n9 + 16 * 8 + 8), Some(t10), "another channel's token");
+        assert_eq!(sys.read_u32(n9 + 16 * 64 + 8), Some(t9), "past the scanned entries");
+        // Channel 10: the token at entries 1 and 7 (a client that moved its index after the
+        // first GET): both get the pool token.
+        entry(n10, 1, t10);
+        entry(n10, 7, t10);
+        let notes = d.doorbell(&mut mem, t10);
+        assert!(notes.iter().any(|n| n.contains("chid 10 gets pool token 0xca700001")), "{notes:#?}");
+        assert_eq!(sys.read_u32(n10 + NOTIFIER_TOKEN_OFFSET), Some(TOKEN_BASE + 1));
+        assert_eq!(sys.read_u32(n10 + 16 * 7 + 8), Some(TOKEN_BASE + 1));
+        let s = &d.channels.tokens.as_ref().unwrap().stats;
+        assert_eq!((s.handed_out, s.elsewhere, s.mismatch), (2, 2, 0));
         let _ = std::fs::remove_file(&path);
     }
 
@@ -5672,6 +6599,21 @@ mod tests {
         assert_eq!(reg.tsg_id((1, 0x40)), Some(12));
         reg.record_free(1, 0x30);
         assert_eq!(reg.tsg_id((1, 0x30)), None);
+    }
+
+    /// The privilege level the guest kernel passes in the channel's internalFlags (1:0):
+    /// USER 0, ADMIN 1 (a root process), KERNEL 2 (the guest RM's own channels).
+    #[test]
+    fn the_channel_privilege_level_is_decoded() {
+        let mut reg = Registry::new(classes());
+        let f = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags;
+        for (chid, level) in [(3u32, 0u32), (4, 1), (5, 2)] {
+            let mut ch = channel_params(chid, 0x1000_0000, 0x20_0000 + u64::from(chid) * 0x1000, 0);
+            // With the internal TSG id bits set too: the level is bits 1:0 only.
+            ch[f..f + 4].copy_from_slice(&(level | 12 << 8 | 1 << 24).to_le_bytes());
+            reg.record_alloc(1, 0x10, 0x40 + chid, TURING_CHANNEL_GPFIFO_A, &ch).unwrap();
+            assert_eq!(reg.channel(chid).unwrap().alloc_privilege, level);
+        }
     }
 
     #[test]
@@ -6248,5 +7190,125 @@ mod tests {
         let m = reg.promoted((1, 0x15)).unwrap();
         assert!(!m.contains_key(&PROMOTE_ID_FALCON_CTX));
         assert_eq!(m[&0].virt, Some(0x7000));
+    }
+
+    /// Heaven on Windows (C87/C88): the KMD's paging channel remaps with DST_Z and DST_W
+    /// NO_WRITE; the constants land in X and Y of every 16-byte element, Z and W keep the
+    /// destination's bytes, across chunks and slices.
+    #[test]
+    fn a_remap_with_no_write_components_keeps_the_destination_bytes() {
+        let (mut fb, sys, path, root) = world("ce-remap-nowrite");
+        let elements = 10_000u32;
+        let len = elements as usize * 16;
+        assert!(fb.write(0x300_0000, &vec![0xEE; len + 16]));
+        let mut gm = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        // COMPONENT_SIZE FOUR, NUM_DST_COMPONENTS FOUR; X CONST_A, Y CONST_B, Z/W NO_WRITE.
+        let mut ce = CeState {
+            offset_out: (0, 0x300_0000),
+            line_length_in: elements,
+            remap_const_a: 0x1122_3344,
+            remap_const_b: 0x5566_7788,
+            remap_components: 0x0303_6654,
+            ..Default::default()
+        };
+        let zero = std::time::Duration::ZERO;
+        let mut slices = 0;
+        let note = loop {
+            match Registry::launch_dma(&mut ce, &mut gm, root, 0x2582, 1, None, zero).unwrap() {
+                CeOutcome::Sliced(_) => slices += 1,
+                CeOutcome::Done(note) => break note,
+            }
+        };
+        assert!(slices >= 2, "{slices} slices");
+        assert!(note.contains(&format!("ce remap {len} bytes")), "{note}");
+        assert!(note.contains("components 0x3036654"), "{note}");
+        let mut got = vec![0u8; len + 16];
+        assert!(gm.fb.read(0x300_0000, &mut got));
+        for (i, e) in got[..len].chunks(16).enumerate() {
+            assert_eq!(&e[..4], &[0x44, 0x33, 0x22, 0x11], "X of element {i}");
+            assert_eq!(&e[4..8], &[0x88, 0x77, 0x66, 0x55], "Y of element {i}");
+            assert_eq!(&e[8..], &[0xEE; 8], "Z/W of element {i} written");
+        }
+        assert_eq!(&got[len..], &[0xEE; 16], "written past the transfer");
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A remap copy: source components swizzled (BGRA from RGBA), a constant W, and a
+    /// multi-line pitch transfer whose row gaps stay untouched.
+    #[test]
+    fn a_remap_copy_swizzles_source_components_line_by_line() {
+        let (mut fb, sys, path, root) = world("ce-remap-swizzle");
+        let (w, h, pitch_in, pitch_out) = (5u32, 3u32, 32u32, 24u32);
+        let mut src = vec![0u8; (pitch_in * h) as usize];
+        for (i, b) in src.iter_mut().enumerate() {
+            *b = i as u8;
+        }
+        assert!(fb.write(0x100_0000, &src));
+        assert!(fb.write(0x200_0000, &vec![0xAB; (pitch_out * h) as usize]));
+        let mut gm = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        // COMPONENT_SIZE ONE, four source and four destination components:
+        // X SRC_Z, Y SRC_Y, Z SRC_X, W CONST_A.
+        let mut ce = CeState {
+            offset_in: (0, 0x100_0000),
+            offset_out: (0, 0x200_0000),
+            pitch_in,
+            pitch_out,
+            line_length_in: w,
+            line_count: h,
+            remap_const_a: 0xFF,
+            remap_components: 0x0330_4012,
+            ..Default::default()
+        };
+        // Physical source and destination, pitch both, remap, multi-line.
+        let v = PHYS_COPY | (1 << 10) | (1 << 9);
+        let second = std::time::Duration::from_secs(1);
+        let note = match Registry::launch_dma(&mut ce, &mut gm, root, v, 1, None, second).unwrap() {
+            CeOutcome::Done(note) => note,
+            CeOutcome::Sliced(s) => panic!("sliced: {s}"),
+        };
+        assert!(note.contains("ce remap 60 bytes"), "{note}");
+        let mut got = vec![0u8; (pitch_out * h) as usize];
+        assert!(gm.fb.read(0x200_0000, &mut got));
+        for y in 0..h as usize {
+            let row = &got[y * pitch_out as usize..][..pitch_out as usize];
+            for x in 0..w as usize {
+                let s = y * pitch_in as usize + 4 * x;
+                let want = [s as u8 + 2, s as u8 + 1, s as u8, 0xFF];
+                assert_eq!(&row[4 * x..4 * x + 4], &want, "pixel {x},{y}");
+            }
+            assert_eq!(&row[4 * w as usize..], &[0xAB; 4], "row gap {y} written");
+        }
+        std::fs::remove_file(path).ok();
+    }
+
+    /// The fields of SET_REMAP_COMPONENTS (clc5b5.h:159-206), component sizes and counts
+    /// that differ between source and destination, and the selects that are refused.
+    #[test]
+    fn remap_shapes_follow_the_class() {
+        // COMPONENT_SIZE TWO, one source component, two destination components:
+        // X SRC_X, Y CONST_B (a 16-bit value widened with a constant half).
+        let s = RemapShape::of(0x0101_0050).unwrap();
+        assert_eq!((s.comp, s.nsrc, s.ndst), (2, 1, 2));
+        assert!(!s.constant() && s.reads_source());
+        assert_eq!((s.src_elem(), s.dst_elem()), (2, 4));
+        let (out, mask) = s.apply(&[0x01, 0x02, 0x03, 0x04], 2, 0, 0xBBAA);
+        assert_eq!(out, [0x01, 0x02, 0xAA, 0xBB, 0x03, 0x04, 0xAA, 0xBB]);
+        assert!(mask.iter().all(|&m| m));
+        // Constants only: the memset path; components past NUM_DST_COMPONENTS are ignored.
+        let m = RemapShape::of(0x0002_7704).unwrap();
+        assert!(m.constant() && !m.reads_source());
+        // NO_WRITE only: nothing written.
+        let n = RemapShape::of(0x0300_6666).unwrap();
+        let (_, mask) = n.apply(&[], 3, 0, 0);
+        assert!(mask.iter().all(|&m| !m));
+        // A source component beyond NUM_SRC_COMPONENTS, and the reserved select 7.
+        assert!(RemapShape::of(0x0000_0001).is_err());
+        assert!(RemapShape::of(0x0000_0007).is_err());
     }
 }

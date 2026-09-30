@@ -562,7 +562,9 @@ lost).
   queue doorbell, the trapped BAR2 flush read, and every poll (every trapped BAR0 write the
   model takes; since 356dd4e4 not a write that lands in the config-space mirror, whose MSI
   re-arm orders nothing and held the device lock 570 times a second, sottr-stage.md §11; since
-  §11 the poll merges only after a flush point, the other polls only mark). The
+  §11 the poll merges only after a flush point, the other polls only mark; a write the
+  display page takes, the vblank handler's acks, three per flip, is served before the device
+  lock and runs no poll, f294c275, [vblank-path-2026-09-29.md](../research/vblank-path-2026-09-29.md)). The
   guest orders its table writes before the invalidate, so the shadow always walks the merged
   page. Doorbells are not sync points (cost); data written only through an aliased mapping
   reaches the GPU at the guest's next flush or invalidate.
@@ -789,3 +791,274 @@ to 545. Copies: `session-615-20260925-183951/` in the main tree.
 - Host BAR1 is unchanged against 0c54a465 (`nvidia-smi -q -d MEMORY`).
 - Slow polls: the GSP registers are gone; each remaining one shows `N table page(s) read` and
   `H home(s) read` near 0.
+
+## 13. Windows' BAR1 churn and the lazy move back (2026-09-29)
+
+Records: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/` C57-pool, C58-pool, C59-poolstall,
+C59b-poolstall (ch15, pool 32 MiB, trace without access lines); the Windows analysis
+(windows-findings.md, step 9, 72036ffc on win-ch-2026-09-29).
+
+**What the data shows.**
+- Every Windows session makes the same moves: 33668 in and 32858 back up to the FLR at 78 s,
+  66590 and 64970 in all, every one cold (no GPU leaf on the page, no barrier) [exit and
+  `pool empty` lines of all four runs].
+- The copies took 586 ms up to the FLR and 4.1-4.5 s in all: 64 us per page on average, but
+  whole polls of 16 pages took 2-15 ms (125-900 us per page).
+- The FB store mapped 30045 BAR1 windows (2 x 16 MiB budget beside the pool) for about as many
+  moves: a move's home page is outside the store's windows about every other time, because the
+  KMD's paging channel runs on the software executor over the whole FB between polls
+  [C59b `vram store` line].
+- Of the 123 polls that held the device over 2 ms, 115 moved exactly 16 pages (one 64 KiB BAR1
+  mapping); the others 48 to 810. They come in bursts 7-19 ms apart from 99 s on
+  [slow-poll trace lines].
+- So Windows maps and unmaps 64 KiB CPU-visible allocations (Lock/Unlock of small surfaces
+  around each present, the desktop start's staging buffers) at hundreds per second. The real
+  card writes a few BAR1 PTEs for each; the pool copied 4 KiB per page each way, under the
+  device lock, and each copy often mapped a store window first.
+- Not shown by the records (no per-page trace): whether the same allocation comes back to the
+  same BAR1 address or another one takes it. The churn line below answers that.
+
+**The rule now: a BAR1 unmap copies nothing** (`bar1pool.rs` `poll_at`, `Bar1Pool::retired`).
+- The guest unmaps area page `g`: its page `X` stays in the pool, *retired*. The remap stays, so
+  the FB store, BAR2, PRAMIN, the software executor, the shadow's leaves and a host channel's
+  USERD keep finding `X` at its pool page, exactly as before the unmap. Nothing is copied and
+  the GPU is not asked (no leaf check, no barrier).
+- `X` mapped again at `g`: live again, no copy.
+- `X` goes home (one copy, as every unmap did before, cold or behind the barrier of §4) only when:
+  - another page, or guest RAM, is wanted at `g` (`home for another page`);
+  - the guest maps `X` at another area page: home first, then in there, in the same poll
+    (`relocated`; before, the table refused such a map as an alias);
+  - `X` becomes a page table the device tracks (§10, as a pooled page);
+  - `X` stayed retired for `RETIRE_AGE` (2 s; checked at most every 100 ms): a page the guest
+    does not map again does not stay in the pool for good (`aged out`).
+- A move home that is refused (a USERD, a failed barrier) keeps the page consistent in the pool
+  and is retried, as before.
+- Moves run sorted by home page within releases and installs: the pages of one store window
+  move together.
+- A software `MEM_OP` TLB invalidate merges the replicas first (`ctrl.rs` software branch), as
+  the register invalidate does: Windows maps its page tables into BAR1 (C59b: 28 table pages at
+  FB 0x300000 and 0x3e0000 through area 0x370000-0x37b000, served as replicas) and invalidates
+  from its paging channel too.
+
+**Why this is safe.**
+- Isolation: a retired page is a page of the VM's usable FB at a pool page of the same
+  reservation, as it was while mapped; nothing new is mapped anywhere.
+- Consistency: every device path and the GPU go through the one translation (§3), which the
+  retirement leaves alone. The only path that bypasses it is the guest CPU through area page `g`,
+  which the guest unmapped; an access there reaches `X` (its own data), where the real card would
+  fault or read garbage.
+- The device CE keeps off pooled pages (`FakeFb::plain_vram`), retired ones too: a large
+  software-CE transfer over one runs on the CPU. Counted (`device-CE transfer(s) kept on the CPU
+  by a pooled page (N by a retired one)`); `RETIRE_AGE` bounds how long a page can cause it.
+- Copies and waits in long holds of the device lock: §14 (the moves of one invalidate run in
+  slices behind its trigger, the worker is waited for only when a job in flight concerns a page
+  to move).
+
+**Counters.**
+- Exit summary: `lazy move back: N retired now, R retired in all (no copy), L re-lived (no copy),
+  home S for another page, M relocated, A aged out after 2000 ms; W FB store window map(s) for
+  moves; D device-CE transfer(s) kept on the CPU by a pooled page (E by a retired one)`.
+- The slow-poll line: `moves T us (N page(s), W window map(s)); ... R retired, L re-lived`.
+- The churn line, in the trace once per second with activity: polls, pages moved in and home,
+  the move time and window maps, retired / re-lived / relocated / home for another page / aged
+  out, and the runs of installed area pages by length (1, 2-15, 16, 17-511, 512+ pages: 4 KiB,
+  64 KiB and 2 MiB guest mappings).
+- `pool empty` now means no page the guest maps through the area (retired pages do not count).
+
+**Tests.**
+- `bar1pool::tests::a_page_mapped_again_at_its_area_page_costs_no_copy` (five map/unmap rounds,
+  one copy in, none back; the churn line);
+- `a_retired_page_goes_home_when_its_area_page_is_needed_or_it_moves_or_ages`;
+- `a_retired_page_the_gpu_maps_goes_home_behind_the_barrier`;
+- `a_retired_page_that_becomes_a_table_page_goes_home`;
+- `a_device_ce_transfer_over_a_pooled_page_stays_on_the_cpu_and_is_counted`;
+- the earlier tests now age the retired pages out (`age_retired`) where they checked the move back.
+
+**What decides the next step** (the churn line of a Windows run): many `re-lived` against few
+`home for another page`: the churn is gone. Many `home for another page` and window maps: the
+KMD reuses BAR1 addresses for other allocations, and the remaining lever is the copy itself
+(the device CE for pool moves, with the pool mapped in its VA space).
+
+## 14. The pool's waits and copies out of long lock holds (2026-09-29)
+
+Records: Linux SotTR, `/mnt/vmstore/caraxes/runs-2026-09-29/sottr-stall/` (gpu-exit-on-2.log,
+drsv3-on-2-profile.*.tsv, benchmark-window-20s-device.md); Windows C57-C59b (§13).
+
+**What the data shows.**
+- SotTR (Linux, 615): 43419 polls, 24 barriers, 1.1 s of copies in all, yet 9779 polls held the
+  device over 2 ms and the slowest 441 ms [exit line]. In the 20 s benchmark window the polls
+  after the invalidate's PDB writes (0xb830a0/a4) cost 16 us on average but up to 441 ms and
+  170 ms [profile rows 9 and 10]: the tail is the GPU check's wait for the shadow worker.
+- The GPU check (`MirrorGpu::refs`) called `shadow_barrier` (wait until every submitted job is
+  applied) before it read the cached walks. The worker applied 81734 plans in 42.5 s, longest
+  301 ms [mirror exit line]: any poll with a page to move waited for all of it, under the lock,
+  and a held invalidate the trigger had just released (execution.md §8) was waited out here.
+- Windows (C57): no barrier and no worker wait (refs 1-2 us); the moves are the hold, 2-4 ms for
+  a 64 KiB mapping (16 pages) and up to 24 ms [slow-poll lines].
+
+**The GPU check without the drain** (`PoolGpu::in_flight`, `Mirror::shadow_in_flight`).
+- A cached walk shows every leaf a shadow maps or will map once the worker applied its plans.
+  What it does not show is a leaf the guest took out whose plan is not applied yet: the host
+  still maps it. Only that needs the worker.
+- The walk update names those leaves (`ptcache::Update::removed`: FB ranges dropped and not
+  mapped again by the changed units), the plan carries them (`Plan::ghosts`), and the worker's
+  submit keeps them with the job's number until it is applied; a teardown keeps its root's
+  leaves (every page when its walk is not at hand).
+- The poll asks which job in flight covers a page it moves and waits for that job only; with
+  none (the common case) it does not wait at all. A barrier's re-sync still drains the worker
+  (warm moves: 24 in the SotTR session, none on Windows).
+
+**The moves in slices behind the trigger** (`bar1pool.rs` `poll_sliced`, `Batch`).
+- A poll after a trapped write of the invalidate registers (PDB, UPPER_PDB, INVALIDATE) runs its
+  moves in chunks of 16 pages (GPU check when a shadow job was submitted since, barrier if a
+  page of the chunk is mapped by a shadow, copies, re-sync) until `POOL_SLICE` (500 us) is
+  spent, and parks the rest.
+- The guest polls TRIGGER before it uses the mapping (RM `kgmmuCheckPendingInvalidates_TU102`,
+  nouveau `tu102_vmm_flush`). Each trapped read of it runs the next slice; TRIGGER reads busy
+  until the batch is done, beside the held invalidate's gate (invgate.rs).
+- No poll waits for the worker longer than `WAIT_SLICE` (50 us) under the device lock
+  (`Pace`): a job in flight that covers a page to move leaves the batch for the next poll (a
+  trigger read, any sync point). The one exception is the invalidate page
+  (`CARAXES_INVALIDATE_PAGE=1`): the reactor clears TRIGGER when the poll returns, so that poll
+  finishes everything, as the page's held invalidate already waits under the lock.
+- Between two slices the device lock is free and the pool is consistent: each move is one copy
+  and one remap switch under the lock; releases run before installs; an install the guest took
+  back, or a release it re-lived, is skipped; replicas are made once their area page is free
+  (an evicted table page's in the same hold).
+- A batch pending blocks new decisions only: the next poll continues it first and decides what
+  changed afterwards, in the same hold. A sync point outside an invalidate, the invalidate page
+  and a batch older than `BATCH_FALLBACK` (1 s, inside RM's 4 s and nouveau's 2 s poll) run all
+  moves at once; the wait for a job in flight stays bounded (a worker stuck past the guest's
+  poll shows as the guest's invalidate timeout, not as a stalled vCPU).
+- Still under the device lock: the copies of each slice. The warm path waits no more (§15).
+  Next: the copies on a pool mover thread with pages in transit behind a pool lock (device
+  lock, then pool; execution.md §9.5).
+- The copies themselves stay under the lock for now: a copy on another thread needs a page
+  state "in transit" that every device path (FB store, BAR2 memfd, software executor, device
+  CE, display) respects. The slices bound each hold; with the lazy move back (§13) fewer copies
+  are left.
+
+**Counters.**
+- Exit summary, after §13's: `lock holds: B batch(es) in more than one hold (P hold(s) left the
+  rest for the next poll, longest batch T us), W wait(s) for a shadow job in flight (Q left to
+  the next poll, U us in all), GPU checks, barriers, moves, re-syncs in ms in all (§14)`.
+- Slow-poll line: `in-flight wait N us; ... slice K of the batch`; a slice run by a trigger read
+  is traced as `the poll after a BAR0 trigger read`.
+
+**Tests.** `ptcache::tests::an_update_names_the_fb_ranges_it_took_out_of_the_walk`,
+`shadow::tests::a_leaf_on_a_bar1_pool_page_is_mirrored_to_the_pool_page` (the plan names the
+dropped leaf),
+`mirror::tests::a_ghost_covers_the_pages_that_start_inside_its_ranges`,
+`bar1pool::tests::a_page_a_plan_in_flight_took_out_of_a_walk_waits_for_that_plan_only`,
+`a_sliced_batch_moves_a_chunk_per_hold_and_the_pool_is_consistent_between_holds`,
+`a_batch_asks_the_gpu_again_when_a_shadow_job_was_submitted_between_holds`,
+`a_batch_pending_past_the_fallback_moves_everything_but_never_waits_to_the_end`.
+
+**What decides it works.** SotTR Linux: `slowest poll` and the polls over 2 ms against
+gpu-exit-on-2.log (441 ms, 9779), `W wait(s) for a shadow job in flight` small against the polls
+that moved pages, the display clock's waits. Windows: no TDR at DWM start, `slowest poll` about
+one slice, the churn line (§13).
+
+## 15. The barrier as held rings (2026-09-29)
+
+The warm path (a page a shadow maps) waited under the device lock twice: for the TSG preempts
+(host RM calls with wait) and for the worker to apply the re-sync (`shadow_barrier`). Both are
+worker jobs now, behind the held rings of execution.md §9.1 (`PoolGpu::begin_barrier`,
+`barrier_ready`, `end_barrier`, `cancel_barrier`).
+
+- **Begin** (under the lock, one state change):
+  - every host channel on the roots must be idle (GPGet = GPPut), as before;
+  - each root's rings are held (`Mirror::hold_rings`): a doorbell of these roots is recorded,
+    not forwarded;
+  - each TSG's preempt is queued as a worker job in order with the root's plans
+    (`Mirror::submit_preempt`);
+  - the chunk waits as the batch's stage; TRIGGER reads busy.
+- **Ready** (trigger reads, at most `WAIT_SLICE` each): the preempt jobs are applied, each
+  returned `NV_OK`, and every channel is still idle. A failure releases the rings and refuses
+  the chunk's warm pages (retried); its other pages move.
+- **Moves**: the chunk's pages, in order, as before.
+- **End**:
+  - the roots are re-synced (plans submitted, `shadow_resync`);
+  - a release job per root is queued after its re-sync (`Mirror::release_rings_after`): the
+    worker releases the rings itself, and the completer forwards them;
+  - TRIGGER reads busy until those jobs are applied.
+- A barrier that ends up moving nothing releases its rings at once. A device reset drops every
+  hold (`RingGate::clear_holds` in `Mirror::reset`).
+- The invalidate page (`Pace::ALL`) waits for each step to the end, as before. Without a
+  worker thread the barrier stays synchronous (`quiesce`, `resync`).
+- Unchanged: a channel whose GPPut the guest stores without a trap can be scheduled by the
+  host between the copy and the re-sync if another doorbell makes the runlist run. The device
+  lock never closed that window: it does not stop a guest store or the host scheduler.
+
+**Counters.**
+- Exit summary: `H hold(s) left a barrier to the worker`.
+- The barrier line: `... re-synced, their rings held until the worker applied the re-sync,
+  before the guest continues`.
+
+**Test.**
+`bar1pool::tests::a_page_the_gpu_maps_moves_behind_held_rings_without_a_wait_under_the_lock`:
+- nothing moves before the preempt ran;
+- the rings stay held until the re-sync;
+- a failed preempt releases the rings and refuses the page;
+- the invalidate page's pace does all of it in one poll.
+
+`ringgate::tests::a_ring_waits_for_its_roots_jobs_and_holds_only` covers the reset.
+
+
+## 16. Merge points and the poll after a BAR0 write (2026-09-29)
+
+Records: SotTR run E (`/mnt/vmstore/caraxes/runs-2026-09-29/sottr-ab/E-lfpool-886a6041/gpu-exit.log`).
+
+**What run E shows.**
+- 525,235 sync points merged the replicas: 212,923 settled flushes (167,986 by the clock, 41,549 at
+  a doorbell, 3,388 at a sync point) and about 312,000 polls after trapped BAR0 writes. The
+  display's interrupt acks (0x61180c, 54,700 of them), 0x611858/5c, the L2 flush and sysmem
+  invalidate and others counted as flush points.
+- All 8 replicas at the end were aliases (the guest maps a page at two area pages). A merge
+  reads both pool pages over BAR1, about 600 us for 8 replicas.
+- 0 merges carried area writes home; 19,796 carried home changes to the area.
+- The poll after a BAR0 write ran 889,501 times, 87 us on average, 77 s in all
+  (device-lock work table).
+
+**The rule now** (`BootModel::pool_merge_after`, `Bar1Pool::work_due`):
+- A replica is merged where an engine starts to consume, as BAR2 data is (bar2-memfd.md §3
+  rule 3): at the hand-overs that settle an owed flush (a channel doorbell, the GSP command
+  queue, a BAR2 bind, the flush clock; boot.rs `flush_point`), and at an MMU invalidate for the
+  table replicas.
+- Among the trapped BAR0 writes only a display channel's `PUT` (the channels' USERD pages,
+  [0x680000, 0x6e0000)) is such a start, for the display engine the device models. No other
+  write merges: the interrupt acks, the interrupt tree, the L2 and FB flushes (the FB flush marks
+  the flush owed), the GSP falcon, PRAMIN, PTIMER.
+- The poll after a BAR0 write is skipped unless the write is a merge point or the pool has work
+  due: a unit whose tables a tracked write changed, a paced retry, a table-page hazard, a
+  replica to check again, a retired page to age (at most every `RETIRE_SCAN`), a pooled table
+  page, or a batch to continue.
+
+**At a doorbell** (`BootModel::pool_before_ring`, `bar1pool::merge_to_home`): on the card both
+BAR1 mappings of a page reach the same VRAM, so a write through a replica's area must reach the
+home before the rung channels' engines can see it.
+- The replicas whose home the rung channels could observe are merged home first. The set is the
+  doorbell rule's (bar2-memfd.md §3 rule 4): the channel's VAS leaves less set B, its instance
+  structures, its USERD. It is cached per channel with the stamp of its memory and the
+  replica set's generation.
+- A channel the device cannot name merges every replica.
+- One direction: the area is read and compared with the snapshot, and the changed words go
+  home. Home changes reach the area at the next full merge.
+- None seen: no read. A flush owed: the settle's full merge covers it.
+
+**What stays:** the home of an alias is another area page, which the guest writes directly, so
+no device-side generation can tell that it did not change. A full merge reads it every time.
+
+**Counters.**
+- Exit summary: `N poll(s) skipped after a BAR0 write with nothing due; D doorbell(s) merged R
+  replica(s) their channels see, H carried area writes home (§16)`.
+- One line per replica (`bar1 pool replica: ...`) with:
+  - its area page and home, and where the home lives;
+  - its merges, and how many carried a change each way;
+  - its home reads;
+  - what uses the home: a channel's USERD, the shadow roots and VAs that map it, a channel's
+    GPFIFO.
+
+**Tests.** `device::tests::the_pool_poll_merges_only_at_a_display_kick`,
+`bar1pool::tests::the_pool_has_work_due_only_after_a_tracked_change_or_on_its_clocks`,
+`boot::tests::a_doorbell_merges_the_replicas_its_channel_sees_home`.

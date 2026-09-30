@@ -1,0 +1,51 @@
+== kernel 7.0.0-34-generic; systemd 255 (255.4-1ubuntu8.17); nvidia 615.71.09
+== root controllers: cpuset cpu io memory hugetlb pids rdma misc dmem
+== dmem.capacity
+nvidia/00000000:00:06.0/vidmem 1073741824
+== user@1000.service: Delegate=yes DelegateSubgroup=init.scope 
+== root half (journal of user@1000.service)
+Starting caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: enabled dmem in /user.slice/user-1000.slice/user@1000.service/cgroup.subtree_control
+caraxes-dmem-cap: nvidia/00000000:00:06.0/vidmem: free 677.00 MiB, app.slice current 0.00 MiB, reserve 84.00 MiB (DP-1 1920x1080 S=8.44 MiB R=52.00 MiB; session 32 MiB): app.slice/dmem.max = 621805568 (593.00 MiB), read back ok
+Finished caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+== user half
+● caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)
+     Loaded: loaded (/etc/xdg/systemd/user/caraxes-dmem-cap.service; enabled; preset: enabled)
+     Active: active (exited) since Tue 2026-09-29 05:10:58 UTC; 6s ago
+       Docs: https://docs.kernel.org/admin-guide/cgroup-v2.html#dmem
+    Process: 2131 ExecStart=/usr/local/libexec/caraxes/caraxes-dmem-cap apply (code=exited, status=0/SUCCESS)
+Starting caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem)...
+caraxes-dmem-cap: enabled dmem in /user.slice/user-1000.slice/user@1000.service/cgroup.subtree_control
+caraxes-dmem-cap: nvidia/00000000:00:06.0/vidmem: free 677.00 MiB, app.slice current 0.00 MiB, reserve 84.00 MiB (DP-1 1920x1080 S=8.44 MiB R=52.00 MiB; session 32 MiB): app.slice/dmem.max = 621805568 (593.00 MiB), read back ok
+Finished caraxes-dmem-cap.service - Caraxes display reserve: cap app.slice device memory (dmem).
+kernel 7.0.0-34-generic; dmem controller: yes
+== dmem.capacity
+nvidia/00000000:00:06.0/vidmem 1073741824
+== subtree_control: /[+dmem] /user.slice[+dmem] /user.slice/user-1000.slice[+dmem] /user.slice/user-1000.slice/user@1000.service[+dmem] 
+== /user.slice/user-1000.slice/user@1000.service nvidia/00000000:00:06.0/vidmem current 242422688 max max
+== /user.slice/user-1000.slice/user@1000.service/session.slice nvidia/00000000:00:06.0/vidmem current 103515968 max max
+== /user.slice/user-1000.slice/user@1000.service/app.slice nvidia/00000000:00:06.0/vidmem current 0 max 621805568
+== /user.slice/user-1000.slice/user@1000.service/background.slice nvidia/00000000:00:06.0/vidmem current 0 max max
+pci.bus_id, memory.total [MiB], memory.reserved [MiB], memory.used [MiB], memory.free [MiB]
+00000000:00:06.0, 1024 MiB, 201 MiB, 252 MiB, 573 MiB
+== unit ordering
+Before="app-update\\x2dnotifier@autostart.service" "app-xdg\\x2duser\\x2ddirs@autostart.service" gnome-session-shutdown.target "app-ubuntu\\x2dreport\\x2don\\x2dupgrade@autostart.service" "app-orca\\x2dautostart@autostart.service" "app-gnome\\x2dkeyring\\x2dssh@autostart.service" "app-org.gnome.Evolution\\x2dalarm\\x2dnotify@autostart.service" app-org.gnome.SettingsDaemon.DiskUtilityNotify@autosta
+After=update-notifier-crash.path graphical-session-pre.target gnome-session.target basic.target update-notifier-release.path
+
+Before=shutdown.target
+After=graphical-session.target basic.target app.slice session.slice app-dev.lizardbyte.app.Sunshine.service
+== cgroups
+gnome-shell 1528 0::/user.slice/user-1000.slice/user@1000.service/session.slice/org.gnome.Shell@wayland.service
+Xwayland 2164 0::/user.slice/user-1000.slice/user@1000.service/session.slice/org.gnome.Shell@wayland.service
+sunshine 2129 0::/user.slice/user-1000.slice/user@1000.service/session.slice/app-dev.lizardbyte.app.Sunshine.service
+== connectors
+card0-DP-1 connected enabled 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+== NVML and Vulkan budget outside the cap (ssh session scope)
+memory.total [MiB], memory.reserved [MiB], memory.used [MiB], memory.free [MiB]
+1024 MiB, 201 MiB, 252 MiB, 573 MiB
+== NVML and Vulkan budget inside app.slice (does NVIDIA's userspace read the ancestor's dmem.max?)
+0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-rfa7020e0b437429ca646432ee1a18c74.scope
+memory.total [MiB], memory.reserved [MiB], memory.used [MiB], memory.free [MiB]
+593 MiB, 21 MiB, 0 MiB, 573 MiB
+== dmesg
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution

@@ -1,0 +1,54 @@
+[    2.533091] systemd[1]: Listening on systemd-oomd.socket - Userspace Out-Of-Memory (OOM) Killer Socket.
+[   14.217993] NVRM: GPU0 displayReserveSetNeed: display reserve: declared 52224 KiB for 10240 KiB scanout surfaces
+[   14.218036] NVRM: GPU0 _displayReserveRecut: display reserve: 52224 KiB for 10240 KiB scanout surfaces, 6 runs, 52224 KiB in PMA
+[   14.218055] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+[  260.969338] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  261.969600] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  262.971152] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  263.547520] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  264.555940] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  264.834961] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  265.559087] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  267.560063] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 4 s
+[  268.666999] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  268.691337] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  269.693596] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  269.760172] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  270.155776] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  271.174117] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  271.390040] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  272.392756] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  273.410240] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  274.274898] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  274.459086] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  275.429737] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+[  277.477003] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  278.484970] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  279.510712] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  280.131112] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  281.137694] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  282.138923] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  282.647987] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  282.691401] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  283.677244] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  283.770231] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  284.790427] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  284.827539] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  284.905826] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  285.794451] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+[  286.434332] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  286.463376] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  287.463478] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  288.471943] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  288.931540] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  288.998871] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  290.480438] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+[  399.493455] session::video invoked oom-killer: gfp_mask=0x140cca(GFP_HIGHUSER_MOVABLE|__GFP_COMP), order=0, oom_score_adj=200
+[  399.493486]  oom_kill_process+0x118/0x280
+[  399.493488]  ? oom_evaluate_task+0x143/0x1e0
+[  399.493493]  __alloc_pages_may_oom+0x10c/0x1d0
+[  399.493633] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[  399.493644] [    647]   988   647     4393      896      192      704         0    81920        0          -900 systemd-oomd
+[  399.493991] oom-kill:constraint=CONSTRAINT_NONE,nodemask=(null),cpuset=/,mems_allowed=0,global_oom,task_memcg=/user.slice/user-1000.slice/user@1000.service/app.slice/run-rfde92dfbbc7842988450545426a7032e.scope,task=ShadowOfTheTomb,pid=3708,uid=1000
+[  399.494764] Out of memory: Killed process 3708 (ShadowOfTheTomb) total-vm:11503332kB, anon-rss:3600944kB, file-rss:533908kB, shmem-rss:2298328kB, UID:1000 pgtables:10036kB oom_score_adj:0
+prefs-restored

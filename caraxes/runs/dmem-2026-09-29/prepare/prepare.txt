@@ -1,0 +1,85 @@
+07:07:05 prepare: guest 6.8.0-136-generic
+== before: kernel 6.8.0-136-generic; nvidia-dkms-open 615.71.09-2ubuntu1
+/dev/vda1        38G   30G  8.6G  78% /
+== apt-get update
+Get:7 http://security.ubuntu.com/ubuntu noble-security/main i386 Packages [365 kB]
+Fetched 1554 kB in 1s (2794 kB/s)
+Reading package lists...
+linux-generic-hwe-24.04:
+  Installed: (none)
+  Candidate: 7.0.0-34.34~24.04.1
+== apt-get install linux-generic-hwe-24.04 (log: /var/tmp/hwe-install.log)
+Setting up linux-firmware-intel-misc (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-intel-graphics (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-realtek (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-intel-wireless (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-marvell-prestera (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-qualcomm-misc (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-marvell-wireless (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-netronome (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-mediatek (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-headers-7.0.0-34-generic (7.0.0-34.34~24.04.1) ...
+/etc/kernel/header_postinst.d/dkms:
+Autoinstall of module nvidia/615.71.09 for kernel 7.0.0-34-generic (x86_64)
+Signing module /var/lib/dkms/nvidia/615.71.09/build/nvidia.ko
+Signing module /var/lib/dkms/nvidia/615.71.09/build/nvidia-modeset.ko
+Signing module /var/lib/dkms/nvidia/615.71.09/build/nvidia-drm.ko
+Signing module /var/lib/dkms/nvidia/615.71.09/build/nvidia-uvm.ko
+Signing module /var/lib/dkms/nvidia/615.71.09/build/nvidia-peermem.ko
+Installing /lib/modules/7.0.0-34-generic/updates/dkms/nvidia.ko.zst
+Installing /lib/modules/7.0.0-34-generic/updates/dkms/nvidia-modeset.ko.zst
+Installing /lib/modules/7.0.0-34-generic/updates/dkms/nvidia-drm.ko.zst
+Installing /lib/modules/7.0.0-34-generic/updates/dkms/nvidia-uvm.ko.zst
+Installing /lib/modules/7.0.0-34-generic/updates/dkms/nvidia-peermem.ko.zst
+Autoinstall on 7.0.0-34-generic succeeded for module(s) nvidia.
+Setting up linux-firmware-misc (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-firmware-qualcomm-graphics (20240318.git3b128b60-0ubuntu3.1) ...
+Setting up linux-tools-7.0.0-34-generic (7.0.0-34.34~24.04.1) ...
+Setting up linux-firmware (20240318.git3b128b60.0ubuntu3.1) ...
+Setting up linux-image-generic-hwe-24.04 (7.0.0-34.34~24.04.1) ...
+Setting up linux-headers-generic-hwe-24.04 (7.0.0-34.34~24.04.1) ...
+Setting up linux-generic-hwe-24.04 (7.0.0-34.34~24.04.1) ...
+apt-get rc=0
+== dkms
+nvidia/615.71.09, 6.8.0-136-generic, x86_64: installed
+nvidia/615.71.09, 6.8.0-142-generic, x86_64: installed
+nvidia/615.71.09, 6.8.12-caraxesdma, x86_64: installed (Original modules exist)
+nvidia/615.71.09, 7.0.0-34-generic, x86_64: installed
+total 13124
+drwxr-xr-x 2 root root     4096 Sep 29 05:09 .
+drwxr-xr-x 3 root root     4096 Sep 29 05:09 ..
+-rw-r--r-- 1 root root    89412 Sep 29 05:09 nvidia-drm.ko.zst
+-rw-r--r-- 1 root root   823315 Sep 29 05:09 nvidia-modeset.ko.zst
+-rw-r--r-- 1 root root     2248 Sep 29 05:09 nvidia-peermem.ko.zst
+-rw-r--r-- 1 root root   824363 Sep 29 05:09 nvidia-uvm.ko.zst
+-rw-r--r-- 1 root root 11681647 Sep 29 05:09 nvidia.ko.zst
+/lib/modules/7.0.0-34-generic/updates/dkms/nvidia.ko.zst: 615.71.09 vermagic 7.0.0-34-generic SMP preempt mod_unload modversions 
+dmem symbols: 12
+== kernel config and boot files
+CONFIG_CGROUP_DMEM=y
+CONFIG_CGROUP_MISC=y
+73d9c6e40b210deb638070d6af591a68bb6d7ff0280d0ec34c9ccf705a4f47ac  /boot/vmlinuz-7.0.0-34-generic
+2234078fefe35c15d8fadafa216363af80c6a66b9f02bca32ae9aed5fdc5adb1  /boot/initrd.img-7.0.0-34-generic
+nvidia files in the initrd: 5
+/etc/modprobe.d/caraxes-615-display.conf:blacklist nvidia_modeset
+/etc/modprobe.d/caraxes-615-display.conf:blacklist nvidia_drm
+/etc/modprobe.d/caraxes-615-display.conf:blacklist nvidia_peermem
+/etc/modprobe.d/caraxes-615-display.conf:install nvidia_peermem /bin/false
+/etc/modprobe.d/caraxes-615-display.conf:options nvidia-drm modeset=1 fbdev=0
+/etc/modprobe.d/caraxes-no-dma-helper.conf:blacklist caraxes_dma_range
+/etc/modprobe.d/caraxes-no-dma-helper.conf:install caraxes_dma_range /bin/false
+/etc/modprobe.d/caraxes.conf:options nvidia NVreg_GpuInitOnProbe=1 NVreg_RegistryDwords="RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+/etc/modprobe.d/caraxes.conf:options nvidia-uvm uvm_disable_hmm=1
+/etc/modprobe.d/caraxes.conf:blacklist nvidia
+/etc/modprobe.d/caraxes.conf.orig-2026-09-28:options nvidia NVreg_GpuInitOnProbe=1 NVreg_ResmanDebugLevel=0 NVreg_RegistryDwords="RmDisableGlobalCeUtils=1;RMDisableScrubOnFree=1;RmRcWatchdog=0"
+/etc/modprobe.d/caraxes.conf.orig-2026-09-28:options nvidia-uvm uvm_disable_hmm=1
+/etc/modprobe.d/caraxes.conf.orig-2026-09-28:blacklist nvidia
+73d9c6e40b210deb638070d6af591a68bb6d7ff0280d0ec34c9ccf705a4f47ac  vmlinuz-7.0.0-34-generic
+2234078fefe35c15d8fadafa216363af80c6a66b9f02bca32ae9aed5fdc5adb1  initrd.img-7.0.0-34-generic
+boot files copied to /mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b-dmem/boot, sha256 equal to the guest's
+caraxes-dmem-cap: no dmem controller in kernel 6.8.0-136-generic (needs >= 6.14 with CONFIG_CGROUP_DMEM): nothing to delegate
+installed: /usr/local/libexec/caraxes/caraxes-dmem-cap, /etc/systemd/system/user@.service.d/caraxes-dmem.conf, /etc/systemd/user/caraxes-dmem-cap.service (enabled globally), /etc/systemd/user/app-dev.lizardbyte.app.Sunshine.service.d/caraxes-session-slice.conf, /etc/caraxes/dmem-cap.conf
+kernel 6.8.0-136-generic; dmem controller: no
+Created symlink /etc/systemd/user/graphical-session.target.wants/caraxes-dmem-cap.service → /etc/systemd/user/caraxes-dmem-cap.service.
+stopped
+07:09:56 prepared; next: /mnt/vmstore/caraxes/wt-dmem/caraxes/runs/dmem-2026-09-29/desktop-b-dmem.sh up (kernel 7.0.0-34-generic)

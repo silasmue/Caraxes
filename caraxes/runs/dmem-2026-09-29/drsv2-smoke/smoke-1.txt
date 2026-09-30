@@ -1,0 +1,27 @@
+modeset.c: In function ‘run’:
+modeset.c:26:9: warning: ignoring return value of ‘system’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   26 |         system(cmd);
+      |         ^~~~~~~~~~~
+08:27:57 == load
+insmod: ERROR: could not insert module /opt/caraxes/display-reserve-v2/6.8.0-136-generic/nvidia-modeset.ko: Unknown symbol in module
+load.sh: insmod /opt/caraxes/display-reserve-v2/6.8.0-136-generic/nvidia-modeset.ko failed
+load rc=1
+drm-uvm-ok
+08:28:01 no mode: 1 MiB, 823 MiB
+08:28:01 == modes (DRM master)
+== mode 1920x1080
+  used 9 MiB, 815 MiB
+== mode 1280x720
+  used 13 MiB, 811 MiB
+== off
+  used 13 MiB, 811 MiB
+08:28:17 == GNOME
+08:28:48 gnome +30s: 148 MiB, 677 MiB
+08:28:48 == serve: CUDA fills the free VRAM, then 1080p dumb buffers
+fill: holding 576 MiB
+08:29:03 filled: 820 MiB, 5 MiB
+08:29:03 dumb 1: dumb 1920x1080: FAILED errno 12 (Cannot allocate memory)
+08:29:06 after dumb 1: 820 MiB, 5 MiB
+08:29:06 dumb 2: dumb 1920x1080: FAILED errno 12 (Cannot allocate memory)
+08:29:09 after dumb 2: 820 MiB, 5 MiB
+08:29:13 filler gone: 148 MiB, 677 MiB

@@ -1,0 +1,61 @@
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:15:02 ecc unloaded (dependency test)
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:15:02 == load
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+loaded /opt/caraxes/display-reserve-v2/6.8.0-136-generic: nvidia (NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@caraxes-desktop-b)  Tue Sep 29 09:12:12 UTC 2026), nvidia_modeset display_reserve_mib=0; RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+drm-uvm-ok
+09:15:07 no mode: 1 MiB, 823 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:15:07 == modes (DRM master)
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== mode 1920x1080
+  used 9 MiB, 815 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== mode 1280x720
+  used 13 MiB, 811 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+== off
+  used 13 MiB, 811 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:15:22 == GNOME
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:15:53 gnome +30s: 148 MiB, 677 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:15:53 == serve: CUDA fills the free VRAM and keeps grabbing, then dumb buffers
+fill: holding 576 MiB
+09:16:08 filled: 820 MiB, 5 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:16:08 run shape: dumb 1920x1152: FAILED errno 12 (Cannot allocate memory)
+09:16:11 after: 820 MiB, 5 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:16:11 run shape, two at once:
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+dumb 1920x1152: FAILED errno 12 (Cannot allocate memory)
+dumb 1920x1152: FAILED errno 12 (Cannot allocate memory)
+09:16:15 after: 820 MiB, 5 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+09:16:15 smaller: dumb 1920x1080: FAILED errno 12 (Cannot allocate memory)
+09:16:20 after: 820 MiB, 5 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+fill: holding 576 MiB
+fill: grabbed 0 MiB more, holding 576 MiB
+09:16:58 filler gone: 148 MiB, 677 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution

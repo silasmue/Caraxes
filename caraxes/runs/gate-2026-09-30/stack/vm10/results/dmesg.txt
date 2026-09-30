@@ -1,0 +1,2381 @@
+[    0.000000] Linux version 7.2.7-nova (silas@manacor) (clang version 22.1.8, GNU ld (GNU Binutils) 2.47) #2 SMP PREEMPT_DYNAMIC Tue Sep 29 07:06:04 CEST 2026
+[    0.000000] Command line: root=/dev/vda1 rw console=ttyS0 net.ifnames=0
+[    0.000000] x86 CPU feature dependency check failure: CPU0 has '18*32+31' enabled but '18*32+26' disabled. Kernel might be fine, but no guarantees.
+[    0.000000] [Firmware Bug]: TSC doesn't count with P0 frequency!
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009ffff]  System RAM
+[    0.000000] BIOS-e820: [gap 0x00000000000a0000-0x00000000000fffff]
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x00000000bfffffff]  System RAM
+[    0.000000] BIOS-e820: [gap 0x00000000c0000000-0x00000000e7ffffff]
+[    0.000000] BIOS-e820: [mem 0x00000000e8000000-0x00000000f7ffffff]  device reserved
+[    0.000000] BIOS-e820: [gap 0x00000000f8000000-0x00000000ffffffff]
+[    0.000000] BIOS-e820: [mem 0x0000000100000000-0x000000013fffffff]  System RAM
+[    0.000000] NX (Execute Disable) protection: active
+[    0.000000] APIC: Static calls initialized
+[    0.000000] DMI: SMBIOS 3.2.0 present.
+[    0.000000] DMI: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[    0.000000] DMI: Memory slots populated: 0/0
+[    0.000000] Hypervisor detected: KVM
+[    0.000000] last_pfn = 0xc0000 max_arch_pfn = 0x400000000
+[    0.000000] kvm-clock: Using msrs 4b564d01 and 4b564d00
+[    0.000000] kvm-clock: using sched offset of 236874047 cycles
+[    0.000002] clocksource: kvm-clock: mask: 0xffffffffffffffff max_cycles: 0x1cd42e4dffb, max_idle_ns: 881590591483 ns
+[    0.000004] tsc: Detected 3900.000 MHz processor
+[    0.000015] e820: update [mem 0x00000000-0x00000fff] System RAM ==> device reserved
+[    0.000017] e820: remove [mem 0x000a0000-0x000fffff] System RAM
+[    0.000019] last_pfn = 0x140000 max_arch_pfn = 0x400000000
+[    0.000046] MTRR map: 0 entries (0 fixed + 0 variable; max 16), built from 8 variable MTRRs
+[    0.000048] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+[    0.000090] last_pfn = 0xc0000 max_arch_pfn = 0x400000000
+[    0.000123] found SMP MP-table at [mem 0x000f0090-0x000f009f]
+[    0.000136] Using GB pages for direct mapping
+[    0.000178] ACPI: Early table checksum verification disabled
+[    0.000181] ACPI: RSDP 0x00000000000A0000 000024 (v02 CLOUDH)
+[    0.000184] ACPI: XSDT 0x00000000000A1557 00003C (v01 CLOUDH CHXSDT   00000001 RVAT 01000000)
+[    0.000189] ACPI: FACP 0x00000000000A1385 000114 (v06 CLOUDH CHFACP   00000001 RVAT 01000000)
+[    0.000192] ACPI: DSDT 0x00000000000A0024 001361 (v06 CLOUDH CHDSDT   00000001 RVAT 01000000)
+[    0.000193] ACPI: APIC 0x00000000000A1499 000082 (v05 CLOUDH CHMADT   00000001 RVAT 01000000)
+[    0.000195] ACPI: MCFG 0x00000000000A151B 00003C (v01 CLOUDH CHMCFG   00000001 RVAT 01000000)
+[    0.000196] ACPI: Reserving FACP table memory at [mem 0xa1385-0xa1498]
+[    0.000197] ACPI: Reserving DSDT table memory at [mem 0xa0024-0xa1384]
+[    0.000197] ACPI: Reserving APIC table memory at [mem 0xa1499-0xa151a]
+[    0.000198] ACPI: Reserving MCFG table memory at [mem 0xa151b-0xa1556]
+[    0.000824] No NUMA configuration found
+[    0.000825] Faking a node at [mem 0x0000000000000000-0x000000013fffffff]
+[    0.000827] NODE_DATA(0) allocated [mem 0x13fffc680-0x13fffffff]
+[    0.002043] ACPI: PM-Timer IO Port: 0x608
+[    0.002128] IOAPIC[0]: apic_id 0, version 17, address 0xfec00000, GSI 0-23
+[    0.002131] ACPI: INT_SRC_OVR (bus 0 bus_irq 4 global_irq 4 dfl dfl)
+[    0.002134] ACPI: Using ACPI (MADT) for SMP configuration information
+[    0.002135] TSC deadline timer available
+[    0.002137] CPU topo: Max. logical packages:   1
+[    0.002138] CPU topo: Max. logical nodes:      1
+[    0.002138] CPU topo: Num. nodes per package:  1
+[    0.002140] CPU topo: Max. logical dies:       1
+[    0.002140] CPU topo: Max. dies per package:   1
+[    0.002144] CPU topo: Max. threads per core:   1
+[    0.002145] CPU topo: Num. cores per package:     4
+[    0.002145] CPU topo: Num. threads per package:   4
+[    0.002145] CPU topo: Allowing 4 present CPUs plus 0 hotplug CPUs
+[    0.002156] kvm-guest: APIC: eoi() replaced with kvm_guest_apic_eoi_write()
+[    0.002165] kvm-guest: KVM setup pv remote TLB flush
+[    0.002168] kvm-guest: setup PV sched yield
+[    0.002171] PM: hibernation: Registered nosave memory: [mem 0x00000000-0x00000fff]
+[    0.002172] PM: hibernation: Registered nosave memory: [mem 0x000a0000-0x000fffff]
+[    0.002173] PM: hibernation: Registered nosave memory: [mem 0xc0000000-0xffffffff]
+[    0.002174] [gap 0xc0000000-0xe7ffffff] available for PCI devices
+[    0.002175] Booting paravirtualized kernel on KVM
+[    0.002176] clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1910969940391419 ns
+[    0.007535] Zone ranges:
+[    0.007535]   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+[    0.007537]   DMA32    [mem 0x0000000001000000-0x00000000ffffffff]
+[    0.007538]   Normal   [mem 0x0000000100000000-0x000000013fffffff]
+[    0.007539] Movable zone start for each node
+[    0.007540] Early memory node ranges
+[    0.007540]   node   0: [mem 0x0000000000001000-0x000000000009ffff]
+[    0.007541]   node   0: [mem 0x0000000000100000-0x00000000bfffffff]
+[    0.007542]   node   0: [mem 0x0000000100000000-0x000000013fffffff]
+[    0.007543] Initmem setup node 0 [mem 0x0000000000001000-0x000000013fffffff]
+[    0.007787] On node 0, zone DMA: 1 pages in unavailable ranges
+[    0.007804] On node 0, zone DMA: 96 pages in unavailable ranges
+[    0.019119] setup_percpu: NR_CPUS:64 nr_cpumask_bits:4 nr_cpu_ids:4 nr_node_ids:1
+[    0.019474] percpu: Embedded 54 pages/cpu s182744 r8192 d30248 u524288
+[    0.019477] pcpu-alloc: s182744 r8192 d30248 u524288 alloc=1*2097152
+[    0.019479] pcpu-alloc: [0] 0 1 2 3 
+[    0.019509] Kernel command line: root=/dev/vda1 rw console=ttyS0 net.ifnames=0
+[    0.019554] random: crng init done
+[    0.019555] printk: log buffer data + meta data: 262144 + 917504 = 1179648 bytes
+[    0.020180] Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+[    0.020482] Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[    0.020515] software IO TLB: area num 4.
+[    0.037485] Fallback order for Node 0: 0 
+[    0.037492] Built 1 zonelists, mobility grouping on.  Total pages: 1048479
+[    0.037494] Policy zone: Normal
+[    0.037496] mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+[    0.044835] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.045463] Dynamic Preempt: lazy
+[    0.045754] rcu: Preemptible hierarchical RCU implementation.
+[    0.045754] rcu: 	RCU event tracing is enabled.
+[    0.045755] rcu: 	RCU restricting CPUs from NR_CPUS=64 to nr_cpu_ids=4.
+[    0.045755] 	Trampoline variant of Tasks RCU enabled.
+[    0.045756] 	Tracing variant of Tasks RCU enabled.
+[    0.045756] rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+[    0.045757] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.045763] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.048715] NR_IRQS: 4352, nr_irqs: 440, preallocated irqs: 0
+[    0.048750] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.048761] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+[    0.048806] Console: colour dummy device 80x25
+[    0.048874] printk: legacy console [ttyS0] enabled
+[    0.155681] ACPI: Core revision 20260408
+[    0.156361] APIC: Switch to symmetric I/O mode setup
+[    0.157929] x2apic enabled
+[    0.159141] APIC: Switched APIC routing to: physical x2apic
+[    0.160072] kvm-guest: APIC: send_IPI_mask() replaced with kvm_send_ipi_mask()
+[    0.161264] kvm-guest: APIC: send_IPI_mask_allbutself() replaced with kvm_send_ipi_mask_allbutself()
+[    0.162805] kvm-guest: setup PV IPIs
+[    0.163478] clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x706eb6a54e6, max_idle_ns: 881591026581 ns
+[    0.165197] Calibrating delay loop (skipped) preset value.. 7800.00 BogoMIPS (lpj=3900000)
+[    0.166193] x86/cpu: User Mode Instruction Prevention (UMIP) activated
+[    0.166193] Last level iTLB entries: 4KB 1024, 2MB 1024, 4MB 512
+[    0.166193] Last level dTLB entries: 4KB 2048, 2MB 2048, 4MB 1024, 1GB 0
+[    0.166193] mitigations: Enabled attack vectors: user_kernel, user_user, SMT mitigations: auto
+[    0.166193] Speculative Store Bypass: Mitigation: Speculative Store Bypass disabled via prctl
+[    0.166193] Spectre V2 : Mitigation: Retpolines
+[    0.166193] RETBleed: Mitigation: untrained return thunk
+[    0.166193] Speculative Return Stack Overflow: Mitigation: SMT disabled
+[    0.166193] Spectre V1 : Mitigation: usercopy/swapgs barriers and __user pointer sanitization
+[    0.166193] Spectre V2 : Spectre v2 / SpectreRSB: Filling RSB on context switch and VMEXIT
+[    0.166193] Spectre V2 : Enabling Speculation Barrier for firmware calls
+[    0.166193] active return thunk: retbleed_return_thunk
+[    0.166193] Spectre V2 : mitigation: Enabling conditional Indirect Branch Prediction Barrier
+[    0.166193] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.166193] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.166193] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.166193] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.166193] x86/fpu: Enabled xstate features 0x7, context size is 832 bytes, using 'compacted' format.
+[    0.166193] pid_max: default: 32768 minimum: 301
+[    0.166193] SELinux:  Initializing.
+[    0.166193] Mount-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.166193] Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.166193] VFS: Finished mounting rootfs on nullfs
+[    0.166193] smpboot: CPU0: AMD Ryzen 7 3800X 8-Core Processor (family: 0x17, model: 0x71, stepping: 0x0)
+[    0.166314] Performance Events: Fam17h+ core perfctr, AMD PMU driver.
+[    0.167201] ... version:                   0
+[    0.167909] ... bit width:                 48
+[    0.168195] ... generic counters:          6
+[    0.168909] ... generic bitmap:            000000000000003f
+[    0.169195] ... fixed-purpose counters:    0
+[    0.169928] ... fixed-purpose bitmap:      0000000000000000
+[    0.170195] ... value mask:                0000ffffffffffff
+[    0.171116] ... max period:                00007fffffffffff
+[    0.171195] ... global_ctrl mask:          000000000000003f
+[    0.172202] signal: max sigframe size: 1776
+[    0.172937] rcu: Hierarchical SRCU implementation.
+[    0.173198] rcu: 	Max phase no-delay instances is 400.
+[    0.174085] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.179678] smp: Bringing up secondary CPUs ...
+[    0.180286] smpboot: x86: Booting SMP configuration:
+[    0.181171] .... node  #0, CPUs:      #1 #2 #3
+[    0.182234] smp: Brought up 1 node, 4 CPUs
+[    0.183868] smpboot: Total of 4 processors activated (31200.00 BogoMIPS)
+[    0.184355] Memory: 4003016K/4193916K available (21356K kernel code, 3127K rwdata, 9500K rodata, 3092K init, 604K bss, 185424K reserved, 0K cma-reserved)
+[    0.185458] devtmpfs: initialized
+[    0.186361] posixtimers hash table entries: 2048 (order: 3, 32768 bytes, linear)
+[    0.187200] futex hash table entries: 1024 (65536 bytes on 1 NUMA nodes, total 64 KiB, linear).
+[    0.188456] PM: RTC time: 08:10:22, date: 2026-09-30
+[    0.189307] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.190231] audit: initializing netlink subsys (disabled)
+[    0.191141] audit: type=2000 audit(1790755822.399:1): state=initialized audit_enabled=0 res=1
+[    0.191249] thermal_sys: Registered thermal governor 'step_wise'
+[    0.192201] cpuidle: using governor menu
+[    0.194778] Freeing SMP alternatives memory: 64K
+[    0.195392] PCI: ECAM [mem 0xe8000000-0xe80fffff] (base 0xe8000000) for domain 0000 [bus 00-00]
+[    0.196197] PCI: ECAM [mem 0xe8000000-0xe80fffff] reserved as E820 entry
+[    0.197203] PCI: Using configuration type 1 for base access
+[    0.198208] kprobes: kprobe jump-optimization is enabled. All kprobes are optimized if possible.
+[    0.199502] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.200196] HugeTLB: 28 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.201914] ACPI: Added _OSI(Module Device)
+[    0.202196] ACPI: Added _OSI(Processor Device)
+[    0.202935] ACPI: Added _OSI(Processor Aggregator Device)
+[    0.203542] ACPI: 1 ACPI AML tables successfully acquired and loaded
+[    0.207206] ACPI: \_SB_: platform _OSC: OS support mask [002a7eee]
+[    0.208691] ACPI: Interpreter enabled
+[    0.209208] ACPI: PM: (supports S0 S5)
+[    0.209950] ACPI: Using IOAPIC for interrupt routing
+[    0.210216] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    0.211196] PCI: Using E820 reservations for host bridge windows
+[    0.213687] ACPI: PCI Root Bridge [PC00] (domain 0000 [bus 00])
+[    0.214200] acpi PNP0A08:00: _OSC: OS supports [ExtendedConfig ASPM ClockPM Segments MSI HPX-Type3]
+[    0.215200] acpi PNP0A08:00: _OSC: OS requested [PME PCIeCapability LTR]
+[    0.216196] acpi PNP0A08:00: _OSC: platform willing to grant [PME PCIeCapability LTR]
+[    0.217196] acpi PNP0A08:00: _OSC: platform retains control of PCIe features (AE_ERROR)
+[    0.218320] PCI host bridge to bus 0000:00
+[    0.219040] pci_bus 0000:00: root bus resource [mem 0xe8000000-0xe80fffff]
+[    0.219196] pci_bus 0000:00: root bus resource [mem 0xc0000000-0xe7ffffff window]
+[    0.220196] pci_bus 0000:00: root bus resource [mem 0x140000000-0x3fffffeeffff window]
+[    0.221196] pci_bus 0000:00: root bus resource [io  0x0000-0x0cf7 window]
+[    0.222196] pci_bus 0000:00: root bus resource [io  0x0d00-0xffff window]
+[    0.223197] pci_bus 0000:00: root bus resource [bus 00]
+[    0.224214] pci 0000:00:00.0: [8086:0d57] type 00 class 0x060000 conventional PCI endpoint
+[    0.226271] pci 0000:00:01.0: [1af4:1042] type 00 class 0x018000 conventional PCI endpoint
+[    0.227645] pci 0000:00:01.0: BAR 0 [mem 0xe7f80000-0xe7ffffff]
+[    0.229446] pci 0000:00:02.0: [1af4:1042] type 00 class 0x018000 conventional PCI endpoint
+[    0.230635] pci 0000:00:02.0: BAR 0 [mem 0xe7f00000-0xe7f7ffff]
+[    0.232400] pci 0000:00:03.0: [1af4:1044] type 00 class 0xffff00 conventional PCI endpoint
+[    0.233647] pci 0000:00:03.0: BAR 0 [mem 0x3fffff800000-0x3fffff87ffff 64bit]
+[    0.238197] pci 0000:00:04.0: [10de:1f02] type 00 class 0x030000 PCIe Legacy Endpoint
+[    0.240209] pci 0000:00:04.0: BAR 0 [mem 0xe6000000-0xe6ffffff]
+[    0.241226] pci 0000:00:04.0: BAR 1 [mem 0x3fffe0000000-0x3fffefffffff 64bit pref]
+[    0.242222] pci 0000:00:04.0: BAR 3 [mem 0x3ffffc000000-0x3ffffdffffff 64bit pref]
+[    0.243210] pci 0000:00:04.0: BAR 5 [io  0xff80-0xffff]
+[    0.244116] pci 0000:00:04.0: ROM [mem 0xe7e80000-0xe7efffff pref]
+[    0.245435] pci 0000:00:04.0: Enabling HDA controller
+[    0.251359] pci 0000:00:04.0: PME# supported from D0 D3hot D3cold
+[    0.254487] pci 0000:00:04.0: 32.000 Gb/s available PCIe bandwidth, limited by 2.5 GT/s PCIe x16 link at 0000:00:04.0 (capable of 126.016 Gb/s with 8.0 GT/s PCIe x16 link)
+[    0.261389] iommu: Default domain type: Translated
+[    0.262196] iommu: DMA domain TLB invalidation policy: lazy mode
+[    0.263239] SCSI subsystem initialized
+[    0.263893] libata version 3.00 loaded.
+[    0.263893] ACPI: bus type USB registered
+[    0.264210] usbcore: registered new interface driver usbfs
+[    0.265159] usbcore: registered new interface driver hub
+[    0.265204] usbcore: registered new device driver usb
+[    0.266086] pps_core: LinuxPPS API ver. 1 registered
+[    0.266196] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.267199] PTP clock support registered
+[    0.267900] Advanced Linux Sound Architecture Driver Initialized.
+[    0.268311] NetLabel: Initializing
+[    0.268910] NetLabel:  domain hash size = 128
+[    0.269196] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[    0.270173] NetLabel:  unlabeled traffic allowed by default
+[    0.270225] PCI: Using ACPI for IRQ routing
+[    0.270918] PCI: pci_cache_line_size set to 64 bytes
+[    0.271453] pci 0000:00:04.0: vgaarb: bridge control possible
+[    0.272193] pci 0000:00:04.0: vgaarb: VGA device added: decodes=io+mem,owns=none,locks=none
+[    0.272196] vgaarb: loaded
+[    0.272753] clocksource: Switched to clocksource kvm-clock
+[    0.273254] VFS: Disk quotas dquot_6.6.0
+[    0.273953] VFS: Dquot-cache hash table entries: 512 (4096 bytes)
+[    0.275224] acpi PNP0C02:00: Reserved [mem 0xe8000000-0xe80fffff]
+[    0.276356] pnp: PnP ACPI init
+[    0.277177] pnp: PnP ACPI: found 1 devices
+[    0.283824] clocksource: acpi_pm: mask: 0xffffff max_cycles: 0xffffff, max_idle_ns: 2085701024 ns
+[    0.285366] NET: Registered PF_INET protocol family
+[    0.286258] IP idents hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.288064] tcp_listen_portaddr_hash hash table entries: 2048 (order: 3, 32768 bytes, linear)
+[    0.289527] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.290929] TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.292315] TCP bind hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+[    0.293889] TCP: Hash tables configured (established 32768 bind 32768)
+[    0.296717] UDP hash table entries: 2048 (order: 5, 131072 bytes, linear)
+[    0.297946] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.299117] RPC: Registered named UNIX socket transport module.
+[    0.300177] RPC: Registered udp transport module.
+[    0.300996] RPC: Registered tcp transport module.
+[    0.301817] RPC: Registered tcp-with-tls transport module.
+[    0.303640] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    0.304939] pci_bus 0000:00: resource 4 [mem 0xe8000000-0xe80fffff]
+[    0.306026] pci_bus 0000:00: resource 5 [mem 0xc0000000-0xe7ffffff window]
+[    0.307206] pci_bus 0000:00: resource 6 [mem 0x140000000-0x3fffffeeffff window]
+[    0.308458] pci_bus 0000:00: resource 7 [io  0x0000-0x0cf7 window]
+[    0.309524] pci_bus 0000:00: resource 8 [io  0x0d00-0xffff window]
+[    0.312524] PCI: CLS 0 bytes, default 64
+[    0.313320] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+[    0.314428] software IO TLB: mapped [mem 0x00000000bc000000-0x00000000c0000000] (64MB)
+[    0.317483] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x706eb6a54e6, max_idle_ns: 881591026581 ns
+[    0.319479] clocksource: Switched to clocksource tsc
+[    0.320477] platform rtc_cmos: registered fallback platform RTC device
+[    0.325706] Initialise system trusted keyrings
+[    0.326618] workingset: timestamp_bits=40 (anon: 35) max_order=20 bucket_order=0 (anon: 0)
+[    0.328411] NFS: Registering the id_resolver key type
+[    0.329403] Key type id_resolver registered
+[    0.330235] Key type id_legacy registered
+[    0.331044] nfs4filelayout_init: NFSv4 File Layout Driver Registering...
+[    0.332353] nfs4flexfilelayout_init: NFSv4 Flexfile Layout Driver Registering...
+[    0.333896] 9p: Installing v9fs 9p2000 file system support
+[    0.335194] Key type asymmetric registered
+[    0.336018] Asymmetric key parser 'x509' registered
+[    0.337000] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 251)
+[    0.338449] io scheduler mq-deadline registered
+[    0.339337] io scheduler kyber registered
+[    0.341977] input: Power Button as /devices/platform/PNP0C0C:00/input/input0
+[    0.343330] ACPI: button: Power Button [PWRB]
+[    0.344603] virtio-pci 0000:00:01.0: enabling device (0000 -> 0002)
+[    0.346594] virtio-pci 0000:00:02.0: enabling device (0000 -> 0002)
+[    0.348574] virtio-pci 0000:00:03.0: enabling device (0000 -> 0002)
+[    0.350598] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    0.351917] 00:00: ttyS0 at I/O 0x3f8 (irq = 24, base_baud = 115200) is a 16550A
+[    0.353647] Non-volatile memory driver v1.3
+[    0.355830] ACPI: bus type drm_connector registered
+[    0.357546] loop: module loaded
+[    0.358279] virtio_blk virtio0: 1/0/0 default/read/poll queues
+[    0.360919] virtio_blk virtio0: [vda] 83886080 512-byte logical blocks (42.9 GB/40.0 GiB)
+[    0.364773]  vda: vda1 vda14 vda15 vda16
+[    0.365782] virtio_blk virtio1: 1/0/0 default/read/poll queues
+[    0.367589] virtio_blk virtio1: [vdb] 2880 512-byte logical blocks (1.47 MB/1.41 MiB)
+[    0.369423]  vdb: vdb1
+[    0.370065] e100: Intel(R) PRO/100 Network Driver
+[    0.370889] e100: Copyright(c) 1999-2006 Intel Corporation
+[    0.371852] e1000: Intel(R) PRO/1000 Network Driver
+[    0.372690] e1000: Copyright (c) 1999-2006 Intel Corporation.
+[    0.373690] e1000e: Intel(R) PRO/1000 Network Driver
+[    0.374552] e1000e: Copyright(c) 1999 - 2015 Intel Corporation.
+[    0.375585] sky2: driver version 1.30
+[    0.376344] usbcore: registered new interface driver usblp
+[    0.377302] usbcore: registered new interface driver usb-storage
+[    0.378368] i8042: PNP: No PS/2 controller found.
+[    0.379428] rtc_cmos rtc_cmos: only 24-hr supported
+[    0.380422] device-mapper: ioctl: 4.50.0-ioctl (2025-04-28) initialised: dm-devel@lists.linux.dev
+[    0.381923] hid: raw HID events driver (C) Jiri Kosina
+[    0.382841] usbcore: registered new interface driver usbhid
+[    0.383777] usbhid: USB HID core driver
+[    0.384659] nf_conntrack_irc: The irc conntrack helper is scheduled for removal.
+               Please contact the netfilter-devel mailing list if you still need this.
+[    0.387458] Initializing XFRM netlink socket
+[    0.388199] NET: Registered PF_INET6 protocol family
+[    0.389290] Segment Routing with IPv6
+[    0.389938] In-situ OAM (IOAM) with IPv6
+[    0.390628] NET: Registered PF_PACKET protocol family
+[    0.391503] 9pnet: Installing 9P2000 support
+[    0.392236] Key type dns_resolver registered
+[    0.393323] IPI shorthand broadcast: enabled
+[    0.395992] sched_clock: Marking stable (279001405, 116432080)->(481126264, -85692779)
+[    0.397467] registered taskstats version 1
+[    0.398179] Loading compiled-in X.509 certificates
+[    0.400185] Demotion targets for Node 0: null
+[    0.401605] PM:   Magic number: 10:736:170
+[    0.402349] netconsole: network logging started
+[    0.403172] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[    0.406539] kworker/u16:1 (64) used greatest stack depth: 15032 bytes left
+[    0.407053] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[    0.407840] kworker/u16:1 (65) used greatest stack depth: 14424 bytes left
+[    0.408926] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[    0.411287] ALSA device list:
+[    0.411851] faux_driver regulatory: Direct firmware load for regulatory.db failed with error -2
+[    0.412448]   No soundcards found.
+[    0.414286] cfg80211: failed to load regulatory.db
+[    0.425109] md: Waiting for all devices to be available before autodetect
+[    0.425940] md: If you don't use raid, use raid=noautodetect
+[    0.426521] md: Autodetecting RAID arrays.
+[    0.426948] md: autorun ...
+[    0.427242] md: ... autorun DONE.
+[    0.433540] EXT4-fs (vda1): mounted filesystem db3ea6be-e601-49ba-a56b-7fb2b2bd2812 r/w with ordered data mode. Quota mode: none.
+[    0.434720] VFS: Mounted root (ext4 filesystem) on device 253:1.
+[    0.435566] devtmpfs: mounted
+[    0.435919] VFS: Pivoted into new rootfs
+[    0.436673] Freeing unused kernel image (initmem) memory: 3092K
+[    0.437295] Write protecting the kernel read-only data: 32768k
+[    0.438166] Freeing unused kernel image (text/rodata gap) memory: 1168K
+[    0.438964] Freeing unused kernel image (rodata/data gap) memory: 740K
+[    0.474483] x86/mm: Checked W+X mappings: passed, no W+X pages found.
+[    0.475160] Run /sbin/init as init process
+[    0.475587]   with arguments:
+[    0.475589]     /sbin/init
+[    0.475591]   with environment:
+[    0.475591]     HOME=/
+[    0.475592]     TERM=linux
+[    0.541622] modprobe (71) used greatest stack depth: 13016 bytes left
+[    0.544383] systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    0.547582] systemd[1]: Detected virtualization kvm.
+[    0.548113] systemd[1]: Detected architecture x86-64.
+[    0.549620] systemd[1]: Hostname set to <caraxes-vm6>.
+[    0.562391] snapd-env-gener (73) used greatest stack depth: 12752 bytes left
+[    0.573290] systemd-getty-g (85) used greatest stack depth: 11896 bytes left
+[    0.724167] systemd[1]: Queued start job for default target graphical.target.
+[    0.731066] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+[    0.732170] systemd[1]: Created slice system-systemd\x2dfsck.slice - Slice /system/systemd-fsck.
+[    0.733278] systemd[1]: Created slice user.slice - User and Session Slice.
+[    0.734053] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+[    0.735292] systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+[    0.736611] systemd[1]: Expecting device dev-disk-by\x2dlabel-BOOT.device - /dev/disk/by-label/BOOT...
+[    0.737608] systemd[1]: Expecting device dev-disk-by\x2dlabel-UEFI.device - /dev/disk/by-label/UEFI...
+[    0.738622] systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+[    0.739606] systemd[1]: Reached target slices.target - Slice Units.
+[    0.740694] systemd[1]: Reached target snapd.mounts-pre.target - Mounting snaps.
+[    0.741494] systemd[1]: Reached target snapd.mounts.target - Mounted snaps.
+[    0.742234] systemd[1]: Reached target swap.target - Swaps.
+[    0.742861] systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+[    0.743837] systemd[1]: Listening on dm-event.socket - Device-mapper event daemon FIFOs.
+[    0.744803] systemd[1]: Listening on lvm2-lvmpolld.socket - LVM2 poll daemon socket.
+[    0.745685] systemd[1]: Listening on multipathd.socket - multipathd control socket.
+[    0.746599] systemd[1]: Listening on syslog.socket - Syslog Socket.
+[    0.747328] systemd[1]: Listening on systemd-fsckd.socket - fsck to fsckd communication Socket.
+[    0.748294] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+[    0.749315] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+[    0.750345] systemd[1]: Listening on systemd-journald.socket - Journal Socket.
+[    0.751253] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+[    0.752188] systemd[1]: systemd-oomd.socket - Userspace Out-Of-Memory (OOM) Killer Socket was skipped because of an unmet condition check (ConditionPathExists=/proc/pressure/memory).
+[    0.753876] systemd[1]: systemd-pcrextend.socket - TPM2 PCR Extension (Varlink) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    0.755457] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[    0.756361] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+[    0.757892] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+[    0.759115] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+[    0.760668] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+[    0.762001] systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+[    0.766364] systemd[1]: Starting systemd-journald.service - Journal Service...
+[    0.769196] systemd[1]: Starting keyboard-setup.service - Set the console keyboard layout...
+[    0.770167] systemd[1]: kmod-static-nodes.service - Create List of Static Device Nodes was skipped because of an unmet condition check (ConditionFileNotEmpty=/lib/modules/7.2.7-nova/modules.devname).
+[    0.772428] systemd[1]: Starting lvm2-monitor.service - Monitoring of LVM2 mirrors, snapshots etc. using dmeventd or progress polling...
+[    0.774286] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+[    0.776900] systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+[    0.780198] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+[    0.782231] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+[    0.784306] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+[    0.785590] systemd-journald[112]: Collecting audit messages is disabled.
+[    0.787192] systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+[    0.788468] systemd[1]: netplan-ovs-cleanup.service - OpenVSwitch configuration for cleanup was skipped because of an unmet condition check (ConditionFileIsExecutable=/usr/bin/ovs-vsctl).
+[    0.790637] systemd[1]: systemd-fsck-root.service - File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
+[    0.795503] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+[    0.796514] systemd[1]: systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    0.799599] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+[    0.801522] systemd[1]: Starting systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully...
+[    0.802895] systemd[1]: systemd-tpm2-setup-early.service - TPM2 SRK Setup (Early) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    0.806008] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+[    0.808981] systemd[1]: Started systemd-journald.service - Journal Service.
+[    0.823457] EXT4-fs (vda1): re-mounted db3ea6be-e601-49ba-a56b-7fb2b2bd2812.
+[    0.834051] systemd-journald[112]: Received client request to flush runtime journal.
+[    0.883043] systemd-random- (152) used greatest stack depth: 11872 bytes left
+[    0.885806] systemd-journald[112]: /var/log/journal/b65810abf1bb438983b802f42a58570f/system.journal: Journal file uses a different sequence number ID, rotating.
+[    0.885812] systemd-journald[112]: Rotating system journal.
+[    1.039115] EXT4-fs (vda16): mounted filesystem cb669bb1-a373-4289-a26d-710492262019 r/w with ordered data mode. Quota mode: none.
+[    1.970142] loop0: detected capacity change from 0 to 8
+[    2.702190] nouveau 0000:00:04.0: enabling device (0000 -> 0003)
+[    2.702669] nouveau 0000:00:04.0: NVIDIA TU106 (166000a1)
+[    2.819445] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/gsp-570.144.bin" loaded - 28542040 byte(s)
+[    2.820074] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/bootloader-570.144.bin" loaded - 4196 byte(s)
+[    2.820754] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/booter_load-570.144.bin" loaded - 59272 byte(s)
+[    2.820920] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/gsp/booter_unload-570.144.bin" loaded - 39304 byte(s)
+[    2.820922] nouveau 0000:00:04.0: gsp: RM version: 570.144
+[    3.987171] nouveau 0000:00:04.0: bios: version 90.06.3d.00.76
+[    3.989379] nouveau 0000:00:04.0: gsp: binHdr:
+[    3.989381] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    3.989382] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    3.989383] nouveau 0000:00:04.0: gsp: 	binSize          : 59392
+[    3.989384] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    3.989384] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x88
+[    3.989385] nouveau 0000:00:04.0: gsp: 	dataSize         : 0xe700
+[    3.989386] nouveau 0000:00:04.0: gsp: hsHeader:
+[    3.989386] nouveau 0000:00:04.0: gsp: 	sigProdOffset    : 0x3c
+[    3.989387] nouveau 0000:00:04.0: gsp: 	sigProdSize      : 0x10
+[    3.989388] nouveau 0000:00:04.0: gsp: 	patchLoc         : 0x4c
+[    3.989388] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    3.989389] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    3.989390] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    3.989390] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    3.989391] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    3.989392] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    3.989404] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    3.989404] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    3.989405] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    3.989406] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x8500
+[    3.989406] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x6200
+[    3.989407] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    3.989408] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x8400
+[    3.989409] nouveau 0000:00:04.0: gsp: binHdr:
+[    3.989410] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    3.989410] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    3.989411] nouveau 0000:00:04.0: gsp: 	binSize          : 39424
+[    3.989412] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    3.989412] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x88
+[    3.989413] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x9900
+[    3.989414] nouveau 0000:00:04.0: gsp: hsHeader:
+[    3.989414] nouveau 0000:00:04.0: gsp: 	sigProdOffset    : 0x3c
+[    3.989415] nouveau 0000:00:04.0: gsp: 	sigProdSize      : 0x10
+[    3.989415] nouveau 0000:00:04.0: gsp: 	patchLoc         : 0x4c
+[    3.989416] nouveau 0000:00:04.0: gsp: 	patchSig         : 0x50
+[    3.989417] nouveau 0000:00:04.0: gsp: 	metadataOffset   : 0x54
+[    3.989417] nouveau 0000:00:04.0: gsp: 	metadataSize     : 0xc
+[    3.989418] nouveau 0000:00:04.0: gsp: 	numSig           : 0x60
+[    3.989419] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x64
+[    3.989419] nouveau 0000:00:04.0: gsp: 	headerSize       : 0x24
+[    3.989426] nouveau 0000:00:04.0: gsp: hsLoadHeader:
+[    3.989427] nouveau 0000:00:04.0: gsp: 	osCodeOffset     : 0x0
+[    3.989439] nouveau 0000:00:04.0: gsp: 	osCodeSize       : 0x100
+[    3.989440] nouveau 0000:00:04.0: gsp: 	osDataOffset     : 0x4c00
+[    3.989441] nouveau 0000:00:04.0: gsp: 	osDataSize       : 0x4d00
+[    3.989441] nouveau 0000:00:04.0: gsp: 	numApps          : 0x1
+[    3.989442] nouveau 0000:00:04.0: gsp: 	App[0]           : offset 0x100 size 0x4b00
+[    4.003638] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" loaded - 1280 byte(s)
+[    4.003643] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.003644] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.003645] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.003646] nouveau 0000:00:04.0: gsp: 	binSize          : 1280
+[    4.003647] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x100
+[    4.003648] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x200
+[    4.003648] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x300
+[    4.003649] nouveau 0000:00:04.0: gsp: blDesc
+[    4.003649] nouveau 0000:00:04.0: gsp: 	startTag         : 0xfd
+[    4.003650] nouveau 0000:00:04.0: gsp: 	dmemLoadOff      : 0x0
+[    4.003651] nouveau 0000:00:04.0: gsp: 	codeOff          : 0x0
+[    4.003652] nouveau 0000:00:04.0: gsp: 	codeSize         : 0x200
+[    4.003652] nouveau 0000:00:04.0: gsp: 	dataOff          : 0x200
+[    4.003653] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x100
+[    4.003655] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.003655] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.003656] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.003657] nouveau 0000:00:04.0: gsp: 	binSize          : 4352
+[    4.003658] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x18
+[    4.003658] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x64
+[    4.003659] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x1000
+[    4.003913] nouveau 0000:00:04.0: gsp: created debugfs GSP-RM logging entries
+[    4.004238] nouveau 0000:00:04.0: gsp: firmware "nvidia/tu106/acr/bl.bin" loaded - 1280 byte(s)
+[    4.004240] nouveau 0000:00:04.0: gsp: binHdr:
+[    4.004240] nouveau 0000:00:04.0: gsp: 	binMagic         : 0x000010de
+[    4.004241] nouveau 0000:00:04.0: gsp: 	binVer           : 1
+[    4.004242] nouveau 0000:00:04.0: gsp: 	binSize          : 1280
+[    4.004243] nouveau 0000:00:04.0: gsp: 	headerOffset     : 0x100
+[    4.004243] nouveau 0000:00:04.0: gsp: 	dataOffset       : 0x200
+[    4.004244] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x300
+[    4.004245] nouveau 0000:00:04.0: gsp: blDesc
+[    4.004245] nouveau 0000:00:04.0: gsp: 	startTag         : 0xfd
+[    4.004246] nouveau 0000:00:04.0: gsp: 	dmemLoadOff      : 0x0
+[    4.004247] nouveau 0000:00:04.0: gsp: 	codeOff          : 0x0
+[    4.004247] nouveau 0000:00:04.0: gsp: 	codeSize         : 0x200
+[    4.004248] nouveau 0000:00:04.0: gsp: 	dataOff          : 0x200
+[    4.004249] nouveau 0000:00:04.0: gsp: 	dataSize         : 0x100
+[    4.004251] nouveau 0000:00:04.0: gsp: acquired gsp falcon
+[    4.004372] nouveau 0000:00:04.0: gsp:fwsec-frts: resetting
+[    4.005553] nouveau 0000:00:04.0: gsp:fwsec-frts: loading
+[    4.005716] nouveau 0000:00:04.0: gsp: imem 0000fe00 <- 00000200 bytes at 00000000
+[    4.013232] nouveau 0000:00:04.0: gsp: flcnBlDmemDesc
+[    4.013234] nouveau 0000:00:04.0: gsp: 	reserved      : 0x00000000 0x00000000 0x00000000 0x00000000
+[    4.013235] nouveau 0000:00:04.0: gsp: 	signature     : 0x00000000 0x00000000 0x00000000 0x00000000
+[    4.013236] nouveau 0000:00:04.0: gsp: 	ctxDma        : 4
+[    4.013237] nouveau 0000:00:04.0: gsp: 	codeDmaBase   : 0x10ef61000
+[    4.013238] nouveau 0000:00:04.0: gsp: 	nonSecCodeOff : 0x0
+[    4.013238] nouveau 0000:00:04.0: gsp: 	nonSecCodeSize: 0x100
+[    4.013239] nouveau 0000:00:04.0: gsp: 	secCodeOff    : 0x100
+[    4.013240] nouveau 0000:00:04.0: gsp: 	secCodeSize   : 0x100
+[    4.013240] nouveau 0000:00:04.0: gsp: 	codeEntryPoint: 0x0
+[    4.013241] nouveau 0000:00:04.0: gsp: 	dataDmaBase   : 0x10ef61200
+[    4.013242] nouveau 0000:00:04.0: gsp: 	dataSize      : 0x100
+[    4.013242] nouveau 0000:00:04.0: gsp: 	argc          : 0x00000000
+[    4.013243] nouveau 0000:00:04.0: gsp: 	argv          : 0x00000000
+[    4.013343] nouveau 0000:00:04.0: gsp: dmem 00000000 <- 00000054 bytes at 00000000
+[    4.014609] nouveau 0000:00:04.0: gsp:fwsec-frts: booting
+[    4.014950] nouveau 0000:00:04.0: gsp: mbox 00000000 00000000
+[    4.014952] nouveau 0000:00:04.0: gsp:fwsec-frts: booted
+[    4.014953] nouveau 0000:00:04.0: gsp: released gsp falcon
+[    4.015099] nouveau 0000:00:04.0: gsp: fwsec-frts: WPR2 @ 01ffe000 - 01ffeff0
+[    4.015584] nouveau 0000:00:04.0: gsp: acquired sec2 falcon
+[    4.015770] nouveau 0000:00:04.0: sec2(gsp):booter-load: patching sigs:1 size:16
+[    4.016424] nouveau 0000:00:04.0: sec2(gsp):booter-load: patch idx:0 src:0000003c dst:00008700
+[    4.016426] nouveau 0000:00:04.0: sec2(gsp):booter-load: resetting
+[    4.017570] nouveau 0000:00:04.0: sec2(gsp):booter-load: loading
+[    4.017750] nouveau 0000:00:04.0: sec2(gsp): imem 00000000 <- 00000100 bytes at 00000000
+[    4.021497] nouveau 0000:00:04.0: sec2(gsp): imem 00000100 <- 00008400 bytes at 00000100
+[    4.233780] nouveau 0000:00:04.0: sec2(gsp): dmem 00000000 <- 00006200 bytes at 00008500
+[    4.378248] nouveau 0000:00:04.0: sec2(gsp):booter-load: booting
+[    4.378514] nouveau 0000:00:04.0: sec2(gsp): mbox 00000000 00000001
+[    4.378517] nouveau 0000:00:04.0: sec2(gsp):booter-load: booted
+[    4.378518] nouveau 0000:00:04.0: gsp: released sec2 falcon
+[    4.378573] nouveau 0000:00:04.0: gsp: seq: 00000000 00000000
+[    4.378655] nouveau 0000:00:04.0: gsp: fb region 0: 00000000a9800000-00000000e75fffff rsvd:0000000000000000 perf:00000001 comp:1 iso:1 prot:0
+[    4.378658] nouveau 0000:00:04.0: gsp: fb region 1: 00000000e7600000-00000000e97fffff rsvd:0000000002200000 perf:00000001 comp:0 iso:1 prot:0
+[    4.378661] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800137 params_size:4
+[    4.378771] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800138 params_size:8
+[    4.378824] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800138 params_size:8
+[    4.378873] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800138 params_size:8
+[    4.378926] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800a5c params_size:2068
+[    4.378979] nouveau 0000:00:04.0: gsp:  0: engineIdx  50 pmcIntrMask 00000000 stall 000000c0 nonStall 00000001
+[    4.378982] nouveau 0000:00:04.0: gsp:  1: engineIdx   4 pmcIntrMask 00000000 stall 000000c1 nonStall 00000002
+[    4.378983] nouveau 0000:00:04.0: gsp:  2: engineIdx   1 pmcIntrMask 00000000 stall 000000c2 nonStall 00000003
+[    4.378984] nouveau 0000:00:04.0: gsp:  3: engineIdx  59 pmcIntrMask 00000000 stall 00000040 nonStall 00000000
+[    4.378985] nouveau 0000:00:04.0: gsp:  4: engineIdx  60 pmcIntrMask 00000000 stall 00000041 nonStall 00000000
+[    4.378986] nouveau 0000:00:04.0: gsp:  5: engineIdx  61 pmcIntrMask 00000000 stall 000000c3 nonStall 00000000
+[    4.378987] nouveau 0000:00:04.0: gsp:  6: engineIdx  84 pmcIntrMask 00000000 stall 000000c4 nonStall 00000004
+[    4.378988] nouveau 0000:00:04.0: gsp:  7: engineIdx  17 pmcIntrMask 00000000 stall 000000c5 nonStall 00000005
+[    4.378989] nouveau 0000:00:04.0: gsp:  8: engineIdx  18 pmcIntrMask 00000000 stall 000000c6 nonStall 00000006
+[    4.378990] nouveau 0000:00:04.0: gsp:  9: engineIdx  19 pmcIntrMask 00000000 stall 000000c7 nonStall 00000007
+[    4.378991] nouveau 0000:00:04.0: gsp: 10: engineIdx  65 pmcIntrMask 00000000 stall 000000c8 nonStall 00000008
+[    4.378992] nouveau 0000:00:04.0: gsp: 11: engineIdx  38 pmcIntrMask 00000000 stall 000000c9 nonStall 00000009
+[    4.378993] nouveau 0000:00:04.0: gsp: 12: engineIdx  66 pmcIntrMask 00000000 stall 000000ca nonStall 0000000a
+[    4.378994] nouveau 0000:00:04.0: gsp: 13: engineIdx  67 pmcIntrMask 00000000 stall 000000cb nonStall 0000000b
+[    4.378995] nouveau 0000:00:04.0: gsp: 14: engineIdx   2 pmcIntrMask 00000000 stall 0000009c nonStall 00000000
+[    4.668635] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xc1d00000 new obj:0xc1d00000
+[    4.668641] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[    4.668940] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xc1d00000 new obj:0xde1d0000
+[    4.668942] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[    4.668981] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 new obj:0x5d1d0000
+[    4.668983] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[    4.669020] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 new obj:0x90f10000
+[    4.669022] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[    4.669061] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[    4.669249] nouveau 0000:00:04.0: drm: VRAM: 8192 MiB
+[    4.669250] nouveau 0000:00:04.0: drm: GART: 536870912 MiB
+[    4.669262] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20801112 params_size:3212
+[    4.669352] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20802a08 params_size:4
+[    4.669395] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x208001b0 params_size:1284
+[    4.674966] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xc1d00001
+[    4.674968] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[    4.675340] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xde1d0000
+[    4.675342] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[    4.675387] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x5d1d0000
+[    4.675389] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[    4.675442] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x90f10000
+[    4.675445] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[    4.676122] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 ctrl cmd:0x90f10106 params_size:184
+[    4.676206] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0xf1f00000
+[    4.676209] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[    4.676268] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20800a32 params_size:1664
+[    4.676714] nouveau 0000:00:04.0: gsp: cli:0xca7a0001 obj:0xca7a0003 ctrl cmd:0x20801206 params_size:40
+[    4.676784] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[    4.698218] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xf1f00000 new obj:0x97000000
+[    4.698221] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[    4.698337] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x97000000 free
+[    4.698468] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xf1f00000 free
+[    4.699627] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[    4.699834] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[    4.699947] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[    4.700054] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free
+[    4.700851] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 new obj:0xf1f00001
+[    4.700853] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[    4.700974] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00001 ctrl cmd:0xa06f0104 params_size:4
+[    4.701087] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00001 ctrl cmd:0xa06f0103 params_size:2
+[    4.702275] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xde1d0000 new obj:0xf1f00002
+[    4.702277] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[    4.702731] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00002 ctrl cmd:0xa06f0104 params_size:4
+[    4.702853] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00002 ctrl cmd:0xa06f0103 params_size:2
+[    4.703127] nouveau 0000:00:04.0: gsp: cli:0xc1d00000 obj:0xf1f00002 new obj:0x0004c5b5
+[    4.703129] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[    4.703237] nouveau 0000:00:04.0: drm: MM: using COPY for buffer copies
+[    4.703413] [drm] Initialized nouveau 1.4.2 for 0000:00:04.0 on minor 0
+[    4.703684] modprobe (585) used greatest stack depth: 9976 bytes left
+[   10.133379] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xc1d00001
+[   10.133384] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.133730] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xde1d0000
+[   10.133733] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.133877] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.133880] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.133994] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x90f10000
+[   10.133997] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.134115] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.134288] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   10.134404] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[   10.134549] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[   10.134682] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[   10.134804] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free
+[   10.135519] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xc1d00001
+[   10.135521] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.135635] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xde1d0000
+[   10.135637] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.135750] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.135752] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.135857] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x90f10000
+[   10.135859] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.135969] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.136363] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xc1d00002
+[   10.136365] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.136487] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xde1d0000
+[   10.136490] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.136604] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.136607] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.136726] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x90f10000
+[   10.136729] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.136844] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.138057] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0xf1f00003
+[   10.138060] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.138644] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   10.138778] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   10.139199] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0x00000000
+[   10.139201] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.139497] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0x00000000
+[   10.139500] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.140499] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xc1d00003
+[   10.140501] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.140621] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xde1d0000
+[   10.140623] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.140738] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.140740] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.140847] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0xdada0042
+[   10.140848] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.141365] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   10.141532] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0xdada0045
+[   10.141535] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.141771] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.153361] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0045 new obj:0xdada0046
+[   10.153365] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.153565] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.153728] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.164601] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0xbef2902d
+[   10.164604] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   10.164841] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0xbef2003d
+[   10.164844] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.165033] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0xbef2323f
+[   10.165035] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   10.165222] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0xbef200c0
+[   10.165224] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   10.165409] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xbef200c0 free
+[   10.165632] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xbef2003d free
+[   10.165843] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x00000000 free
+[   10.166057] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xbef2323f free
+[   10.166250] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xbef2902d free
+[   10.218545] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x00000000 free
+[   10.226482] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 free
+[   10.229151] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.229967] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0046 free
+[   10.230192] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0045 free
+[   10.232220] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0042 free
+[   10.232480] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 free
+[   10.232606] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 free
+[   10.232725] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 free
+[   10.235729] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xc1d00003
+[   10.235731] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.235932] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xde1d0000
+[   10.235934] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.236048] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.236050] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.236162] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x90f10000
+[   10.236164] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.236273] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.238939] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xc1d00004
+[   10.238942] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.239082] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xde1d0000
+[   10.239084] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.239195] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.239197] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.239310] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x90f10000
+[   10.239312] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.239420] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.239752] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 new obj:0xc1d00005
+[   10.239754] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.239869] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 new obj:0xde1d0000
+[   10.239871] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.239979] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.239981] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.240087] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0x90f10000
+[   10.240089] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.240200] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.241062] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0xf1f00003
+[   10.241064] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.241578] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   10.241706] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   10.242074] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0x00000000
+[   10.242077] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.242350] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0x00000000
+[   10.242352] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.243263] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xc1d00006
+[   10.243265] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.243387] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xde1d0000
+[   10.243389] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.243511] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.243513] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.243627] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xdada0042
+[   10.243629] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.243859] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   10.244002] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xdada0045
+[   10.244004] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.244122] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.248373] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0045 new obj:0xdada0046
+[   10.248375] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.248548] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.248708] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.253039] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0xbef2902d
+[   10.253041] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   10.253269] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0xbef2003d
+[   10.253271] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.253476] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0xbef2323f
+[   10.253478] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   10.253697] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0xbef200c0
+[   10.253699] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   10.253911] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef200c0 free
+[   10.254122] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef2003d free
+[   10.254315] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   10.254519] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef2323f free
+[   10.254743] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef2902d free
+[   10.255996] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   10.260480] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 free
+[   10.262916] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.263204] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0046 free
+[   10.263367] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0045 free
+[   10.265331] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0042 free
+[   10.265552] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 free
+[   10.265688] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 free
+[   10.265801] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 free
+[   10.268505] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0xf1f00003
+[   10.268507] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.268869] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   10.268987] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   10.269342] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0x00000000
+[   10.269345] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.269613] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0x00000000
+[   10.269615] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.272554] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0xf1f00005
+[   10.272557] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.273038] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 ctrl cmd:0xa06f0104 params_size:4
+[   10.273155] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 ctrl cmd:0xa06f0103 params_size:2
+[   10.273440] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 new obj:0x00000000
+[   10.273443] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.273689] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 new obj:0x00000000
+[   10.273692] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.274376] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xc1d00006
+[   10.274378] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.274538] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xde1d0000
+[   10.274540] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.274659] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.274661] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.274774] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xdada0042
+[   10.274776] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.275352] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   10.275501] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xdada0045
+[   10.275503] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.275629] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.302198] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0045 new obj:0xdada0046
+[   10.302200] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.302369] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.302526] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.308291] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 new obj:0xbef4003d
+[   10.308293] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.308537] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 new obj:0xbef400c0
+[   10.308539] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   10.331729] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef400c0 free
+[   10.333001] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef4003d free
+[   10.333872] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   10.334580] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   10.340461] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 free
+[   10.345624] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.345990] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0046 free
+[   10.346174] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0045 free
+[   10.348199] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0042 free
+[   10.348423] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 free
+[   10.348553] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 free
+[   10.348730] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 free
+[   10.352422] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   10.353123] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   10.358465] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 free
+[   10.360885] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   10.361035] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x90f10000 free
+[   10.361152] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 free
+[   10.361260] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 free
+[   10.361367] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 free
+[   10.361721] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   10.361852] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x90f10000 free
+[   10.361972] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 free
+[   10.362088] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 free
+[   10.362203] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 free
+[   10.363350] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   10.363530] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x90f10000 free
+[   10.363671] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 free
+[   10.363792] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 free
+[   10.363906] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 free
+[   10.364292] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   10.364408] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x90f10000 free
+[   10.364532] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 free
+[   10.364742] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 free
+[   10.365272] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 free
+[   10.365738] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   10.365866] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[   10.365981] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[   10.366089] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[   10.366196] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free
+[   10.397225] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xc1d00001
+[   10.397230] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.397593] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xde1d0000
+[   10.397595] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.397733] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.397736] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.397846] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x90f10000
+[   10.397848] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.397961] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.398118] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   10.398230] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[   10.398361] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[   10.398478] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[   10.398590] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free
+[   10.399216] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xc1d00001
+[   10.399218] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.399334] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xde1d0000
+[   10.399336] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.399470] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.399473] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.399590] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x90f10000
+[   10.399592] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.399708] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.400085] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xc1d00002
+[   10.400087] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.400199] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xde1d0000
+[   10.400201] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.400308] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.400310] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.400417] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x90f10000
+[   10.400419] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.400546] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.401566] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0xf1f00003
+[   10.401569] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.401923] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   10.402039] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   10.402406] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0x00000000
+[   10.402409] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.402697] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0x00000000
+[   10.402700] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.403498] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xc1d00003
+[   10.403501] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.403622] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xde1d0000
+[   10.403624] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.403742] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.403744] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.403853] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0xdada0042
+[   10.403855] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.404077] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   10.404215] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0xdada0045
+[   10.404217] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.404332] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.409013] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0045 new obj:0xdada0046
+[   10.409015] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.409189] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.409341] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.414092] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0xbef2902d
+[   10.414094] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   10.414322] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0xbef2003d
+[   10.414324] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.414528] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0xbef2323f
+[   10.414531] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   10.414759] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 new obj:0xbef200c0
+[   10.414762] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   10.414972] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xbef200c0 free
+[   10.415179] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xbef2003d free
+[   10.415370] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x00000000 free
+[   10.415581] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xbef2323f free
+[   10.415816] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xbef2902d free
+[   10.416698] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x00000000 free
+[   10.420475] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xf1f00003 free
+[   10.422783] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.423090] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0046 free
+[   10.423271] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0045 free
+[   10.425221] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xdada0042 free
+[   10.425450] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 free
+[   10.425569] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 free
+[   10.425750] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 free
+[   10.428603] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xc1d00003
+[   10.428606] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.428816] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xde1d0000
+[   10.428819] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.428942] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.428944] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.429059] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x90f10000
+[   10.429061] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.429172] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.431852] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xc1d00004
+[   10.431855] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.432039] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xde1d0000
+[   10.432041] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.432197] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.432199] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.432350] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x90f10000
+[   10.432352] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.432516] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.433105] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 new obj:0xc1d00005
+[   10.433107] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.433261] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 new obj:0xde1d0000
+[   10.433263] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.433417] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.433419] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.433579] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0x90f10000
+[   10.433581] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.433746] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   10.435499] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0xf1f00003
+[   10.435501] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.435887] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   10.436051] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   10.436629] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0x00000000
+[   10.436632] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.436934] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0x00000000
+[   10.436937] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.437742] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xc1d00006
+[   10.437744] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.437876] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xde1d0000
+[   10.437878] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.437998] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.438000] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.438121] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xdada0042
+[   10.438123] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.438347] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   10.438499] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xdada0045
+[   10.438502] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.438631] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.443758] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0045 new obj:0xdada0046
+[   10.443760] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.443921] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.444069] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.448994] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0xbef2902d
+[   10.448996] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   10.449225] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0xbef2003d
+[   10.449227] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.449414] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0xbef2323f
+[   10.449416] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   10.449626] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0xbef200c0
+[   10.449628] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   10.449856] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef200c0 free
+[   10.450074] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef2003d free
+[   10.450268] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   10.450468] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef2323f free
+[   10.450683] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef2902d free
+[   10.451484] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   10.455464] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 free
+[   10.457726] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.458010] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0046 free
+[   10.458175] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0045 free
+[   10.460160] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0042 free
+[   10.460375] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 free
+[   10.460502] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 free
+[   10.460634] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 free
+[   10.463441] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0xf1f00003
+[   10.463443] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.463806] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   10.463925] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   10.464285] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0x00000000
+[   10.464287] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.464573] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 new obj:0x00000000
+[   10.464576] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.467376] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0xf1f00005
+[   10.467379] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.467891] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 ctrl cmd:0xa06f0104 params_size:4
+[   10.468049] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 ctrl cmd:0xa06f0103 params_size:2
+[   10.468312] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 new obj:0x00000000
+[   10.468315] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.468585] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 new obj:0x00000000
+[   10.468587] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   10.469279] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xc1d00006
+[   10.469281] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   10.469409] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xde1d0000
+[   10.469411] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   10.469536] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0x5d1d0000
+[   10.469539] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   10.469660] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xdada0042
+[   10.469662] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   10.470252] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   10.470394] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xdada0045
+[   10.470396] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   10.470528] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.475898] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0045 new obj:0xdada0046
+[   10.475900] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.476066] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   10.476216] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   10.482315] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 new obj:0xbef4003d
+[   10.482318] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   10.482567] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 new obj:0xbef400c0
+[   10.482569] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   11.108360] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef400c0 free
+[   11.109588] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xbef4003d free
+[   11.110329] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   11.111037] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   11.115466] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00005 free
+[   11.120328] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.120681] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0046 free
+[   11.120900] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0045 free
+[   11.122937] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xdada0042 free
+[   11.123177] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 free
+[   11.123298] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 free
+[   11.123411] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 free
+[   11.127533] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   11.129111] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x00000000 free
+[   11.135462] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xf1f00003 free
+[   11.137501] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.137678] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x90f10000 free
+[   11.137800] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 free
+[   11.137916] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 free
+[   11.138025] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 free
+[   11.138383] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.138508] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x90f10000 free
+[   11.138623] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 free
+[   11.138748] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 free
+[   11.138859] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 free
+[   11.139273] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.139391] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x90f10000 free
+[   11.139518] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 free
+[   11.139631] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 free
+[   11.139752] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 free
+[   11.140123] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.140241] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x90f10000 free
+[   11.140354] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 free
+[   11.140472] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 free
+[   11.140588] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 free
+[   11.140949] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.141064] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[   11.141175] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[   11.141282] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[   11.141389] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free
+[   11.204996] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xc1d00001
+[   11.205001] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.205450] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xde1d0000
+[   11.205453] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.205578] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.205581] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.205708] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x90f10000
+[   11.205710] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.205824] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.228777] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xc1d00002
+[   11.228782] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.229118] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xde1d0000
+[   11.229120] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.229238] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.229240] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.229347] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x90f10000
+[   11.229349] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.229474] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.229659] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.229784] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x90f10000 free
+[   11.229921] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 free
+[   11.230036] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 free
+[   11.230147] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 free
+[   11.230821] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xc1d00002
+[   11.230823] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.230958] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xde1d0000
+[   11.230960] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.231072] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.231074] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.231181] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x90f10000
+[   11.231183] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.231295] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.231720] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xc1d00003
+[   11.231722] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.231845] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xde1d0000
+[   11.231847] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.231959] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.231961] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.232070] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x90f10000
+[   11.232072] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.232181] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.233213] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0xf1f00003
+[   11.233215] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.233757] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   11.233952] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   11.234334] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0x00000000
+[   11.234337] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.234656] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0x00000000
+[   11.234658] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.235419] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xc1d00004
+[   11.235421] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.235586] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xde1d0000
+[   11.235588] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.235720] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.235722] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.235844] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0xdada0042
+[   11.235846] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.236074] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   11.236215] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0xdada0045
+[   11.236217] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.236336] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.241206] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0045 new obj:0xdada0046
+[   11.241209] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.241370] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.241527] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.246448] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0xbef2902d
+[   11.246451] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   11.246746] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0xbef2003d
+[   11.246748] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.247000] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0xbef2323f
+[   11.247002] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   11.247242] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0xbef200c0
+[   11.247244] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   11.247497] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xbef200c0 free
+[   11.247773] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xbef2003d free
+[   11.247997] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x00000000 free
+[   11.248199] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xbef2323f free
+[   11.248396] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xbef2902d free
+[   11.249386] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x00000000 free
+[   11.253473] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 free
+[   11.255884] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.256180] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0046 free
+[   11.256349] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0045 free
+[   11.258595] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0042 free
+[   11.258851] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 free
+[   11.258972] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 free
+[   11.259083] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 free
+[   11.262106] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xc1d00004
+[   11.262109] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.262303] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xde1d0000
+[   11.262305] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.262419] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.262421] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.262581] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x90f10000
+[   11.262583] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.262741] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.264984] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 new obj:0xc1d00005
+[   11.264987] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.265134] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 new obj:0xde1d0000
+[   11.265136] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.265248] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.265250] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.265355] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0x90f10000
+[   11.265357] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.265478] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.265914] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xc1d00006
+[   11.265917] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.266039] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xde1d0000
+[   11.266042] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.266158] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.266161] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.266276] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0x90f10000
+[   11.266278] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.266394] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.268049] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xf1f00003
+[   11.268051] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.268400] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   11.268532] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   11.268971] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[   11.268974] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.269279] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[   11.269282] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.271036] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xc1d00007
+[   11.271038] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.271162] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xde1d0000
+[   11.271164] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.271276] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.271278] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.271386] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0042
+[   11.271388] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.271644] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   11.271811] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0045
+[   11.271814] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.271943] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.276519] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 new obj:0xdada0046
+[   11.276522] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.276697] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.276852] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.282758] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0xbef2902d
+[   11.282761] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   11.283067] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0xbef2003d
+[   11.283069] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.283332] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0xbef2323f
+[   11.283334] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   11.283586] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0xbef200c0
+[   11.283588] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   11.283934] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef200c0 free
+[   11.284178] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef2003d free
+[   11.284381] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[   11.284627] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef2323f free
+[   11.284871] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef2902d free
+[   11.286280] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[   11.290485] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 free
+[   11.295123] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.295571] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0046 free
+[   11.295835] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 free
+[   11.299384] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 free
+[   11.299662] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 free
+[   11.299839] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 free
+[   11.300003] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 free
+[   11.305590] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xf1f00003
+[   11.305593] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.306058] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   11.306236] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   11.306734] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[   11.306736] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.307193] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[   11.307195] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.346979] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xf1f00005
+[   11.346982] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.347856] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 ctrl cmd:0xa06f0104 params_size:4
+[   11.348012] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 ctrl cmd:0xa06f0103 params_size:2
+[   11.348314] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0x00000000
+[   11.348317] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.348584] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0x00000000
+[   11.348586] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.349325] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xc1d00007
+[   11.349327] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.349465] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xde1d0000
+[   11.349468] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.349586] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.349588] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.349707] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0042
+[   11.349709] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.350285] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   11.350427] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0045
+[   11.350429] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.350565] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.355293] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 new obj:0xdada0046
+[   11.355296] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.355488] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.355655] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.360536] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0xbef4003d
+[   11.360539] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.360804] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0xbef400c0
+[   11.360806] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   11.445946] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef400c0 free
+[   11.447264] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef4003d free
+[   11.448094] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[   11.448842] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[   11.453455] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 free
+[   11.459668] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.460021] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0046 free
+[   11.460207] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 free
+[   11.462348] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 free
+[   11.462695] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 free
+[   11.462818] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 free
+[   11.462932] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 free
+[   11.469123] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[   11.469810] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[   11.475474] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 free
+[   11.477461] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.477603] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x90f10000 free
+[   11.477732] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 free
+[   11.477844] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 free
+[   11.477955] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 free
+[   11.478304] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.478418] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x90f10000 free
+[   11.478539] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 free
+[   11.478687] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 free
+[   11.478799] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 free
+[   11.479282] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.479398] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x90f10000 free
+[   11.479525] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 free
+[   11.479635] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 free
+[   11.479752] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 free
+[   11.480121] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.480235] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x90f10000 free
+[   11.480344] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 free
+[   11.480465] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 free
+[   11.480574] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 free
+[   11.480931] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.481044] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x90f10000 free
+[   11.481159] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 free
+[   11.481267] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 free
+[   11.481375] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 free
+[   11.482353] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.482489] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[   11.482602] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[   11.482718] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[   11.482827] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free
+[   11.562086] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xc1d00001
+[   11.562090] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.562407] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 new obj:0xde1d0000
+[   11.562409] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.562541] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.562543] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.562670] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 new obj:0x90f10000
+[   11.562672] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.562789] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.576688] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xc1d00002
+[   11.576692] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.576981] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xde1d0000
+[   11.576983] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.577102] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.577104] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.577211] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x90f10000
+[   11.577213] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.577325] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.577505] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   11.577688] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x90f10000 free
+[   11.577833] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 free
+[   11.577947] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 free
+[   11.578057] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 free
+[   11.578564] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xc1d00002
+[   11.578566] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.578705] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 new obj:0xde1d0000
+[   11.578707] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.578830] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.578832] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.578943] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 new obj:0x90f10000
+[   11.578946] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.579058] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.579499] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xc1d00003
+[   11.579502] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.579700] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 new obj:0xde1d0000
+[   11.579702] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.579816] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.579818] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.579934] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0x90f10000
+[   11.579936] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.580048] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.581036] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 new obj:0xf1f00003
+[   11.581038] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.581443] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   11.581571] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   11.581967] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0x00000000
+[   11.581969] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.582237] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0x00000000
+[   11.582239] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.583571] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xc1d00004
+[   11.583573] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.583749] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xde1d0000
+[   11.583751] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.583875] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.583877] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.583990] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0xdada0042
+[   11.583992] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.584227] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   11.584550] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0xdada0045
+[   11.584552] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.584690] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.590375] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0045 new obj:0xdada0046
+[   11.590378] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.590561] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.590738] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.595294] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0xbef2902d
+[   11.595296] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   11.595538] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0xbef2003d
+[   11.595541] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.595787] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0xbef2323f
+[   11.595789] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   11.596014] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 new obj:0xbef200c0
+[   11.596016] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   11.596218] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xbef200c0 free
+[   11.596425] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xbef2003d free
+[   11.596673] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x00000000 free
+[   11.596911] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xbef2323f free
+[   11.597132] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xbef2902d free
+[   11.598167] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x00000000 free
+[   11.602476] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xf1f00003 free
+[   11.604807] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.605099] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0046 free
+[   11.605266] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0045 free
+[   11.607268] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xdada0042 free
+[   11.607491] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 free
+[   11.607624] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 free
+[   11.607759] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 free
+[   11.610287] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xc1d00004
+[   11.610289] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.610544] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 new obj:0xde1d0000
+[   11.610547] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.610714] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.610716] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.610833] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 new obj:0x90f10000
+[   11.610835] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.610954] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.612716] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 new obj:0xc1d00005
+[   11.612718] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.612866] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 new obj:0xde1d0000
+[   11.612868] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.612980] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.612982] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.613089] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 new obj:0x90f10000
+[   11.613091] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.613210] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.613569] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xc1d00006
+[   11.613571] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.613705] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 new obj:0xde1d0000
+[   11.613708] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.613824] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.613826] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.613939] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0x90f10000
+[   11.613941] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.614053] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   11.614959] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xf1f00003
+[   11.614961] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.615307] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   11.615427] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   11.615889] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[   11.615891] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.616167] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[   11.616169] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.616887] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xc1d00007
+[   11.616889] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.617016] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xde1d0000
+[   11.617018] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.617131] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.617133] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.617242] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0042
+[   11.617244] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.617487] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   11.617637] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0045
+[   11.617639] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.617766] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.622942] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 new obj:0xdada0046
+[   11.622944] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.623105] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.623262] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.628165] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0xbef2902d
+[   11.628168] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   11.628407] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0xbef2003d
+[   11.628409] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.628618] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0xbef2323f
+[   11.628622] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   11.628890] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0xbef200c0
+[   11.628892] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   11.629157] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef200c0 free
+[   11.629390] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef2003d free
+[   11.629611] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[   11.629850] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef2323f free
+[   11.630056] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef2902d free
+[   11.631014] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[   11.634481] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 free
+[   11.636762] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.637040] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0046 free
+[   11.637202] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 free
+[   11.639153] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 free
+[   11.639563] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 free
+[   11.639798] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 free
+[   11.639945] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 free
+[   11.642456] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xf1f00003
+[   11.642458] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.642827] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0104 params_size:4
+[   11.642953] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 ctrl cmd:0xa06f0103 params_size:2
+[   11.643312] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[   11.643314] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.643590] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 new obj:0x00000000
+[   11.643592] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.681075] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 new obj:0xf1f00005
+[   11.681080] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.682057] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 ctrl cmd:0xa06f0104 params_size:4
+[   11.682196] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 ctrl cmd:0xa06f0103 params_size:2
+[   11.682525] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0x00000000
+[   11.682528] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.682802] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0x00000000
+[   11.682805] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   11.683530] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xc1d00007
+[   11.683533] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   11.683673] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 new obj:0xde1d0000
+[   11.683676] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   11.683794] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0x5d1d0000
+[   11.683797] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   11.683911] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0042
+[   11.683913] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   11.684515] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 ctrl cmd:0x90f10106 params_size:184
+[   11.684673] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 new obj:0xdada0045
+[   11.684675] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   11.684796] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.689973] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 new obj:0xdada0046
+[   11.689976] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.690137] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[   11.690286] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   11.694860] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0xbef4003d
+[   11.694863] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   11.695237] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 new obj:0xbef400c0
+[   11.695240] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   12.545987] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[   12.545992] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   12.546657] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[   12.546660] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   12.547006] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[   12.547009] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   12.547249] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[   12.547252] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   12.547484] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   12.547787] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   12.548016] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[   12.548239] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[   12.548451] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[   12.548688] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[   12.549391] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[   12.549393] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   12.549665] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[   12.549667] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   12.549916] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[   12.549918] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   12.550138] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[   12.550140] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   12.550343] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   12.550846] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xc1d00009
+[   12.550848] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   12.551090] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xde1d0000
+[   12.551092] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   12.551317] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x5d1d0000
+[   12.551319] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   12.551527] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x90f10000
+[   12.551529] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   12.551770] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   12.553777] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0xf1f00006
+[   12.553780] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   12.554287] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   12.554560] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   12.555277] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0x00000000
+[   12.555280] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   12.555753] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0x00000000
+[   12.555756] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   12.556023] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   12.561787] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5902d
+[   12.561790] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   12.562137] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5003d
+[   12.562139] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   12.562421] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5323f
+[   12.562423] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   12.562719] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef500c0
+[   12.562721] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   12.563190] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef500c0 free
+[   12.563733] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5003d free
+[   12.564126] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x00000000 free
+[   12.564674] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5323f free
+[   12.565340] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5902d free
+[   12.569035] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x00000000 free
+[   12.577479] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 free
+[   12.582094] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xc1d0000a
+[   12.582097] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   12.582626] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xde1d0000
+[   12.582629] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   12.582928] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x5d1d0000
+[   12.582930] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   12.583152] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x90f10000
+[   12.583154] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   12.583361] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   12.586301] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xc1d0000b
+[   12.586304] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   12.586703] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xde1d0000
+[   12.586705] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   12.586987] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x5d1d0000
+[   12.586989] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   12.587218] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x90f10000
+[   12.587220] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   12.587480] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   12.588042] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xc1d0000c
+[   12.588044] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   12.588325] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xde1d0000
+[   12.588327] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   12.588574] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x5d1d0000
+[   12.588576] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   12.588822] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x90f10000
+[   12.588824] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   12.589094] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   12.590379] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00006
+[   12.590382] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   12.590897] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   12.591163] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   12.591783] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   12.591785] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   12.592218] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   12.592221] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   12.592471] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   12.603048] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5902d
+[   12.603052] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   12.603454] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5003d
+[   12.603457] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   12.604016] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5323f
+[   12.604018] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   12.604406] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef500c0
+[   12.604408] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   12.604829] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef500c0 free
+[   12.605198] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5003d free
+[   12.605745] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   12.606118] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5323f free
+[   12.606488] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5902d free
+[   12.607625] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   12.615476] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 free
+[   12.620169] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00006
+[   12.620172] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   12.620591] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   12.620881] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   12.621451] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   12.621453] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   12.621906] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   12.621908] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   12.626377] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00007
+[   12.626380] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   12.627096] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 ctrl cmd:0xa06f0104 params_size:4
+[   12.627388] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 ctrl cmd:0xa06f0103 params_size:2
+[   12.627967] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0x00000000
+[   12.627969] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   12.628380] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0x00000000
+[   12.628383] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   12.628644] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   12.638688] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0xbef6003d
+[   12.638693] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   12.639080] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0xbef600c0
+[   12.639082] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   14.242758] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef600c0 free
+[   14.244104] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef6003d free
+[   14.244996] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   14.245831] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   14.250457] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 free
+[   14.260450] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   14.262400] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   14.267467] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 free
+[   14.269738] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   14.270033] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x90f10000 free
+[   14.270269] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 free
+[   14.270482] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 free
+[   14.270700] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c free
+[   14.271183] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   14.271403] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x90f10000 free
+[   14.271635] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x5d1d0000 free
+[   14.271851] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 free
+[   14.272053] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b free
+[   14.272700] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   14.272952] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x90f10000 free
+[   14.273168] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x5d1d0000 free
+[   14.273365] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 free
+[   14.273575] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a free
+[   14.274043] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   14.274266] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x90f10000 free
+[   14.274483] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 free
+[   14.274698] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 free
+[   14.274903] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 free
+[   14.275313] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   14.275538] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[   14.275762] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[   14.275965] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[   14.276164] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[   14.304856] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[   14.304861] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   14.305477] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[   14.305479] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   14.305799] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[   14.305802] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   14.306034] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[   14.306037] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   14.306239] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   14.306501] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   14.306723] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[   14.306944] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[   14.307153] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[   14.307643] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[   14.308375] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[   14.308377] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   14.308648] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[   14.308652] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   14.308877] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[   14.308879] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   14.309078] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[   14.309080] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   14.309287] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   14.309777] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xc1d00009
+[   14.309780] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   14.310010] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xde1d0000
+[   14.310012] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   14.310217] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x5d1d0000
+[   14.310219] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   14.310414] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x90f10000
+[   14.310416] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   14.310636] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   14.311799] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0xf1f00006
+[   14.311801] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   14.312974] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   14.313220] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   14.313965] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0x00000000
+[   14.313968] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   14.314387] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0x00000000
+[   14.314389] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   14.314644] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   14.319869] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5902d
+[   14.319872] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   14.320210] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5003d
+[   14.320212] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   14.320520] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5323f
+[   14.320522] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   14.320840] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef500c0
+[   14.320843] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   14.321144] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef500c0 free
+[   14.321457] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5003d free
+[   14.321775] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x00000000 free
+[   14.322070] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5323f free
+[   14.322352] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5902d free
+[   14.323232] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x00000000 free
+[   14.327476] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 free
+[   14.331835] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xc1d0000a
+[   14.331838] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   14.332255] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xde1d0000
+[   14.332258] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   14.332732] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x5d1d0000
+[   14.332735] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   14.332975] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x90f10000
+[   14.332978] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   14.333188] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   14.335638] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xc1d0000b
+[   14.335641] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   14.336331] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xde1d0000
+[   14.336333] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   14.336609] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x5d1d0000
+[   14.336611] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   14.336846] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x90f10000
+[   14.336848] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   14.337098] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   14.337642] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xc1d0000c
+[   14.337644] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   14.337894] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xde1d0000
+[   14.337896] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   14.338107] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x5d1d0000
+[   14.338109] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   14.338304] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x90f10000
+[   14.338306] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   14.338523] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   14.339661] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00006
+[   14.339664] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   14.340162] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   14.340403] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   14.340987] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   14.340989] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   14.341412] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   14.341414] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   14.341685] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   14.353937] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5902d
+[   14.353940] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   14.354300] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5003d
+[   14.354302] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   14.354616] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5323f
+[   14.354618] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   14.354989] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef500c0
+[   14.354992] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   14.355323] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef500c0 free
+[   14.355683] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5003d free
+[   14.356008] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   14.356316] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5323f free
+[   14.356617] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5902d free
+[   14.357682] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   14.362458] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 free
+[   14.367326] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00006
+[   14.367329] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   14.367849] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   14.368133] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   14.368742] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   14.368745] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   14.369163] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   14.369165] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   14.373102] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00007
+[   14.373105] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   14.373812] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 ctrl cmd:0xa06f0104 params_size:4
+[   14.374100] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 ctrl cmd:0xa06f0103 params_size:2
+[   14.374704] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0x00000000
+[   14.374706] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   14.375120] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0x00000000
+[   14.375122] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   14.375358] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   14.381323] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0xbef6003d
+[   14.381326] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   14.381698] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0xbef600c0
+[   14.381701] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   46.411046] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef600c0 free
+[   46.412411] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef6003d free
+[   46.413426] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   46.414265] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   46.423460] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 free
+[   46.433495] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   46.435649] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   46.440472] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 free
+[   46.442787] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   46.443123] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x90f10000 free
+[   46.443383] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 free
+[   46.443623] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 free
+[   46.443874] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c free
+[   46.444343] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   46.444618] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x90f10000 free
+[   46.444882] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x5d1d0000 free
+[   46.445118] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 free
+[   46.445333] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b free
+[   46.446038] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   46.446351] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x90f10000 free
+[   46.446652] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x5d1d0000 free
+[   46.446908] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 free
+[   46.447139] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a free
+[   46.447660] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   46.447933] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x90f10000 free
+[   46.448175] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 free
+[   46.448404] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 free
+[   46.448648] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 free
+[   46.449119] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   46.449365] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[   46.449634] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[   46.449878] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[   46.450105] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[   46.479397] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[   46.479402] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   46.480068] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[   46.480071] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   46.480384] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[   46.480386] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   46.480683] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[   46.480685] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   46.481088] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   46.481404] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   46.481675] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[   46.481949] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[   46.482187] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[   46.482454] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[   46.483206] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[   46.483209] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   46.483488] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[   46.483490] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   46.483750] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[   46.483752] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   46.483982] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[   46.483985] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   46.484207] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   46.484721] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xc1d00009
+[   46.484723] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   46.484989] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xde1d0000
+[   46.484991] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   46.485216] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x5d1d0000
+[   46.485218] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   46.485451] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x90f10000
+[   46.485454] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   46.485704] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   46.486930] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0xf1f00006
+[   46.486932] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   46.487461] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   46.487729] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   46.488330] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0x00000000
+[   46.488332] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   46.488793] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0x00000000
+[   46.488796] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   46.489073] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   46.494699] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5902d
+[   46.494703] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   46.495426] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5003d
+[   46.495430] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   46.496315] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5323f
+[   46.496319] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   46.497094] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef500c0
+[   46.497098] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   46.497607] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef500c0 free
+[   46.497990] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5003d free
+[   46.498312] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x00000000 free
+[   46.498643] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5323f free
+[   46.499072] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5902d free
+[   46.500254] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x00000000 free
+[   46.504480] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 free
+[   46.509228] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xc1d0000a
+[   46.509232] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   46.509834] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xde1d0000
+[   46.509838] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   46.510170] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x5d1d0000
+[   46.510173] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   46.510617] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x90f10000
+[   46.510620] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   46.510920] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   46.513480] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xc1d0000b
+[   46.513483] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   46.513843] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xde1d0000
+[   46.513846] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   46.514100] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x5d1d0000
+[   46.514102] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   46.514310] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x90f10000
+[   46.514313] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   46.514551] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   46.515079] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xc1d0000c
+[   46.515081] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   46.515344] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xde1d0000
+[   46.515346] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   46.515601] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x5d1d0000
+[   46.515604] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   46.515901] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x90f10000
+[   46.515904] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   46.516189] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   46.517450] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00006
+[   46.517453] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   46.517982] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   46.518230] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   46.518838] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   46.518841] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   46.519288] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   46.519290] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   46.519571] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   46.525187] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5902d
+[   46.525190] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   46.525564] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5003d
+[   46.525567] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   46.525927] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5323f
+[   46.525929] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   46.526261] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef500c0
+[   46.526263] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   46.526600] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef500c0 free
+[   46.526970] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5003d free
+[   46.527321] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   46.527684] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5323f free
+[   46.528040] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5902d free
+[   46.529138] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   46.533463] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 free
+[   46.538202] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00006
+[   46.538205] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   46.538701] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   46.539006] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   46.539632] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   46.539634] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   46.540070] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[   46.540072] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   46.543251] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00007
+[   46.543254] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   46.543957] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 ctrl cmd:0xa06f0104 params_size:4
+[   46.544256] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 ctrl cmd:0xa06f0103 params_size:2
+[   46.544765] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0x00000000
+[   46.544767] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   46.545185] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0x00000000
+[   46.545188] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   46.545466] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   46.551041] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0xbef6003d
+[   46.551044] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   46.551395] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0xbef600c0
+[   46.551398] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   86.522262] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   86.528480] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   86.528958] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef6003d free
+[   86.529961] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef600c0 free
+[   86.530822] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 free
+[   86.538362] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   86.547474] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[   86.547876] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 free
+[   86.562523] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   86.565540] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x90f10000 free
+[   86.565826] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 free
+[   86.566057] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 free
+[   86.566293] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c free
+[   86.566785] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   86.567035] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x90f10000 free
+[   86.567277] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x5d1d0000 free
+[   86.567520] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 free
+[   86.567758] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b free
+[   86.568306] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   86.568577] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x90f10000 free
+[   86.568822] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x5d1d0000 free
+[   86.569049] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 free
+[   86.569280] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a free
+[   86.569814] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   86.570069] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x90f10000 free
+[   86.570304] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 free
+[   86.570541] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 free
+[   86.570787] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 free
+[   86.571296] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   86.571608] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[   86.571856] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[   86.572119] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[   86.572370] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[   87.980596] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[   87.980601] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   87.981232] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[   87.981235] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   87.981525] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[   87.981528] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   87.981788] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[   87.981790] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   87.982042] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   87.995960] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xc1d00009
+[   87.995965] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   87.996592] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xde1d0000
+[   87.996595] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   87.996909] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x5d1d0000
+[   87.996911] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   87.997174] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x90f10000
+[   87.997176] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   87.997413] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   87.997739] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[   87.998001] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x90f10000 free
+[   87.998271] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 free
+[   87.998513] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 free
+[   87.998760] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 free
+[   87.999521] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xc1d00009
+[   87.999524] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   87.999806] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xde1d0000
+[   87.999808] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   88.000039] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x5d1d0000
+[   88.000041] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   88.000298] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x90f10000
+[   88.000300] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   88.000533] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   88.001044] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xc1d0000a
+[   88.001046] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   88.001325] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xde1d0000
+[   88.001327] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   88.001576] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x5d1d0000
+[   88.001579] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   88.001821] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x90f10000
+[   88.001823] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   88.002061] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   88.003234] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0xf1f00006
+[   88.003236] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   88.003768] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   88.004043] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   88.004678] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 new obj:0x00000000
+[   88.004680] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   88.005142] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 new obj:0x00000000
+[   88.005144] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   88.005450] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   88.010854] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 new obj:0xbef5902d
+[   88.010857] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   88.011221] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 new obj:0xbef5003d
+[   88.011223] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   88.011552] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 new obj:0xbef5323f
+[   88.011555] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   88.011985] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 new obj:0xbef500c0
+[   88.011987] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   88.012340] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xbef500c0 free
+[   88.012730] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xbef5003d free
+[   88.013208] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x00000000 free
+[   88.013596] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xbef5323f free
+[   88.013967] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xbef5902d free
+[   88.015518] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x00000000 free
+[   88.019488] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xf1f00006 free
+[   88.024430] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xc1d0000b
+[   88.024449] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   88.025124] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xde1d0000
+[   88.025127] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   88.025488] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x5d1d0000
+[   88.025491] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   88.025781] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x90f10000
+[   88.025784] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   88.026063] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   88.028718] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xc1d0000c
+[   88.028722] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   88.029249] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xde1d0000
+[   88.029251] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   88.029577] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x5d1d0000
+[   88.029579] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   88.029873] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x90f10000
+[   88.029875] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   88.030155] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   88.030772] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xc1d0000d new obj:0xc1d0000d
+[   88.030775] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[   88.031080] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xc1d0000d new obj:0xde1d0000
+[   88.031082] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[   88.031333] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xde1d0000 new obj:0x5d1d0000
+[   88.031335] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[   88.031589] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xde1d0000 new obj:0x90f10000
+[   88.031592] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[   88.031869] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[   88.033137] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xde1d0000 new obj:0xf1f00006
+[   88.033140] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   88.033775] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   88.034137] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   88.034843] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 new obj:0x00000000
+[   88.034846] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   88.035365] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 new obj:0x00000000
+[   88.035367] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   88.035746] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   88.041028] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 new obj:0xbef5902d
+[   88.041031] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[   88.041418] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 new obj:0xbef5003d
+[   88.041420] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   88.041763] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 new obj:0xbef5323f
+[   88.041766] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[   88.042144] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 new obj:0xbef500c0
+[   88.042147] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[   88.042508] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xbef500c0 free
+[   88.042886] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xbef5003d free
+[   88.043232] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x00000000 free
+[   88.043566] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xbef5323f free
+[   88.043952] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xbef5902d free
+[   88.045163] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x00000000 free
+[   88.049467] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 free
+[   88.054279] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xde1d0000 new obj:0xf1f00006
+[   88.054282] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   88.054775] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[   88.055101] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[   88.055742] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 new obj:0x00000000
+[   88.055744] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   88.056206] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 new obj:0x00000000
+[   88.056208] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   88.098222] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xde1d0000 new obj:0xf1f00007
+[   88.098226] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[   88.099369] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00007 ctrl cmd:0xa06f0104 params_size:4
+[   88.099777] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00007 ctrl cmd:0xa06f0103 params_size:2
+[   88.100629] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00007 new obj:0x00000000
+[   88.100632] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   88.101291] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00007 new obj:0x00000000
+[   88.101294] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[   88.101639] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[   88.108304] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00007 new obj:0xbef6003d
+[   88.108308] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[   88.108742] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00007 new obj:0xbef600c0
+[   88.108745] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[  103.565095] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xbef600c0 free
+[  103.566506] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xbef6003d free
+[  103.567574] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x00000000 free
+[  103.568869] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x00000000 free
+[  103.573479] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00007 free
+[  103.587407] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x00000000 free
+[  103.589094] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x00000000 free
+[  103.596475] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xf1f00006 free
+[  103.599055] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  103.599401] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x90f10000 free
+[  103.599679] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0x5d1d0000 free
+[  103.599939] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xde1d0000 free
+[  103.600213] nouveau 0000:00:04.0: gsp: cli:0xc1d0000d obj:0xc1d0000d free
+[  103.600706] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  103.600983] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x90f10000 free
+[  103.601247] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 free
+[  103.601488] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 free
+[  103.601737] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c free
+[  103.602501] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  103.602815] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x90f10000 free
+[  103.603080] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x5d1d0000 free
+[  103.603300] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 free
+[  103.603528] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b free
+[  103.604040] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  103.604311] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x90f10000 free
+[  103.604566] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x5d1d0000 free
+[  103.604833] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 free
+[  103.605087] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a free
+[  103.605583] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  103.605940] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x90f10000 free
+[  103.606209] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 free
+[  103.606429] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 free
+[  103.606673] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 free
+[  103.607872] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  103.608197] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[  103.608474] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[  103.608720] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[  103.608974] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[  103.657351] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[  103.657356] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[  103.658036] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[  103.658040] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[  103.658391] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[  103.658394] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[  103.658708] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[  103.658710] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[  103.659047] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[  103.659421] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  103.659766] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[  103.660113] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[  103.660455] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[  103.660795] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[  103.661911] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xc1d00008
+[  103.661914] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[  103.662335] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 new obj:0xde1d0000
+[  103.662338] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[  103.662692] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x5d1d0000
+[  103.662695] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[  103.663071] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 new obj:0x90f10000
+[  103.663074] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[  103.663366] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[  103.664050] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xc1d00009
+[  103.664053] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[  103.664354] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 new obj:0xde1d0000
+[  103.664357] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[  103.664661] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x5d1d0000
+[  103.664664] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[  103.664970] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0x90f10000
+[  103.664973] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[  103.665260] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[  103.667647] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 new obj:0xf1f00006
+[  103.667651] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[  103.668092] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[  103.668359] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[  103.669032] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0x00000000
+[  103.669035] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  103.669550] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0x00000000
+[  103.669553] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  103.669888] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[  103.675633] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5902d
+[  103.675637] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[  103.676099] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5003d
+[  103.676102] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[  103.676497] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef5323f
+[  103.676500] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[  103.676940] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 new obj:0xbef500c0
+[  103.676943] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[  103.677369] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef500c0 free
+[  103.677798] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5003d free
+[  103.678247] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x00000000 free
+[  103.678676] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5323f free
+[  103.679127] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xbef5902d free
+[  103.680647] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x00000000 free
+[  103.684478] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xf1f00006 free
+[  103.691479] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xc1d0000a
+[  103.691482] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[  103.692008] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a new obj:0xde1d0000
+[  103.692011] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[  103.692329] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x5d1d0000
+[  103.692331] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[  103.692642] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 new obj:0x90f10000
+[  103.692644] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[  103.692959] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[  103.695671] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xc1d0000b
+[  103.695674] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[  103.696125] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b new obj:0xde1d0000
+[  103.696127] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[  103.696460] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x5d1d0000
+[  103.696463] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[  103.696768] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 new obj:0x90f10000
+[  103.696770] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[  103.697092] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[  103.697808] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xc1d0000c
+[  103.697811] nouveau 0000:00:04.0: gsp: cls:0x00000000 params_size:120
+[  103.698152] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c new obj:0xde1d0000
+[  103.698155] nouveau 0000:00:04.0: gsp: cls:0x00000080 params_size:56
+[  103.698452] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x5d1d0000
+[  103.698455] nouveau 0000:00:04.0: gsp: cls:0x00002080 params_size:4
+[  103.698759] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0x90f10000
+[  103.698762] nouveau 0000:00:04.0: gsp: cls:0x000090f1 params_size:48
+[  103.699062] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801813 params_size:32
+[  103.700944] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00006
+[  103.700947] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[  103.701532] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[  103.701881] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[  103.702837] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[  103.702840] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  103.703523] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[  103.703526] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  103.703869] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[  103.711046] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5902d
+[  103.711049] nouveau 0000:00:04.0: gsp: cls:0x0000902d params_size:0
+[  103.711490] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5003d
+[  103.711493] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[  103.711922] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef5323f
+[  103.711925] nouveau 0000:00:04.0: gsp: cls:0x0000a140 params_size:0
+[  103.712347] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0xbef500c0
+[  103.712350] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[  103.712751] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef500c0 free
+[  103.713204] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5003d free
+[  103.713636] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[  103.714092] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5323f free
+[  103.715021] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef5902d free
+[  103.716256] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[  103.721470] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 free
+[  103.726570] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00006
+[  103.726574] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[  103.727059] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0104 params_size:4
+[  103.727336] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 ctrl cmd:0xa06f0103 params_size:2
+[  103.727989] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[  103.727991] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  103.728475] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 new obj:0x00000000
+[  103.728478] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  103.731994] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 new obj:0xf1f00007
+[  103.731997] nouveau 0000:00:04.0: gsp: cls:0x0000c46f params_size:368
+[  103.732692] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 ctrl cmd:0xa06f0104 params_size:4
+[  103.733001] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 ctrl cmd:0xa06f0103 params_size:2
+[  103.733669] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0x00000000
+[  103.733673] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  103.734146] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0x00000000
+[  103.734149] nouveau 0000:00:04.0: gsp: cls:0x0000c5b5 params_size:8
+[  103.734416] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 ctrl cmd:0x2080012b params_size:560
+[  103.740081] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0xbef6003d
+[  103.740084] nouveau 0000:00:04.0: gsp: cls:0x0000c597 params_size:0
+[  103.740458] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 new obj:0xbef600c0
+[  103.740461] nouveau 0000:00:04.0: gsp: cls:0x0000c5c0 params_size:0
+[  115.844528] nouveau 0000:00:04.0: vkmark[775]: job timeout, channel 7 killed!
+[  115.992718] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[  115.997494] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[  115.998045] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef6003d free
+[  115.999005] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xbef600c0 free
+[  115.999867] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00007 free
+[  116.007411] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[  116.011483] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x00000000 free
+[  116.011847] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xf1f00006 free
+[  116.023382] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.024729] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x90f10000 free
+[  116.025035] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0x5d1d0000 free
+[  116.025272] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xde1d0000 free
+[  116.025499] nouveau 0000:00:04.0: gsp: cli:0xc1d0000c obj:0xc1d0000c free
+[  116.025989] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.026236] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x90f10000 free
+[  116.026470] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0x5d1d0000 free
+[  116.026704] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xde1d0000 free
+[  116.026948] nouveau 0000:00:04.0: gsp: cli:0xc1d0000b obj:0xc1d0000b free
+[  116.027427] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.027671] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x90f10000 free
+[  116.027928] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0x5d1d0000 free
+[  116.028158] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xde1d0000 free
+[  116.028373] nouveau 0000:00:04.0: gsp: cli:0xc1d0000a obj:0xc1d0000a free
+[  116.028879] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.029131] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x90f10000 free
+[  116.029360] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0x5d1d0000 free
+[  116.029591] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xde1d0000 free
+[  116.029826] nouveau 0000:00:04.0: gsp: cli:0xc1d00009 obj:0xc1d00009 free
+[  116.030309] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.030565] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x90f10000 free
+[  116.030806] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0x5d1d0000 free
+[  116.031044] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xde1d0000 free
+[  116.031258] nouveau 0000:00:04.0: gsp: cli:0xc1d00008 obj:0xc1d00008 free
+[  116.112455] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef400c0 free
+[  116.113749] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xbef4003d free
+[  116.114583] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[  116.115322] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[  116.119470] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00005 free
+[  116.124490] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 ctrl cmd:0x20800a46 params_size:1
+[  116.124846] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0046 free
+[  116.125047] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0045 free
+[  116.127809] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xdada0042 free
+[  116.127989] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0x5d1d0000 free
+[  116.128111] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xde1d0000 free
+[  116.128229] nouveau 0000:00:04.0: gsp: cli:0xc1d00007 obj:0xc1d00007 free
+[  116.134467] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[  116.135607] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x00000000 free
+[  116.141467] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xf1f00003 free
+[  116.143417] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.143614] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x90f10000 free
+[  116.143749] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0x5d1d0000 free
+[  116.143878] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xde1d0000 free
+[  116.144021] nouveau 0000:00:04.0: gsp: cli:0xc1d00006 obj:0xc1d00006 free
+[  116.144320] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.144457] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x90f10000 free
+[  116.144580] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0x5d1d0000 free
+[  116.144696] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xde1d0000 free
+[  116.144807] nouveau 0000:00:04.0: gsp: cli:0xc1d00005 obj:0xc1d00005 free
+[  116.145359] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.145509] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x90f10000 free
+[  116.145630] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0x5d1d0000 free
+[  116.145743] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xde1d0000 free
+[  116.145873] nouveau 0000:00:04.0: gsp: cli:0xc1d00004 obj:0xc1d00004 free
+[  116.146250] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.146365] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x90f10000 free
+[  116.146487] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0x5d1d0000 free
+[  116.146597] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xde1d0000 free
+[  116.146705] nouveau 0000:00:04.0: gsp: cli:0xc1d00003 obj:0xc1d00003 free
+[  116.147068] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.147189] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x90f10000 free
+[  116.147351] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0x5d1d0000 free
+[  116.147471] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xde1d0000 free
+[  116.147580] nouveau 0000:00:04.0: gsp: cli:0xc1d00002 obj:0xc1d00002 free
+[  116.148626] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 ctrl cmd:0x00801814 params_size:8
+[  116.148776] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x90f10000 free
+[  116.148899] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0x5d1d0000 free
+[  116.149017] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xde1d0000 free
+[  116.149137] nouveau 0000:00:04.0: gsp: cli:0xc1d00001 obj:0xc1d00001 free

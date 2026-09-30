@@ -316,7 +316,17 @@ client can usefully announce more. That bounds N at 253 for the one doorbell reg
 4. **Write-back only over a proven value.** The entry is overwritten only when it holds the token
    just rung, or the mirror's host token. The following leave the channel on its own token,
    trapped and correct, and are counted as a mismatch:
-   - a moved notifier index (SET_WORK_SUBMIT_TOKEN_NOTIF_INDEX);
+   - a moved notifier index (SET_WORK_SUBMIT_TOKEN_NOTIF_INDEX) whose entry the device cannot
+     find. Since 2026-09-29 the first 64 entries of the notifier's page are scanned for the RM's
+     own token signature (`kchannelNotifyWorkSubmitToken`: info32 the token, info16 0, status
+     0xFFFF), and the pool token is written there as well; counted as "written into the token
+     entry at another notifier index" (SotTR run E: 43273 rings kept their own token because
+     entry 1 held 0, 57274 rang their own token after a hand-out to entry 1; each trapped).
+     The scan is exact: only the ringing channel's own notifier page (never past it), only
+     its own values (the token it rang, its mirror's host token), and a value only if no
+     other channel a ring of it rings keeps its notifier on the same page (a guest token that
+     is also another channel's host token could be that channel's entry; tokens.rs
+     `own_on_page`). The same values decide the default entry;
    - a non-zero `errorContextOffset` ((a));
    - a notifier the device cannot read or write.
 5. **Nothing depends on registration.** A pool token whose ioeventfd KVM or the client did not
@@ -487,3 +497,53 @@ Checks:
 - `cargo clippy -p vfio-user-nvgpu --all-targets -- -D warnings -A clippy::unnecessary_cast -A
   clippy::field_reassign_with_default`: clean.
 - The new code is rustfmt-clean. Files that were not rustfmt-clean before stay as they were.
+
+## (g) Guest tokens as ioeventfds (2026-09-29, the Windows guest under Cloud Hypervisor)
+
+- **Why the pool misses Windows.** The pool reaches a channel only through its work-submit-token
+  notifier entry, which libcuda re-reads (section (a)). The Windows KMD computes its tokens in
+  its own RM and caches them, and nearly all its channels have no error notifier (P36: 1 of 53;
+  P37-arm2: 1355 rings "without notifier"). Under Cloud Hypervisor every Windows ring would
+  still trap.
+- **The spec's shape.** `VFIO_USER_DEVICE_GET_REGION_IO_FDS` is a client query; the spec has no
+  server-initiated update (vfio-user.rst, the command's section). The set is therefore fixed
+  when the client asks, at realize, before any channel exists: sub-regions cannot follow live
+  channels.
+- **The set.** A guest token is `runlist << 16 | chid` (RUNLIST_ID 22:16, VECTOR 11:0;
+  kfifoGenerateWorkSubmitTokenHal_TU102). The device declares one datamatch sub-region per
+  value, each with its own eventfd.
+  - Automatic by default (`CARAXES_DOORBELL_GUEST_TOKENS` unset or `auto`, with the boot
+    model), from the device-info table the device presents: the graphics runlist and the
+    lowest async copy runlist interleaved per ChID first, then the video encoders', the other
+    copy runlists and the decoders', 48 ChIDs each, as many runlists as fit the eventfds one
+    reply carries beside the pool's and the re-arm and head eventfds. TU106: 0 and 1
+    interleaved, then 7, 2, 3 (240 values); with the pool of 64: 0, 1, 7.
+  - `off` disables it; `<hot>[,<runlist>...]:<chids>` (hot runlists joined by `+`) sets it for
+    an A/B.
+  - One eventfd per value: the eventfd names the written value, and the device rings it
+    exactly as the trapped write of that value (ctrl.rs `doorbell`: guest ChID first, the host
+    token as the fallback). No new routing, no scan.
+  - Refused: a runlist without a host-driven engine in the chip's device-info table, more
+    chids than the guest is told per runlist (`INTERNAL_FIFO_GET_NUM_CHANNELS`, 512), more
+    than 253 eventfds together with the pool (`SCM_MAX_FD`), and the token-less wildcard
+    (KVM: `EEXIST`, section (b)). Pool tokens (bits 31:23) and guest tokens never collide.
+  - A value outside the set traps as before.
+- **Cost.** KVM passes the entries of one address in registration order, ~25 ns each (section
+  (b)): the busiest values go first. The set is fixed before any channel exists, so the order
+  can only follow the runlists' expected use, not the ChIDs a driver will pick. The pool, when
+  both are on, goes first (Linux's libcuda rings pool tokens).
+- **The Windows ring census** (trace `doorbell` lines with the channel's engine; runlists from
+  chips/tu106/device-info.toml: GR, CE0, CE1 on 0, CE2 1, CE3 2, CE4 3, NVENC 7):
+
+  | Run | runlist 0 | 1 | 2 | 3 | 7 | highest ChID |
+  |---|---|---|---|---|---|---|
+  | P43 (QEMU, workload block) | 201984 | 6698 | 495 | 15 | 3655 | 37 |
+  | C45 (CH, desktop, smoke, CUDA) | 5533 | 38214 | 205 | 10 | 29 | 35 |
+
+  - Hot values: `0x1a` (GR chid 26, the CUDA probe, 201098 rings in P43), `0x1000f` (chid 15 on
+    runlist 1, the KMD's paging CE, 38096 in C45), `0x70024` (NVENC chid 36).
+  - The automatic set puts `0x1000f` at position 31, `0x1a` at 52, `0x70024` at 132; worst
+    matched position 239 (~6 us of KVM scan, measured 7.2 us at position 253 in (b)); a
+    trapped ring is an exit to the VMM (4.8 us in (b)) plus a vfio-user message and the device
+    loop.
+- **Status.** Built with a reactor test and parse tests; not run yet.

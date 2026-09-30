@@ -1,0 +1,5 @@
+WIN 4194314 mutter guard window
+X Error of failed request:  BadMatch (invalid parameter attributes)
+  Major opcode of failed request:  73 (X_GetImage)
+  Serial number of failed request:  119
+  Current serial number in output stream:  119

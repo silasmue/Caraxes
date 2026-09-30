@@ -1,0 +1,2 @@
+vfio-user-nvgpu: display kick page: BAR0 [0x690000, 0x6d0000) (the window channels' USERD pages, PUT and GET) offered as a sparse mmap area; the reactor runs the kick of each PUT change and stores GET (CARAXES_DISPLAY_KICK_PAGE=1, docs/caraxes/intr-p
+display kick page: BAR0 [0x690000, 0x6d0000); 4506 kick(s) run by the reactor, mean 335 us, max 2957 us; 0 PUT write(s) in a page without a channel; inconsistencies: none

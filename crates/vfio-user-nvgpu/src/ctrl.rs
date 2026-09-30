@@ -106,6 +106,10 @@ pub struct Dispatcher {
     handle_gen: BTreeMap<u32, u32>,
     client_handle_gen: u32,
     deferred_context: deferred_context::State,
+    /// The new USERD of an UpdateChannelInfo the next control carries (direct, or a deferred
+    /// API's bundle), resolved by the boot model from the memory the kernel registered with
+    /// GSP (gspmem.rs `registered_target`), with the GPGet the guest left in it.
+    pub migration_userd: Option<Result<(crate::fb::Target, u32), String>>,
     /// PCI ids of the emulated function (config space).
     pub pci_device_id: u32,
     pub pci_sub_device_id: u32,
@@ -265,6 +269,7 @@ impl Dispatcher {
             handle_gen: BTreeMap::new(),
             client_handle_gen: 0,
             deferred_context: deferred_context::State::default(),
+            migration_userd: None,
             pci_device_id: id.pci.device_id(),
             pci_sub_device_id: id.pci.sub_device_id(),
             pci_revision: id.pci.revision as u32,
@@ -505,6 +510,25 @@ impl Dispatcher {
     ) -> Vec<String> {
         // The channel's error notifier: `None` for a channel the guest never announced.
         let notifier = self.channels.channel(chid).map(|c| c.error_notifier);
+        // The values that are this channel's own token on its notifier page: the rung one
+        // and the mirror's host token, each only if no other channel it rings keeps its
+        // notifier on the same page (tokens.rs `own_on_page`).
+        let page = |t: crate::fb::Target| match t {
+            crate::fb::Target::Fb(pa) => Some((true, pa >> 12)),
+            crate::fb::Target::Sys(pa) => Some((false, pa >> 12)),
+            _ => None,
+        };
+        let own: Vec<u32> = match notifier.flatten().and_then(page) {
+            Some(p) => std::iter::once(rung)
+                .chain(host)
+                .filter(|&v| {
+                    crate::tokens::own_on_page(chid, &self.doorbell_targets(v), p, |c| {
+                        self.channels.channel(c).and_then(|c| c.error_notifier).and_then(page)
+                    })
+                })
+                .collect(),
+            None => Vec::new(),
+        };
         let Some(pool) = self.channels.tokens.as_mut() else {
             return Vec::new();
         };
@@ -520,43 +544,82 @@ impl Dispatcher {
         };
         use crate::fb::Target;
         use crate::tokens::NOTIFIER_TOKEN_OFFSET as AT;
-        let at = match notifier {
-            Target::Fb(pa) => Target::Fb(pa + AT),
-            Target::Sys(pa) => Target::Sys(pa + AT),
+        let at_off = |off: u64| match notifier {
+            Target::Fb(pa) => Target::Fb(pa + off),
+            Target::Sys(pa) => Target::Sys(pa + off),
             other => other,
         };
+        let at = at_off(AT);
         let current = gm.read_u32(at);
-        if held.is_some() && current == held {
+        // The token's entry at another index (a client's own
+        // SET_WORK_SUBMIT_TOKEN_NOTIF_INDEX, which the guest RM handles without a GSP
+        // call): found by the RM's signature. SotTR run E: 43273 rings kept their own token
+        // because entry 1 held 0, and 57274 rang their own token after a hand-out to entry 1.
+        // The scan stays inside the notifier's own page and matches only the channel's own
+        // token values with the full signature.
+        let base = match notifier {
+            Target::Fb(pa) | Target::Sys(pa) => pa,
+            _ => 0,
+        };
+        let span = (16 * crate::tokens::TOKEN_SCAN_ENTRIES).min(0x1000 - (base & 0xFFF) as usize);
+        let mut buf = vec![0u8; span];
+        let elsewhere: Vec<Target> = if !own.is_empty() && gm.read(notifier, &mut buf) {
+            crate::tokens::token_entries(&buf, &own)
+                .into_iter()
+                .map(|i| at_off(16 * i as u64 + 8))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let default_holds = current.is_some_and(|c| own.contains(&c));
+        if held.is_some() && current == held && elsewhere.is_empty() {
             pool.stats.own_token_after_handout += 1;
             return Vec::new();
         }
-        if current.is_none() || (current != Some(rung) && current != host) {
+        if !default_holds && elsewhere.is_empty() {
             pool.stats.mismatch += 1;
             let why = format!(
-                "chid {chid}: work-submit-token entry at {at:?} holds {current:x?}, not the rung token {rung:#x}{}",
-                host.map_or(String::new(), |h| format!(" or the host token {h:#x}"))
+                "chid {chid}: work-submit-token entry at {at:?} holds {current:x?}, not the rung token {rung:#x}{}{}",
+                host.map_or(String::new(), |h| format!(" or the host token {h:#x}")),
+                if own.len() < 1 + usize::from(host.is_some()) {
+                    format!(" (own values {own:x?}: a value another channel on the notifier page rings is not the channel's)")
+                } else {
+                    String::new()
+                }
             );
             pool.note_refused(why.clone());
             return vec![format!(
                 "doorbell tokens: {why}; it keeps its own token (trapped)"
             )];
         }
-        let Some(token) = pool.assign(chid) else {
+        let Some(token) = held.or_else(|| pool.assign(chid)) else {
             pool.stats.exhausted += 1;
             return vec![format!(
                 "doorbell tokens: pool of {} exhausted; chid {chid} keeps token {rung:#x} (trapped)",
                 pool.len()
             )];
         };
-        if !gm.write(at, &token.to_le_bytes()) {
-            pool.release(chid);
-            pool.stats.mismatch += 1;
-            return vec![format!(
-                "doorbell tokens: chid {chid}: write of {token:#x} to {at:?} failed; it keeps its own token (trapped)"
-            )];
+        let targets: Vec<Target> = default_holds
+            .then_some(at)
+            .into_iter()
+            .chain(elsewhere.iter().copied())
+            .collect();
+        for t in &targets {
+            if !gm.write(*t, &token.to_le_bytes()) {
+                if held.is_none() {
+                    pool.release(chid);
+                }
+                pool.stats.mismatch += 1;
+                return vec![format!(
+                    "doorbell tokens: chid {chid}: write of {token:#x} to {t:?} failed; it keeps its own token (trapped)"
+                )];
+            }
         }
         if matches!(at, crate::fb::Target::Fb(_)) {
             gm.fb.flush();
+        }
+        if !elsewhere.is_empty() {
+            pool.stats.elsewhere += 1;
         }
         if held.is_some() {
             pool.stats.rewritten += 1;
@@ -564,12 +627,13 @@ impl Dispatcher {
             pool.stats.handed_out += 1;
         }
         vec![format!(
-            "doorbell tokens: chid {chid} {} pool token {token:#x} (was {rung:#x}{}), written to its work-submit-token notifier entry at {at:?} [synthesized]",
+            "doorbell tokens: chid {chid} {} pool token {token:#x} (was {rung:#x}{}), written to its work-submit-token notifier entr{} at {targets:?} [synthesized]",
             if held.is_some() { "gets back its" } else { "gets" },
             match host {
                 Some(h) if current == Some(h) => format!("; the entry held the host token {h:#x}"),
                 _ => String::new(),
-            }
+            },
+            if targets.len() == 1 { "y" } else { "ies" }
         )]
     }
 
@@ -611,6 +675,23 @@ impl Dispatcher {
     }
 
     /// Poll private USERDs, then reuse normal submission and scheduling checks.
+    /// The USERD poller's rings (main.rs, execution.md §9.11): each channel it found with
+    /// entries not yet forwarded is checked again under the device lock as the locked poll
+    /// checks it (`Mirror::userd_pending`) and rung as that poll rang it.
+    pub fn ring_userd_pending(&mut self, gm: &mut crate::channel::GpuMem, chids: &[u32]) -> Vec<String> {
+        let mut notes = Vec::new();
+        for &chid in chids {
+            let pending = self
+                .mirror
+                .as_mut()
+                .is_some_and(|m| m.userd_pending(&self.channels, gm, chid));
+            if pending {
+                notes.extend(self.doorbell_chid(gm, chid, chid, false));
+            }
+        }
+        notes
+    }
+
     pub fn poll_shadow_userds(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
         let pending = self.mirror.as_mut()
             .map(|m| m.poll_userds(&self.channels, gm)).unwrap_or_default();
@@ -621,8 +702,8 @@ impl Dispatcher {
         notes
     }
 
-    /// The token-less doorbell (the ioeventfd path, device.rs `doorbell_ioeventfd`): KVM
-    /// signals that the guest wrote the doorbell register but not what, so every channel
+    /// A token-less doorbell (the usermode page's scan, um_page.rs): the device knows that
+    /// the guest wrote the doorbell but not what, so every channel
     /// with GPFIFO entries published since its last doorbell (`Registry::pending`, one
     /// USERD read each) is rung the way its own token would ring it. A channel the guest
     /// never rang is never pending, so no host mirror is created for it. The note reports
@@ -647,6 +728,33 @@ impl Dispatcher {
             notes.extend(self.doorbell_chid(gm, chid, chid, false));
         }
         notes
+    }
+
+    /// The live state dump of the channels (main.rs `device-ctl`, "state"): every guest
+    /// channel, the scheduling switches' held and disabled sets, every host TSG and channel.
+    pub fn state_lines(&self, gm: &crate::channel::GpuMem) -> Vec<String> {
+        let mut out = self.channels.state_lines(gm);
+        out.push(format!(
+            "held (doorbells waiting for an enable): {:?}; disabled: {:?}",
+            self.dstate.rc.held,
+            self.dstate.rc.disabled_chids(&self.channels)
+        ));
+        if let Some(m) = &self.mirror {
+            out.extend(m.state_lines(&self.channels));
+        }
+        out
+    }
+
+    /// The software channels whose blocked semaphore acquire is satisfied now (channel.rs
+    /// `AcquireWait`) continue at once, on the `ce-slices` clock, as the host re-evaluates
+    /// an acquire until it holds; nothing runs while every acquire still waits.
+    pub fn recheck_acquires(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        let ready = self.channels.ready_acquires(gm);
+        if ready.is_empty() {
+            return Vec::new();
+        }
+        self.dstate.rc.held.extend(ready);
+        self.replay_held(gm)
     }
 
     /// The software channels the guest's scheduling switches hold (rc.rs `RcState`, the
@@ -756,8 +864,37 @@ impl Dispatcher {
             .map_or(self.reservation, |l| l.reservation)
             .map(|(b, e)| (b, e.saturating_sub(crate::devce::PRIVATE_AT).max(b)));
         let software_runs = self.channels.software_runs;
+        let t0 = std::time::Instant::now();
+        crate::dlock::take_spent();
+        let tlb0 = gm.fb.exec_tlb_stats();
+        let maps0 = gm.fb.vram_stats().map_or(0, |v| v.maps);
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
-        if self.channels.software_runs == software_runs {
+        notes.extend(self.apply_migrations());
+        let spent = t0.elapsed();
+        let [translate, copy, fetch, inv_wait, gp_get] = crate::dlock::take_spent();
+        let tlb1 = gm.fb.exec_tlb_stats();
+        let maps = gm.fb.vram_stats().map_or(0, |v| v.maps) - maps0;
+        let software = self.channels.software_runs != software_runs;
+        // The device lock's tags and work table (dlock.rs): what a channel's doorbell cost,
+        // with a software run's translations and CPU copies apart.
+        let kind = if software { "software" } else { "host" };
+        if spent >= std::time::Duration::from_millis(1) {
+            crate::dlock::tag(|| {
+                format!(
+                    "doorbell chid {chid} ({kind}) {} ms (translate {} ms: {} page hit(s), {} unit walk(s); CPU copy {} ms; fetch {} ms; invalidate wait {} ms; GPGet stores {} ms; {maps} window map(s))",
+                    spent.as_millis(),
+                    translate.as_millis(),
+                    tlb1.0 - tlb0.0,
+                    tlb1.1 - tlb0.1,
+                    copy.as_millis(),
+                    fetch.as_millis(),
+                    inv_wait.as_millis(),
+                    gp_get.as_millis()
+                )
+            });
+        }
+        crate::dlock::work("doorbell", kind.to_string(), spent);
+        if !software {
             return notes;
         }
         // All software routes (including blocked peers retried by Registry) publish
@@ -842,29 +979,14 @@ impl Dispatcher {
         let Some(m) = self.mirror.as_mut() else {
             return self.channels.doorbell_except(gm, token, &off);
         };
-        // A GR channel under CARAXES_MIRROR_GR_SHADOW runs on the host-managed shadow VAS
-        // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
+        // A mirrored channel runs on the host-managed shadow VAS of its root (D17 route 4,
+        // shadow.rs), built at its first doorbell.
         let host_doorbells = m.stats.doorbells;
         if m.is_shadow(&self.channels, chid) {
-            let fresh = !m.is_mirrored(chid);
             let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
-            let host = if fresh {
-                m.channel(chid).map(|h| h.token)
-            } else {
-                None
-            };
-            // Shadow VA spaces handed to the teardown: their cached walks go too.
-            for r in m.take_reaped_roots() {
-                gm.fb.unwatch_tables(crate::fb::Target::Fb(r));
-            }
-            // A build the host refused for memory: RC the channel once (rc.rs).
-            for c in m.take_exhausted() {
-                let engine = self.channels.channel(c).map_or(0, |ch| ch.engine_type);
-                self.dstate.rc.host_refused(c, engine);
-                notes.push(format!(
-                    "shadow: chid {c} refused by the host for memory: RC queued (PREEMPTIVE_REMOVAL) [host protection]"
-                ));
-            }
+            // Builds committed in this call (mirror.rs `take_committed`): their tokens are
+            // pinned below.
+            let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
             // The host doorbell write is the last step of a built shadow channel's ring.
             if m.stats.doorbells != host_doorbells {
                 self.host_doorbell_at
@@ -892,8 +1014,8 @@ impl Dispatcher {
             if self.mirror_diag {
                 notes.extend(self.mirror_push_diag(gm, chid));
             }
-            if let Some(h) = host {
-                notes.extend(self.pin_pool_token(gm, chid, h));
+            for (c, h) in committed {
+                notes.extend(self.pin_pool_token(gm, c, h));
             }
             return notes;
         }
@@ -913,6 +1035,15 @@ impl Dispatcher {
                 &off,
                 hold,
                 &mut |reg, gm, inv| {
+                    // The BAR1 area's replicas first (bar1pool.rs `sync_untracked`): a guest
+                    // page table the guest CPU wrote through the area (Windows maps its page
+                    // tables into BAR1) reaches the walks as a tracked write before the
+                    // invalidate plans the shadow, as at the register invalidate
+                    // (docs/caraxes/bar1-pool.md §13).
+                    crate::bar1pool::sync_untracked_tables(gm.fb);
+                    // The table pages the guest wrote through the BAR2 memfd are synced by the
+                    // shadow's re-plan below (mirror.rs `shadow_resync`), as at the register
+                    // invalidate (bar2-memfd.md §3 rule 2).
                     let n: usize = inv.iter().map(|_| m.invalidate_tlb(gm.fb, None)).sum();
                     let mut notes = vec![format!(
                         "mirror: {} software TLB invalidate(s) -> invalidated on {n} mirror VA space(s) [host]",
@@ -1582,6 +1713,68 @@ impl Dispatcher {
     }
 
     /// The guest kernel's TLB invalidate for `pdb`: forwarded to the mirror VA spaces.
+    /// Forward the held rings that are ready and commit the finished mirror builds
+    /// (ringgate.rs, execution.md §9.2; the completer thread).
+    pub fn complete_held_rings(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        let Some(m) = self.mirror.as_mut() else {
+            return Vec::new();
+        };
+        let mut notes = m.complete_held_rings(&self.channels, gm);
+        let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
+        for (c, h) in committed {
+            notes.extend(self.pin_pool_token(gm, c, h));
+        }
+        notes
+    }
+
+    /// Wait for and commit the mirror builds in flight a guest free may concern (boot.rs,
+    /// before [`Self::free`]; mirror.rs `settle_builds_for_free`).
+    pub fn settle_builds_for_free(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        h_client: u32,
+        h_object: u32,
+    ) -> Vec<String> {
+        let Some(m) = self.mirror.as_mut() else {
+            return Vec::new();
+        };
+        let mut notes = m.settle_builds_for_free(&self.channels, gm, h_client, h_object);
+        let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
+        for (c, h) in committed {
+            notes.extend(self.pin_pool_token(gm, c, h));
+        }
+        notes
+    }
+
+    /// After shadow doorbells and mirror build commits: the cached walks of shadow VA spaces
+    /// handed to the teardown go, a build the host refused for memory RCs its channel once
+    /// (rc.rs), and the channels committed are returned with their host tokens (for
+    /// [`Self::pin_pool_token`]).
+    fn after_mirror_builds(
+        m: &mut crate::mirror::Mirror,
+        reg: &crate::channel::Registry,
+        dstate: &mut crate::dmodel::DState,
+        gm: &mut crate::channel::GpuMem,
+        notes: &mut Vec<String>,
+    ) -> Vec<(u32, u32)> {
+        for r in m.take_reaped_roots() {
+            gm.fb.unwatch_tables(crate::fb::Target::Fb(r));
+        }
+        for c in m.take_exhausted() {
+            let engine = reg.channel(c).map_or(0, |ch| ch.engine_type);
+            dstate.rc.host_refused(c, engine);
+            notes.push(format!(
+                "shadow: chid {c} refused by the host for memory: RC queued (PREEMPTIVE_REMOVAL) [host protection]"
+            ));
+        }
+        m.take_committed()
+    }
+
+    /// The mirror's ring gate, when there is a mirror.
+    pub fn ring_gate(&self) -> Option<std::sync::Arc<crate::ringgate::RingGate>> {
+        self.mirror.as_ref().map(|m| m.ring_gate())
+    }
+
     pub fn mirror_invalidate(&mut self, fb: &mut crate::fb::FakeFb, pdb: Option<u64>) -> usize {
         self.mirror
             .as_mut()
@@ -1785,9 +1978,11 @@ impl Dispatcher {
     /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
         let mut answer = self.control_inner(h_client, h_object, cmd, params);
-        // Compression per VM slice: the forwarded and replayed FB info is this VM's.
-        if let Some(view) = self.compression() {
-            crate::compression::finish(&view, cmd, &mut answer);
+        // Compression per VM slice: the forwarded and replayed FB info is this VM's; without
+        // it, the FB info says no compression, as every other answer does (D16).
+        match self.compression() {
+            Some(view) => crate::compression::finish(&view, cmd, &mut answer),
+            None => crate::compression::finish_off(cmd, &mut answer),
         }
         const DEFERRED: [u32; 4] = [0x5080_0101, 0x5080_0102, 0x5080_0103, 0x5080_0104];
         static CAPTURED: std::sync::atomic::AtomicUsize =
@@ -1918,6 +2113,11 @@ impl Dispatcher {
         if matches!(cmd, 0x5080_0101..=0x5080_0104)
             && self.deferred_context.enabled {
             return self.register_deferred(h_client, h_object, cmd, params);
+        }
+        // The channel migration of the deferred-context model (Windows: the deferred API
+        // family is refused as legacy_uncalled otherwise, gsp-dtable.py FAMILIES).
+        if cmd == crate::deferred::CMD_UPDATE_CHANNEL_INFO && self.deferred_context.enabled {
+            return self.update_channel_info(params);
         }
         // This control used to be a Windows-only recorded acknowledgement. It changes the
         // device's live VA-space association, so model it before every recorded override.
@@ -2082,10 +2282,10 @@ impl Dispatcher {
                 }
             }
         }
-        // The guest's server-reserved PDEs build the mirror VA space right away (mirror.rs
-        // `on_server_reserved_pdes`); its page-directory controls move or drop it.
+        // The guest's server-reserved PDEs are recorded (uvm.rs); the page-directory
+        // controls below move or drop a mirror VA space.
         if cmd == v::CMD_VASPACE_COPY_SERVER_RESERVED_PDES {
-            let a = crate::uvm::answer(
+            if let Some(a) = crate::uvm::answer(
                 self.chip,
                 cmd,
                 h_client,
@@ -2094,15 +2294,7 @@ impl Dispatcher {
                 &mut self.channels,
                 &mut self.uvm,
                 self.host.as_mut(),
-            );
-            if let Some(mut a) = a {
-                if let Some(m) = self.mirror.as_mut() {
-                    let notes = m.on_server_reserved_pdes(&self.channels, (h_client, h_object));
-                    if !notes.is_empty() {
-                        a.note.push_str("; mirror: ");
-                        a.note.push_str(&notes.join("; "));
-                    }
-                }
+            ) {
                 return a;
             }
         }
@@ -2132,11 +2324,7 @@ impl Dispatcher {
                         Some(crate::fb::Target::Fb(pa)) => Some(pa),
                         _ => None,
                     };
-                    let notes = m.on_page_directory(
-                        key,
-                        root,
-                        (cmd == v::CMD_DMA_SET_PAGE_DIRECTORY).then_some(params),
-                    );
+                    let notes = m.on_page_directory(key, root);
                     if !notes.is_empty() {
                         a.note.push_str("; mirror: ");
                         a.note.push_str(&notes.join("; "));
@@ -2476,10 +2664,8 @@ impl Dispatcher {
             // firmwareVersion[64] @6. The version string is what nvidia-smi shows.
             CMD_GSP_GET_FEATURES => {
                 let mut b = vec![0u8; n];
-                // CARAXES_GSP_FW_VERSION: the firmware version string instead of the served
-                // guest ABI's driver (a 617.14 Windows guest against the 615-based model).
-                let env_ver = std::env::var("CARAXES_GSP_FW_VERSION").ok().filter(|s| s.len() < 64);
-                let ver = env_ver.as_deref().unwrap_or(crate::ver::layouts().driver).as_bytes();
+                // The firmware version string: the served guest ABI's driver.
+                let ver = crate::ver::layouts().driver.as_bytes();
                 // gspFeatures bit 0 is UVM_ENABLED (ctrl2080gsp.h). A Linux guest's nvidia-uvm
                 // would need replayable faults, which never reach the guest (the host RM owns
                 // them): libcuda would map through UVM and the first GPU touch of a managed page

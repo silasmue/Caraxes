@@ -11,12 +11,14 @@
 //!   semaphore and surface are resolved through RAMHT in the display instance memory
 //!   (`disp_inst_mem_0300.c`), so later writes need no guest state. The per-head clock
 //!   latches it at the next tick (display-connector.md section 2.2): acquire semaphore
-//!   satisfied, `MIN_PRESENT_INTERVAL` ticks since the last latch, then the previous
-//!   presentation's release semaphore, the notifier FINISHED with a timestamp, and
-//!   `AWAKEN_WIN`. `BEGIN_MODE_IMMEDIATE` latches at the `UPDATE`.
+//!   satisfied, `MIN_PRESENT_INTERVAL` ticks since the last latch, PTIMER at or past the
+//!   `SET_UPDATE_TIMESTAMP` when `TIMESTAMP_MODE` is enabled; then the previous
+//!   presentation's release semaphore (flip-away), the notifier BEGUN with a PTIMER
+//!   timestamp, and `AWAKEN_WIN`. `BEGIN_MODE_IMMEDIATE` latches at the `UPDATE`.
 //! - Every tick advances `RG_DPCA` and the LOADV counter and sets `LAST_DATA`; with the
 //!   RM's enable that is the vblank interrupt (dev_disp.h v03/v04, kern_disp_0300.c).
-//! - The clock is `CLOCK_MONOTONIC` with absolute deadlines `t0 + n * period`. A
+//! - The clock is the device clock (`channel::device_epoch`, the PTIMER's base), with
+//!   absolute deadlines `t0 + n * period`. A
 //!   ticker thread only raises the DISP vector at the deadlines while a head has work
 //!   (a pending presentation, or vblank enabled); the state advances on the server
 //!   thread when the guest's interrupt handler reads the display registers
@@ -28,7 +30,7 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::fe_page::{FeIrq, FePage};
 use crate::fb::FakeFb;
@@ -67,9 +69,34 @@ pub const CTRL_DISP_AWAKEN: u32 = 1 << 8;
 /// `FE_CORE_HEAD_STATE_OPERATING_MODE` 9:8 = AWAKE.
 pub const HEAD_STATE_AWAKE: u32 = 2 << 8;
 
-// NV_DISP_NOTIFIER (clc57d.h): 16 bytes, STATUS 31:30 of word 0, timestamp in words 2-3.
+// NV_DISP_NOTIFIER (clc57d.h:34-54): 16 bytes; word 0 PRESENT_COUNT 7:0, FIELD 8:8,
+// FLIP_TYPE 9:9, STATUS 31:30 (NOT_BEGUN 0, BEGUN 1, FINISHED 2); TIMESTAMP_LO/HI in
+// words 2-3. The same four-word record is the window semaphore's (FOUR_WORD_NVDISPLAY,
+// nvkms-api-types.h:174-177): payload in word 0 (nvkms-sync.c:190-193).
+//
+// A core notifier completes FINISHED (NVKMS waits for it, nvkms-evo3.c:6330-6344). A
+// window flip's notifier goes BEGUN when the flip latches and FINISHED when the first
+// frame from the new surface has been scanned out (the next vblank). The class gives the
+// states, not their timing; both drivers fix it:
+// - NVKMS resets the notifier NOT_BEGUN and "when EVO performs the flip, it changes the
+//   notifier to BEGUN", and tests the newest flip for BEGUN at the following vblank
+//   callback (nvkms-headsurface.c:1896-1922); its client-notifier emulation writes BEGUN
+//   with the timestamp (1996-2013, nvkms-sync.c:77-91);
+// - the Windows 617 KMD pre-sets its records FINISHED, resets one to 0 before a flip and
+//   waits for FINISHED: after a modeset's single flip it unblanks the head once FINISHED is
+//   written (C49-C52), and never with BEGUN alone (C53, C54: TDR).
+// PRESENT_COUNT and FIELD stay 0 (progressive scanout, as NVKMS's emulation writes).
+const NOTIFIER_BEGUN: u32 = 1 << 30;
 const NOTIFIER_FINISHED: u32 = 2 << 30;
 const NOTIFIER_FLIP_TYPE_IMMEDIATE: u32 = 1 << 9;
+
+/// A display timestamp: the PTIMER value at `ns` of the device clock. `NV_PTIMER_TIME_0`
+/// counts in NSEC 31:5 (gm107/dev_timer.h), so the low five bits are 0 and the low word
+/// is never 1, the value NVKMS resets a notifier's TIMESTAMP_LO to as "not yet written"
+/// (nvkms-sync.c:29-37, 62-66).
+pub fn ptimer_stamp(ns: u64) -> u64 {
+    ns & !0x1F
+}
 
 // Channel numbers (NV_PDISP_CHN_NUM_*), the RAMHT key.
 pub const CHN_CORE: u32 = 0;
@@ -87,6 +114,8 @@ const C_HEAD_STRIDE: u32 = 0x400;
 const C_HEAD_PIXEL_CLOCK: u32 = 0x0C;
 const C_HEAD_VIEWPORT_SIZE_IN: u32 = 0x4C;
 const C_HEAD_RASTER_SIZE: u32 = 0x64;
+const C_HEAD_RASTER_BLANK_END: u32 = 0x6C;
+const C_HEAD_RASTER_BLANK_START: u32 = 0x70;
 const C_HEAD_OLUT_CONTROL: u32 = 0x280;
 const C_HEAD_CONTEXT_DMA_OLUT: u32 = 0x288;
 
@@ -104,19 +133,45 @@ const W_SET_PLANAR_STORAGE: u32 = 0x230;
 const W_SET_CONTEXT_DMA_ISO: u32 = 0x240;
 const W_SET_OFFSET: u32 = 0x260;
 const W_SET_PRESENT_CONTROL: u32 = 0x308;
+const W_SET_UPDATE_TIMESTAMP_LO: u32 = 0x348;
+const W_SET_UPDATE_TIMESTAMP_HI: u32 = 0x34C;
+/// `SET_PRESENT_CONTROL_TIMESTAMP_MODE` 8:8 (clc57e.h:270-272): ENABLE holds the flip
+/// until PTIMER >= `SET_UPDATE_TIMESTAMP` ("When non-zero, block the flip until PTIMER >=
+/// timeStamp", nvkms-api.h:925-926; programmed so in nvkms-evo3.c:3772-3777, 3904-3906).
+const PRESENT_TIMESTAMP_MODE_ENABLE: u32 = 1 << 8;
 
 // RAMHT and context DMA objects (disp/v03_00/dev_disp.h NV_UDISP_*, NV_DMA_*).
 const HASH_LIMIT: u64 = 0x2000;
 const HASH_ENTRY: u64 = 8;
+/// A notifier's FLIP_TYPE (9:9, clc57d.h:39-41).
+fn flip_type(immediate: bool) -> u32 {
+    if immediate {
+        NOTIFIER_FLIP_TYPE_IMMEDIATE
+    } else {
+        0
+    }
+}
+
+/// Recent display events kept (`Engine::recent`).
+const RECENT: usize = 96;
+/// Recent routed register accesses kept (`Engine::recent_regs`): about a minute of a
+/// Windows desktop's ISR (C71: 256 covered 1.7 s, not the failing flip).
+const RECENT_REGS: usize = 16384;
 
 // -------------------------------------------------------------------------------------
 // The clock and the ticker thread.
 
-static EPOCH: OnceLock<Instant> = OnceLock::new();
+/// The engine under the display lock (a poisoned lock is taken over: the engine's state
+/// stays consistent between statements).
+pub fn lock(e: &Mutex<Engine>) -> std::sync::MutexGuard<'_, Engine> {
+    e.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
-/// Nanoseconds of the display clock (CLOCK_MONOTONIC through `Instant`).
+/// Nanoseconds of the display clock: the device clock, PTIMER's base
+/// ([`crate::channel::device_now_ns`]), so notifier timestamps and the guest's PTIMER
+/// reads compare.
 pub fn now_ns() -> u64 {
-    EPOCH.get_or_init(Instant::now).elapsed().as_nanos() as u64
+    crate::channel::device_now_ns()
 }
 
 #[derive(Default)]
@@ -227,7 +282,9 @@ pub struct TickTiming {
 }
 
 /// What the display clock runs at a tick when the engine does not advance on reads.
-pub type Driver = dyn Fn() + Send + Sync;
+/// The display clock's driver (main.rs: the device's display tick): advances the engine
+/// to now and returns whether the display interrupt line is asserted afterwards.
+pub type Driver = dyn Fn() -> bool + Send + Sync;
 
 static TICKER: OnceLock<Arc<Ticker>> = OnceLock::new();
 
@@ -273,19 +330,29 @@ impl Ticker {
         }
     }
 
-    /// The tick's work: the driver first if there is one (the page is written), then the
-    /// raise, as the trapped path raises at every tick with work: a `LAST_DATA` the guest
-    /// left pending (vblank callbacks still queued) is serviced again at the next frame.
+    /// The tick's work. With a driver it advances the engine (the page is written) and the
+    /// vector is raised while the display's interrupt line is asserted, as the card's FE
+    /// raises its tree leaf: a `LAST_DATA` the guest left pending (vblank callbacks still
+    /// queued) is raised again at the next frame; a tick with nothing pending raises
+    /// nothing (a leaf pending without an FE cause is one the guest's display handler never
+    /// acknowledges: C64, a re-arm storm after an FLR). Without a driver the tick raises and
+    /// the guest's trapped status read advances the engine (`Display::read32_io`).
     fn fire(&self) {
         let d = self.driver.lock().unwrap().clone();
-        if let Some(d) = d {
-            self.driven.fetch_add(1, Ordering::Relaxed);
-            let t0 = now_ns();
-            d();
-            let us = now_ns().saturating_sub(t0) / 1000;
-            self.timing.lock().unwrap().driver.add(us);
+        let asserted = match d {
+            Some(d) => {
+                self.driven.fetch_add(1, Ordering::Relaxed);
+                let t0 = now_ns();
+                let asserted = d();
+                let us = now_ns().saturating_sub(t0) / 1000;
+                self.timing.lock().unwrap().driver.add(us);
+                asserted
+            }
+            None => true,
+        };
+        if asserted {
+            self.raise();
         }
-        self.raise();
     }
 
     /// The first raise the guest has not acknowledged yet ([`now_ns`]), taken.
@@ -338,6 +405,11 @@ impl Ticker {
     /// Whether a connector command waits for the server thread (cheap).
     pub fn command_pending(&self) -> bool {
         self.command_pending.load(Ordering::Acquire)
+    }
+
+    /// The directory of the control file (the device's state directory).
+    pub fn control_dir(&self) -> Option<std::path::PathBuf> {
+        self.control.lock().unwrap().as_ref().and_then(|p| p.parent().map(|d| d.to_path_buf()))
     }
 
     pub fn take_command(&self) -> Option<String> {
@@ -475,26 +547,66 @@ pub struct MemRef {
     pub addr: u64,
 }
 
-impl MemRef {
-    fn read32(&self, fb: &FakeFb, mem: &GuestMemory) -> Option<u32> {
-        let mut b = [0u8; 4];
-        let ok = if self.target == 1 {
-            fb.read(self.addr, &mut b)
-        } else {
-            mem.read(self.addr, &mut b)
-        };
-        ok.then(|| u32::from_le_bytes(b))
+/// Where the engine reads and writes its records (context DMA targets: FB or guest
+/// sysmem). The device path goes through the FB store and guest memory under the device
+/// mutex ([`DeviceIo`]); the display clock's own path through a guest memory view and
+/// pinned FB windows without it (`display::CoreIo`, docs/caraxes/display-own-clock.md §2).
+pub trait RecordIo {
+    /// Whether `len` bytes at `m` + `off` can be read and written now; a latch or a
+    /// FINISHED whose records cannot waits for a path that can.
+    fn can(&self, _m: MemRef, _off: u64, _len: u64) -> bool {
+        true
     }
+    fn read(&self, m: MemRef, off: u64, buf: &mut [u8]) -> bool;
+    fn write(&mut self, m: MemRef, off: u64, data: &[u8]) -> bool;
+    /// The path's name for the engine's recent events.
+    fn path(&self) -> &'static str {
+        "device"
+    }
+}
 
-    fn write(&self, fb: &mut FakeFb, mem: &GuestMemory, off: u64, data: &[u8]) -> bool {
-        if self.target == 1 {
-            fb.write(self.addr + off, data)
+/// The device path: the FB store and guest memory, under the device mutex.
+pub struct DeviceIo<'a> {
+    pub fb: &'a mut FakeFb,
+    pub mem: &'a GuestMemory,
+}
+
+impl RecordIo for DeviceIo<'_> {
+    fn read(&self, m: MemRef, off: u64, buf: &mut [u8]) -> bool {
+        if m.target == 1 {
+            self.fb.read(m.addr + off, buf)
         } else {
-            mem.write(self.addr + off, data)
+            self.mem.read(m.addr + off, buf)
         }
     }
 
-    fn describe(&self) -> String {
+    fn write(&mut self, m: MemRef, off: u64, data: &[u8]) -> bool {
+        if m.target == 1 {
+            self.fb.write(m.addr + off, data)
+        } else {
+            self.mem.write(m.addr + off, data)
+        }
+    }
+}
+
+impl MemRef {
+    /// The four words of the 16-byte record (NV_DISP_NOTIFIER layout), for the trace.
+    fn record(&self, io: &dyn RecordIo) -> Option<[u32; 4]> {
+        let mut b = [0u8; 16];
+        io.read(*self, 0, &mut b)
+            .then(|| std::array::from_fn(|i| u32::from_le_bytes(b[4 * i..4 * i + 4].try_into().unwrap())))
+    }
+
+    fn read32(&self, io: &dyn RecordIo) -> Option<u32> {
+        let mut b = [0u8; 4];
+        io.read(*self, 0, &mut b).then(|| u32::from_le_bytes(b))
+    }
+
+    fn write(&self, io: &mut dyn RecordIo, off: u64, data: &[u8]) -> bool {
+        io.write(*self, off, data)
+    }
+
+    pub fn describe(&self) -> String {
         format!(
             "{} {:#x}",
             if self.target == 1 { "fb" } else { "sys" },
@@ -579,6 +691,14 @@ pub struct Head {
     pub olut: (u32, u32),
     /// Modesets (activations or period changes) of this head.
     pub modesets: u32,
+    /// The raster's vertical blank: the line where the active region ends
+    /// (`HEAD_SET_RASTER_BLANK_START` Y) and where it begins (`HEAD_SET_RASTER_BLANK_END` Y),
+    /// clc57d.h; 0 when unknown.
+    pub vblank_start: u32,
+    pub vblank_end: u32,
+    /// `SET_GET_BLANKING_CTRL`: the head's output is blanked (core channel PIO register,
+    /// clc57d.h:291-297).
+    pub blanked: bool,
     /// Tick-rate report: ticks and time at the last report.
     report: (u64, u64),
 }
@@ -614,6 +734,8 @@ pub struct Flip {
     pub release: Option<(MemRef, u32)>,
     pub min_interval: u32,
     pub immediate: bool,
+    /// `TIMESTAMP_MODE` enabled: the PTIMER time the flip waits for.
+    pub not_before_ns: Option<u64>,
     pub surface: Surface,
 }
 
@@ -624,10 +746,17 @@ pub struct Window {
     pub pending: VecDeque<Flip>,
     pub last_latch_tick: Option<u64>,
     pub prev_release: Option<(MemRef, u32)>,
+    /// The notifier of the presentation being scanned out, BEGUN since its latch, and its
+    /// word 0: FINISHED when the next presentation displaces it.
+    pub shown: Option<(MemRef, u32)>,
     pub latched: Surface,
     pub updates: u64,
     pub flips: u64,
     pub acquire_waits: u64,
+    /// Ticks a flip waited for its `SET_UPDATE_TIMESTAMP`.
+    pub timestamp_waits: u64,
+    /// The tick the front flip's acquire first failed at (the trace names long waits).
+    pub acquire_since: Option<u64>,
 }
 
 /// The display engine's method and timing state.
@@ -638,11 +767,35 @@ pub struct Engine {
     irq: IrqHome,
     /// Display instance memory base in FB (from `WRITE_INST_MEM`).
     pub inst: Option<u64>,
+    /// The ARMED `SOR_SET_CONTROL(s)` OWNER_MASK (7:0, clc57d.h) of SORs 0-7: the heads
+    /// each SOR is driven by since the last core `UPDATE`.
+    pub sor_owners: [u32; 8],
     pub core_updates: u64,
     pub core_notifier_writes: u64,
     pub vblank_raised: u64,
     pub unresolved: u64,
     pub notes: Vec<String>,
+    /// FB record windows for the path without the device mutex (display/core_path.rs).
+    pub pins: Arc<super::core_path::RecordPins>,
+    /// Display clock ticks and guest register reads and writes served without the device
+    /// mutex (display/core_path.rs).
+    pub core_ticks: u64,
+    pub routed_reads: u64,
+    pub routed_writes: u64,
+    /// The last latches, FINISHED writes, acquire waits and failed record writes with the
+    /// path that did them, for the trace at a reset and at exit (what the display did
+    /// before a TDR, whatever the trace's latch rule left out).
+    pub recent: VecDeque<String>,
+    pub record_write_failures: u64,
+    /// The last guest accesses of the engine's registers served without the device mutex
+    /// (display/core_path.rs): (display-clock ns, write, offset, value, repeats), an access
+    /// equal to the one before counted instead of kept (the ISR polls the dispatch word),
+    /// traced with `recent`.
+    pub recent_regs: VecDeque<(u64, bool, u64, u32, u32)>,
+    /// The notifiers the engine wrote last (word 0 as written), checked at every tick: a
+    /// guest store to one lands among the recent events (what the KMD does with a flip's
+    /// notifier around a latch).
+    watched: VecDeque<(MemRef, u32)>,
 }
 
 impl Engine {
@@ -652,11 +805,20 @@ impl Engine {
             windows: vec![Window::default(); windows.min(MAX_WINDOWS)],
             irq: IrqHome::Local(FeIrq::new(heads)),
             inst: None,
+            sor_owners: [0; 8],
             core_updates: 0,
             core_notifier_writes: 0,
             vblank_raised: 0,
             unresolved: 0,
             notes: Vec::new(),
+            pins: Arc::default(),
+            core_ticks: 0,
+            routed_reads: 0,
+            routed_writes: 0,
+            recent: VecDeque::new(),
+            record_write_failures: 0,
+            recent_regs: VecDeque::new(),
+            watched: VecDeque::new(),
         };
         for h in 0..MAX_HEADS {
             ticker().set_head(h, 0, 0);
@@ -665,7 +827,72 @@ impl Engine {
         e
     }
 
-    fn note(&mut self, s: String) {
+    /// The SOR that drives head `h`: the one whose ARMED owner mask names the head, while
+    /// the head is active (a SOR owner and a raster, `core_update`). `None` for an idle or
+    /// unknown head.
+    pub fn head_sor(&self, h: usize) -> Option<u32> {
+        if !self.heads.get(h)?.active {
+            return None;
+        }
+        (0..8u32).find(|&s| self.sor_owners[s as usize] & (1 << h) != 0)
+    }
+
+    /// One of the recent display events (`recent`), at display-clock time `ns`.
+    fn recent(&mut self, ns: u64, s: String) {
+        if self.recent.len() >= RECENT {
+            self.recent.pop_front();
+        }
+        self.recent.push_back(format!("{:.4} {s}", ns as f64 / 1e9));
+    }
+
+    /// A guest register access served without the device mutex, for `recent_regs`.
+    pub(crate) fn recent_reg(&mut self, ns: u64, write: bool, off: u64, v: u32) {
+        if let Some(last) = self.recent_regs.back_mut() {
+            if (last.1, last.2, last.3) == (write, off, v) {
+                last.4 = last.4.saturating_add(1);
+                return;
+            }
+        }
+        if self.recent_regs.len() >= RECENT_REGS {
+            self.recent_regs.pop_front();
+        }
+        self.recent_regs.push_back((ns, write, off, v, 0));
+    }
+
+    /// Watch notifier `m` holding word 0 `w0` as the engine wrote it (the last four).
+    fn watch(&mut self, m: MemRef, w0: u32) {
+        self.watched.retain(|(x, _)| *x != m);
+        if self.watched.len() >= 4 {
+            self.watched.pop_front();
+        }
+        self.watched.push_back((m, w0));
+    }
+
+    /// Guest stores to the watched notifiers since the engine wrote them.
+    fn check_watched(&mut self, ns: u64, io: &dyn RecordIo) {
+        let mut seen = Vec::new();
+        for (m, w0) in self.watched.iter_mut() {
+            if let Some(now) = m.read32(io) {
+                if now != *w0 {
+                    seen.push(format!("notifier {} word 0 {:#x} -> {now:#x} by the guest [{}]", m.describe(), *w0, io.path()));
+                    *w0 = now;
+                }
+            }
+        }
+        for s in seen {
+            self.recent(ns, s);
+        }
+    }
+
+    /// Write a record on `io`; a failed write is counted and kept among the recent events.
+    fn put(&mut self, io: &mut dyn RecordIo, m: MemRef, off: u64, data: &[u8], ns: u64, what: &str) {
+        if !m.write(io, off, data) {
+            self.record_write_failures += 1;
+            self.recent(ns, format!("FAILED {what} write at {}+{off:#x} [{}]", m.describe(), io.path()));
+        }
+    }
+
+    pub(crate) fn note(&mut self, s: String) {
         if self.notes.len() < 4096 {
             self.notes.push(s);
         }
@@ -718,6 +945,8 @@ impl Engine {
     fn sync_ticker(&self) {
         let irq = self.irq();
         for (h, head) in self.heads.iter().enumerate() {
+            // A pending presentation: the clock must reach its tick without the guest's
+            // help.
             let flips = self
                 .windows
                 .iter()
@@ -735,7 +964,14 @@ impl Engine {
         self.windows.get(w).is_some_and(|w| !w.pending.is_empty())
     }
 
-    /// The current scan line of head `h` (SYSTEM_GET_SCANLINE, RG_DPCA).
+    /// The current scan line of head `h` (SYSTEM_GET_SCANLINE, RG_DPCA), counted from line
+    /// 0 (the start of vsync) as the raster generator counts. The display clock's ticks are
+    /// the vertical blank's start (the raster's `BLANK_START` line, without one the
+    /// viewport's height): where the card latches the armed updates and raises `LAST_DATA`.
+    /// An `UPDATE` armed after that line waits for the next frame, as on the card; the
+    /// Windows KMD, which reads the scan line right before its flip's `UPDATE`, expects
+    /// exactly that (C71, C73: flips armed at lines 1117-1119 of a 1125-line raster whose
+    /// blank starts at 1120 latched at the old tick, line 0, and were never reported).
     pub fn scanline(&self, h: usize, now: u64) -> u32 {
         let Some(head) = self.heads.get(h) else {
             return 0;
@@ -744,7 +980,74 @@ impl Engine {
             return 0;
         }
         let into = (now.saturating_sub(head.t0_ns)) % head.period_ns;
-        (into * head.vtotal as u64 / head.period_ns) as u32
+        let latch_line = if head.vblank_start > head.vblank_end && head.vblank_start < head.vtotal {
+            head.vblank_start
+        } else {
+            head.height.min(head.vtotal - 1)
+        };
+        ((latch_line as u64 + into * head.vtotal as u64 / head.period_ns) % head.vtotal as u64) as u32
+    }
+
+    /// Whether `line` of head `h` lies in the vertical blank: before the raster's
+    /// `BLANK_END` Y or from its `BLANK_START` Y on (clc57d.h `HEAD_SET_RASTER_BLANK_*`);
+    /// without them, from the viewport's height on. A head without a raster scans out no
+    /// active line, so it counts as in the blank (a wait for it ends).
+    pub fn in_vblank(&self, h: usize, line: u32) -> bool {
+        let Some(hd) = self.heads.get(h) else {
+            return false;
+        };
+        if !hd.active {
+            return true;
+        }
+        if hd.vblank_start > hd.vblank_end {
+            line < hd.vblank_end || line >= hd.vblank_start
+        } else {
+            line >= hd.height
+        }
+    }
+
+    /// `GET_RG_SCAN_LINE(b)` (core channel PIO, clc57d.h:285-289): LINE 15:0 the raster
+    /// generator's current line, VBLANK 16:16 whether it lies in the vertical blank.
+    pub fn rg_scan_line(&self, h: usize, now: u64) -> u32 {
+        let line = self.scanline(h, now);
+        (line & 0xFFFF) | ((self.in_vblank(h, line) as u32) << 16)
+    }
+
+    /// A write to `SET_GET_BLANKING_CTRL(b)` (core channel PIO, clc57d.h:291-297): BLANK
+    /// 0:0 and UNBLANK 1:1, each NO_CHANGE (0) or ENABLE (1). The model carries a request
+    /// out at once (there are no pixels to blank), BLANK before UNBLANK; a read gives the
+    /// state reached ([`Self::blanking_ctrl`]). Returns the trace note.
+    pub fn set_blanking_ctrl(&mut self, h: usize, v: u32) -> String {
+        let Some(hd) = self.heads.get_mut(h) else {
+            return format!("display: SET_GET_BLANKING_CTRL({h}) {v:#x}: no such head, dropped");
+        };
+        let was = hd.blanked;
+        if v & 1 != 0 {
+            hd.blanked = true;
+        }
+        if v & 2 != 0 {
+            hd.blanked = false;
+        }
+        format!(
+            "display: head {h} SET_GET_BLANKING_CTRL {v:#x}: {} [guest]",
+            match (was, hd.blanked) {
+                (false, true) => "blanked",
+                (true, false) => "unblanked",
+                (true, true) => "stays blanked",
+                (false, false) => "stays unblanked",
+            }
+        )
+    }
+
+    /// A read of `SET_GET_BLANKING_CTRL(b)`: the head's blanking state in the register's
+    /// own fields, BLANK (0x1) while blanked, UNBLANK (0x2) otherwise. The Windows KMD writes
+    /// BLANK and waits until the read shows it: C47 (the write latched, read back 0x1) went
+    /// on after one read, C48 (a read of 0: "nothing pending") polled 3599 times.
+    pub fn blanking_ctrl(&self, h: usize) -> u32 {
+        match self.heads.get(h) {
+            Some(hd) if hd.blanked => 0x1,
+            _ => 0x2,
+        }
     }
 
     // ---- registers
@@ -816,12 +1119,20 @@ impl Engine {
                 let was = self.with_irq(|i| std::mem::replace(&mut i.en[h], v));
                 self.sync_ticker();
                 (was != v).then(|| {
+                    // Only LAST_DATA is raised; other enables (RG_LINE_A 5:5, RG_LINE_B
+                    // 6:6, RG_SEM 16+i, dev_disp.h v03_00/v04_01) are named so a guest
+                    // that waits on one shows it.
                     format!(
-                        "display: head {h} vblank (LAST_DATA) interrupt {} [guest]",
+                        "display: head {h} vblank (LAST_DATA) interrupt {} [guest]; RM_INTR_EN_HEAD_TIMING {v:#x}{}",
                         if v & LAST_DATA != 0 {
                             "enabled"
                         } else {
                             "disabled"
+                        },
+                        if v & !LAST_DATA != 0 {
+                            format!(" (also {:#x}: not raised by this model)", v & !LAST_DATA)
+                        } else {
+                            String::new()
                         }
                     )
                 })
@@ -849,6 +1160,12 @@ impl Engine {
     /// Advance every active head to `now`: latch presentations, count frames, set
     /// `LAST_DATA`, and raise the vector when something became pending.
     pub fn catch_up(&mut self, now: u64, fb: &mut FakeFb, mem: &GuestMemory) {
+        self.catch_up_io(now, &mut DeviceIo { fb, mem });
+    }
+
+    /// [`Engine::catch_up`] through `io`: the display clock's path without the device mutex
+    /// passes its own (display-own-clock.md §2.5).
+    pub fn catch_up_io(&mut self, now: u64, io: &mut dyn RecordIo) {
         let snap = |e: &Self| {
             let i = e.irq();
             (i.dispatch(), i.awaken_win, i.awaken_other)
@@ -882,8 +1199,11 @@ impl Engine {
                 }
                 for w in 0..self.windows.len() {
                     if self.windows[w].head == Some(h) {
-                        self.try_latch(w, tick, tick_ns, false, fb, mem);
+                        self.try_latch(w, tick, tick_ns, false, io);
                     }
+                }
+                if !self.watched.is_empty() {
+                    self.check_watched(tick_ns, io);
                 }
                 let newly = self.with_irq(|i| {
                     let newly = i.en[h] & LAST_DATA != 0 && i.evt[h] & LAST_DATA == 0;
@@ -925,8 +1245,7 @@ impl Engine {
         tick: u64,
         tick_ns: u64,
         force: bool,
-        fb: &mut FakeFb,
-        mem: &GuestMemory,
+        io: &mut dyn RecordIo,
     ) -> bool {
         let win = &self.windows[w];
         let Some(f) = win.pending.front() else {
@@ -942,32 +1261,111 @@ impl Engine {
                 }
             }
         }
-        if let Some((m, want)) = f.acquire {
-            let have = m.read32(fb, mem);
-            if have != Some(want) {
-                self.windows[w].acquire_waits += 1;
+        // TIMESTAMP_MODE: not before PTIMER reaches the flip's timestamp, on a head that
+        // scans out (a window without an active head completes at once).
+        let live = win.head.is_some_and(|h| self.heads.get(h).is_some_and(|hd| hd.active));
+        if let Some(ts) = f.not_before_ns {
+            if live && tick_ns < ts {
+                self.windows[w].timestamp_waits += 1;
                 return false;
             }
         }
-        let f = self.windows[w].pending.pop_front().unwrap();
-        let win = &mut self.windows[w];
-        if let Some((m, v)) = win.prev_release.take() {
-            m.write(fb, mem, 0, &v.to_le_bytes());
+        let (queued_ns, acquire) = (f.queued_ns, f.acquire);
+        // Every record this latch touches must be reachable on this path, or none is
+        // written: the latch waits for a path that reaches them all.
+        let reach = |m: Option<MemRef>, len: u64| m.is_none_or(|m| io.can(m, 0, len));
+        if !reach(acquire.map(|(m, _)| m), 4)
+            || !reach(self.windows[w].prev_release.map(|(m, _)| m), 16)
+            || !reach(f.notifier.map(|(m, _)| m), 16)
+            || !reach(self.windows[w].shown.map(|(m, _)| m), 4)
+        {
+            return false;
         }
-        win.prev_release = f.release;
+        if let Some((m, want)) = acquire {
+            let have = m.read32(io);
+            if have != Some(want) {
+                let win = &mut self.windows[w];
+                win.acquire_waits += 1;
+                let since = *win.acquire_since.get_or_insert(tick);
+                // Half a second, then every 2 s: the trace names a flip stuck on its acquire.
+                let waited = tick.saturating_sub(since);
+                if waited == 0 {
+                    let s = format!(
+                        "window {w}: flip waits for its acquire {} == {want:#x}, reads {} [{}]",
+                        m.describe(),
+                        have.map_or("nothing".into(), |v| format!("{v:#x}")),
+                        io.path()
+                    );
+                    self.recent(tick_ns, s);
+                }
+                if !force && (waited == 30 || (waited > 0 && waited % 120 == 0)) {
+                    let line = format!(
+                        "display: window {w}: flip queued {} ms ago waits {waited} ticks for its acquire semaphore {} == {want:#x}, reads {} [guest]",
+                        tick_ns.saturating_sub(queued_ns) / 1_000_000,
+                        m.describe(),
+                        have.map_or("nothing".into(), |v| format!("{v:#x}"))
+                    );
+                    self.note(line);
+                }
+                return false;
+            }
+        }
+        self.windows[w].acquire_since = None;
+        let f = self.windows[w].pending.pop_front().unwrap();
+        let stamp = ptimer_stamp(tick_ns).to_le_bytes();
+        // What the guest left in the records before the device writes them (the trace of
+        // the first latches): how its driver resets a notifier and a semaphore.
+        let before = |m: Option<MemRef>| {
+            m.and_then(|m| m.record(io))
+                .map_or("-".to_string(), |r| format!("[{:#x} {:#x} {:#x} {:#x}]", r[0], r[1], r[2], r[3]))
+        };
+        let seen = if self.windows[w].flips < 32 {
+            format!(
+                "; before: notifier {}, previous release {}",
+                before(f.notifier.map(|(m, _)| m)),
+                before(self.windows[w].prev_release.map(|(m, _)| m))
+            )
+        } else {
+            String::new()
+        };
+        let win = &mut self.windows[w];
+        // The previous presentation's release: its surface is displaced now ("To match
+        // display hardware behavior, we release the semaphore when we flip *away*",
+        // nvkms-displayless.c:262-270; nvkms-api.h:677-690). The four-word record gets
+        // the timestamp too (nvkms-headsurface.c:598-604), the payload last.
+        if let Some((m, v)) = win.prev_release.take() {
+            self.put(io, m, 8, &stamp, tick_ns, "release timestamp");
+            self.put(io, m, 0, &v.to_le_bytes(), tick_ns, "release");
+        }
+        self.windows[w].prev_release = f.release;
+        // The notifier: BEGUN with the latch's PTIMER time when the presentation starts
+        // being scanned out, FINISHED when a later one displaces it (the slot is free
+        // again), at once on a head without scanout. The drivers read it so: nouveau waits
+        // for exactly BEGUN after its UPDATE (base507c_ntfy_wait_begun), NVKMS headsurface
+        // asserts BEGUN for the previous flip at its next frame (nvkms-headsurface.c:
+        // 1996-2008), and the Windows KMD, which presets its slots FINISHED and resets one to
+        // NOT_BEGUN before a flip, checks the flip's slot ~0.6 ms after programming it and
+        // takes a FINISHED there for a flip gone wrong (windows-findings.md step 16).
+        // Timestamp first, status last (NVKMS polls for it after the status,
+        // nvkms-sync.c:55-58).
+        if let Some((m, w0)) = self.windows[w].shown.take() {
+            if f.notifier.is_none_or(|(n, _)| n != m) {
+                let done = (w0 & !(3 << 30)) | NOTIFIER_FINISHED;
+                self.put(io, m, 0, &done.to_le_bytes(), tick_ns, "notifier FINISHED");
+                self.watch(m, done);
+            }
+        }
         if let Some((m, _)) = f.notifier {
-            let mut rec = [0u8; 16];
-            let w0 = NOTIFIER_FINISHED
-                | if f.immediate {
-                    NOTIFIER_FLIP_TYPE_IMMEDIATE
-                } else {
-                    0
-                };
-            rec[0..4].copy_from_slice(&w0.to_le_bytes());
-            rec[8..16].copy_from_slice(&tick_ns.to_le_bytes());
-            // Timestamp first, status last, as the hardware orders its writes.
-            m.write(fb, mem, 8, &rec[8..16]);
-            m.write(fb, mem, 0, &rec[0..4]);
+            let mut w0 = NOTIFIER_BEGUN | flip_type(f.immediate);
+            self.put(io, m, 8, &stamp, tick_ns, "notifier timestamp");
+            self.put(io, m, 0, &w0.to_le_bytes(), tick_ns, "notifier BEGUN");
+            if !live {
+                w0 = (w0 & !(3 << 30)) | NOTIFIER_FINISHED;
+                self.put(io, m, 0, &w0.to_le_bytes(), tick_ns, "notifier FINISHED");
+            } else {
+                self.windows[w].shown = Some((m, w0));
+            }
+            self.watch(m, w0);
         }
         // AWAKEN follows the rule nvidia-drm models the hardware by
         // (`__will_generate_flip_event`, nvidia-drm-modeset.c:96-140): a flip event only
@@ -979,16 +1377,31 @@ impl Engine {
             self.with_irq(|i| i.awaken_win |= 1 << w);
         }
         let win = &mut self.windows[w];
-        let changed = win.latched != f.surface;
+        // The trace names the first flips, every change of what is scanned out other than
+        // the buffer (a flip chain alternates buffers every frame), and every 600th flip.
+        let geometry = |s: &Surface| {
+            (s.mem.is_some(), s.width, s.height, s.format, s.pitch, s.pitch_layout, s.block_height_log2)
+        };
+        let changed = geometry(&win.latched) != geometry(&f.surface);
         win.latched = f.surface.clone();
         win.last_latch_tick = Some(tick);
         win.flips += 1;
         let n = win.flips;
-        if changed || n <= 3 {
+        let short = format!(
+            "window {w} latch {n} at tick {tick}{} [{}]: surface {}, notifier {}, acquire {}",
+            if force { " (immediate)" } else { "" },
+            io.path(),
+            f.surface.mem.map_or("none".into(), |m| m.describe()),
+            f.notifier.map_or("none".into(), |(m, _)| m.describe()),
+            f.acquire.map_or("none".into(), |(m, v)| format!("{} == {v:#x}", m.describe())),
+        );
+        self.recent(tick_ns, short);
+        if changed || n <= 32 || n % 600 == 0 {
             let s = &f.surface;
             let line = format!(
-                "display: window {w} latch {n} at tick {tick}{}: surface {} {}x{} format {:#x} {} pitch {} (block height 2^{}), notifier {}, acquire {}, release {} [guest]",
+                "display: window {w} latch {n} at tick {tick}{}{}: surface {} {}x{} format {:#x} {} pitch {} (block height 2^{}), notifier {}, acquire {}, release {} [guest]",
                 if force { " (immediate)" } else { "" },
+                f.not_before_ns.map_or(String::new(), |ts| format!(" (timestamp {ts}, now {tick_ns})")),
                 s.mem.map_or("none".into(), |m| m.describe()),
                 s.width,
                 s.height,
@@ -999,7 +1412,7 @@ impl Engine {
                 f.notifier.map_or("none".into(), |(m, a)| format!("{}{}", m.describe(), if a { " awaken" } else { "" })),
                 f.acquire.map_or("none".into(), |(m, v)| format!("{} == {v:#x}", m.describe())),
                 f.release.map_or("none".into(), |(m, v)| format!("{} := {v:#x}", m.describe())),
-            );
+            ) + &seen;
             self.note(line);
         }
         true
@@ -1044,15 +1457,23 @@ impl Engine {
     ) {
         self.core_updates += 1;
         let get = |m: u32| armed.get(&m).copied().unwrap_or(0);
-        // Window owners.
+        // Window owners. A window's present interval counts the vblanks of its head since
+        // its last latch (`SET_PRESENT_CONTROL` MIN_PRESENT_INTERVAL, clc57e.h); a window
+        // moved to another head (or to none) has no latch on the new one.
         for w in 0..self.windows.len() {
             let owner = get(C_WINDOW_SET_CONTROL + 0x80 * w as u32) & 0xF;
-            self.windows[w].head = ((owner as usize) < self.heads.len()).then_some(owner as usize);
+            let head = ((owner as usize) < self.heads.len()).then_some(owner as usize);
+            let win = &mut self.windows[w];
+            if win.head != head {
+                win.last_latch_tick = None;
+            }
+            win.head = head;
         }
         // Heads.
         let mut sor_heads = 0u32;
         for s in 0..8 {
-            sor_heads |= get(C_SOR_SET_CONTROL + 0x20 * s) & 0xFF;
+            self.sor_owners[s as usize] = get(C_SOR_SET_CONTROL + 0x20 * s) & 0xFF;
+            sor_heads |= self.sor_owners[s as usize];
         }
         for h in 0..self.heads.len() {
             let base = C_HEAD + C_HEAD_STRIDE * h as u32;
@@ -1075,6 +1496,13 @@ impl Engine {
                 get(base + C_HEAD_OLUT_CONTROL),
                 get(base + C_HEAD_CONTEXT_DMA_OLUT),
             );
+            // The raster's blank lines follow every core UPDATE (they place the latch, see
+            // `scanline`); the clock restarts only when the head starts, stops or changes
+            // its period.
+            if active {
+                hd.vblank_end = (get(base + C_HEAD_RASTER_BLANK_END) >> 16) & 0x7FFF;
+                hd.vblank_start = (get(base + C_HEAD_RASTER_BLANK_START) >> 16) & 0x7FFF;
+            }
             if hd.active != active || hd.period_ns != period_ns {
                 hd.active = active;
                 hd.period_ns = period_ns;
@@ -1083,6 +1511,8 @@ impl Engine {
                 hd.vtotal = vtotal;
                 hd.width = vp & 0x7FFF;
                 hd.height = (vp >> 16) & 0x7FFF;
+                hd.vblank_end = (get(base + C_HEAD_RASTER_BLANK_END) >> 16) & 0x7FFF;
+                hd.vblank_start = (get(base + C_HEAD_RASTER_BLANK_START) >> 16) & 0x7FFF;
                 hd.t0_ns = now;
                 hd.ticks = 0;
                 hd.report = (0, now);
@@ -1097,13 +1527,21 @@ impl Engine {
                     format!("display: head {h} inactive (SOR owners {sor_heads:#x}, raster {raster:#x}, pclk {pclk:#x}) [guest]")
                 };
                 self.note(line);
+                // The head's tick count starts over, and with it the vblanks its windows
+                // count since their last latch: a latch tick of the old raster would hold
+                // every flip of the new mode until the count reached it again (C77: the
+                // desktop's flips at 1280x720 waited for tick 32934 of the 1920x1080 raster).
+                for win in self.windows.iter_mut().filter(|w| w.head == Some(h)) {
+                    win.last_latch_tick = None;
+                }
             }
         }
         // Presentations on windows without an active head complete at once.
         for w in 0..self.windows.len() {
             let live = self.windows[w].head.is_some_and(|h| self.heads[h].active);
             if !live {
-                while self.try_latch(w, 0, now, true, fb, mem) {}
+                let io = &mut DeviceIo { fb: &mut *fb, mem };
+                while self.try_latch(w, 0, now, true, io) {}
             }
         }
         // The core notifier.
@@ -1112,8 +1550,9 @@ impl Engine {
         if handle != 0 {
             let off = (((ctrl >> 4) & 0xFF) * 16) as u64;
             if let Some(m) = self.resolve_at(fb, handle, CHN_CORE, off, "core notifier") {
-                m.write(fb, mem, 8, &now.to_le_bytes());
-                m.write(fb, mem, 0, &NOTIFIER_FINISHED.to_le_bytes());
+                let io = &mut DeviceIo { fb: &mut *fb, mem };
+                m.write(io, 8, &ptimer_stamp(now).to_le_bytes());
+                m.write(io, 0, &NOTIFIER_FINISHED.to_le_bytes());
                 self.core_notifier_writes += 1;
                 if self.core_notifier_writes <= 3 {
                     let line = format!(
@@ -1170,6 +1609,14 @@ impl Engine {
             sem_off,
             "window semaphore",
         );
+        // The flip's FB records reachable by the display clock without the device mutex.
+        for m in [notifier.map(|(m, _)| m), sem].into_iter().flatten() {
+            if m.target == 1 {
+                if let Some(n) = self.pins.ensure(fb, m.addr, 16) {
+                    self.note(n);
+                }
+            }
+        }
         let iso = get(W_SET_CONTEXT_DMA_ISO);
         let size = get(W_SET_SIZE);
         let storage = get(W_SET_STORAGE);
@@ -1189,6 +1636,10 @@ impl Engine {
             block_height_log2: storage & 0xF,
         };
         let present = get(W_SET_PRESENT_CONTROL);
+        let not_before_ns = (present & PRESENT_TIMESTAMP_MODE_ENABLE != 0).then(|| {
+            u64::from(get(W_SET_UPDATE_TIMESTAMP_LO))
+                | u64::from(get(W_SET_UPDATE_TIMESTAMP_HI)) << 32
+        });
         let flip = Flip {
             queued_ns: now,
             notifier,
@@ -1196,6 +1647,7 @@ impl Engine {
             release: sem.map(|m| (m, get(W_SET_SEMAPHORE_RELEASE))),
             min_interval: present & 0xF,
             immediate: (present >> 4) & 7 == 1,
+            not_before_ns,
             surface: if iso == 0 {
                 Surface::default()
             } else {
@@ -1203,16 +1655,50 @@ impl Engine {
             },
         };
         let immediate = flip.immediate;
+        // The UPDATE is armed; its notifier stays as the guest left it (NOT_BEGUN) until the
+        // latch (`try_latch`).
+        if let Some((m, _)) = flip.notifier {
+            let n = self.windows[w].updates + 1;
+            self.recent(now, format!("window {w} update {n} armed: notifier {} [device]", m.describe()));
+        }
         let win = &mut self.windows[w];
         win.updates += 1;
         win.pending.push_back(flip);
         let live = win.head.is_some_and(|h| self.heads[h].active);
         if immediate || !live {
             let tick = win.head.map_or(0, |h| self.heads[h].ticks);
-            while self.try_latch(w, tick, now, true, fb, mem) {}
+            let io = &mut DeviceIo { fb: &mut *fb, mem };
+            while self.try_latch(w, tick, now, true, io) {}
         }
         self.sync_ticker();
         self.signal();
+    }
+
+    /// The recent display events, one line each (the trace at a reset and at exit).
+    pub fn recent_lines(&self) -> Vec<String> {
+        let mut v = vec![format!(
+            "display recent: the last {} latches, FINISHED writes and acquire waits ({} record write(s) failed in all):",
+            self.recent.len(),
+            self.record_write_failures
+        )];
+        v.extend(self.recent.iter().map(|s| format!("display recent: {s}")));
+        // The routed register accesses, eight to a line.
+        let regs: Vec<String> = self
+            .recent_regs
+            .iter()
+            .map(|&(ns, w, off, val, again)| {
+                format!(
+                    "{:.4} {} {off:#x}={val:#x}{}",
+                    ns as f64 / 1e9,
+                    if w { 'W' } else { 'R' },
+                    if again > 0 { format!(" x{}", again + 1) } else { String::new() }
+                )
+            })
+            .collect();
+        for chunk in regs.chunks(8) {
+            v.push(format!("display recent registers: {}", chunk.join("; ")));
+        }
+        v
     }
 
     /// Counters for the device summary and the trace.
@@ -1224,13 +1710,14 @@ impl Engine {
             .filter(|(_, h)| h.active || h.modesets > 0)
             .map(|(i, h)| {
                 format!(
-                    "head {i}: {} {}x{} {:.3} Hz, {} ticks, {} modesets",
+                    "head {i}: {} {}x{} {:.3} Hz, {} ticks, {} modesets{}",
                     if h.active { "active" } else { "off" },
                     h.width,
                     h.height,
                     h.hz(),
                     h.ticks,
-                    h.modesets
+                    h.modesets,
+                    if h.blanked { ", blanked" } else { "" }
                 )
             })
             .collect();
@@ -1241,17 +1728,19 @@ impl Engine {
             .filter(|(_, w)| w.updates > 0)
             .map(|(i, w)| {
                 format!(
-                    "window {i}: {} updates, {} latched, {} pending, {} acquire waits",
+                    "window {i}: {} updates, {} latched, {} pending, {} acquire waits, {} timestamp waits",
                     w.updates,
                     w.flips,
                     w.pending.len(),
-                    w.acquire_waits
+                    w.acquire_waits,
+                    w.timestamp_waits
                 )
             })
             .collect();
         let clock = ticker().timing_summary();
+        let (pinned, refused) = self.pins.counts();
         format!(
-            "display engine: {} core UPDATEs, {} core notifiers written, {} vblank interrupts, {} unresolved context DMAs, ticker raised {} ({} MSIs); {}; {}{}{}",
+            "display engine: {} core UPDATEs, {} core notifiers written, {} vblank interrupts, {} unresolved context DMAs, ticker raised {} ({} MSIs); {}; {}; without the device mutex: {} clock ticks, {} register reads, {} register writes, {} FB record window(s), {} region(s) left to the device path ({} window(s) taken back when a page entered the BAR2 memfd or the BAR1 pool){}{}",
             self.core_updates,
             self.core_notifier_writes,
             self.vblank_raised,
@@ -1260,6 +1749,12 @@ impl Engine {
             ticker().msis.load(Ordering::Relaxed),
             heads.join("; "),
             wins.join("; "),
+            self.core_ticks,
+            self.routed_reads,
+            self.routed_writes,
+            pinned,
+            refused,
+            self.pins.revoked(),
             if clock.is_empty() { "" } else { "; " },
             clock
         )
@@ -1269,6 +1764,7 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     const INST: u64 = 0x10_0000;
 
@@ -1394,6 +1890,215 @@ mod tests {
         );
     }
 
+    /// Queue the flip of `a_flip_completes_at_the_next_tick_not_before`: notifier record 1
+    /// of 0x50_0000, semaphore record 2 of 0x60_0000 (acquire 7, release 8).
+    fn queue_flip(e: &mut Engine, fb: &mut FakeFb, mem: &GuestMemory, now: u64) {
+        for (m, v) in [
+            (W_SET_CONTEXT_DMA_NOTIFIER, 0x20),
+            (W_SET_NOTIFIER_CONTROL, 1 | (1 << 4)),
+            (W_SET_CONTEXT_DMA_SEMAPHORE, 0x30),
+            (W_SET_SEMAPHORE_CONTROL, 2),
+            (W_SET_SEMAPHORE_ACQUIRE, 7),
+            (W_SET_SEMAPHORE_RELEASE, 8),
+            (W_SET_CONTEXT_DMA_ISO, 0x40),
+            (W_SET_OFFSET, 0x100),
+            (W_SET_SIZE, 1920 | (1080 << 16)),
+            (W_SET_STORAGE, 1 << 4),
+            (W_SET_PARAMS, 0xE6),
+            (W_SET_PLANAR_STORAGE, 120),
+            (W_SET_PRESENT_CONTROL, 1),
+        ] {
+            e.window_method(0, m, v);
+        }
+        e.window_update(0, now, fb, mem);
+    }
+
+    /// The display clock's path without the device mutex (display/core_path.rs): with the
+    /// flip's FB records in shared windows it latches (BEGUN), finishes at the next tick
+    /// and raises vblank, all under the display lock only; the device path sees the same
+    /// records.
+    #[test]
+    fn the_clock_latches_and_finishes_without_the_device_mutex() {
+        let mut fb = crate::fb::testing::shared_ram_fb(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        e.write32(FE_EVT_STAT_AWAKEN_OTHER, 1);
+        e.write32(FE_RM_INTR_EN_HEAD_TIMING, LAST_DATA);
+        let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+        queue_flip(&mut e, &mut fb, &mem, t0 + 1_000_000);
+        assert_eq!(e.pins.counts(), (2, 0), "the notifier's and the semaphore's regions");
+        assert!(e.notes.iter().any(|n| n.contains("mapped for the display clock")));
+        fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
+        let engine = Arc::new(Mutex::new(e));
+        // The device mutex is someone else's now: the clock runs on another thread with the
+        // engine alone.
+        let device = Mutex::new(());
+        let _held = device.lock().unwrap();
+        let (en, m2) = (engine.clone(), GuestMemory::new());
+        let asserted = std::thread::spawn(move || super::super::core_path::tick_at(&en, &m2, t0 + p))
+            .join()
+            .unwrap();
+        assert!(asserted, "LAST_DATA at the tick");
+        assert!(!lock(&engine).window_busy(0), "latched without the device mutex");
+        let mut b = [0u8; 4];
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
+        let e = lock(&engine);
+        assert_eq!(e.core_ticks, 1);
+        // The recent events name the path: armed on the device, latched by the clock.
+        assert!(e.recent.iter().any(|s| s.contains("update 1 armed: notifier fb 0x500010 [device]")), "{:?}", e.recent);
+        assert!(e.recent.iter().any(|s| s.contains("latch") && s.ends_with("[clock]: surface fb 0x810000, notifier fb 0x500010, acquire fb 0x600020 == 0x7")), "{:?}", e.recent);
+        assert_eq!(e.record_write_failures, 0);
+    }
+
+    /// Two flips on consecutive frames: each notifier goes BEGUN at its own latch with its
+    /// latch time, and the first goes FINISHED when the second displaces it.
+    #[test]
+    fn a_displaced_flip_is_finished() {
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+        let notifier = |fb: &FakeFb, slot: u64| {
+            let mut b = [0u8; 16];
+            fb.read(0x50_0000 + 16 * slot, &mut b);
+            (u32::from_le_bytes(b[..4].try_into().unwrap()), u64::from_le_bytes(b[8..].try_into().unwrap()))
+        };
+        for (m, v) in [
+            (W_SET_CONTEXT_DMA_NOTIFIER, 0x20),
+            (W_SET_CONTEXT_DMA_ISO, 0x40),
+            (W_SET_SIZE, 1920 | (1080 << 16)),
+            (W_SET_PRESENT_CONTROL, 1),
+        ] {
+            e.window_method(0, m, v);
+        }
+        e.window_method(0, W_SET_NOTIFIER_CONTROL, 1 << 4);
+        e.window_update(0, t0 + p - 3_000_000, &mut fb, &mem);
+        assert_eq!(notifier(&fb, 1).0, 0, "armed: not begun");
+        e.catch_up(t0 + p, &mut fb, &mem);
+        assert_eq!(notifier(&fb, 1), (NOTIFIER_BEGUN, ptimer_stamp(t0 + p)));
+        // The next flip, programmed within the frame.
+        e.window_method(0, W_SET_NOTIFIER_CONTROL, 2 << 4);
+        e.window_update(0, t0 + p + 2_000_000, &mut fb, &mem);
+        assert_eq!(notifier(&fb, 2).0, 0);
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
+        assert_eq!(notifier(&fb, 2), (NOTIFIER_BEGUN, ptimer_stamp(t0 + 2 * p)));
+        assert_eq!(notifier(&fb, 1), (NOTIFIER_FINISHED, ptimer_stamp(t0 + p)), "displaced");
+        assert_eq!(e.windows[0].flips, 2);
+    }
+
+    /// A modeset starts the head's tick count over, and the present interval of its window
+    /// counts from there: the first flip of the new mode latches at the new raster's first
+    /// tick (C77: 1920x1080 -> 1280x720 held the desktop's flips behind tick 32934 of the
+    /// old raster). The window is detached for the modeset (the Windows KMD's order) or
+    /// stays on the head.
+    #[test]
+    fn a_modeset_restarts_the_present_interval() {
+        let mem = GuestMemory::new();
+        for detach in [true, false] {
+            let mut fb = FakeFb::new(16 << 20);
+            let mut e = engine_with_head(&mut fb);
+            let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+            for (m, v) in [(W_SET_CONTEXT_DMA_ISO, 0x40), (W_SET_SIZE, 1920 | (1080 << 16)), (W_SET_PRESENT_CONTROL, 1)] {
+                e.window_method(0, m, v);
+            }
+            e.catch_up(t0 + 100 * p, &mut fb, &mem);
+            e.window_update(0, t0 + 100 * p + 1_000, &mut fb, &mem);
+            e.catch_up(t0 + 101 * p, &mut fb, &mem);
+            assert_eq!(e.windows[0].last_latch_tick, Some(101));
+            // Window off the head, head off, head on at 1280x720, window back.
+            let now = t0 + 101 * p + 1_000;
+            let mut armed = BTreeMap::new();
+            armed.insert(C_SOR_SET_CONTROL, 0x1 | (8 << 8));
+            armed.insert(C_WINDOW_SET_CONTROL, if detach { 0xF } else { 0 });
+            armed.insert(C_HEAD + C_HEAD_RASTER_SIZE, 2200 | (1125 << 16));
+            armed.insert(C_HEAD + C_HEAD_PIXEL_CLOCK, 148_500_000);
+            armed.insert(C_HEAD + C_HEAD_VIEWPORT_SIZE_IN, 1920 | (1080 << 16));
+            e.core_update(&armed, now, &mut fb, &mem);
+            armed.insert(C_SOR_SET_CONTROL, 0);
+            e.core_update(&armed, now + 1_000, &mut fb, &mem);
+            armed.insert(C_SOR_SET_CONTROL, 0x1 | (8 << 8));
+            armed.insert(C_HEAD + C_HEAD_RASTER_SIZE, 1650 | (750 << 16));
+            armed.insert(C_HEAD + C_HEAD_PIXEL_CLOCK, 74_250_000);
+            armed.insert(C_HEAD + C_HEAD_VIEWPORT_SIZE_IN, 1280 | (720 << 16));
+            e.core_update(&armed, now + 2_000, &mut fb, &mem);
+            armed.insert(C_WINDOW_SET_CONTROL, 0);
+            e.core_update(&armed, now + 3_000, &mut fb, &mem);
+            let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+            assert_eq!((e.heads[0].width, e.heads[0].ticks, e.windows[0].head), (1280, 0, Some(0)));
+            e.window_method(0, W_SET_SIZE, 1280 | (720 << 16));
+            e.window_update(0, t0 + 2_000, &mut fb, &mem);
+            e.catch_up(t0 + p, &mut fb, &mem);
+            assert_eq!(
+                (e.windows[0].flips, e.windows[0].last_latch_tick),
+                (2, Some(1)),
+                "detach {detach}: the first flip of the new mode at its first tick"
+            );
+            assert!(!e.window_busy(0));
+        }
+    }
+
+    /// The tick is the vertical blank's start: the scan line reads `BLANK_START` there, and a
+    /// flip whose UPDATE comes after that line (the Windows KMD reads the line right before
+    /// it) latches a frame later; one armed a few lines before latches at the tick.
+    #[test]
+    fn the_latch_is_at_the_blank_start_line() {
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        let mut armed = BTreeMap::new();
+        armed.insert(C_SOR_SET_CONTROL, 0x1 | (8 << 8));
+        armed.insert(C_WINDOW_SET_CONTROL, 0);
+        armed.insert(C_HEAD + C_HEAD_RASTER_SIZE, 2200 | (1125 << 16));
+        armed.insert(C_HEAD + C_HEAD_RASTER_BLANK_START, 1120 << 16);
+        armed.insert(C_HEAD + C_HEAD_RASTER_BLANK_END, 40 << 16);
+        armed.insert(C_HEAD + C_HEAD_PIXEL_CLOCK, 148_000_000);
+        armed.insert(C_HEAD + C_HEAD_VIEWPORT_SIZE_IN, 1920 | (1080 << 16));
+        e.core_update(&armed, 5_000, &mut fb, &mem);
+        let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+        let line_ns = p / 1125;
+        assert_eq!(e.scanline(0, t0 + p), 1120, "the tick is the blank's first line");
+        assert_eq!(e.scanline(0, t0 + p - 3 * line_ns - 10), 1116);
+        assert_eq!(e.rg_scan_line(0, t0 + p) >> 16, 1, "in the blank");
+        for (m, v) in [(W_SET_CONTEXT_DMA_ISO, 0x40), (W_SET_SIZE, 1920 | (1080 << 16)), (W_SET_PRESENT_CONTROL, 1)] {
+            e.window_method(0, m, v);
+        }
+        // Armed three lines before the blank: this tick.
+        e.window_update(0, t0 + 2 * p - 3 * line_ns, &mut fb, &mem);
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
+        assert_eq!((e.windows[0].flips, e.windows[0].last_latch_tick), (1, Some(2)));
+        // Armed two lines into the blank: the next frame.
+        e.window_update(0, t0 + 3 * p + 2 * line_ns, &mut fb, &mem);
+        e.catch_up(t0 + 4 * p - 1, &mut fb, &mem);
+        assert!(e.window_busy(0));
+        e.catch_up(t0 + 4 * p, &mut fb, &mem);
+        assert_eq!((e.windows[0].flips, e.windows[0].last_latch_tick), (2, Some(4)));
+    }
+
+    /// FB records the store cannot share wait for the device path: the clock without the
+    /// device mutex writes none of them and the latch happens at the next device tick.
+    #[test]
+    fn records_the_clock_cannot_reach_wait_for_the_device_path() {
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        let (p, t0) = (e.heads[0].period_ns, e.heads[0].t0_ns);
+        queue_flip(&mut e, &mut fb, &mem, t0 + 1_000_000);
+        assert_eq!(e.pins.counts(), (0, 2));
+        fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
+        let engine = Mutex::new(e);
+        super::super::core_path::tick_at(&engine, &mem, t0 + p);
+        let mut e = engine.into_inner().unwrap();
+        assert!(e.window_busy(0), "no latch without its records");
+        let mut b = [0u8; 4];
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0, "nothing written");
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
+        assert!(!e.window_busy(0));
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
+    }
+
     #[test]
     fn a_flip_completes_at_the_next_tick_not_before() {
         let mut fb = FakeFb::new(16 << 20);
@@ -1434,12 +2139,20 @@ mod tests {
         fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
         e.catch_up(t0 + 2 * p + 5, &mut fb, &mem);
         assert!(!e.window_busy(0));
+        // The window notifier: BEGUN at the latch, non-tearing, PRESENT_COUNT 0, with the
+        // PTIMER time of the tick; it stays BEGUN while the presentation is scanned out.
         let mut b = [0u8; 4];
         fb.read(0x50_0000 + 16, &mut b);
-        assert_eq!(u32::from_le_bytes(b) >> 30, 2);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
         let mut ts = [0u8; 8];
         fb.read(0x50_0000 + 24, &mut ts);
-        assert_eq!(u64::from_le_bytes(ts), t0 + 2 * p);
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 2 * p));
+        assert_eq!(u64::from_le_bytes(ts) & 0x1F, 0);
+        e.catch_up(t0 + 3 * p, &mut fb, &mem);
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN, "still scanned out");
+        fb.read(0x50_0000 + 24, &mut ts);
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 2 * p));
         // The window was off before: the notifier is written, but no AWAKEN (the
         // nvidia-drm model of the hardware).
         assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(0));
@@ -1447,11 +2160,19 @@ mod tests {
         // Release is written at flip-away, not at latch.
         fb.read(0x60_0000 + 32, &mut b);
         assert_eq!(u32::from_le_bytes(b), 7);
-        e.window_update(0, t0 + 2 * p + 10, &mut fb, &mem);
+        e.window_update(0, t0 + 3 * p + 10, &mut fb, &mem);
         fb.write(0x60_0000 + 32, &7u32.to_le_bytes());
-        e.catch_up(t0 + 3 * p, &mut fb, &mem);
+        e.catch_up(t0 + 4 * p, &mut fb, &mem);
         fb.read(0x60_0000 + 32, &mut b);
         assert_eq!(u32::from_le_bytes(b), 8);
+        // The release record carries the flip-away time; the new flip uses the same notifier
+        // record, so it reads BEGUN again (the new presentation) with the new time.
+        fb.read(0x60_0000 + 40, &mut ts);
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 4 * p));
+        fb.read(0x50_0000 + 16, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
+        fb.read(0x50_0000 + 24, &mut ts);
+        assert_eq!(u64::from_le_bytes(ts), ptimer_stamp(t0 + 4 * p));
         // Flipping away from a scanned-out surface raises AWAKEN.
         assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(1));
         assert_eq!(
@@ -1461,8 +2182,71 @@ mod tests {
         // The guest clears AWAKEN; RG_DPCA counts frames.
         e.write32(FE_EVT_STAT_AWAKEN_WIN, 1);
         assert_eq!(e.read32(FE_RM_INTR_STAT_CTRL_DISP, 0), Some(0));
-        assert_eq!(e.read32(RG_DPCA, 0).unwrap() >> 16, 3);
-        assert_eq!(e.read32(POSTCOMP_HEAD_LOADV_COUNTER, 0), Some(3));
+        assert_eq!(e.read32(RG_DPCA, 0).unwrap() >> 16, 4);
+        assert_eq!(e.read32(POSTCOMP_HEAD_LOADV_COUNTER, 0), Some(4));
+    }
+
+    /// `TIMESTAMP_MODE` ENABLE holds a flip until PTIMER reaches `SET_UPDATE_TIMESTAMP`
+    /// (nvkms-api.h:925), at the first tick at or past it; without the mode the timestamp
+    /// methods are ignored.
+    #[test]
+    fn a_timestamped_flip_waits_for_its_time() {
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        let (t0, p) = (e.heads[0].t0_ns, e.heads[0].period_ns);
+        let at = t0 + 3 * p - 10;
+        for (m, v) in [
+            (W_SET_CONTEXT_DMA_NOTIFIER, 0x20),
+            (W_SET_NOTIFIER_CONTROL, 0),
+            (W_SET_CONTEXT_DMA_ISO, 0x40),
+            (W_SET_SIZE, 1920 | (1080 << 16)),
+            (W_SET_UPDATE_TIMESTAMP_LO, at as u32),
+            (W_SET_UPDATE_TIMESTAMP_HI, (at >> 32) as u32),
+            (W_SET_PRESENT_CONTROL, 1 | PRESENT_TIMESTAMP_MODE_ENABLE),
+        ] {
+            e.window_method(0, m, v);
+        }
+        e.window_update(0, t0 + 1, &mut fb, &mem);
+        // Armed: the notifier stays as the guest left it.
+        let mut b = [0u8; 4];
+        fb.read(0x50_0000, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0, "armed, not begun");
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
+        assert!(e.window_busy(0));
+        assert_eq!(e.windows[0].timestamp_waits, 2);
+        fb.read(0x50_0000, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0, "waiting for its time");
+        e.catch_up(t0 + 3 * p, &mut fb, &mem);
+        assert!(!e.window_busy(0));
+        fb.read(0x50_0000, &mut b);
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_BEGUN);
+        // An immediate flip with a timestamp in the future waits for the tick too.
+        e.window_method(0, W_SET_UPDATE_TIMESTAMP_LO, (t0 + 4 * p) as u32);
+        e.window_method(0, W_SET_PRESENT_CONTROL, (1 << 4) | PRESENT_TIMESTAMP_MODE_ENABLE);
+        e.window_update(0, t0 + 3 * p + 1, &mut fb, &mem);
+        assert!(e.window_busy(0));
+        e.catch_up(t0 + 4 * p, &mut fb, &mem);
+        assert!(!e.window_busy(0));
+        // Mode disabled: the timestamp methods do not hold the flip.
+        e.window_method(0, W_SET_UPDATE_TIMESTAMP_LO, u32::MAX);
+        e.window_method(0, W_SET_PRESENT_CONTROL, 1);
+        e.window_update(0, t0 + 4 * p + 1, &mut fb, &mem);
+        e.catch_up(t0 + 5 * p, &mut fb, &mem);
+        assert!(!e.window_busy(0));
+    }
+
+    /// The display clock is the device clock: PTIMER (the channel registry's clock) and
+    /// the display engine's notifier timestamps are on one base.
+    #[test]
+    fn the_display_clock_is_the_ptimer_base() {
+        let reg = crate::channel::Registry::new(crate::fixture::rtx2070().chip.data().channel);
+        let a = reg.now_ns();
+        let d = now_ns();
+        let b = reg.now_ns();
+        assert!(a <= d && d <= b, "{a} {d} {b}");
+        assert_eq!(reg.epoch(), Some(crate::channel::device_epoch()));
+        assert_eq!(ptimer_stamp(0x1_0000_003F), 0x1_0000_0020);
     }
 
     #[test]
@@ -1497,7 +2281,7 @@ mod tests {
         assert!(!e.window_busy(3));
         let mut b = [0u8; 4];
         fb.read(0x50_0000, &mut b);
-        assert_eq!(u32::from_le_bytes(b) >> 30, 2, "notifier written");
+        assert_eq!(u32::from_le_bytes(b), NOTIFIER_FINISHED, "no scanout: finished at once");
         assert_eq!(
             e.read32(FE_EVT_STAT_AWAKEN_WIN, 0),
             Some(0),
@@ -1609,6 +2393,7 @@ mod tests {
         let c = n.clone();
         t.set_driver(Arc::new(move || {
             c.fetch_add(1, Ordering::Relaxed);
+            true
         }));
         t.set_head(0, 1_000_000, now_ns());
         t.set_vblank(0, true);
@@ -1620,5 +2405,39 @@ mod tests {
         }
         assert!(n.load(Ordering::Relaxed) >= 5);
         assert_eq!(t.driven.load(Ordering::Relaxed), n.load(Ordering::Relaxed));
+    }
+
+    /// With a driver, a tick raises the vector only while the display's interrupt line is
+    /// asserted after it (C64: a leaf raised with nothing pending in the FE was never
+    /// acknowledged, and every MSI re-arm sent it again).
+    #[test]
+    fn the_clock_raises_only_an_asserted_line() {
+        use std::sync::atomic::AtomicU64;
+        let intr = IntrShared::new();
+        let t = Arc::new(Ticker::default());
+        let asserted = Arc::new(AtomicBool::new(false));
+        let n = Arc::new(AtomicU64::new(0));
+        let (a, c) = (asserted.clone(), n.clone());
+        t.set_driver(Arc::new(move || {
+            c.fetch_add(1, Ordering::Relaxed);
+            a.load(Ordering::Relaxed)
+        }));
+        t.set_head(0, 1_000_000, now_ns());
+        t.set_want(0, true);
+        t.attach(intr.clone(), 76);
+        let wait_for = |k: u64| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while n.load(Ordering::Relaxed) < k && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            assert!(n.load(Ordering::Relaxed) >= k, "the clock did not tick");
+        };
+        wait_for(5);
+        assert_eq!(t.raised.load(Ordering::Relaxed), 0, "ticks with the line low raise nothing");
+        asserted.store(true, Ordering::Relaxed);
+        let k = n.load(Ordering::Relaxed);
+        wait_for(k + 3);
+        assert!(t.raised.load(Ordering::Relaxed) > 0, "an asserted line is raised");
+        t.set_want(0, false);
     }
 }

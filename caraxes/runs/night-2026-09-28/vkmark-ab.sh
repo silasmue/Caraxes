@@ -8,7 +8,7 @@
 set -uo pipefail
 N=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
 BIN=$1; shift
-W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh
+W=$N/desktop-b-night.sh
 G=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b/gpu.log
 for arm in "${@:-trace notrace pages}"; do
     O=$N/vkmark-ab/$arm; mkdir -p "$O"

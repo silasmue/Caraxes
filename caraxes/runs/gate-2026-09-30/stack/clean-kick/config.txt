@@ -1,0 +1,7 @@
+vfio-user-nvgpu: config: mode host execution (boot model, host RM, VRAM reservation slot 4, registered guest RAM); chip TU106, board RTX 2070; guest ABI 615 (615.71.09; 617 Windows on its model), pinned (--guest-abi)
+vfio-user-nvgpu: config: knobs: VRAM 1024 MiB (--fb-mib/--profile, LEA_VRAM_PROFILE_MIB); display on (--display); CARAXES_COMPRESSION=slice (set); CARAXES_DOORBELL_POLL=hybrid (set); CARAXES_BAR1_POOL_MIB=32 (set)
+vfio-user-nvgpu: config: paths: every host channel on a shadow VA space, GPA DMA, host boost; BAR1 windows 2 x 16 MiB; interrupt page on; doorbell tokens 64, guest tokens 144; MSI re-arm ioeventfd on, GSP queue head ioeventfd off; display page on, kick page on, usermode page off, invalidate page off; BAR2 memfd on
+vfio-user-nvgpu: config: open switches: CARAXES_DOORBELL_TOKENS=64 CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_DISPLAY_PAGE=1 CARAXES_ALLOC_LAZY=1 CARAXES_HOST_BAR1_FLOOR_MIB=64
+vfio-user-nvgpu: config: diagnostics: none
+vfio-user-nvgpu: config: inputs: LEA_ROOT=/home/silas/git/Caraxes CARAXES_GUEST_RAM_BYTES=8589934592
+vfio-user-nvgpu: config: not read by the device (launcher settings or misspelled): CARAXES_BOOT_MODEL CARAXES_CPUS CARAXES_DISPLAY CARAXES_DISPLAY_PAGE_READONLY CARAXES_DMA CARAXES_DRIVER CARAXES_FB_MIB CARAXES_GAMES_DISK CARAXES_HOST_EXEC CARAXES_HOST_RM CARAXES_IP CARAXES_MAC CARAXES_MEM CARAXES_RESERVE_SLOT CARAXES_RESERVE_VRAM CARAXES_SERVER CARAXES_STORE CARAXES_TAP

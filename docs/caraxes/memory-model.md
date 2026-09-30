@@ -287,6 +287,14 @@ It does this when the client disconnects (`tools/caraxes-vm.sh down`) and in a
 signal thread on SIGTERM, SIGINT or SIGHUP (exit 128 + signal). If the process dies
 anyway, closing `/dev/nvidiactl` frees the client with everything under it.
 
+**A new client.** A client that connects within 2 s after the previous one closed the
+connection (Cloud Hypervisor's reboot builds a new vfio-user client) gets a reset device
+instead (vfio-user.rst "Client Disconnection"): the IRQ eventfds go, the model resets
+(its mirror frees the host channels, VA spaces and shadows), the configuration space
+returns to its reset state, then the old client's guest RAM is unregistered and
+unmapped. The reservation and the client stay. If a host object is still held, nothing
+more is released and the session ends as above.
+
 **Why the free order is safe in part 1.** No host channel exists, so the GPU cannot be
 using the IOVAs. From part 2 on, the order is: host channels, then wait for idle, then
 the descriptors (DMA-FQ unmaps lazily and reuses IOVAs at once, sysmem-iova.md §2).

@@ -144,6 +144,11 @@ impl LazyPlans {
         !self.pending.is_empty()
     }
 
+    /// Whether a deferred invalidate names shadow root `root` (or every root).
+    pub fn is_pending_for(&self, root: u64) -> bool {
+        !self.pending.is_empty() && (self.pending.all || self.pending.roots.contains(&root))
+    }
+
     /// A guest MMU invalidate of `pdb` (`None`: `ALL_PDB`) at `now`.
     pub fn on_invalidate(&mut self, pdb: Option<u64>, now: Instant) -> OnInvalidate {
         if !self.enabled {
@@ -205,6 +210,20 @@ impl LazyPlans {
 
 #[cfg(test)]
 mod tests {
+    /// The deferred roots per root, for the ran-ahead detector (mirror.rs `note_ran_ahead`).
+    #[test]
+    fn pending_is_known_per_root() {
+        let mut l = LazyPlans::new(true, None);
+        let t = Instant::now();
+        assert!(!l.is_pending_for(0xA000));
+        assert_eq!(l.on_invalidate(Some(0xA000), t), OnInvalidate::Defer);
+        assert!(l.is_pending_for(0xA000) && !l.is_pending_for(0xB000));
+        assert_eq!(l.on_invalidate(None, t), OnInvalidate::Defer);
+        assert!(l.is_pending_for(0xB000), "ALL_PDB names every root");
+        l.take();
+        assert!(!l.is_pending_for(0xA000));
+    }
+
     use super::*;
     use crate::fb::{FakeFb, Target};
     use crate::guestmem::GuestMemory;

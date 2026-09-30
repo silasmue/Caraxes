@@ -7,10 +7,11 @@
 //! eventfd, so every ring pays the scheduler wake-up of that thread. `spin` calls
 //! `epoll_wait` with timeout 0 in a loop, as an SPDK reactor polls its queues: one
 //! syscall per iteration over all eventfds, the thread never sleeps. `hybrid` spins for
-//! `CARAXES_DOORBELL_POLL_IDLE_US` after the last event, then blocks until the next one
-//! and spins again. A spinning reader pins itself to one core
-//! (`CARAXES_DOORBELL_POLL_CPU`, or one chosen at start), since a spinning thread the
-//! scheduler moves or preempts loses what it gains.
+//! [`DEFAULT_IDLE_US`] after the last event, then blocks until the next one and spins
+//! again. A spinning reader pins itself to a core chosen at start, since a spinning
+//! thread the scheduler moves or preempts loses what it gains. With host execution the
+//! default is `hybrid` (every production launcher's setting until 2026-09-30); `spin`
+//! trades a core for the last microseconds.
 //!
 //! The loop allocates nothing and logs nothing: the event and ring buffers are sized at
 //! start, the counters are atomics only this thread writes, the latency histograms are
@@ -24,53 +25,10 @@ use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering::Relaxed};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// The switch: `off` (default), `spin` or `hybrid`.
+/// The knob: `off`, `spin` or `hybrid`; unset, `hybrid` with host execution, else `off`.
 pub const POLL_ENV: &str = "CARAXES_DOORBELL_POLL";
-/// The reader's core in spin and hybrid mode: a CPU number, `auto` (the default) or `none`.
-pub const POLL_CPU_ENV: &str = "CARAXES_DOORBELL_POLL_CPU";
-/// Hybrid mode: microseconds to keep spinning after the last event.
-pub const POLL_IDLE_ENV: &str = "CARAXES_DOORBELL_POLL_IDLE_US";
-/// The hybrid idle time when `CARAXES_DOORBELL_POLL_IDLE_US` is unset.
+/// How long hybrid mode keeps spinning after the last event.
 pub const DEFAULT_IDLE_US: u64 = 200;
-/// Hybrid mode: the adaptive spin window's cap in microseconds (docs/caraxes/launch-path.md).
-/// Unset or 0: the window is the fixed idle time. Set: after each event the reactor keeps
-/// spinning for 1.5 times the longest of the last [`ADAPT_GAPS`] gaps between events that
-/// were shorter than the cap, at least the idle time and at most the cap, so a workload
-/// whose submissions come every millisecond or two does not pay the scheduler wake-up at
-/// each of them, and an idle VM still sleeps after one cap.
-pub const POLL_ADAPT_ENV: &str = "CARAXES_DOORBELL_POLL_ADAPT_US";
-/// The gaps the adaptive window remembers.
-pub const ADAPT_GAPS: usize = 8;
-
-/// The adaptive window's cap the environment asks for, for `mode` (`None`: off). Refused
-/// for a mode other than hybrid, or a cap below the idle time.
-pub fn adapt_requested(mode: Mode) -> Result<Option<Duration>, String> {
-    parse_adapt(mode, std::env::var(POLL_ADAPT_ENV).ok().as_deref())
-}
-
-/// [`adapt_requested`] on a given value.
-pub fn parse_adapt(mode: Mode, v: Option<&str>) -> Result<Option<Duration>, String> {
-    let us = match v.map(str::trim).filter(|v| !v.is_empty()) {
-        None | Some("0") => return Ok(None),
-        Some(v) => v
-            .parse::<u64>()
-            .map_err(|_| format!("{POLL_ADAPT_ENV}={v:?}: microseconds, a whole number"))?,
-    };
-    let Mode::Hybrid { idle } = mode else {
-        return Err(format!(
-            "{POLL_ADAPT_ENV} is set but {POLL_ENV}={}: the adaptive window applies to hybrid only",
-            mode.name()
-        ));
-    };
-    let cap = Duration::from_micros(us);
-    if cap < idle {
-        return Err(format!(
-            "{POLL_ADAPT_ENV}={us}: below the idle time of {} us",
-            idle.as_micros()
-        ));
-    }
-    Ok(Some(cap))
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -97,9 +55,8 @@ impl Mode {
 pub enum Pin {
     /// Chosen at start (`choose_cpu`).
     Auto,
-    /// Not pinned (`CARAXES_DOORBELL_POLL_CPU=none`): for comparison only.
+    /// Not pinned: the blocking reader of `off` (and the unit tests' readers).
     None,
-    Cpu(usize),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,62 +74,25 @@ impl Default for Config {
     }
 }
 
-/// The reactor configuration the environment asks for.
-pub fn requested() -> Result<Config, String> {
-    let get = |k: &str| std::env::var(k).ok();
-    parse(
-        get(POLL_ENV).as_deref(),
-        get(POLL_CPU_ENV).as_deref(),
-        get(POLL_IDLE_ENV).as_deref(),
-    )
+/// The reactor configuration: [`POLL_ENV`], or unset the default for the mode (`hybrid`
+/// with host execution, `off` without).
+pub fn requested(host_exec: bool) -> Result<Config, String> {
+    parse(std::env::var(POLL_ENV).ok().as_deref(), host_exec)
 }
 
-/// `mode`, `cpu` and `idle_us` as the three variables give them (`None`: unset). A
-/// setting that the mode would ignore is refused rather than dropped silently.
-pub fn parse(
-    mode: Option<&str>,
-    cpu: Option<&str>,
-    idle_us: Option<&str>,
-) -> Result<Config, String> {
-    fn set(v: Option<&str>) -> Option<&str> {
-        v.map(str::trim).filter(|v| !v.is_empty())
-    }
-    let (mode_s, cpu_s, idle_s) = (set(mode), set(cpu), set(idle_us));
-    let mode = match mode_s.unwrap_or("off") {
+/// The mode as [`POLL_ENV`] gives it (`None`: unset, the mode's default). A polling mode
+/// pins its reader to a core chosen at start.
+pub fn parse(mode: Option<&str>, host_exec: bool) -> Result<Config, String> {
+    let default = if host_exec { "hybrid" } else { "off" };
+    let mode = match mode.map(str::trim).filter(|v| !v.is_empty()).unwrap_or(default) {
         "off" | "0" => Mode::Off,
         "spin" => Mode::Spin,
-        "hybrid" => {
-            let us = match idle_s {
-                None => DEFAULT_IDLE_US,
-                Some(v) => v
-                    .parse::<u64>()
-                    .map_err(|_| format!("{POLL_IDLE_ENV}={v:?}: microseconds, a whole number"))?,
-            };
-            Mode::Hybrid {
-                idle: Duration::from_micros(us),
-            }
-        }
+        "hybrid" => Mode::Hybrid {
+            idle: Duration::from_micros(DEFAULT_IDLE_US),
+        },
         other => return Err(format!("{POLL_ENV}={other:?}: off, spin or hybrid")),
     };
-    if idle_s.is_some() && !matches!(mode, Mode::Hybrid { .. }) {
-        return Err(format!(
-            "{POLL_IDLE_ENV} is set but {POLL_ENV}={}: the idle time applies to hybrid only",
-            mode.name()
-        ));
-    }
-    let pin = match (mode, cpu_s) {
-        (Mode::Off, None) => Pin::None,
-        (Mode::Off, Some(_)) => {
-            return Err(format!(
-                "{POLL_CPU_ENV} is set but {POLL_ENV}=off: the blocking reader is not pinned; use spin or hybrid"
-            ))
-        }
-        (_, None | Some("auto")) => Pin::Auto,
-        (_, Some("none")) => Pin::None,
-        (_, Some(v)) => Pin::Cpu(v.parse().map_err(|_| {
-            format!("{POLL_CPU_ENV}={v:?}: a CPU number, auto or none")
-        })?),
-    };
+    let pin = if mode == Mode::Off { Pin::None } else { Pin::Auto };
     Ok(Config { mode, pin })
 }
 
@@ -184,11 +104,6 @@ pub fn parse(
 pub struct Wait {
     mode: Mode,
     last_event: Option<Instant>,
-    /// The adaptive window's cap (`CARAXES_DOORBELL_POLL_ADAPT_US`), hybrid only.
-    adapt: Option<Duration>,
-    /// The last gaps between events below the cap, a ring; zero entries are empty.
-    gaps: [Duration; ADAPT_GAPS],
-    next_gap: usize,
     /// The spin window after the last event.
     window: Duration,
 }
@@ -202,24 +117,8 @@ impl Wait {
         Wait {
             mode,
             last_event: None,
-            adapt: None,
-            gaps: [Duration::ZERO; ADAPT_GAPS],
-            next_gap: 0,
             window,
         }
-    }
-
-    /// With the adaptive window capped at `cap` (hybrid mode only; `None` keeps it fixed).
-    pub fn with_adapt(mut self, cap: Option<Duration>) -> Self {
-        if matches!(self.mode, Mode::Hybrid { .. }) {
-            self.adapt = cap;
-        }
-        self
-    }
-
-    /// The current spin window after an event.
-    pub fn window(&self) -> Duration {
-        self.window
     }
 
     /// The timeout for the next `epoll_wait`. `now` is called only in hybrid mode, so
@@ -237,17 +136,6 @@ impl Wait {
 
     /// `epoll_wait` returned events at `at`.
     pub fn saw_events(&mut self, at: Instant) {
-        if let (Some(cap), Some(last), Mode::Hybrid { idle }) =
-            (self.adapt, self.last_event, self.mode)
-        {
-            let gap = at.saturating_duration_since(last);
-            if gap > Duration::ZERO && gap < cap {
-                self.gaps[self.next_gap] = gap;
-                self.next_gap = (self.next_gap + 1) % ADAPT_GAPS;
-            }
-            let longest = self.gaps.iter().copied().max().unwrap_or_default();
-            self.window = (longest * 3 / 2).clamp(idle, cap);
-        }
         self.last_event = Some(at);
     }
 }
@@ -393,9 +281,6 @@ pub struct ReaderStats {
     /// Set to end the loop at its next iteration (tests; the device's reader runs until
     /// the process exits).
     pub stop: AtomicBool,
-    /// The adaptive window's cap (0: off) and its value after the last event, in us.
-    pub adapt_cap_us: AtomicU64,
-    pub window_us: AtomicU64,
 }
 
 impl ReaderStats {
@@ -414,8 +299,6 @@ impl ReaderStats {
             ring_to_host: Histogram::default(),
             lock_wait: Histogram::default(),
             stop: AtomicBool::new(false),
-            adapt_cap_us: AtomicU64::new(0),
-            window_us: AtomicU64::new(0),
         }
     }
 
@@ -444,14 +327,7 @@ impl ReaderStats {
         let cpu = self.cpu.load(Relaxed);
         let wall = self.started.elapsed();
         let mode = match self.mode {
-            Mode::Hybrid { idle } => match self.adapt_cap_us.load(Relaxed) {
-                0 => format!("hybrid ({} us idle)", idle.as_micros()),
-                cap => format!(
-                    "hybrid ({} us idle, adaptive up to {cap} us, last window {} us)",
-                    idle.as_micros(),
-                    self.window_us.load(Relaxed)
-                ),
-            },
+            Mode::Hybrid { idle } => format!("hybrid ({} us idle)", idle.as_micros()),
             m => m.name().into(),
         };
         format!(
@@ -514,16 +390,10 @@ pub fn candidates(pin: Pin) -> Result<Vec<usize>, String> {
     let allowed = allowed_cpus().map_err(|e| format!("sched_getaffinity: {e}"))?;
     match pin {
         Pin::None => Ok(Vec::new()),
-        Pin::Cpu(c) if allowed.contains(&c) => Ok(vec![c]),
-        Pin::Cpu(c) => Err(format!(
-            "{POLL_CPU_ENV}={c}: not among the CPUs this process may run on {allowed:?}"
-        )),
         Pin::Auto => {
             let c: Vec<usize> = allowed.into_iter().filter(|&c| c != 0).collect();
             if c.is_empty() {
-                Err(format!(
-                    "{POLL_CPU_ENV}=auto: no CPU other than 0 allowed for this process; set {POLL_CPU_ENV}=<n> or none"
-                ))
+                Err("no CPU other than 0 allowed for this process: a polling reader has no core to pin to; run it with more CPUs or CARAXES_DOORBELL_POLL=off (without host execution)".into())
             } else {
                 Ok(c)
             }
@@ -695,8 +565,6 @@ pub fn epoll_over(readers: &[File]) -> std::io::Result<OwnedFd> {
 pub struct Reactor {
     pub name: &'static str,
     pub config: Config,
-    /// The adaptive hybrid window's cap (`CARAXES_DOORBELL_POLL_ADAPT_US`), `None`: fixed.
-    pub adapt: Option<Duration>,
     /// The candidate cores (`candidates`), checked before the thread starts.
     pub cpus: Vec<usize>,
     /// The vfio-user socket, to find the VMM's vCPU threads for the automatic choice.
@@ -716,11 +584,9 @@ impl Reactor {
         } else {
             candidates(config.pin)?
         };
-        let adapt = adapt_requested(config.mode)?;
         Ok(Reactor {
             name,
             config,
-            adapt,
             cpus,
             socket,
         })
@@ -780,11 +646,6 @@ impl Reactor {
             }
         }
         let stats = Arc::new(ReaderStats::new(self.config.mode));
-        if let Some(cap) = self.adapt {
-            stats
-                .adapt_cap_us
-                .store(cap.as_micros().max(1) as u64, Relaxed);
-        }
         let st = stats.clone();
         let name = self.name;
         std::thread::Builder::new()
@@ -794,20 +655,7 @@ impl Reactor {
                 st.tid.store(i64::from(unsafe { libc::gettid() }), Relaxed);
                 if self.config.mode != Mode::Off {
                     let pinned = match self.config.pin {
-                        Pin::None => {
-                            eprintln!("vfio-user-nvgpu: doorbell poll ({name}): {} reader NOT pinned ({POLL_CPU_ENV}=none)", self.config.mode.name());
-                            None
-                        }
-                        Pin::Cpu(c) => match pin_current_thread(c) {
-                            Ok(()) => {
-                                eprintln!("vfio-user-nvgpu: doorbell poll ({name}): {} reader pinned to CPU {c} ({POLL_CPU_ENV}={c})", self.config.mode.name());
-                                Some(c)
-                            }
-                            Err(e) => {
-                                eprintln!("vfio-user-nvgpu: doorbell poll ({name}): sched_setaffinity CPU {c}: {e}; reader runs unpinned");
-                                None
-                            }
-                        },
+                        Pin::None => None,
                         Pin::Auto => match auto_pin(&self.cpus, self.socket.as_deref()) {
                             Ok(c) => Some(c),
                             Err(e) => {
@@ -820,7 +668,7 @@ impl Reactor {
                         st.cpu.store(c as i64, Relaxed);
                     }
                 }
-                let wait = Wait::new(self.config.mode).with_adapt(self.adapt);
+                let wait = Wait::new(self.config.mode);
                 if let Err(e) = run(&ep, &readers, wait, &st, &mut ring, &mut hook) {
                     eprintln!("vfio-user-nvgpu: doorbell {name}: {e}; reader ends, the doorbell eventfds are no longer read");
                 }
@@ -900,8 +748,6 @@ where
         }
         let seen = Instant::now();
         wait.saw_events(seen);
-        st.window_us
-            .store(wait.window().as_micros() as u64, Relaxed);
         bump(&st.wakeups, 1);
         rings.clear();
         let mut woken = false;
@@ -946,61 +792,36 @@ where
 mod tests {
     use super::*;
 
+    /// Unset: hybrid with host execution, off without; a polling mode pins at start.
     #[test]
     fn mode_selection() {
         let off = Config {
             mode: Mode::Off,
             pin: Pin::None,
         };
-        assert_eq!(parse(None, None, None), Ok(off));
-        assert_eq!(parse(Some(""), None, None), Ok(off));
-        assert_eq!(parse(Some("off"), None, None), Ok(off));
+        let hybrid = Config {
+            mode: Mode::Hybrid {
+                idle: Duration::from_micros(DEFAULT_IDLE_US),
+            },
+            pin: Pin::Auto,
+        };
+        assert_eq!(parse(None, false), Ok(off));
+        assert_eq!(parse(Some(""), false), Ok(off));
+        assert_eq!(parse(None, true), Ok(hybrid));
+        assert_eq!(parse(Some(" "), true), Ok(hybrid));
+        assert_eq!(parse(Some("off"), true), Ok(off));
+        assert_eq!(parse(Some("0"), false), Ok(off));
+        assert_eq!(parse(Some("hybrid"), false), Ok(hybrid));
         assert_eq!(
-            parse(Some("spin"), None, None),
+            parse(Some(" spin "), true),
             Ok(Config {
                 mode: Mode::Spin,
                 pin: Pin::Auto
             })
         );
-        assert_eq!(
-            parse(Some(" spin "), Some("7"), None).unwrap().pin,
-            Pin::Cpu(7)
-        );
-        assert_eq!(
-            parse(Some("spin"), Some("auto"), None).unwrap().pin,
-            Pin::Auto
-        );
-        assert_eq!(
-            parse(Some("spin"), Some("none"), None).unwrap().pin,
-            Pin::None
-        );
-        assert_eq!(
-            parse(Some("hybrid"), None, None).unwrap().mode,
-            Mode::Hybrid {
-                idle: Duration::from_micros(DEFAULT_IDLE_US)
-            }
-        );
-        assert_eq!(
-            parse(Some("hybrid"), Some("3"), Some("50")),
-            Ok(Config {
-                mode: Mode::Hybrid {
-                    idle: Duration::from_micros(50)
-                },
-                pin: Pin::Cpu(3)
-            })
-        );
-        // Refused: unknown mode, bad numbers, settings the mode would ignore.
-        assert!(parse(Some("busy"), None, None)
+        assert!(parse(Some("busy"), true)
             .unwrap_err()
             .contains("off, spin or hybrid"));
-        assert!(parse(Some("spin"), Some("x"), None).is_err());
-        assert!(parse(Some("hybrid"), None, Some("-1")).is_err());
-        assert!(parse(Some("spin"), None, Some("100"))
-            .unwrap_err()
-            .contains("hybrid only"));
-        assert!(parse(None, Some("3"), None)
-            .unwrap_err()
-            .contains("not pinned"));
     }
 
     #[test]
@@ -1044,72 +865,6 @@ mod tests {
         });
         z.saw_events(t0);
         assert_eq!(z.timeout(|| t0), -1);
-    }
-
-    #[test]
-    fn adaptive_window_settings() {
-        let hy = Mode::Hybrid {
-            idle: Duration::from_micros(200),
-        };
-        assert_eq!(parse_adapt(hy, None), Ok(None));
-        assert_eq!(parse_adapt(hy, Some(" ")), Ok(None));
-        assert_eq!(parse_adapt(hy, Some("0")), Ok(None));
-        assert_eq!(
-            parse_adapt(hy, Some("3000")),
-            Ok(Some(Duration::from_millis(3)))
-        );
-        assert!(parse_adapt(hy, Some("100")).unwrap_err().contains("below"));
-        assert!(parse_adapt(hy, Some("x")).is_err());
-        assert!(parse_adapt(Mode::Spin, Some("3000"))
-            .unwrap_err()
-            .contains("hybrid only"));
-        assert!(parse_adapt(Mode::Off, Some("3000")).is_err());
-        // Spin and off ignore a cap handed to them.
-        let w = Wait::new(Mode::Spin).with_adapt(Some(Duration::from_millis(3)));
-        assert_eq!(w.timeout(|| panic!("no clock")), 0);
-    }
-
-    #[test]
-    fn adaptive_window_follows_the_gaps_and_stays_bounded() {
-        let idle = Duration::from_micros(200);
-        let cap = Duration::from_millis(3);
-        let mut w = Wait::new(Mode::Hybrid { idle }).with_adapt(Some(cap));
-        let t0 = Instant::now();
-        let us = |n: u64| Duration::from_micros(n);
-        w.saw_events(t0);
-        assert_eq!(w.window(), idle);
-        // Submissions every 1.5 ms: the window grows to 2.25 ms, so the next one is met
-        // spinning.
-        let mut t = t0;
-        for _ in 0..4 {
-            t += us(1500);
-            w.saw_events(t);
-        }
-        assert_eq!(w.window(), us(2250));
-        assert_eq!(w.timeout(|| t + us(1600)), 0);
-        assert_eq!(w.timeout(|| t + us(2250)), -1);
-        // A gap above the cap (the VM went idle) is not learned; the window never exceeds
-        // the cap.
-        t += Duration::from_secs(1);
-        w.saw_events(t);
-        assert_eq!(w.window(), us(2250));
-        for _ in 0..3 {
-            t += us(2900);
-            w.saw_events(t);
-        }
-        assert_eq!(w.window(), cap);
-        // Short gaps only: after ADAPT_GAPS of them the long ones are forgotten and the
-        // window falls back to the idle time.
-        for _ in 0..ADAPT_GAPS {
-            t += us(20);
-            w.saw_events(t);
-        }
-        assert_eq!(w.window(), idle);
-        // Without a cap the window is the fixed idle time whatever the gaps.
-        let mut f = Wait::new(Mode::Hybrid { idle });
-        f.saw_events(t0);
-        f.saw_events(t0 + us(1500));
-        assert_eq!(f.window(), idle);
     }
 
     #[test]
@@ -1185,9 +940,6 @@ mod tests {
         let allowed = allowed_cpus().unwrap();
         assert!(!allowed.is_empty());
         assert_eq!(candidates(Pin::None), Ok(Vec::new()));
-        let c = candidates(Pin::Cpu(allowed[0])).unwrap();
-        assert_eq!(c, vec![allowed[0]]);
-        assert!(candidates(Pin::Cpu(libc::CPU_SETSIZE as usize + 5)).is_err());
         match candidates(Pin::Auto) {
             Ok(c) => assert!(!c.contains(&0)),
             Err(e) => assert_eq!(allowed, vec![0], "{e}"),
@@ -1197,7 +949,7 @@ mod tests {
             "t",
             Config {
                 mode: Mode::Off,
-                pin: Pin::Cpu(libc::CPU_SETSIZE as usize + 5),
+                pin: Pin::Auto,
             },
             None,
         )

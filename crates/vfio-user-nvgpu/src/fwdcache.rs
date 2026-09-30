@@ -23,8 +23,7 @@
 //!
 //! Only answers NV_OK, NV_ERR_NOT_SUPPORTED and NV_ERR_OBJECT_NOT_FOUND are kept: they are
 //! the card's statement about itself. A transient status (busy, timeout, state in use, an
-//! ioctl failure) is passed on and asked again next time. `CARAXES_FORWARD_CACHE=0` turns
-//! the cache off. The cache holds at most [`MAX_ENTRIES`] answers of [`MAX_BYTES`] in all,
+//! ioctl failure) is passed on and asked again next time. The cache holds at most [`MAX_ENTRIES`] answers of [`MAX_BYTES`] in all,
 //! so a guest varying its request bytes cannot grow it without bound; past that, calls
 //! pass through.
 
@@ -33,8 +32,6 @@ use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
 use crate::ctrl::HostRm;
 
-/// The switch: `0` turns the cache off; anything else, or unset, leaves it on.
-pub const FORWARD_CACHE_ENV: &str = "CARAXES_FORWARD_CACHE";
 
 /// Answers the cache keeps at most.
 pub const MAX_ENTRIES: usize = 1024;
@@ -79,11 +76,6 @@ pub fn is_static(cmd: u32) -> bool {
     STATIC.iter().any(|&(c, _, _)| c == cmd)
 }
 
-/// Whether the switch leaves the cache on (default on).
-pub fn enabled_by_env() -> bool {
-    std::env::var(FORWARD_CACHE_ENV).map_or(true, |v| v.trim() != "0")
-}
-
 /// Device-lifetime counters, for the profile's window rows and the device log.
 pub static HITS: AtomicU64 = AtomicU64::new(0);
 pub static FILLS: AtomicU64 = AtomicU64::new(0);
@@ -119,9 +111,9 @@ impl CachingHost {
         }
     }
 
-    /// Wrap `inner` with the cache on or off as `CARAXES_FORWARD_CACHE` says.
-    pub fn from_env(inner: Box<dyn HostRm>) -> Self {
-        Self::new(inner, enabled_by_env())
+    /// Wrap `inner` with the cache on.
+    pub fn on(inner: Box<dyn HostRm>) -> Self {
+        Self::new(inner, true)
     }
 
     pub fn enabled(&self) -> bool {

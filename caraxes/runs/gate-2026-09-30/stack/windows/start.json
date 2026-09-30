@@ -1,0 +1,16 @@
+{
+  "epoch": 1790753857,
+  "hypervisor": "cloud-hypervisor",
+  "gpu": true,
+  "mem_gib": 8,
+  "dmesg_lines": 769,
+  "uptime": 152539.24,
+  "binary": "vfio-user-nvgpu-stack-cap",
+  "sha256": "32b1c1f37b3be2e8282b484ad50bf5b0426a619963c722b9c80e4d997dc9778e",
+  "host_free_before": {
+    "fb": 6407,
+    "bar1": 232
+  },
+  "win_device_pid": 3261798,
+  "ch_pid": 3261818
+}

@@ -30,24 +30,28 @@
 //! pages, refuses a USERD page before it waits for the shadow worker, and merges the
 //! replicas only after a flush point ([`poll_at`]).
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 use crate::fb::{FakeFb, FbLayout, Target};
 use crate::guestmem::GuestMemory;
 
-const PAGE: u64 = 4096;
+pub const PAGE: u64 = 4096;
 const MIB: u64 = 1 << 20;
 /// The area is walked and tracked in 2 MiB units (one PD0 entry each).
 const UNIT: u64 = 2 * MIB;
 
-/// `CARAXES_BAR1_POOL_MIB` default.
-pub const DEFAULT_POOL_MIB: u64 = 64;
+/// The pool with host execution when `CARAXES_BAR1_POOL_MIB` is unset: what every production
+/// launcher ran until 2026-09-30 (Linux B 615, nouveau+NVK, the Windows kit's
+/// `WIN_BAR1_POOL_MIB=32`).
+pub const DEFAULT_POOL_MIB: u64 = 32;
+/// The knob: the pool in MiB (0: no pool).
+pub const POOL_MIB_ENV: &str = "CARAXES_BAR1_POOL_MIB";
 /// The largest pool: the dma-buf maps all of it into the host's shared BAR1 (256 MiB on
 /// this card, docs/caraxes/parallel.md §2).
 pub const MAX_POOL_MIB: u64 = 128;
 /// Host BAR1 one device may hold with a pool: the pool plus its window budget
-/// (`CARAXES_BAR1_WINDOWS` x `CARAXES_BAR1_WINDOW_MIB`, 64 MiB by default).
+/// (`fb::bar1_budget`, 2 x 16 MiB).
 pub const MAX_HOST_BAR1: u64 = 192 * MIB;
 /// Host BAR1 a new pool must leave free for the host's own clients (the desktop's Vulkan
 /// fails at vkCreateDevice without it, 2026-09-25: a game VM's 128 MiB pool plus a second
@@ -63,26 +67,43 @@ pub const RETRY_EVERY: Duration = Duration::from_millis(1);
 /// mirrored channel's USERD (`PoolGpu::quiesce`): at 1 ms it ran up to 1000 times a second
 /// against a channel that stays busy (docs/caraxes/sottr-stage.md §11).
 pub const RETRY_MAX: Duration = Duration::from_millis(64);
+
+/// How long a page the guest unmapped from the area stays in the pool, retired (lazy move
+/// back, docs/caraxes/bar1-pool.md §13): mapped again at the same area page within this time
+/// it costs nothing, as a BAR1 remap costs no copy on the real card; older, or when another
+/// page wants its area page, it moves home (one copy, as every unmap did before).
+pub const RETIRE_AGE: Duration = Duration::from_secs(2);
+/// Retired pages are checked for [`RETIRE_AGE`] at most this often.
+pub const RETIRE_SCAN: Duration = Duration::from_millis(100);
+/// The churn line (the trace, once per second with activity; `Bar1Pool::take_churn`).
+pub const CHURN_EVERY: Duration = Duration::from_secs(1);
 /// Findings logged at most (the counters are complete).
 const LOG_FIRST: usize = 32;
 
-/// The switch: `CARAXES_BAR1_PASSTHROUGH=pool`, the pool size from `CARAXES_BAR1_POOL_MIB`
-/// (an even number of MiB, 2..=128, default 64). `Ok(Some(bytes))` when on; an invalid
-/// size is an error, never a silent default.
-pub fn config() -> Result<Option<u64>, String> {
-    if std::env::var("CARAXES_BAR1_PASSTHROUGH").as_deref() != Ok("pool") {
-        return Ok(None);
-    }
-    let mib = match std::env::var("CARAXES_BAR1_POOL_MIB") {
-        Err(_) => DEFAULT_POOL_MIB,
-        Ok(v) => v
-            .trim()
+/// The pool: with host execution [`DEFAULT_POOL_MIB`] unless [`POOL_MIB_ENV`] sets another
+/// size (an even number of MiB, 2..=128) or 0 (no pool); without host execution none.
+/// `Ok(Some(bytes))` when on; an invalid size is an error, never a silent default.
+pub fn config(host_exec: bool) -> Result<Option<u64>, String> {
+    parse_pool(std::env::var(POOL_MIB_ENV).ok().as_deref(), host_exec)
+}
+
+/// [`config`] on a given value (`None`: unset).
+pub fn parse_pool(v: Option<&str>, host_exec: bool) -> Result<Option<u64>, String> {
+    let mib = match v.map(str::trim).filter(|v| !v.is_empty()) {
+        None if host_exec => DEFAULT_POOL_MIB,
+        None | Some("0") => return Ok(None),
+        Some(v) => v
             .parse::<u64>()
-            .map_err(|_| format!("CARAXES_BAR1_POOL_MIB={v}: not a number of MiB"))?,
+            .map_err(|_| format!("{POOL_MIB_ENV}={v}: not a number of MiB"))?,
     };
+    if !host_exec {
+        return Err(format!(
+            "{POOL_MIB_ENV}={mib}: the BAR1 pool needs host execution (--host-exec)"
+        ));
+    }
     if !(2..=MAX_POOL_MIB).contains(&mib) || mib % 2 != 0 {
         return Err(format!(
-            "CARAXES_BAR1_POOL_MIB={mib}: the pool must be an even number of MiB from 2 to {MAX_POOL_MIB}"
+            "{POOL_MIB_ENV}={mib}: the pool must be 0 (none) or an even number of MiB from 2 to {MAX_POOL_MIB}"
         ));
     }
     Ok(Some(mib * MIB))
@@ -465,6 +486,45 @@ pub struct PoolStats {
     /// Polls that ran without the replica merge (the BAR0 write was no flush point; the
     /// handler of the invalidate and of the GSP queue doorbell merges itself).
     pub polls_unmerged: u64,
+    /// The lazy move back (§13): pages the guest unmapped that stayed in the pool (no copy),
+    /// retired pages mapped again at the same area page (no copy), retired pages the guest
+    /// mapped at another area page (home first, then in), retired pages that went home
+    /// because another page wanted their area page, and because they aged out.
+    pub retires: u64,
+    pub relives: u64,
+    pub relocations: u64,
+    pub slot_evictions: u64,
+    pub aged_out: u64,
+    /// FB store window maps the moves needed (a page's home outside the store's windows).
+    pub move_window_maps: u64,
+    /// Device-CE transfers kept on the CPU because a pooled page lies in them (fb.rs
+    /// `plain_vram`), and of those the ones with a retired page.
+    pub devce_blocked: std::cell::Cell<u64>,
+    pub devce_blocked_retired: std::cell::Cell<u64>,
+    /// §14: batches that took more than one hold of the device lock, holds that left a
+    /// batch for the next poll, and the longest a batch was pending; waits for a shadow job
+    /// in flight that may still map a page to move, those left to the next poll, and their
+    /// time; the time of the GPU check, the barriers, the moves and the re-syncs in all.
+    pub sliced_batches: u64,
+    pub slices_parked: u64,
+    pub batch_max_us: u128,
+    pub in_flight_waits: u64,
+    pub in_flight_parked: u64,
+    pub in_flight_wait_us: u128,
+    /// Holds that left a barrier's preempts or re-sync to the worker and the next poll (§15).
+    pub barrier_parked: u64,
+    /// Polls after a trapped BAR0 write skipped: nothing due, and the write no merge point
+    /// (§16).
+    pub polls_skipped: u64,
+    /// Doorbells that merged the replicas the rung channels see home (§16), the replica
+    /// merges they did, and those that carried area writes home.
+    pub ring_merges: u64,
+    pub ring_replicas: u64,
+    pub ring_to_home: u64,
+    pub refs_us: u128,
+    pub barrier_us: u128,
+    pub move_us: u128,
+    pub resync_us: u128,
     pub first: Vec<String>,
 }
 
@@ -503,13 +563,22 @@ pub struct PollBreakdown {
     pub resync_us: u128,
     pub retry: bool,
     pub hazard: bool,
+    /// The lazy move back (§13): area pages retired and re-lived in this poll, and the FB
+    /// store window maps its moves needed.
+    pub retired: usize,
+    pub relived: usize,
+    pub window_maps: u64,
+    /// §14: the time spent waiting for a shadow job in flight that may still map a page to
+    /// move, and the holds of the device lock the batch took so far.
+    pub in_flight_us: u128,
+    pub slices: u32,
 }
 
 impl std::fmt::Display for PollBreakdown {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "sync {} us ({} replica(s) merged, {} home(s) read{}, {} pooled table page(s) marked); walk {} us ({} unit(s) walked, {} path-only, {} table page(s) read); decide {} us ({} candidate(s), {} op(s){}{}); userd {} us; refs {} us ({} page(s)); barrier {} us; moves {} us ({} page(s)); resync {} us; total {} us",
+            "sync {} us ({} replica(s) merged, {} home(s) read{}, {} pooled table page(s) marked); walk {} us ({} unit(s) walked, {} path-only, {} table page(s) read); decide {} us ({} candidate(s), {} op(s){}{}); userd {} us; refs {} us ({} page(s)); barrier {} us; moves {} us ({} page(s), {} window map(s)); resync {} us; in-flight wait {} us; {} retired, {} re-lived; slice {} of the batch; total {} us",
             self.sync_us,
             self.replicas_merged,
             self.homes_read,
@@ -530,7 +599,12 @@ impl std::fmt::Display for PollBreakdown {
             self.barrier_us,
             self.move_us,
             self.moved,
+            self.window_maps,
             self.resync_us,
+            self.in_flight_us,
+            self.retired,
+            self.relived,
+            self.slices.max(1),
             self.total_us
         )
     }
@@ -560,6 +634,12 @@ struct Replica {
     home_dirty: bool,
     /// Merges since the home was last read (the sweep reads it every [`HOME_SWEEP`]).
     quiet: u32,
+    /// For the exit report (§16): merges, those that carried area writes home and home
+    /// changes to the area, and home reads.
+    merges: u64,
+    to_home: u64,
+    to_area: u64,
+    home_reads: u64,
 }
 
 impl Replica {
@@ -569,6 +649,10 @@ impl Replica {
             snap,
             home_dirty: false,
             quiet: 0,
+            merges: 0,
+            to_home: 0,
+            to_area: 0,
+            home_reads: 0,
         }
     }
 }
@@ -612,6 +696,9 @@ pub struct Bar1Pool {
     pt_raw: crate::fb::TablePageCache,
     /// The home pages (4 KiB page numbers) of the replicas.
     replica_homes: HashSet<u64>,
+    /// Moves whenever the set of replicas or a replica's home changes (a doorbell's cached
+    /// set of the replicas its channel sees, boot.rs `pool_observed`).
+    replica_gen: u64,
     /// `(g, key(target))` of every refusal logged.
     reported: HashSet<(u64, u64)>,
     reported_release: HashSet<(u64, u64)>,
@@ -625,7 +712,89 @@ pub struct Bar1Pool {
     last_retry: Option<Instant>,
     /// The current retry interval ([`RETRY_EVERY`] up to [`RETRY_MAX`]).
     retry_every: Duration,
+    /// Area pages whose page the guest unmapped, kept in the pool (§13): `g -> since`. The
+    /// remap stays, so every device path and the GPU still find the page at its pool page;
+    /// it goes home when another page wants `g`, when the guest maps it elsewhere, when it
+    /// becomes a table page, or after [`RETIRE_AGE`].
+    retired: BTreeMap<u64, Instant>,
+    /// When retired pages were last checked for their age.
+    last_age_scan: Option<Instant>,
+    /// The churn since the last churn line (`take_churn`).
+    churn: Churn,
+    /// The remap changes a poll decided and did not finish in its hold of the device lock
+    /// (§14).
+    batch: Option<Box<Batch>>,
     pub stats: PoolStats,
+}
+
+/// What the pool did since the last churn line: the pattern of the guest's BAR1 mapping
+/// changes (docs/caraxes/bar1-pool.md §13).
+#[derive(Default, Debug, Clone)]
+pub struct Churn {
+    since: Option<Instant>,
+    polls: u64,
+    installs: u64,
+    releases: u64,
+    retires: u64,
+    relives: u64,
+    relocations: u64,
+    slot_evictions: u64,
+    aged_out: u64,
+    window_maps: u64,
+    move_us: u128,
+    max_poll_us: u128,
+    /// Runs of consecutive area pages installed in one poll, by length: 1, 2-15, 16, 17-511,
+    /// 512 and more pages (4 KiB, small, 64 KiB, medium, 2 MiB guest BAR1 mappings).
+    runs: [u64; 5],
+}
+
+impl Churn {
+    fn is_empty(&self) -> bool {
+        self.installs + self.releases + self.retires + self.relives + self.aged_out == 0
+    }
+
+    fn note_runs(&mut self, gs: &mut [u64]) {
+        gs.sort_unstable();
+        let mut i = 0;
+        while i < gs.len() {
+            let mut j = i + 1;
+            while j < gs.len() && gs[j] == gs[j - 1] + PAGE {
+                j += 1;
+            }
+            let n = j - i;
+            let b = match n {
+                1 => 0,
+                2..=15 => 1,
+                16 => 2,
+                17..=511 => 3,
+                _ => 4,
+            };
+            self.runs[b] += 1;
+            i = j;
+        }
+    }
+
+    fn line(&self, secs: f64) -> String {
+        format!(
+            "bar1 pool churn in {secs:.1} s: {} poll(s) with changes (slowest {} us); moved in {} and home {} page(s) ({} us of moves, {} window map(s)); retired {} (no copy), re-lived {} (no copy), relocated {}, home for another page {}, aged out {}; install runs of 1 / 2-15 / 16 / 17-511 / 512+ pages: {} / {} / {} / {} / {} (docs/caraxes/bar1-pool.md §13)",
+            self.polls,
+            self.max_poll_us,
+            self.installs,
+            self.releases,
+            self.move_us,
+            self.window_maps,
+            self.retires,
+            self.relives,
+            self.relocations,
+            self.slot_evictions,
+            self.aged_out,
+            self.runs[0],
+            self.runs[1],
+            self.runs[2],
+            self.runs[3],
+            self.runs[4]
+        )
+    }
 }
 
 impl Bar1Pool {
@@ -647,6 +816,7 @@ impl Bar1Pool {
             last: PollBreakdown::default(),
             pt_raw: HashMap::new(),
             replica_homes: HashSet::new(),
+            replica_gen: 0,
             reported: HashSet::new(),
             reported_release: HashSet::new(),
             rediff: BTreeSet::new(),
@@ -655,8 +825,83 @@ impl Bar1Pool {
             replicas: BTreeMap::new(),
             last_retry: None,
             retry_every: RETRY_EVERY,
+            retired: BTreeMap::new(),
+            last_age_scan: None,
+            churn: Churn::default(),
+            batch: None,
             stats: PoolStats::default(),
         }
+    }
+
+    /// Whether remap changes a poll decided are still running (§14): the invalidate
+    /// trigger reads busy until they are done.
+    pub fn batch_pending(&self) -> bool {
+        self.batch.is_some()
+    }
+
+    /// Pages in the pool that the guest maps through the area now (the others are retired).
+    pub fn live(&self) -> usize {
+        self.table.len().saturating_sub(self.retired.len())
+    }
+
+    /// Area pages retired now (§13).
+    pub fn retired_now(&self) -> usize {
+        self.retired.len()
+    }
+
+    /// Whether area page `g` holds a retired page (§13).
+    pub fn is_retired(&self, g: u64) -> bool {
+        self.retired.contains_key(&g)
+    }
+
+    /// The churn line, at most once per [`CHURN_EVERY`] and only after activity (the
+    /// device traces it after the poll, device.rs `after_bar0_write`).
+    pub fn take_churn(&mut self) -> Option<String> {
+        let since = self.churn.since?;
+        let d = since.elapsed();
+        if d < CHURN_EVERY || self.churn.is_empty() {
+            return None;
+        }
+        let line = self.churn.line(d.as_secs_f64());
+        self.churn = Churn::default();
+        Some(line)
+    }
+
+    /// The retired area pages older than [`RETIRE_AGE`] at `now`, checked at most every
+    /// [`RETIRE_SCAN`].
+    /// Whether a poll has anything to do besides a replica merge (docs/caraxes/bar1-pool.md
+    /// §16): a unit to walk (the guest wrote a BAR1 table page through a tracked path), a
+    /// paced retry, a table-page hazard, a replica to check again, a retired page to age, a
+    /// pooled table page to mark, or a batch to continue. A trapped BAR0 write that is no
+    /// merge point skips the poll without it (device.rs `after_bar0_write_in`).
+    pub fn work_due(&self, now: Instant) -> bool {
+        !self.dirty.is_empty()
+            || !self.dir_dirty.is_empty()
+            || self.hazard_dirty
+            || self.recheck_replicas
+            || self.batch.is_some()
+            || !self.pooled_tables.is_empty()
+            || ((!self.pending.is_empty() || !self.waiting.is_empty())
+                && self.last_retry.is_none_or(|t| now.duration_since(t) >= self.retry_every))
+            || (!self.retired.is_empty()
+                && self.last_age_scan.is_none_or(|t| now.duration_since(t) >= RETIRE_SCAN))
+    }
+
+    /// A poll skipped: nothing due and the BAR0 write no merge point.
+    pub fn note_poll_skipped(&mut self) {
+        self.stats.polls_skipped += 1;
+    }
+
+    fn aged(&mut self, now: Instant) -> Vec<u64> {
+        if self.retired.is_empty() || self.last_age_scan.is_some_and(|t| now.duration_since(t) < RETIRE_SCAN) {
+            return Vec::new();
+        }
+        self.last_age_scan = Some(now);
+        self.retired
+            .iter()
+            .filter(|(_, t)| now.duration_since(**t) >= RETIRE_AGE)
+            .map(|(g, _)| *g)
+            .collect()
     }
 
     /// The state for the fresh model of a function-level reset: same pool and counters,
@@ -674,6 +919,19 @@ impl Bar1Pool {
     /// Whether the pool follows page `page` (4 KiB page number): a table page of its area
     /// walk, or the home of a replica. The BAR2 memfd's table sync must report a change
     /// of such a page (fb.rs `FakeFb::device_table_page`).
+    /// Whether FB page `page` is a table page of the pool's own BAR1 walk (not a replica home).
+    pub fn follows_table(&self, page: u64) -> bool {
+        self.page_units.contains_key(&page)
+    }
+
+    /// Whether any FB page in `[first, end)` (page numbers) is in the pool (its bytes at a
+    /// pool page) or a replica's home: a display record window over it would miss them
+    /// (fb.rs `share_record_window`).
+    pub fn touches_home(&self, first: u64, end: u64) -> bool {
+        self.table.fwd.range(first * PAGE..end * PAGE).next().is_some()
+            || (first..end).any(|p| self.replica_homes.contains(&p))
+    }
+
     pub fn tracks_page(&self, page: u64) -> bool {
         self.page_units.contains_key(&page) || self.replica_homes.contains(&page)
     }
@@ -758,6 +1016,17 @@ impl Bar1Pool {
 
     fn index_homes(&mut self) {
         self.replica_homes = self.replicas.values().map(|r| r.x >> 12).collect();
+        self.replica_gen += 1;
+    }
+
+    /// The replicas now, (area page, home), and the generation of that set (§16).
+    pub fn replica_set(&self) -> (u64, Vec<(u64, u64)>) {
+        (self.replica_gen, self.replicas.iter().map(|(g, r)| (*g, r.x)).collect())
+    }
+
+    /// Whether there are replicas.
+    pub fn has_replicas(&self) -> bool {
+        !self.replicas.is_empty()
     }
 
     /// A walk of the shadow started to read table pages `added` (4 KiB page numbers), or
@@ -847,7 +1116,7 @@ impl Bar1Pool {
         let s = &self.stats;
         let (pool0, len) = self.table.pool();
         format!(
-            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10)",
+            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10); lazy move back: {} retired now, {} retired in all (no copy), {} re-lived (no copy), home {} for another page, {} relocated, {} aged out after {} ms; {} FB store window map(s) for moves; {} device-CE transfer(s) kept on the CPU by a pooled page ({} by a retired one) (§13); lock holds: {} batch(es) in more than one hold ({} hold(s) left the rest for the next poll, longest batch {} us), {} wait(s) for a shadow job in flight ({} left to the next poll, {} us of worker waits in all), {} hold(s) left a barrier to the worker, GPU checks {} ms, barriers {} ms, moves {} ms, re-syncs {} ms in all (§14, §15); {} poll(s) skipped after a BAR0 write with nothing due; {} doorbell(s) merged {} replica(s) their channels see, {} carried area writes home (§16)",
             pool0 + len,
             s.polls,
             s.units_walked,
@@ -880,7 +1149,32 @@ impl Bar1Pool {
             s.retry_backoffs,
             self.retry_every.as_millis(),
             RETRY_MAX.as_millis(),
-            s.max_poll_us
+            s.max_poll_us,
+            self.retired.len(),
+            s.retires,
+            s.relives,
+            s.slot_evictions,
+            s.relocations,
+            s.aged_out,
+            RETIRE_AGE.as_millis(),
+            s.move_window_maps,
+            s.devce_blocked.get(),
+            s.devce_blocked_retired.get(),
+            s.sliced_batches,
+            s.slices_parked,
+            s.batch_max_us,
+            s.in_flight_waits,
+            s.in_flight_parked,
+            s.in_flight_wait_us,
+            s.barrier_parked,
+            s.refs_us / 1000,
+            s.barrier_us / 1000,
+            s.move_us / 1000,
+            s.resync_us / 1000,
+            s.polls_skipped,
+            s.ring_merges,
+            s.ring_replicas,
+            s.ring_to_home
         )
     }
 }
@@ -894,13 +1188,47 @@ pub struct Refs {
     pub userd: Option<u32>,
 }
 
+/// A barrier in progress (§15): the roots whose rings are held and whose TSGs the worker
+/// preempts, and what its end waits for.
+#[derive(Default)]
+pub struct Barrier {
+    pub roots: BTreeSet<u64>,
+    /// A ring hold per root, released by the worker after the root's re-sync.
+    pub tokens: Vec<(u64, u64)>,
+    /// The preempt jobs (root, sequence number) and each TSG's status slot.
+    pub jobs: Vec<(u64, u64)>,
+    pub status: Vec<(u32, std::sync::Arc<std::sync::Mutex<Option<u32>>>)>,
+    /// The host channels found idle, checked again once the preempts ran.
+    pub channels: Vec<u32>,
+    pub nchannels: usize,
+    pub ntsgs: usize,
+}
+
 /// The GPU side of the pool: who may be using a page, and the barrier.
 pub trait PoolGpu {
     /// A reason no remap may change at all now (a host channel walks the guest's own
     /// tables, which the remap cannot reach).
     fn blocked(&self) -> Option<String>;
-    /// The GPU references of each FB page in `pages`.
+    /// The GPU references of each FB page in `pages`, as the shadows' cached walks show
+    /// them: no wait for the shadow worker. The poll asks [`Self::in_flight`] first and
+    /// waits for its answer (§14).
     fn refs(&self, fb: &FakeFb, pages: &BTreeSet<u64>) -> BTreeMap<u64, Refs>;
+    /// The newest shadow job not yet applied that may still map a page of `pages` on the
+    /// host beyond what [`Self::refs`] sees (a leaf its plan took out of the walk, a
+    /// teardown); `None`: nothing to wait for (§14).
+    fn in_flight(&self, _fb: &FakeFb, _pages: &BTreeSet<u64>) -> Option<u64> {
+        None
+    }
+    /// Wait until shadow job `seq` is applied, at most `max` (`None`: to the end); whether
+    /// it is.
+    fn wait_applied(&self, _seq: u64, _max: Option<Duration>) -> bool {
+        true
+    }
+    /// A stamp that changes whenever the answers of [`Self::refs`] and [`Self::in_flight`]
+    /// may change (a shadow job submitted); a batch asks again then.
+    fn stamp(&self) -> u64 {
+        0
+    }
     /// The pages of `pages` that are a mirrored channel's USERD, with the channel: the
     /// part of [`Self::refs`] that needs no wait for the shadow worker and no scan of the
     /// shadows' leaves. The poll refuses these pages before it asks for the rest
@@ -914,6 +1242,34 @@ pub trait PoolGpu {
     fn quiesce(&mut self, fb: &mut FakeFb, roots: &BTreeSet<u64>) -> Result<(usize, usize), String>;
     /// Re-sync the shadows of `roots` (the remap is in place) and wait for the worker.
     fn resync(&mut self, fb: &mut FakeFb, roots: &BTreeSet<u64>) -> Vec<String>;
+    /// Start the barrier for `roots` without waiting (§15); `Err`: it cannot hold (nothing is
+    /// held then). Default: the synchronous [`Self::quiesce`].
+    fn begin_barrier(&mut self, fb: &mut FakeFb, roots: &BTreeSet<u64>) -> Result<Barrier, String> {
+        let (nchannels, ntsgs) = self.quiesce(fb, roots)?;
+        Ok(Barrier {
+            roots: roots.clone(),
+            nchannels,
+            ntsgs,
+            ..Default::default()
+        })
+    }
+    /// Whether barrier `b` holds (its preempts ran, every channel still idle), waiting at
+    /// most `max` (`None`: to the end); `Err`: it failed (the caller cancels it).
+    fn barrier_ready(&mut self, _fb: &mut FakeFb, _b: &Barrier, _max: Option<Duration>) -> Result<bool, String> {
+        Ok(true)
+    }
+    /// After the moves: re-sync the shadows of the barrier's roots. Returns the notes and the
+    /// jobs the guest's trigger waits for (the worker releases the rings after them).
+    /// Default: the synchronous [`Self::resync`].
+    fn end_barrier(&mut self, fb: &mut FakeFb, b: Barrier) -> (Vec<String>, Vec<(u64, u64)>) {
+        (self.resync(fb, &b.roots), Vec::new())
+    }
+    /// Drop a barrier that moved nothing, or failed: its rings released.
+    fn cancel_barrier(&mut self, _b: Barrier) {}
+    /// Whether shadow jobs (root, sequence number) are applied, waiting at most `max`.
+    fn jobs_applied(&self, _jobs: &[(u64, u64)], _max: Option<Duration>) -> bool {
+        true
+    }
 }
 
 /// No GPU side (no host execution, and the tests): nothing is ever in use.
@@ -945,6 +1301,25 @@ pub struct MirrorGpu<'a> {
 const USERD_GP_GET: u64 = 0x88;
 const USERD_GP_PUT: u64 = 0x8C;
 
+impl MirrorGpu<'_> {
+    /// Whether mirrored channel `chid` has no work left: GPGet equals GPPut in its USERD.
+    fn channel_idle(&self, fb: &mut FakeFb, chid: u32) -> Result<(), String> {
+        let gm = crate::channel::GpuMem { fb, sys: self.sys };
+        let Some(u) = self.reg.channel(chid).and_then(|c| c.userd) else {
+            return Err(format!("chid {chid} has no USERD to read"));
+        };
+        let at = |o: u64| match u {
+            Target::Fb(pa) => Target::Fb(pa + o),
+            Target::Sys(pa) => Target::Sys(pa + o),
+            t => t,
+        };
+        match (gm.read_u32(at(USERD_GP_GET)), gm.read_u32(at(USERD_GP_PUT))) {
+            (Some(g), Some(p)) if g == p => Ok(()),
+            (g, p) => Err(format!("chid {chid} busy (GPGet {g:?}, GPPut {p:?})")),
+        }
+    }
+}
+
 impl PoolGpu for MirrorGpu<'_> {
     fn blocked(&self) -> Option<String> {
         let direct: Vec<u32> = self
@@ -966,28 +1341,45 @@ impl PoolGpu for MirrorGpu<'_> {
         if pages.is_empty() {
             return out;
         }
-        // The cached walks are what the shadows hold only once the worker applied every
-        // plan (a leaf the guest dropped may still be mapped until then).
-        self.mirror.shadow_barrier();
+        // The cached walks show every leaf a shadow maps or will map once the worker
+        // applied its plans; a leaf the guest dropped may still be mapped until then, which
+        // `in_flight` answers (§14, the poll waited for it). No wait for the worker here.
         for r in self.mirror.shadow_roots() {
             // Fail closed: a shadow root without a cached walk may map any page.
-            let Some(leaves) = fb.with_walk(Target::Fb(r), |c| c.all_leaves()) else {
+            let hit = fb.with_walk(Target::Fb(r), |c| {
+                let mut hit: Vec<u64> = Vec::new();
+                for (_, t, size, _) in c.leaves() {
+                    let Target::Fb(pa) = t else { continue };
+                    hit.extend(pages.range(pa & !(PAGE - 1)..pa.saturating_add(*size)));
+                }
+                hit
+            });
+            let Some(hit) = hit else {
                 for p in pages {
                     out.entry(*p).or_default().roots.insert(r);
                 }
                 continue;
             };
-            for (_, t, size, _) in leaves {
-                let Target::Fb(pa) = t else { continue };
-                for p in pages.range(pa & !(PAGE - 1)..pa.saturating_add(size)) {
-                    out.entry(*p).or_default().roots.insert(r);
-                }
+            for p in hit {
+                out.entry(p).or_default().roots.insert(r);
             }
         }
         for (page, chid) in self.userd_refs(pages) {
             out.entry(page).or_default().userd = Some(chid);
         }
         out
+    }
+
+    fn in_flight(&self, _fb: &FakeFb, pages: &BTreeSet<u64>) -> Option<u64> {
+        self.mirror.shadow_in_flight(pages)
+    }
+
+    fn wait_applied(&self, seq: u64, max: Option<Duration>) -> bool {
+        self.mirror.shadow_wait_applied(seq, max)
+    }
+
+    fn stamp(&self) -> u64 {
+        self.mirror.shadow_submitted()
     }
 
     fn userd_refs(&self, pages: &BTreeSet<u64>) -> BTreeMap<u64, u32> {
@@ -1004,32 +1396,14 @@ impl PoolGpu for MirrorGpu<'_> {
     }
 
     fn quiesce(&mut self, fb: &mut FakeFb, roots: &BTreeSet<u64>) -> Result<(usize, usize), String> {
-        if std::env::var("CARAXES_BAR1_POOL_WARM").as_deref() == Ok("refuse") {
-            return Err("CARAXES_BAR1_POOL_WARM=refuse: no page the GPU maps is moved".into());
-        }
         let chans: Vec<(u32, Option<u64>, Option<u32>)> = self
             .mirror
             .pool_channels()
             .into_iter()
             .filter(|c| c.1.is_some_and(|r| roots.contains(&r)))
             .collect();
-        let gm = crate::channel::GpuMem { fb, sys: self.sys };
-        let idle = |chid: u32| -> Result<(), String> {
-            let Some(u) = self.reg.channel(chid).and_then(|c| c.userd) else {
-                return Err(format!("chid {chid} has no USERD to read"));
-            };
-            let at = |o: u64| match u {
-                Target::Fb(pa) => Target::Fb(pa + o),
-                Target::Sys(pa) => Target::Sys(pa + o),
-                t => t,
-            };
-            match (gm.read_u32(at(USERD_GP_GET)), gm.read_u32(at(USERD_GP_PUT))) {
-                (Some(g), Some(p)) if g == p => Ok(()),
-                (g, p) => Err(format!("chid {chid} busy (GPGet {g:?}, GPPut {p:?})")),
-            }
-        };
         for c in &chans {
-            idle(c.0)?;
+            self.channel_idle(fb, c.0)?;
         }
         let tsgs: BTreeSet<u32> = chans.iter().filter_map(|c| c.2).collect();
         for t in &tsgs {
@@ -1041,7 +1415,7 @@ impl PoolGpu for MirrorGpu<'_> {
         // GPPut may have moved while the preempt ran (a guest CPU write through the area):
         // read again, after the TSGs are off the engines.
         for c in &chans {
-            idle(c.0)?;
+            self.channel_idle(fb, c.0)?;
         }
         Ok((chans.len(), tsgs.len()))
     }
@@ -1064,17 +1438,114 @@ impl PoolGpu for MirrorGpu<'_> {
         gm.fb.flush();
         notes
     }
+
+    /// §15: no wait under the device lock. The channels on `roots` must be idle; their
+    /// rings are held (a doorbell is not forwarded to the host meanwhile) and their TSGs
+    /// preempted by worker jobs in order with the roots' plans.
+    fn begin_barrier(&mut self, fb: &mut FakeFb, roots: &BTreeSet<u64>) -> Result<Barrier, String> {
+        if !self.mirror.shadow_worker_running() {
+            let (nchannels, ntsgs) = self.quiesce(fb, roots)?;
+            return Ok(Barrier {
+                roots: roots.clone(),
+                nchannels,
+                ntsgs,
+                ..Default::default()
+            });
+        }
+        let chans: Vec<(u32, Option<u64>, Option<u32>)> = self
+            .mirror
+            .pool_channels()
+            .into_iter()
+            .filter(|c| c.1.is_some_and(|r| roots.contains(&r)))
+            .collect();
+        for c in &chans {
+            self.channel_idle(fb, c.0)?;
+        }
+        let tokens: Vec<(u64, u64)> = roots.iter().map(|r| (*r, self.mirror.hold_rings(vec![*r]))).collect();
+        let tsgs: BTreeMap<u32, u64> = chans
+            .iter()
+            .filter_map(|c| Some((c.2?, c.1?)))
+            .collect();
+        let mut jobs = Vec::new();
+        let mut status = Vec::new();
+        for (tsg, root) in &tsgs {
+            let (job, slot) = self.mirror.submit_preempt(*root, *tsg);
+            jobs.push(job);
+            status.push((*tsg, slot));
+        }
+        Ok(Barrier {
+            roots: roots.clone(),
+            tokens,
+            jobs,
+            status,
+            channels: chans.iter().map(|c| c.0).collect(),
+            nchannels: chans.len(),
+            ntsgs: tsgs.len(),
+        })
+    }
+
+    fn barrier_ready(&mut self, fb: &mut FakeFb, b: &Barrier, max: Option<Duration>) -> Result<bool, String> {
+        if !self.mirror.shadow_jobs_applied(&b.jobs, max) {
+            return Ok(false);
+        }
+        for (tsg, slot) in &b.status {
+            match *slot.lock().unwrap() {
+                Some(st) if st == nvrm_abi::sys::NV_OK => {}
+                Some(st) => return Err(format!("preempt of host TSG {tsg:#x}: status {st:#x}")),
+                None => return Err(format!("preempt of host TSG {tsg:#x} did not run")),
+            }
+        }
+        // GPPut may have moved while the preempts ran (a guest CPU write through the area):
+        // read again, now that the TSGs are off the engines.
+        for chid in &b.channels {
+            self.channel_idle(fb, *chid)?;
+        }
+        Ok(true)
+    }
+
+    fn end_barrier(&mut self, fb: &mut FakeFb, b: Barrier) -> (Vec<String>, Vec<(u64, u64)>) {
+        if b.tokens.is_empty() {
+            return (self.resync(fb, &b.roots), Vec::new());
+        }
+        let mut gm = crate::channel::GpuMem { fb, sys: self.sys };
+        let mut notes = Vec::new();
+        for r in &b.roots {
+            notes.extend(self.mirror.shadow_resync(self.reg, &mut gm, Some(*r)));
+        }
+        for n in notes.iter().filter(|n| n.contains("set-B")) {
+            self.mirror.trace_note(format!("bar1 pool re-sync: {n}"));
+        }
+        gm.fb.flush();
+        // The worker releases each root's rings after its re-sync (ringgate.rs): no wait here.
+        let jobs = b
+            .tokens
+            .iter()
+            .map(|(r, t)| self.mirror.release_rings_after(*r, *t))
+            .collect();
+        (notes, jobs)
+    }
+
+    fn cancel_barrier(&mut self, b: Barrier) {
+        for (_, t) in b.tokens {
+            self.mirror.release_rings(t);
+        }
+    }
+
+    fn jobs_applied(&self, jobs: &[(u64, u64)], max: Option<Duration>) -> bool {
+        self.mirror.shadow_jobs_applied(jobs, max)
+    }
 }
 
 /// Poll the pool of the boot model after a trapped BAR0 write (device.rs): the guest
 /// flushes and invalidates through BAR0 after it changes a BAR1 mapping and before it uses
 /// the mapping. `merge`: the write is a flush point, the replicas are merged
 /// ([`poll_at`], `BootModel::pool_merge_after`). Returns whether a poll ran.
-pub fn poll_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, merge: bool) -> bool {
+pub fn poll_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, merge: bool, pace: Pace) -> bool {
     if b.fb.bar1_pool().is_none() {
         return false;
     }
-    let held = |fb: &FakeFb| fb.pool_mut().as_ref().map_or(0, |p| p.table.len());
+    // The pages the guest maps through the area now: retired pages (§13) do not count.
+    let held = |fb: &FakeFb| fb.pool_mut().as_ref().map_or(0, |p| p.live());
     let before = held(&b.fb);
     let reg = &b.ctrl.channels;
     let ran = match b.ctrl.mirror.as_mut() {
@@ -1084,9 +1555,9 @@ pub fn poll_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, merge: bool
                 reg,
                 sys: mem,
             };
-            poll_at(&mut b.fb, &mut gpu, merge)
+            poll_sliced(&mut b.fb, &mut gpu, merge, pace)
         }
-        None => poll_at(&mut b.fb, &mut NoGpu, merge),
+        None => poll_sliced(&mut b.fb, &mut NoGpu, merge, pace),
     };
     // The pool emptied (a guest context went away): the counters so far, once per context,
     // for a loop of workloads to read per iteration (docs/caraxes/bar1-pool.md §9).
@@ -1099,6 +1570,17 @@ pub fn poll_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, merge: bool
     ran
 }
 
+/// A read of the invalidate trigger with a batch pending (§14, device.rs): its next chunk,
+/// and once it is done, what the guest changed meanwhile. Returns whether a batch was
+/// pending.
+pub fn continue_model(b: &mut crate::boot::BootModel, mem: &GuestMemory, pace: Pace) -> bool {
+    if !b.fb.pool_mut().as_ref().is_some_and(|p| p.batch_pending()) {
+        return false;
+    }
+    poll_model(b, mem, false, pace);
+    true
+}
+
 /// One remap change the poll decided on.
 #[derive(Clone, Copy, Debug)]
 struct Op {
@@ -1108,6 +1590,19 @@ struct Op {
     /// A release the guest did not ask for: `x` became a table page the device tracks
     /// while it lived in the pool, so it goes back to the trapped path.
     evict: bool,
+    /// A release of a retired page (§13), and why it goes home now.
+    home: Option<Home>,
+}
+
+/// Why a retired page goes home (§13).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Home {
+    /// Another page (or guest RAM) is wanted at its area page.
+    Slot,
+    /// The guest maps it at another area page (it moves there after its move home).
+    Relocate,
+    /// It stayed retired for [`RETIRE_AGE`].
+    Aged,
 }
 
 /// Whether FB page `page` (a 4 KiB page number) is a guest page-table page whose writes
@@ -1214,8 +1709,69 @@ fn merge_replica(fb: &mut FakeFb, g: u64, last: bool) -> bool {
         // Its own writes home (just merged) are in the snapshot.
         r.home_dirty = false;
         r.quiet = if read_home { 0 } else { r.quiet + 1 };
+        r.merges += 1;
+        r.to_home += u64::from(!to_home.is_empty());
+        r.to_area += u64::from(!to_area.is_empty());
+        r.home_reads += u64::from(read_home);
     }
     !to_home.is_empty() || !to_area.is_empty()
+}
+
+/// A doorbell's merge (§16): the area writes of the replicas `gs` go home before the rung
+/// channels' engines can see the home (on the card both BAR1 mappings reach the same VRAM).
+/// One direction only: the area is read and compared with the snapshot, the changed words
+/// are written home; changes at home reach the area at the next full merge (a flush point).
+/// Returns whether anything was written.
+pub fn merge_to_home(fb: &mut FakeFb, gs: &[u64]) -> bool {
+    let mut wrote = false;
+    let mut merged = 0u64;
+    let mut carried = 0u64;
+    for g in gs {
+        let (p, x, mut snap, dirty_before) = {
+            let mut guard = fb.pool_mut();
+            let Some(pool) = guard.as_mut() else { return false };
+            let pool0 = pool.table.pool().0;
+            let Some(r) = pool.replicas.get_mut(g) else { continue };
+            (pool0 + g, r.x, std::mem::take(&mut r.snap), r.home_dirty)
+        };
+        let n = PAGE as usize;
+        let mut area = vec![0u8; n];
+        fb.read_raw(p, &mut area);
+        let mut runs: Vec<(usize, usize)> = Vec::new();
+        for o in (0..n).step_by(8) {
+            if area[o..o + 8] != snap[o..o + 8] {
+                match runs.last_mut() {
+                    Some((s, l)) if *s + *l == o => *l += 8,
+                    _ => runs.push((o, 8)),
+                }
+            }
+        }
+        for &(o, l) in &runs {
+            fb.write(x + o as u64, &area[o..o + l]);
+            snap[o..o + l].copy_from_slice(&area[o..o + l]);
+        }
+        merged += 1;
+        carried += u64::from(!runs.is_empty());
+        wrote |= !runs.is_empty();
+        let mut guard = fb.pool_mut();
+        let pool = guard.as_mut().expect("on");
+        if let Some(r) = pool.replicas.get_mut(g) {
+            r.snap = snap;
+            // Its own writes home are in the snapshot; a device write before them still
+            // makes the next full merge read the home.
+            r.home_dirty = dirty_before;
+            r.to_home += u64::from(!runs.is_empty());
+        }
+    }
+    if let Some(pool) = fb.pool_mut().as_mut() {
+        pool.stats.ring_merges += u64::from(merged > 0);
+        pool.stats.ring_replicas += merged;
+        pool.stats.ring_to_home += carried;
+    }
+    if wrote {
+        fb.flush();
+    }
+    wrote
 }
 
 /// The order in which a sync point merges the replicas: by home page, then area page.
@@ -1233,6 +1789,9 @@ fn merge_order(replicas: &BTreeMap<u64, Replica>) -> Vec<u64> {
 /// Make area page `g` a replica of FB page `x`: the pool page gets the page's bytes, and
 /// from now on the sync points merge the two ([`sync_untracked`]).
 fn make_replica(fb: &mut FakeFb, g: u64, x: u64) {
+    // A display record window over the home goes first: the replica mirrors what the device
+    // writes to the home, and the window's writes bypass that.
+    fb.revoke_records(x / PAGE, x / PAGE + 1);
     let mut b = vec![0u8; PAGE as usize];
     fb.read(x, &mut b);
     let p = fb.bar1_pool().expect("on").0 + g;
@@ -1244,6 +1803,75 @@ fn make_replica(fb: &mut FakeFb, g: u64, x: u64) {
     pool.stats.replicas += 1;
 }
 
+/// The replicas now, one line each, for the exit summary (docs/caraxes/bar1-pool.md §16):
+/// the area page, the home and where it lives (an alias: another area page holds it), the
+/// merges and how many carried area writes home or home changes to the area, the home
+/// reads, and what uses the home: a mirrored channel's USERD, the shadow roots whose walks
+/// map it and at which VA, a channel's GPFIFO among those VAs.
+pub fn replica_lines(b: &crate::boot::BootModel) -> Vec<String> {
+    let fb = &b.fb;
+    // (area page, home, the home's own area page, merges, to home, to area, home reads)
+    type Row = (u64, u64, Option<u64>, u64, u64, u64, u64);
+    let rows: Vec<Row> = {
+        let guard = fb.pool_mut();
+        let Some(p) = guard.as_ref() else { return Vec::new() };
+        p.replicas
+            .iter()
+            .map(|(g, r)| {
+                let home_g = p.table.slot_of(r.x);
+                (*g, r.x, home_g, r.merges, r.to_home, r.to_area, r.home_reads)
+            })
+            .collect()
+    };
+    let roots: Vec<u64> = b.ctrl.mirror.as_ref().map(|m| m.shadow_roots()).unwrap_or_default();
+    rows.into_iter()
+        .map(|(g, x, home_g, merges, to_home, to_area, home_reads)| {
+            let mut uses: Vec<String> = Vec::new();
+            for ch in b.ctrl.channels.channels() {
+                if let Some(Target::Fb(u)) = ch.userd {
+                    if u & !(PAGE - 1) == x {
+                        uses.push(format!("USERD of chid {}", ch.chid));
+                    }
+                }
+            }
+            for r in &roots {
+                let vas: Vec<u64> = fb
+                    .with_walk(Target::Fb(*r), |c| {
+                        c.leaves()
+                            .filter_map(|(va, t, size, _)| match t {
+                                Target::Fb(pa) if *pa <= x && x < pa + size => Some(va + (x - pa)),
+                                _ => None,
+                            })
+                            .take(4)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                for va in vas {
+                    let gpfifo = b.ctrl.channels.channels().find(|ch| {
+                        let len = u64::from(ch.gpfifo_entries) * 8;
+                        va >= ch.gpfifo_va && va < ch.gpfifo_va.saturating_add(len)
+                    });
+                    uses.push(match gpfifo {
+                        Some(ch) => format!("root {r:#x} VA {va:#x} (GPFIFO of chid {})", ch.chid),
+                        None => format!("root {r:#x} VA {va:#x}"),
+                    });
+                }
+            }
+            if uses.is_empty() {
+                uses.push("no shadow maps it, no channel's USERD".into());
+            }
+            format!(
+                "bar1 pool replica: area page {g:#x} mirrors FB {x:#x}{}; {merges} merge(s), {to_home} carried area writes home, {to_area} carried home changes to the area, {home_reads} home read(s); {}",
+                match home_g {
+                    Some(h) => format!(" (an alias: the page lives in the pool at area page {h:#x})"),
+                    None => " (its home is outside the pool)".into(),
+                },
+                uses.join(", ")
+            )
+        })
+        .collect()
+}
+
 /// The sync points of the pool's untracked pages: called where the guest orders its CPU
 /// writes before the device or the GPU uses them (the MMU invalidate, the GSP doorbell,
 /// the trapped BAR2 flush read, and the polls after the BAR0 writes that are flush points,
@@ -1253,29 +1881,54 @@ fn make_replica(fb: &mut FakeFb, g: u64, x: u64) {
 ///   the next poll, or a barrier refused it) is marked changed, so the shadow's next walk
 ///   re-reads it from its pool page instead of trusting its write-through copy, and the
 ///   poll is told to evict it.
-/// - Design G's twin: [`FakeFb::bar1_pt_resync`].
 ///
 /// Returns whether anything was merged or marked. Two borrow checks when there is nothing.
 pub fn sync_untracked(fb: &mut FakeFb) -> bool {
     sync_inner(fb, true, &mut PollBreakdown::default())
 }
 
-/// [`sync_untracked`]; without `merge` only the marks (design G's and the pooled table
-/// pages'), which cost a few lookups, not the two page reads per replica.
+/// [`sync_untracked`] at an MMU invalidate (docs/caraxes/bar2-memfd.md §3 rules 2 and 3):
+/// the marks, and the merges of the replicas whose home is a page table the device follows
+/// (the guest's PTE writes through the area reach the walks before the invalidate plans);
+/// a data replica waits for the next engine start, whose flush point merges every replica.
+/// SotTR run E: the full merge at every invalidate cost 675 us each, 144 s over the run.
+pub fn sync_untracked_tables(fb: &mut FakeFb) -> bool {
+    sync_inner_where(fb, true, &mut PollBreakdown::default(), true)
+}
+
+/// [`sync_untracked`]; without `merge` only the marks (the pooled table pages'), which
+/// cost a few lookups, not the two page reads per replica.
 fn sync_inner(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown) -> bool {
-    let g_marked = fb.bar1_pt_resync() > 0;
+    sync_inner_where(fb, merge, bd, false)
+}
+
+/// [`sync_inner`]; with `tables_only` only the replicas whose home is a followed table page
+/// are merged.
+fn sync_inner_where(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown, tables_only: bool) -> bool {
     let (gs, pooled) = {
         let guard = fb.pool_mut();
         let Some(p) = guard.as_ref() else {
-            return g_marked;
+            return false;
         };
         if p.replicas.is_empty() && p.pooled_tables.is_empty() {
-            return g_marked;
+            return false;
         }
-        let gs = if merge { merge_order(&p.replicas) } else { Vec::new() };
+        let gs: Vec<(u64, u64)> = if merge {
+            merge_order(&p.replicas)
+                .into_iter()
+                .filter_map(|g| p.replicas.get(&g).map(|r| (g, r.x)))
+                .collect()
+        } else {
+            Vec::new()
+        };
         let pooled: Vec<(u64, u64)> = p.pooled_tables.iter().map(|(g, x)| (*g, *x)).collect();
         (gs, pooled)
     };
+    let gs: Vec<u64> = gs
+        .into_iter()
+        .filter(|(_, x)| !tables_only || fb.followed_table_page(x >> 12))
+        .map(|(g, _)| g)
+        .collect();
     let homes0 = fb.pool_mut().as_ref().map_or(0, |p| p.stats.replica_home_reads);
     let mut wrote = false;
     for g in &gs {
@@ -1302,7 +1955,7 @@ fn sync_inner(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown) -> bool {
     if wrote {
         fb.flush();
     }
-    g_marked || wrote || !pooled.is_empty()
+    wrote || !pooled.is_empty()
 }
 
 /// [`poll_at`] with the replica merge (every sync point merges, the tests' default).
@@ -1330,13 +1983,61 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
 /// - A page that is a mirrored channel's USERD is refused before the GPU references are
 ///   taken (no wait for the shadow worker, no leaf scan of every shadow root).
 pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
+    poll_sliced(fb, gpu, merge, Pace::ALL)
+}
+
+/// How a poll may spend its hold of the device lock (§14).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pace {
+    /// The moves run until this is spent (a chunk at least), the rest at the next polls;
+    /// `None`: all now.
+    pub budget: Option<Duration>,
+    /// A shadow job in flight that may still map a page to move is waited for at most this
+    /// long per poll, then the batch waits for the next poll; `None`: to the end.
+    pub wait: Option<Duration>,
+}
+
+impl Pace {
+    /// Everything now, waits included: [`poll_at`] and the invalidate page, whose trigger
+    /// the reactor clears when the poll returns.
+    pub const ALL: Pace = Pace { budget: None, wait: None };
+    /// A trapped sync point outside an invalidate: every move now, no wait for the worker
+    /// beyond [`WAIT_SLICE`].
+    pub const NO_WAIT: Pace = Pace {
+        budget: None,
+        wait: Some(WAIT_SLICE),
+    };
+    /// A trapped write of the invalidate registers and a read of its trigger.
+    pub const SLICED: Pace = Pace {
+        budget: Some(POOL_SLICE),
+        wait: Some(WAIT_SLICE),
+    };
+}
+
+/// [`poll_at`] with a pace (§14): the moves run in chunks until the budget is spent, the rest
+/// at the next polls ([`continue_model`] at the guest's reads of the invalidate trigger,
+/// which report busy meanwhile); a shadow job in flight that may still map a page to move is
+/// waited for as long as the pace allows, then at the next polls. A batch still pending is
+/// continued first; nothing new is decided before it is done.
+pub fn poll_sliced(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool, pace: Pace) -> bool {
     let t0 = Instant::now();
     let mut bd = PollBreakdown {
         merge,
         ..Default::default()
     };
-    let synced = sync_inner(fb, merge, &mut bd);
+    let mut synced = sync_inner(fb, merge, &mut bd);
     bd.sync_us = t0.elapsed().as_micros();
+    // A batch an earlier poll decided: its next chunks first.
+    let parked = fb.pool_mut().as_mut().and_then(|p| p.batch.take());
+    if let Some(mut b) = parked {
+        if !run_batch(fb, gpu, &mut b, pace) {
+            park(fb, b, t0);
+            return true;
+        }
+        settle(fb, *b, t0);
+        synced = true;
+    }
+    let aged: Vec<u64>;
     let (root, full, path_only, retry, hazard) = {
         let mut guard = fb.pool_mut();
         let Some(p) = guard.as_mut() else {
@@ -1346,11 +2047,13 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         let every = p.retry_every;
         let retry = (!p.pending.is_empty() || !p.waiting.is_empty())
             && p.last_retry.is_none_or(|t| t.elapsed() >= every);
+        aged = p.aged(t0);
         if p.dirty.is_empty()
             && p.dir_dirty.is_empty()
             && !retry
             && !p.hazard_dirty
             && !p.recheck_replicas
+            && aged.is_empty()
         {
             bd.total_us = t0.elapsed().as_micros();
             p.last = bd;
@@ -1427,18 +2130,67 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         cand.extend(p.replicas.keys().copied());
         p.recheck_replicas = false;
         bd.candidates = cand.len();
-        let mut releases: Vec<Op> = cand
-            .iter()
-            .filter_map(|g| {
-                let x = p.table.holder(*g)?;
-                (p.want.get(g) != Some(&Target::Fb(x))).then_some(Op {
+        // The lazy move back (§13). An area page the guest unmapped keeps its page in the
+        // pool, retired: the remap stays, so the device and the GPU still find the page at
+        // its pool page, and nothing is copied (a BAR1 unmap on the real card is a PTE
+        // write, not a copy). Mapped again at the same area page, it is simply live again.
+        // It goes home (one copy, as every unmap did before) when another page or guest
+        // RAM is wanted at its area page, when the guest maps it at another area page, or
+        // after RETIRE_AGE.
+        let now = Instant::now();
+        let mut releases: Vec<Op> = Vec::new();
+        for g in &cand {
+            let Some(x) = p.table.holder(*g) else { continue };
+            match p.want.get(g) {
+                Some(Target::Fb(w)) if *w == x => {
+                    if p.retired.remove(g).is_some() {
+                        bd.relived += 1;
+                    }
+                }
+                None => match p.retired.get(g) {
+                    None => {
+                        p.retired.insert(*g, now);
+                        bd.retired += 1;
+                    }
+                    // A retired page whose move home was refused (a USERD, a busy barrier):
+                    // the paced retry asks again once it is due.
+                    Some(t) if p.waiting.contains(g) && now.duration_since(*t) >= RETIRE_AGE => {
+                        releases.push(Op {
+                            install: false,
+                            g: *g,
+                            x,
+                            evict: false,
+                            home: Some(Home::Aged),
+                        })
+                    }
+                    Some(_) => {}
+                },
+                Some(_) => releases.push(Op {
                     install: false,
                     g: *g,
                     x,
                     evict: false,
-                })
-            })
-            .collect();
+                    home: p.retired.contains_key(g).then_some(Home::Slot),
+                }),
+            }
+        }
+        for g in &aged {
+            if let Some(x) = p.table.holder(*g).filter(|_| p.retired.contains_key(g)) {
+                if !releases.iter().any(|r| r.g == *g) {
+                    releases.push(Op {
+                        install: false,
+                        g: *g,
+                        x,
+                        evict: false,
+                        home: Some(Home::Aged),
+                    });
+                }
+            }
+        }
+        p.stats.retires += bd.retired as u64;
+        p.stats.relives += bd.relived as u64;
+        p.churn.retires += bd.retired as u64;
+        p.churn.relives += bd.relived as u64;
         // A table page the device tracks that lives in the pool goes back out (the rule
         // of `admit`, for the other order: the shadow started watching it after it moved).
         if hazard || retry {
@@ -1457,6 +2209,7 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
                         g,
                         x,
                         evict: true,
+                        home: None,
                     });
                 }
             }
@@ -1465,12 +2218,29 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         let mut sys_lines = Vec::new();
         for g in &cand {
             match p.want.get(g).copied() {
-                Some(Target::Fb(x)) if p.table.holder(*g) != Some(x) => installs.push(Op {
-                    install: true,
-                    g: *g,
-                    x,
-                    evict: false,
-                }),
+                Some(Target::Fb(x)) if p.table.holder(*g) != Some(x) => {
+                    // Retired at another area page: home first (in this poll), then here.
+                    if let Some(g2) = p.table.slot_of(x).filter(|g2| *g2 != *g && p.retired.contains_key(g2)) {
+                        if let Some(r) = releases.iter_mut().find(|r| r.g == g2) {
+                            r.home = Some(Home::Relocate);
+                        } else {
+                            releases.push(Op {
+                                install: false,
+                                g: g2,
+                                x,
+                                evict: false,
+                                home: Some(Home::Relocate),
+                            });
+                        }
+                    }
+                    installs.push(Op {
+                        install: true,
+                        g: *g,
+                        x,
+                        evict: false,
+                        home: None,
+                    })
+                }
                 Some(t @ Target::Sys(_)) => {
                     if p.reported.insert((*g, key(t))) {
                         p.stats.sysmem += 1;
@@ -1547,76 +2317,278 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         }
     }
     bd.decide_us = td.elapsed().as_micros();
-    // Who holds each page on the GPU: first the USERDs (a host channel holds its address;
-    // no wait), then, for the pages left, the shadow leaves (waits for the shadow worker).
-    let blocked = if ops.is_empty() { None } else { gpu.blocked() };
-    let tu = Instant::now();
-    let mut userd = BTreeMap::new();
-    if blocked.is_none() && !ops.is_empty() {
-        let pages: BTreeSet<u64> = ops.iter().map(|o| o.x).collect();
-        userd = gpu.userd_refs(&pages);
-    }
-    bd.userd_us = tu.elapsed().as_micros();
-    let tr = Instant::now();
-    let pages: BTreeSet<u64> = if blocked.is_none() {
-        ops.iter().filter(|o| !userd.contains_key(&o.x)).map(|o| o.x).collect()
+    // Releases first (they free area pages and pages for the installs), then installs; by
+    // home page within each half: pages of one FB store window move together (a move of a
+    // page outside the store's windows maps one, §13).
+    ops.sort_by_key(|o| (o.install, o.x));
+    let mut b = Box::new(Batch {
+        ops: ops.into(),
+        releases,
+        refused,
+        replicate,
+        notes: Vec::new(),
+        retry,
+        before,
+        moved: 0,
+        held: HashMap::new(),
+        stamp: None,
+        blocked: None,
+        wait: None,
+        stage: None,
+        since: t0,
+        slices: 0,
+        bd,
+    });
+    if run_batch(fb, gpu, &mut b, pace) {
+        settle(fb, *b, t0);
     } else {
-        BTreeSet::new()
-    };
-    bd.refs_pages = pages.len();
-    let refs = if pages.is_empty() {
+        park(fb, b, t0);
+    }
+    true
+}
+
+/// A poll inside a trapped MMU invalidate (device.rs `after_bar0_write`) moves pages for
+/// about this long per hold of the device lock; the rest follows at the guest's reads of
+/// the trigger, which report busy until the last page moved (§14).
+pub const POOL_SLICE: Duration = Duration::from_micros(500);
+/// Pages per chunk of a sliced batch: one GPU check (when a shadow job was submitted since
+/// the last), one barrier if a page of it is mapped by a shadow, the moves.
+const CHUNK: usize = 16;
+/// A batch pending this long runs all its moves at its next continuation, whatever the
+/// budget, well inside the guest's poll of the trigger (4 s in RM, 2 s in nouveau). A wait
+/// for a shadow job in flight stays bounded by the pace: the device lock is never held
+/// waiting for the worker (execution.md §9).
+pub const BATCH_FALLBACK: Duration = crate::invgate::FALLBACK;
+/// How long one poll waits under the lock for a shadow job the batch waits for.
+pub const WAIT_SLICE: Duration = crate::invgate::POLL_WAIT;
+
+/// What holds a page of a batch on the GPU side (from [`PoolGpu::userd_refs`] and
+/// [`PoolGpu::refs`]).
+#[derive(Clone, Debug)]
+enum Held {
+    /// Nothing: the page moves without a barrier.
+    Cold,
+    /// Shadow roots that map it: it moves behind their barrier.
+    Warm(BTreeSet<u64>),
+    /// A mirrored channel's USERD: it does not move.
+    Userd(u32),
+}
+
+/// The remap changes one poll decided, run in chunks (§14): with a budget, a chunk at a
+/// time until the budget is spent, the rest at the next continuations; without one, all at
+/// once. Every chunk leaves the pool consistent (each move is a copy and a remap switch
+/// under the lock), so the device lock is free between two continuations.
+pub struct Batch {
+    /// The ops still to run, releases first, each half by home page.
+    ops: VecDeque<Op>,
+    /// Every release decided (a waiting release is settled at the end).
+    releases: Vec<Op>,
+    refused: Vec<(Op, String)>,
+    /// Replicas to make at the end, when the releases freed their area pages.
+    replicate: Vec<(u64, u64, Refusal)>,
+    notes: Vec<String>,
+    retry: bool,
+    before: (usize, usize),
+    moved: usize,
+    /// The GPU side's answers for the pages of `ops`, valid while [`PoolGpu::stamp`] stays
+    /// `stamp`.
+    held: HashMap<u64, Held>,
+    stamp: Option<u64>,
+    blocked: Option<String>,
+    /// What the batch waits for before its next chunk: a shadow job in flight that may
+    /// still map a page of it, or a barrier's re-sync.
+    wait: Option<Wait>,
+    /// A chunk behind its barrier (§15).
+    stage: Option<Stage>,
+    /// The poll that decided the batch.
+    since: Instant,
+    slices: u32,
+    bd: PollBreakdown,
+}
+
+/// What a batch waits for before its next chunk (never longer than the pace allows per poll).
+#[derive(Clone, Debug)]
+enum Wait {
+    /// A shadow job in flight that may still map a page of the batch.
+    InFlight(u64),
+    /// A barrier's re-sync jobs; the worker releases the roots' rings after them.
+    Resync(Vec<(u64, u64)>),
+}
+
+/// A chunk with pages a shadow maps, waiting for its barrier (§15).
+struct Stage {
+    /// The chunk's ops in order, and the ones a shadow maps.
+    run: Vec<Op>,
+    warm: Vec<Op>,
+    barrier: Barrier,
+}
+
+/// Run what is left of batch `b` at `pace`: with a budget, until it is spent (a chunk at
+/// least); whether the batch is done.
+fn run_batch(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, b: &mut Batch, pace: Pace) -> bool {
+    let t = Instant::now();
+    let budget = pace.budget.filter(|_| b.since.elapsed() < BATCH_FALLBACK);
+    b.slices += 1;
+    loop {
+        if let Some(st) = b.stage.take() {
+            // A chunk behind its barrier: its moves once the barrier holds.
+            let tb = Instant::now();
+            let ready = gpu.barrier_ready(fb, &st.barrier, pace.wait);
+            b.bd.barrier_us += tb.elapsed().as_micros();
+            match ready {
+                Ok(false) => {
+                    b.stage = Some(st);
+                    return false;
+                }
+                Ok(true) => run_moves(fb, gpu, b, st.run, st.warm, Some(st.barrier)),
+                Err(e) => refuse_barrier(fb, gpu, b, st, e),
+            }
+        } else if let Some(w) = b.wait.clone() {
+            let tw = Instant::now();
+            let applied = match &w {
+                Wait::InFlight(s) => gpu.wait_applied(*s, pace.wait),
+                Wait::Resync(jobs) => gpu.jobs_applied(jobs, pace.wait),
+            };
+            b.bd.in_flight_us += tw.elapsed().as_micros();
+            if !applied {
+                return false;
+            }
+            b.wait = None;
+            continue;
+        } else {
+            if b.ops.is_empty() {
+                return true;
+            }
+            // The GPU side's answers: again whenever a shadow job was submitted since (a
+            // plan may have mapped a page of the batch, or taken one out of its walk).
+            let stamp = gpu.stamp();
+            if b.stamp != Some(stamp) {
+                if let Err(s) = classify(fb, gpu, b) {
+                    b.wait = Some(Wait::InFlight(s));
+                    if let Some(p) = fb.pool_mut().as_mut() {
+                        p.stats.in_flight_waits += 1;
+                    }
+                    continue;
+                }
+                b.stamp = Some(stamp);
+            }
+            let n = if budget.is_some() { CHUNK.min(b.ops.len()) } else { b.ops.len() };
+            let chunk: Vec<Op> = b.ops.drain(..n).collect();
+            run_chunk(fb, gpu, b, chunk);
+            if b.stage.is_some() {
+                // A barrier begun: see at once whether it holds (a bounded wait).
+                continue;
+            }
+        }
+        let left = !b.ops.is_empty() || b.stage.is_some() || b.wait.is_some();
+        if left && budget.is_some_and(|bud| t.elapsed() >= bud) {
+            return false;
+        }
+    }
+}
+
+/// Ask the GPU side who holds the pages of the batch: first the USERDs (a host channel
+/// holds its address), then, when no shadow job in flight may still map one of the others
+/// beyond the cached walks, the shadow leaves. `Err(seq)`: that job must be applied first.
+fn classify(fb: &FakeFb, gpu: &mut dyn PoolGpu, b: &mut Batch) -> Result<(), u64> {
+    b.held.clear();
+    b.blocked = gpu.blocked();
+    if b.blocked.is_some() {
+        return Ok(());
+    }
+    let tu = Instant::now();
+    let pages: BTreeSet<u64> = b.ops.iter().map(|o| o.x).collect();
+    let userd = gpu.userd_refs(&pages);
+    b.bd.userd_us += tu.elapsed().as_micros();
+    let rest: BTreeSet<u64> = pages.iter().filter(|p| !userd.contains_key(p)).copied().collect();
+    if let Some(s) = gpu.in_flight(fb, &rest) {
+        return Err(s);
+    }
+    let tr = Instant::now();
+    let refs = if rest.is_empty() {
         BTreeMap::new()
     } else {
-        gpu.refs(fb, &pages)
+        gpu.refs(fb, &rest)
     };
-    bd.refs_us = tr.elapsed().as_micros();
-    let mut cold: Vec<Op> = Vec::new();
+    b.bd.refs_us += tr.elapsed().as_micros();
+    b.bd.refs_pages += rest.len();
+    for p in pages {
+        let r = refs.get(&p).cloned().unwrap_or_default();
+        let h = match userd.get(&p).copied().or(r.userd) {
+            Some(chid) => Held::Userd(chid),
+            None if r.roots.is_empty() => Held::Cold,
+            None => Held::Warm(r.roots),
+        };
+        b.held.insert(p, h);
+    }
+    Ok(())
+}
+
+/// One chunk of a batch: the pages nothing on the GPU maps move now; a chunk with pages a
+/// shadow maps starts their barrier and waits for it as the batch's stage (§15).
+fn run_chunk(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, b: &mut Batch, chunk: Vec<Op>) {
     let mut warm: Vec<Op> = Vec::new();
     let mut roots: BTreeSet<u64> = BTreeSet::new();
-    for op in &ops {
-        if let Some(why) = &blocked {
-            refused.push((*op, why.clone()));
+    let mut run: Vec<Op> = Vec::new();
+    for op in chunk {
+        if let Some(why) = &b.blocked {
+            b.refused.push((op, why.clone()));
             continue;
         }
-        let r = refs.get(&op.x).cloned().unwrap_or_default();
-        if let Some(chid) = userd.get(&op.x).copied().or(r.userd) {
-            refused.push((
-                *op,
+        match b.held.get(&op.x) {
+            Some(Held::Cold) => run.push(op),
+            Some(Held::Warm(r)) => {
+                roots.extend(r.iter().copied());
+                warm.push(op);
+                run.push(op);
+            }
+            Some(Held::Userd(chid)) => b.refused.push((
+                op,
                 format!("the page is the USERD of mirrored channel chid {chid}, whose host channel holds its address until it is freed"),
-            ));
-            continue;
-        }
-        if r.roots.is_empty() {
-            cold.push(*op);
-        } else {
-            roots.extend(r.roots.iter().copied());
-            warm.push(*op);
+            )),
+            None => b.refused.push((op, "the GPU side was not asked about the page (fail closed)".into())),
         }
     }
-    let mut notes = Vec::new();
+    if warm.is_empty() {
+        run_moves(fb, gpu, b, run, warm, None);
+        return;
+    }
     let tb = Instant::now();
-    let barrier = if warm.is_empty() {
-        None
-    } else {
-        Some(gpu.quiesce(fb, &roots))
-    };
-    bd.barrier_us = tb.elapsed().as_micros();
-    let warm_ok = matches!(barrier, Some(Ok(_)));
-    if let Some(Err(e)) = &barrier {
-        for op in &warm {
-            refused.push((*op, format!("the GPU may be using it and the barrier failed: {e}")));
+    let begun = gpu.begin_barrier(fb, &roots);
+    b.bd.barrier_us += tb.elapsed().as_micros();
+    match begun {
+        Ok(barrier) => {
+            b.stage = Some(Stage {
+                run,
+                warm,
+                barrier,
+            })
+        }
+        Err(e) => {
+            let st = Stage {
+                run,
+                warm,
+                barrier: Barrier {
+                    roots,
+                    ..Default::default()
+                },
+            };
+            refuse_barrier(fb, gpu, b, st, e);
         }
     }
-    // Releases first (they free area pages and pages for the installs), then installs.
-    let mut order: Vec<(Op, bool)> = cold.iter().map(|o| (*o, false)).collect();
-    if warm_ok {
-        order.extend(warm.iter().map(|o| (*o, true)));
-    }
-    order.sort_by_key(|(o, _)| o.install);
+}
+
+/// The moves of a chunk (`run` in order; `warm` the ones a shadow maps, whose barrier holds
+/// when `barrier` is given), the replicas whose area page is free now, then the barrier's
+/// end: the re-sync of its roots, whose rings the worker releases after it (§15).
+fn run_moves(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, b: &mut Batch, run: Vec<Op>, warm: Vec<Op>, barrier: Option<Barrier>) {
+    let warm_op = |o: &Op| warm.iter().any(|w| w.g == o.g && w.x == o.x && w.install == o.install);
     let mut moved_warm = 0usize;
-    let mut moved = 0usize;
+    let maps0 = fb.vram_stats().map_or(0, |s| s.maps);
+    let mut installed_gs: Vec<u64> = Vec::new();
     let tm = Instant::now();
-    for (op, is_warm) in order {
+    for op in run {
+        let is_warm = warm_op(&op);
         let (pool0, _) = fb.bar1_pool().expect("on");
         let p = pool0 + op.g;
         let tc = Instant::now();
@@ -1624,19 +2596,25 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
             let ok = {
                 let guard = fb.pool_mut();
                 let pool = guard.as_ref().expect("on");
+                // The guest took the mapping back while the batch ran: nothing to install.
+                if pool.want.get(&op.g) != Some(&Target::Fb(op.x)) {
+                    continue;
+                }
                 admit(fb, pool, op.g, op.x)
             };
             if let Err(e) = ok {
                 if e.replicates() {
-                    replicate.push((op.g, op.x, e));
+                    b.replicate.push((op.g, op.x, e));
                 } else {
-                    refused.push((op, e.why().into()));
+                    b.refused.push((op, e.why().into()));
                 }
                 continue;
             }
             // A replica at this area page (the page was refused before and may move now,
             // or the area page served another page): its last area writes go home first.
             merge_replica(fb, op.g, true);
+            // A display record window over the page goes before the page leaves home.
+            fb.revoke_records(op.x / PAGE, op.x / PAGE + 1);
             fb.copy_page_raw(op.x, p);
             let mut guard = fb.pool_mut();
             let pool = guard.as_mut().expect("on");
@@ -1662,9 +2640,21 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
                 "",
             );
             pool.pending.remove(&op.g);
-            moved += 1;
+            installed_gs.push(op.g);
+            b.moved += 1;
         } else {
-            moved += 1;
+            {
+                let guard = fb.pool_mut();
+                let pool = guard.as_ref().expect("on");
+                // Moved out already, or the guest maps the page there again (re-lived
+                // while the batch ran): nothing to release.
+                if pool.table.holder(op.g) != Some(op.x)
+                    || (!op.evict && pool.want.get(&op.g) == Some(&Target::Fb(op.x)))
+                {
+                    continue;
+                }
+            }
+            b.moved += 1;
             fb.copy_page_raw(p, op.x);
             {
                 let mut guard = fb.pool_mut();
@@ -1672,6 +2662,20 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
                 pool.table.release(op.g);
                 pool.pooled_tables.remove(&op.g);
                 pool.waiting.remove(&op.g);
+                pool.retired.remove(&op.g);
+                match op.home {
+                    Some(Home::Slot) => pool.stats.slot_evictions += 1,
+                    Some(Home::Relocate) => pool.stats.relocations += 1,
+                    Some(Home::Aged) => pool.stats.aged_out += 1,
+                    None => {}
+                }
+                match op.home {
+                    Some(Home::Slot) => pool.churn.slot_evictions += 1,
+                    Some(Home::Relocate) => pool.churn.relocations += 1,
+                    Some(Home::Aged) => pool.churn.aged_out += 1,
+                    None => {}
+                }
+                pool.churn.releases += 1;
                 pool.stats.bytes_out += PAGE;
                 if is_warm {
                     pool.stats.releases_warm += 1;
@@ -1696,7 +2700,7 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
                 // have written it through the area since they read it), and the area page
                 // becomes its replica.
                 fb.note_pages_changed(&[op.x >> 12]);
-                replicate.push((op.g, op.x, Refusal::TablePage));
+                b.replicate.push((op.g, op.x, Refusal::TablePage));
                 let mut guard = fb.pool_mut();
                 let pool = guard.as_mut().expect("on");
                 pool.stats.table_evictions += 1;
@@ -1732,18 +2736,107 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
             moved_warm += 1;
         }
     }
-    bd.move_us = tm.elapsed().as_micros();
-    bd.moved = moved;
-    // The replicas decided in this poll, now that the releases freed their area pages.
-    for (g, x, why) in replicate {
-        let (free, first) = {
+    let move_us = tm.elapsed().as_micros();
+    b.bd.move_us += move_us;
+    b.bd.moved = b.moved;
+    let maps = fb.vram_stats().map_or(0, |s| s.maps).saturating_sub(maps0);
+    b.bd.window_maps += maps;
+    {
+        let mut guard = fb.pool_mut();
+        let pool = guard.as_mut().expect("on");
+        pool.stats.move_window_maps += maps;
+        pool.churn.window_maps += maps;
+        pool.churn.move_us += move_us;
+        pool.churn.installs += installed_gs.len() as u64;
+        pool.churn.note_runs(&mut installed_gs);
+    }
+    // The replicas whose area page is free now (an evicted table page's among them: its
+    // area page mirrors it from this hold on, not only at the end of the batch).
+    let list = std::mem::take(&mut b.replicate);
+    b.replicate = make_replicas(fb, list);
+    fb.flush();
+    let Some(bar) = barrier else { return };
+    let ntsgs = bar.ntsgs;
+    let nchannels = bar.nchannels;
+    let roots = bar.roots.clone();
+    fb.pool_mut().as_mut().expect("on").stats.preempts += ntsgs as u64;
+    if moved_warm == 0 {
+        gpu.cancel_barrier(bar);
+        return;
+    }
+    {
+        let mut guard = fb.pool_mut();
+        let pool = guard.as_mut().expect("on");
+        pool.rediff.extend(roots.iter().copied());
+        pool.stats.barriers += 1;
+    }
+    crate::profile::window("bar1 pool: warm-move barriers (units: pages)", moved_warm as u64);
+    let ts = Instant::now();
+    let (notes, jobs) = gpu.end_barrier(fb, bar);
+    b.notes.extend(notes);
+    b.bd.resync_us += ts.elapsed().as_micros();
+    let after = if jobs.is_empty() {
+        "the worker drained"
+    } else {
+        "their rings held until the worker applied the re-sync"
+    };
+    if !jobs.is_empty() {
+        b.wait = Some(Wait::Resync(jobs));
+    }
+    let line = format!(
+        "{moved_warm} page(s) the GPU maps moved behind the barrier ({nchannels} host channel(s) idle, {ntsgs} TSG(s) preempted); shadow(s) of root(s) {roots:x?} re-synced, {after}, before the guest continues"
+    );
+    let mut guard = fb.pool_mut();
+    guard.as_mut().expect("on").finding(false, line);
+}
+
+/// A barrier that failed: its rings released, the pages the GPU maps refused (retried), the
+/// others of the chunk moved.
+fn refuse_barrier(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, b: &mut Batch, st: Stage, e: String) {
+    let roots = st.barrier.roots.clone();
+    gpu.cancel_barrier(st.barrier);
+    for op in &st.warm {
+        b.refused.push((*op, format!("the GPU may be using it and the barrier failed: {e}")));
+    }
+    {
+        let mut guard = fb.pool_mut();
+        let pool = guard.as_mut().expect("on");
+        pool.stats.barriers_refused += 1;
+        crate::profile::window("bar1 pool: barriers refused", 0);
+        // Every refusal, with the wall time, for the reader of the host kernel log (a
+        // refused barrier moves nothing; the pages stay and are retried).
+        eprintln!(
+            "vfio-user-nvgpu: bar1 pool: at {} barrier {} refused for {} page(s) of root(s) {roots:x?} (first g {:#x} FB {:#x}): {e}; nothing moved, retried",
+            crate::untrapped::wall(),
+            pool.stats.barriers_refused,
+            st.warm.len(),
+            st.warm[0].g,
+            st.warm[0].x
+        );
+    }
+    let is_warm = |o: &Op| st.warm.iter().any(|w| w.g == o.g && w.x == o.x && w.install == o.install);
+    let cold: Vec<Op> = st.run.iter().filter(|o| !is_warm(o)).copied().collect();
+    run_moves(fb, gpu, b, cold, Vec::new(), None);
+}
+
+/// Make the replicas of `list` whose area page is free now; the others are returned (an
+/// area page a later chunk's release frees).
+fn make_replicas(fb: &mut FakeFb, list: Vec<(u64, u64, Refusal)>) -> Vec<(u64, u64, Refusal)> {
+    let mut later = Vec::new();
+    for (g, x, why) in list {
+        let (held, free, first) = {
             let guard = fb.pool_mut();
             let pool = guard.as_ref().expect("on");
             (
-                pool.table.holder(g).is_none() && pool.replicas.get(&g).is_none_or(|r| r.x != x),
+                pool.table.holder(g).is_some(),
+                pool.replicas.get(&g).is_none_or(|r| r.x != x),
                 !pool.reported.contains(&(g, key(Target::Fb(x)))),
             )
         };
+        if held {
+            later.push((g, x, why));
+            continue;
+        }
         if !free {
             continue;
         }
@@ -1773,49 +2866,59 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         };
         pool.finding(true, line);
     }
-    fb.flush();
-    if warm_ok && moved_warm > 0 {
-        {
-            let mut guard = fb.pool_mut();
-            let pool = guard.as_mut().expect("on");
-            pool.rediff.extend(roots.iter().copied());
-            pool.stats.barriers += 1;
-        }
-        crate::profile::window("bar1 pool: warm-move barriers (units: pages)", moved_warm as u64);
-        let ts = Instant::now();
-        notes.extend(gpu.resync(fb, &roots));
-        bd.resync_us = ts.elapsed().as_micros();
-        let (nc, nt) = match &barrier {
-            Some(Ok(q)) => *q,
-            _ => (0, 0),
-        };
-        let line = format!(
-            "{moved_warm} page(s) the GPU maps moved behind the barrier ({nc} host channel(s) idle, {nt} TSG(s) preempted); shadow(s) of root(s) {roots:x?} re-synced and the worker drained before the guest continues"
-        );
-        let mut guard = fb.pool_mut();
-        guard.as_mut().expect("on").finding(false, line);
+    later
+}
+
+/// A batch left for the next continuation: the hold so far counts as a poll's.
+fn park(fb: &mut FakeFb, mut b: Box<Batch>, t_hold: Instant) {
+    let mut guard = fb.pool_mut();
+    let Some(p) = guard.as_mut() else { return };
+    let hold = t_hold.elapsed().as_micros();
+    p.stats.max_poll_us = p.stats.max_poll_us.max(hold);
+    p.stats.slices_parked += 1;
+    if matches!(b.wait, Some(Wait::InFlight(_))) {
+        p.stats.in_flight_parked += 1;
     }
+    if b.stage.is_some() || matches!(b.wait, Some(Wait::Resync(_))) {
+        p.stats.barrier_parked += 1;
+    }
+    b.bd.total_us = hold;
+    b.bd.slices = b.slices;
+    p.last = b.bd.clone();
+    p.batch = Some(b);
+}
+
+/// The end of a batch: the replicas still due (an area page that is still held keeps none),
+/// the releases and refusals settled, the retry paced, the poll counted.
+fn settle(fb: &mut FakeFb, b: Batch, t_hold: Instant) {
+    let Batch {
+        releases,
+        refused,
+        replicate,
+        notes,
+        retry,
+        before,
+        moved,
+        since,
+        slices,
+        mut bd,
+        ..
+    } = b;
+    make_replicas(fb, replicate);
+    fb.flush();
     {
         let mut guard = fb.pool_mut();
         let pool = guard.as_mut().expect("on");
-        if let Some(Err(e)) = &barrier {
-            pool.stats.barriers_refused += 1;
-            crate::profile::window("bar1 pool: barriers refused", 0);
-            // Every refusal, with the wall time, for the reader of the host kernel log (a
-            // refused barrier moves nothing; the pages stay and are retried).
-            eprintln!(
-                "vfio-user-nvgpu: bar1 pool: at {} barrier {} refused for {} page(s) of root(s) {roots:x?} (first g {:#x} FB {:#x}): {e}; nothing moved, retried",
-                crate::untrapped::wall(),
-                pool.stats.barriers_refused,
-                warm.len(),
-                warm[0].g,
-                warm[0].x
-            );
+        pool.stats.refs_us += bd.refs_us;
+        pool.stats.barrier_us += bd.barrier_us;
+        pool.stats.move_us += bd.move_us;
+        pool.stats.resync_us += bd.resync_us;
+        pool.stats.in_flight_wait_us += bd.in_flight_us;
+        if slices > 1 {
+            pool.stats.sliced_batches += 1;
+            pool.stats.batch_max_us = pool.stats.batch_max_us.max(since.elapsed().as_micros());
         }
-        if let Some(Ok((_, nt))) = &barrier {
-            pool.stats.preempts += *nt as u64;
-        }
-        // Every release tried in this poll is settled here: done, or refused again.
+        // Every release tried in this batch is settled here: done, or refused again.
         for r in &releases {
             pool.waiting.remove(&r.g);
         }
@@ -1867,8 +2970,8 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         }
     }
     pace_retry(fb, retry, before, moved);
-    finish(fb, t0, bd);
-    true
+    bd.slices = slices;
+    finish(fb, t_hold, bd);
 }
 
 /// After a poll that retried refused remaps: back to [`RETRY_EVERY`] when it made progress
@@ -1905,6 +3008,11 @@ fn finish(fb: &FakeFb, t0: Instant, mut bd: PollBreakdown) {
     if let Some(p) = fb.pool_mut().as_mut() {
         bd.total_us = t0.elapsed().as_micros();
         p.stats.max_poll_us = p.stats.max_poll_us.max(bd.total_us);
+        if bd.ops > 0 || bd.retired > 0 || bd.relived > 0 {
+            p.churn.since.get_or_insert(t0);
+            p.churn.polls += 1;
+            p.churn.max_poll_us = p.churn.max_poll_us.max(bd.total_us);
+        }
         p.last = bd;
     }
 }
@@ -1935,6 +3043,22 @@ mod floor_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The knob: 32 MiB with host execution unless set, 0 for none, nothing without host
+    /// execution; a malformed or out-of-range size is refused.
+    #[test]
+    fn the_pool_knob() {
+        assert_eq!(parse_pool(None, true), Ok(Some(32 * MIB)));
+        assert_eq!(parse_pool(Some(" "), true), Ok(Some(32 * MIB)));
+        assert_eq!(parse_pool(None, false), Ok(None));
+        assert_eq!(parse_pool(Some("0"), true), Ok(None));
+        assert_eq!(parse_pool(Some("0"), false), Ok(None));
+        assert_eq!(parse_pool(Some("64"), true), Ok(Some(64 * MIB)));
+        assert!(parse_pool(Some("64"), false).unwrap_err().contains("host execution"));
+        assert!(parse_pool(Some("3"), true).is_err());
+        assert!(parse_pool(Some("130"), true).is_err());
+        assert!(parse_pool(Some("pool"), true).is_err());
+    }
 
     // A 64 MiB reservation [64 MiB, 128 MiB) in a 256 MiB FB with a 4 MiB pool: the pool is
     // [122 MiB, 126 MiB), the carve-out [126 MiB, 128 MiB), usable [64 MiB, 122 MiB).
@@ -1983,9 +3107,26 @@ mod tests {
         ok: bool,
         blocked: bool,
         resynced: Vec<u64>,
-        /// Calls of `refs` (the worker wait and the leaf scan) and of `userd_refs`.
+        /// Calls of `refs` (the leaf scan) and of `userd_refs`.
         refs_calls: std::cell::Cell<usize>,
         userd_calls: std::cell::Cell<usize>,
+        /// Shadow jobs in flight that took a page out of a walk (page -> job), the last job
+        /// applied, the bounded waits that time out before a job is applied, every wait,
+        /// and the stamp (a shadow job submitted).
+        in_flight: BTreeMap<u64, u64>,
+        done: std::cell::Cell<u64>,
+        slow_waits: std::cell::Cell<u32>,
+        waits: std::cell::RefCell<Vec<(u64, Option<Duration>)>>,
+        stamp: std::cell::Cell<u64>,
+        /// §15: the barrier as held rings and worker jobs: the roots held now, the polls
+        /// its preempts and its re-sync stay unapplied (a bounded wait), a failure, and the
+        /// barriers cancelled.
+        async_barrier: bool,
+        holds: std::cell::RefCell<BTreeSet<u64>>,
+        barrier_polls: std::cell::Cell<u32>,
+        resync_polls: std::cell::Cell<u32>,
+        barrier_fail: Option<String>,
+        cancelled: usize,
     }
 
     impl FakeGpu {
@@ -1999,6 +3140,17 @@ mod tests {
                 resynced: Vec::new(),
                 refs_calls: std::cell::Cell::new(0),
                 userd_calls: std::cell::Cell::new(0),
+                in_flight: BTreeMap::new(),
+                done: std::cell::Cell::new(0),
+                slow_waits: std::cell::Cell::new(0),
+                waits: std::cell::RefCell::new(Vec::new()),
+                stamp: std::cell::Cell::new(0),
+                async_barrier: false,
+                holds: std::cell::RefCell::new(BTreeSet::new()),
+                barrier_polls: std::cell::Cell::new(0),
+                resync_polls: std::cell::Cell::new(0),
+                barrier_fail: None,
+                cancelled: 0,
             }
         }
     }
@@ -2026,6 +3178,76 @@ mod tests {
             }
             m
         }
+        fn in_flight(&self, _fb: &FakeFb, pages: &BTreeSet<u64>) -> Option<u64> {
+            let done = self.done.get();
+            self.in_flight
+                .iter()
+                .filter(|(p, s)| **s > done && pages.contains(p))
+                .map(|(_, s)| *s)
+                .max()
+        }
+        fn wait_applied(&self, seq: u64, max: Option<Duration>) -> bool {
+            self.waits.borrow_mut().push((seq, max));
+            if max.is_some() && self.slow_waits.get() > 0 {
+                self.slow_waits.set(self.slow_waits.get() - 1);
+                return false;
+            }
+            self.done.set(self.done.get().max(seq));
+            true
+        }
+        fn stamp(&self) -> u64 {
+            self.stamp.get()
+        }
+        fn begin_barrier(&mut self, fb: &mut FakeFb, roots: &BTreeSet<u64>) -> Result<Barrier, String> {
+            let (nchannels, ntsgs) = self.quiesce(fb, roots)?;
+            let mut b = Barrier {
+                roots: roots.clone(),
+                nchannels,
+                ntsgs,
+                ..Default::default()
+            };
+            if self.async_barrier {
+                self.holds.borrow_mut().extend(roots.iter().copied());
+                b.tokens = roots.iter().map(|r| (*r, 1)).collect();
+                b.jobs = vec![(self.root, 50)];
+            }
+            Ok(b)
+        }
+        fn barrier_ready(&mut self, _fb: &mut FakeFb, b: &Barrier, max: Option<Duration>) -> Result<bool, String> {
+            if b.tokens.is_empty() {
+                return Ok(true);
+            }
+            if let Some(e) = &self.barrier_fail {
+                return Err(e.clone());
+            }
+            if max.is_some() && self.barrier_polls.get() > 0 {
+                self.barrier_polls.set(self.barrier_polls.get() - 1);
+                return Ok(false);
+            }
+            Ok(true)
+        }
+        fn end_barrier(&mut self, fb: &mut FakeFb, b: Barrier) -> (Vec<String>, Vec<(u64, u64)>) {
+            let notes = self.resync(fb, &b.roots);
+            if b.tokens.is_empty() {
+                return (notes, Vec::new());
+            }
+            (notes, vec![(self.root, 60)])
+        }
+        fn cancel_barrier(&mut self, b: Barrier) {
+            if !b.tokens.is_empty() {
+                self.cancelled += 1;
+                self.holds.borrow_mut().clear();
+            }
+        }
+        fn jobs_applied(&self, _jobs: &[(u64, u64)], max: Option<Duration>) -> bool {
+            if max.is_some() && self.resync_polls.get() > 0 {
+                self.resync_polls.set(self.resync_polls.get() - 1);
+                return false;
+            }
+            // The worker released the rings after the re-sync.
+            self.holds.borrow_mut().clear();
+            true
+        }
         fn quiesce(&mut self, _fb: &mut FakeFb, _roots: &BTreeSet<u64>) -> Result<(usize, usize), String> {
             if self.ok {
                 Ok((2, 1))
@@ -2050,6 +3272,21 @@ mod tests {
 
     fn pending(fb: &FakeFb) -> usize {
         fb.pool_mut().as_ref().unwrap().pending.len()
+    }
+
+    /// Make every retired page due for its move home at the next poll (§13).
+    fn age_retired(fb: &FakeFb) {
+        let mut g = fb.pool_mut();
+        let p = g.as_mut().unwrap();
+        let old = Instant::now() - RETIRE_AGE - Duration::from_millis(1);
+        for t in p.retired.values_mut() {
+            *t = old;
+        }
+        p.last_age_scan = None;
+    }
+
+    fn retired(fb: &FakeFb) -> usize {
+        fb.pool_mut().as_ref().unwrap().retired_now()
     }
 
     fn expire_retry(fb: &FakeFb) {
@@ -2237,6 +3474,162 @@ mod tests {
         assert_eq!(u64::from_le_bytes(w), pte(BASE + 0x44_0000));
     }
 
+    /// The lazy move back (§13, Windows' BAR1 churn): a page the guest unmaps stays in the
+    /// pool, retired, and mapped again at the same area page it is live again: no copy
+    /// either way, as a BAR1 remap costs no copy on the real card. Every path keeps finding
+    /// it at its pool page meanwhile.
+    #[test]
+    fn a_page_mapped_again_at_its_area_page_costs_no_copy() {
+        let (mut fb, pt, pool0) = setup();
+        let x = BASE + 0x10_0000;
+        fb.write(x, &[1; 8]);
+        assert!(poll(&mut fb, &mut NoGpu));
+        let p = pool0 + 0x5000;
+        for round in 0..5 {
+            fb.write_u64(pt + 8 * 5, pte(x));
+            assert!(poll(&mut fb, &mut NoGpu));
+            assert_eq!((fb.remap(x), retired(&fb)), (p, 0), "round {round}");
+            fb.write_u64(pt + 8 * 5, 0);
+            assert!(poll(&mut fb, &mut NoGpu));
+            assert_eq!((fb.remap(x), retired(&fb)), (p, 1), "round {round}");
+            // The device and the GPU still find the page at its pool page.
+            fb.write(x, &[round as u8 + 2; 8]);
+            let mut b = [0u8; 8];
+            fb.read_raw(p, &mut b);
+            assert_eq!(b, [round as u8 + 2; 8]);
+        }
+        let st = stats(&fb);
+        assert_eq!((st.installs_cold, st.bytes_in, st.releases_cold, st.bytes_out), (1, PAGE, 0, 0));
+        assert_eq!((st.retires, st.relives), (5, 4));
+        assert!(fb.bar1_pool_summary().unwrap().contains("1 retired now, 5 retired in all"));
+        // The pool counts the page as not mapped by the guest ("pool empty" is about the
+        // guest's mappings).
+        assert_eq!(fb.pool_mut().as_ref().unwrap().live(), 0);
+        // The churn line (the trace, once per second with activity).
+        {
+            let mut g = fb.pool_mut();
+            let pl = g.as_mut().unwrap();
+            assert!(pl.take_churn().is_none(), "not a second yet");
+            pl.churn.since = Some(Instant::now() - CHURN_EVERY);
+            let line = pl.take_churn().unwrap();
+            assert!(line.contains("retired 5 (no copy), re-lived 4 (no copy)"), "{line}");
+            assert!(line.contains("moved in 1 and home 0 page(s)"), "{line}");
+            assert!(pl.take_churn().is_none(), "reset after the line");
+        }
+    }
+
+    /// Another page wanted at a retired page's area page: the retired page goes home first
+    /// with every byte written meanwhile (one copy, as every unmap did before), then the new
+    /// page moves in. A retired page the guest maps at another area page goes home and in
+    /// there; one that ages out goes home.
+    #[test]
+    fn a_retired_page_goes_home_when_its_area_page_is_needed_or_it_moves_or_ages() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let (x, y, z) = (BASE + 0x10_0000, BASE + 0x11_0000, BASE + 0x12_0000);
+        fb.write_u64(pt + 8 * 5, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(x + 8, 0x7777);
+        // y at the same area page: x home with its bytes, y in.
+        fb.write_u64(pt + 8 * 5, pte(y));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(x), fb.remap(y), retired(&fb)), (x, pool0 + 0x5000, 0));
+        let mut w = [0u8; 8];
+        fb.read_raw(x + 8, &mut w);
+        assert_eq!(u64::from_le_bytes(w), 0x7777, "the retired page's bytes went home");
+        assert_eq!(stats(&fb).slot_evictions, 1);
+        // y unmapped (retired), then mapped at another area page: home first, then in there,
+        // in the same poll.
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(y, 0x8888);
+        fb.write_u64(pt + 8 * 7, pte(y));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(y), retired(&fb)), (pool0 + 0x7000, 0));
+        assert_eq!(fb.read_u64(y), Some(0x8888));
+        fb.read_raw(pool0 + 0x7000, &mut w);
+        assert_eq!(u64::from_le_bytes(w), 0x8888);
+        assert_eq!(stats(&fb).relocations, 1);
+        // z mapped and unmapped: it goes home only once it is RETIRE_AGE old.
+        fb.write_u64(pt + 8 * 9, pte(z));
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(pt + 8 * 9, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!poll(&mut fb, &mut NoGpu), "not due yet: the poll stays idle");
+        assert_eq!(fb.remap(z), pool0 + 0x9000);
+        age_retired(&fb);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(z), stats(&fb).aged_out), (z, 1));
+    }
+
+    /// A retired page the GPU maps goes home behind the barrier only when it must (another
+    /// page wanted at its area page); its retirement itself asks the GPU nothing.
+    #[test]
+    fn a_retired_page_the_gpu_maps_goes_home_behind_the_barrier() {
+        let (mut fb, pt, pool0) = setup();
+        let x = BASE + 0x30_0000;
+        assert!(poll(&mut fb, &mut NoGpu));
+        let mut gpu = FakeGpu::new(0x1234_0000);
+        fb.write_u64(pt + 8, pte(x));
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(fb.remap(x), pool0 + 0x1000);
+        gpu.used.insert(x);
+        let r0 = gpu.refs_calls.get();
+        fb.write_u64(pt + 8, 0);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((gpu.refs_calls.get(), stats(&fb).barriers), (r0, 0), "retiring asks nothing");
+        let y = BASE + 0x31_0000;
+        fb.write_u64(pt + 8, pte(y));
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((fb.remap(x), fb.remap(y)), (x, pool0 + 0x1000));
+        let st = stats(&fb);
+        assert_eq!((st.barriers, st.releases_warm, st.slot_evictions), (1, 1, 1));
+        assert_eq!(gpu.resynced, vec![0x1234_0000]);
+    }
+
+    /// A retired page that becomes a guest page table goes home like a pooled one (the
+    /// table-page rule, §10): the walk must see every write the guest makes.
+    #[test]
+    fn a_retired_page_that_becomes_a_table_page_goes_home() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let cpt = BASE + 0x10_4000;
+        fb.write_u64(cpt + 8 * 3, pte(BASE + 0x40_0000));
+        fb.write_u64(pt + 8 * 5, pte(cpt));
+        assert!(poll(&mut fb, &mut NoGpu));
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(cpt), retired(&fb)), (pool0 + 0x5000, 1));
+        let (root, _) = context_tree(&mut fb);
+        assert_eq!(leaf_at(&fb, root, 0x3000), Some(Target::Fb(BASE + 0x40_0000)));
+        assert!(sync_untracked(&mut fb));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(cpt), retired(&fb)), (cpt, 0));
+        assert_eq!(stats(&fb).table_evictions, 1);
+        assert_eq!(fb.read_u64(cpt + 8 * 3), Some(pte(BASE + 0x40_0000)));
+    }
+
+    /// The device CE is kept off pooled pages (fb.rs `plain_vram`), retired ones included:
+    /// counted for the summary (§13).
+    #[test]
+    fn a_device_ce_transfer_over_a_pooled_page_stays_on_the_cpu_and_is_counted() {
+        let (mut fb, pt, _pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let x = BASE + 0x10_0000;
+        assert!(fb.plain_vram(x, 0x10000));
+        fb.write_u64(pt + 8 * 5, pte(x + 0x2000));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!fb.plain_vram(x, 0x10000));
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!fb.plain_vram(x, 0x10000));
+        assert!(fb.plain_vram(x + 0x3000, 0x1000));
+        let st = stats(&fb);
+        assert_eq!((st.devce_blocked.get(), st.devce_blocked_retired.get()), (2, 1));
+    }
+
     #[test]
     fn the_remap_table_installs_translates_and_releases() {
         let usable = (BASE, END - 6 * MIB);
@@ -2365,11 +3758,19 @@ mod tests {
         ]);
         assert_eq!(leaves[0].1, Target::Fb(p));
         assert_eq!(leaves[1].1, Target::Fb(x + PAGE));
-        // The guest unmaps the page: the pool page is copied back to X, the remap goes.
+        // The guest unmaps the page: it stays in the pool, retired, no copy (§13); every
+        // path still finds it at its pool page.
         fb.write_u64(pt + 8 * 5, 0);
         assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((stats(&fb).releases_cold, stats(&fb).bytes_out, stats(&fb).retires), (0, 0, 1));
+        assert_eq!(fb.remap(x), p);
+        assert_eq!(retired(&fb), 1);
+        // After RETIRE_AGE it goes home: the pool page is copied back to X, the remap goes.
+        age_retired(&fb);
+        assert!(poll(&mut fb, &mut NoGpu));
         let st = stats(&fb);
-        assert_eq!((st.releases_cold, st.bytes_out), (1, PAGE));
+        assert_eq!((st.releases_cold, st.bytes_out, st.aged_out), (1, PAGE, 1));
+        assert_eq!(retired(&fb), 0);
         assert_eq!(fb.remap(x), x);
         fb.read(x, &mut b);
         assert_eq!(b, [9, 9, 9, 9]);
@@ -2386,11 +3787,12 @@ mod tests {
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(fb.remap(x), pool0 + 0xA000);
         let st = stats(&fb);
-        assert_eq!((st.installs_cold, st.releases_cold), (3, 2));
+        // 0x9000 was retired, then relocated: home first, then in at 0xA000.
+        assert_eq!((st.installs_cold, st.releases_cold, st.relocations), (3, 2, 1));
         assert!(fb.bar1_pool_summary().unwrap().contains("1 page(s) in the pool now"));
         // A function-level reset: the pool and its counters carry over, the remaps go.
         let fresh = FakeFb::for_layout(&layout());
-        fb.carry_bar1_passthrough(&fresh);
+        fb.carry_bar1_pool(&fresh);
         assert_eq!(fresh.bar1_pool(), Some((pool0, POOL)));
         assert_eq!(fresh.remap(x), x);
         assert_eq!(stats(&fresh).installs_cold, 3);
@@ -2452,11 +3854,320 @@ mod tests {
         assert_eq!(replicas(&fb), 0);
         assert_eq!(fb.read_u64(x + 0x3008), Some(0x5a5a));
         assert_eq!(fb.read_u64(x + 0x3010), Some(0x6b6b));
-        // The big page goes: all 16 pages move back.
+        // The big page goes: its 16 pages retire, then move back when they age out.
         fb.write_u64(big + 8, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(retired(&fb), 16);
+        assert_eq!(fb.remap(x), pool0 + 0x1_0000);
+        age_retired(&fb);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(fb.remap(x), x);
         assert_eq!(stats(&fb).releases_cold, 17);
+    }
+
+    fn batch_pending(fb: &FakeFb) -> bool {
+        fb.pool_mut().as_ref().unwrap().batch_pending()
+    }
+
+    /// A chunk per hold.
+    const TINY: Pace = Pace {
+        budget: Some(Duration::ZERO),
+        wait: Some(WAIT_SLICE),
+    };
+
+    /// The pages of `xs` that live in the pool now.
+    fn pooled(fb: &FakeFb, xs: &[u64]) -> usize {
+        xs.iter().filter(|x| fb.remap(**x) != **x).count()
+    }
+
+    /// §14: the GPU check waits for the shadow worker only when a job in flight took a page
+    /// to move out of a walk (the host still maps it until the job is applied), and only
+    /// for that job. Outside an invalidate the wait runs to the end; inside one it is left
+    /// to the trigger reads, each waiting at most WAIT_SLICE, and the page moves once the
+    /// job is applied.
+    #[test]
+    fn a_page_a_plan_in_flight_took_out_of_a_walk_waits_for_that_plan_only() {
+        let (mut fb, pt, pool0) = setup();
+        let (x, y, z) = (BASE + 0x30_0000, BASE + 0x31_0000, BASE + 0x32_0000);
+        fb.write(x, &[7; 8]);
+        let mut gpu = FakeGpu::new(0x1234_0000);
+        // Nothing in flight touches the pages: no wait at all.
+        fb.write_u64(pt + 8, pte(y));
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(fb.remap(y), pool0 + 0x1000);
+        assert!(gpu.waits.borrow().is_empty());
+        // Job 5 took X out of a shadow's walk and is not applied yet.
+        gpu.in_flight.insert(x, 5);
+        gpu.stamp.set(1);
+        fb.write_u64(pt + 16, pte(x));
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(*gpu.waits.borrow(), vec![(5, None)]);
+        assert_eq!(fb.remap(x), pool0 + 0x2000);
+        let mut b = [0u8; 8];
+        fb.read(pool0 + 0x2000, &mut b);
+        assert_eq!(b, [7; 8]);
+        let st = stats(&fb);
+        assert_eq!((st.installs_cold, st.installs_warm, st.in_flight_waits), (2, 0, 1));
+        // Inside an invalidate: job 9 took Z out of a walk and needs two more trigger reads.
+        gpu.in_flight.insert(z, 9);
+        gpu.stamp.set(2);
+        gpu.slow_waits.set(2);
+        fb.write_u64(pt + 24, pte(z));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, Pace::SLICED));
+        assert!(batch_pending(&fb));
+        assert_eq!(fb.remap(z), z);
+        // A sync point outside the invalidate: no wait beyond WAIT_SLICE, the batch waits.
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::NO_WAIT));
+        assert!(batch_pending(&fb));
+        assert_eq!(gpu.waits.borrow().last(), Some(&(9, Some(WAIT_SLICE))));
+        // The invalidate page (its trigger is cleared when the poll returns) waits to the end.
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::ALL));
+        assert_eq!(gpu.waits.borrow().last(), Some(&(9, None)));
+        assert_eq!(fb.remap(z), pool0 + 0x3000);
+        assert!(!batch_pending(&fb));
+        // The same with the trigger reads only.
+        let w = BASE + 0x33_0000;
+        gpu.in_flight.insert(w, 12);
+        gpu.stamp.set(3);
+        gpu.slow_waits.set(2);
+        fb.write_u64(pt + 32, pte(w));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, Pace::SLICED));
+        assert!(batch_pending(&fb));
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::SLICED));
+        assert!(batch_pending(&fb), "the job is not applied yet");
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::SLICED));
+        assert!(!batch_pending(&fb));
+        assert_eq!(fb.remap(w), pool0 + 0x4000);
+        assert!(gpu.waits.borrow().iter().rev().take(3).all(|w| *w == (12, Some(WAIT_SLICE))));
+        let st = stats(&fb);
+        assert_eq!((st.in_flight_waits, st.in_flight_parked, st.sliced_batches), (3, 4, 2));
+        assert_eq!(st.installs_cold, 4);
+    }
+
+    /// §14: inside an invalidate the moves run a chunk per hold of the device lock; between
+    /// two holds every page is either home or in the pool with its bytes, and the rest
+    /// follows at the trigger reads. A mapping the guest makes meanwhile is decided once
+    /// the batch is done, in the same hold. A sync point outside an invalidate finishes a
+    /// batch at once.
+    #[test]
+    fn a_sliced_batch_moves_a_chunk_per_hold_and_the_pool_is_consistent_between_holds() {
+        let (mut fb, pt, pool0) = setup();
+        let xs: Vec<u64> = (0..40u64).map(|i| BASE + 0x30_0000 + i * 0x1000).collect();
+        for (i, x) in xs.iter().enumerate() {
+            fb.write(*x, &[i as u8; 8]);
+            fb.write_u64(pt + 8 * (i as u64 + 1), pte(*x));
+        }
+        assert!(poll_sliced(&mut fb, &mut NoGpu, true, TINY));
+        assert!(batch_pending(&fb));
+        assert_eq!(pooled(&fb, &xs), CHUNK);
+        let check = |fb: &FakeFb| {
+            for (i, x) in xs.iter().enumerate() {
+                let mut b = [0u8; 8];
+                fb.read(*x, &mut b);
+                assert_eq!(b, [i as u8; 8], "page {i} reads its bytes wherever it lives");
+            }
+        };
+        check(&fb);
+        // A new mapping while the batch runs.
+        let w = BASE + 0x40_0000;
+        fb.write(w, &[0xAA; 8]);
+        fb.write_u64(pt + 8 * 45, pte(w));
+        assert!(poll_sliced(&mut fb, &mut NoGpu, false, TINY));
+        assert_eq!(pooled(&fb, &xs), 2 * CHUNK);
+        assert_eq!(fb.remap(w), w, "decided after the batch");
+        check(&fb);
+        assert!(poll_sliced(&mut fb, &mut NoGpu, false, TINY));
+        assert!(!batch_pending(&fb));
+        assert_eq!(pooled(&fb, &xs), 40);
+        assert_eq!(fb.remap(w), pool0 + 45 * 0x1000, "the batch done, the new mapping follows");
+        check(&fb);
+        let st = stats(&fb);
+        assert_eq!((st.installs_cold, st.sliced_batches, st.slices_parked), (41, 1, 2));
+        // Other pages at the same area pages: 40 moves home and 40 in, a chunk per hold;
+        // then a sync point outside an invalidate (no budget) finishes the batch.
+        let ys: Vec<u64> = (0..40u64).map(|i| BASE + 0x50_0000 + i * 0x1000).collect();
+        for (i, y) in ys.iter().enumerate() {
+            fb.write(*y, &[0x80 | i as u8; 8]);
+            fb.write_u64(pt + 8 * (i as u64 + 1), pte(*y));
+        }
+        assert!(poll_sliced(&mut fb, &mut NoGpu, true, TINY));
+        assert!(batch_pending(&fb));
+        assert_eq!(pooled(&fb, &xs), 40 - CHUNK, "the releases run first");
+        assert_eq!(pooled(&fb, &ys), 0);
+        check(&fb);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!batch_pending(&fb));
+        assert_eq!((pooled(&fb, &xs), pooled(&fb, &ys)), (0, 40));
+        check(&fb);
+        for (i, y) in ys.iter().enumerate() {
+            let mut b = [0u8; 8];
+            fb.read(pool0 + (i as u64 + 1) * 0x1000, &mut b);
+            assert_eq!(b, [0x80 | i as u8; 8]);
+            assert_eq!(fb.remap(*y), pool0 + (i as u64 + 1) * 0x1000);
+        }
+    }
+
+    /// §14: a batch asks the GPU side again when a shadow job was submitted between two
+    /// holds (a plan may have mapped a page it still has to move): that page moves behind
+    /// the barrier. Without a new job the answers stand.
+    #[test]
+    fn a_batch_asks_the_gpu_again_when_a_shadow_job_was_submitted_between_holds() {
+        let (mut fb, pt, pool0) = setup();
+        let root = 0x1234_0000;
+        let mut gpu = FakeGpu::new(root);
+        let xs: Vec<u64> = (0..20u64).map(|i| BASE + 0x30_0000 + i * 0x1000).collect();
+        for (i, x) in xs.iter().enumerate() {
+            fb.write_u64(pt + 8 * (i as u64 + 1), pte(*x));
+        }
+        assert!(poll_sliced(&mut fb, &mut gpu, true, TINY));
+        assert_eq!(pooled(&fb, &xs), CHUNK);
+        assert_eq!(gpu.refs_calls.get(), 1);
+        // A plan maps page 18 while the lock is free.
+        gpu.used.insert(xs[18]);
+        gpu.stamp.set(1);
+        assert!(poll_sliced(&mut fb, &mut gpu, false, TINY));
+        assert!(!batch_pending(&fb));
+        assert_eq!(gpu.refs_calls.get(), 2);
+        assert_eq!(fb.remap(xs[18]), pool0 + 19 * 0x1000);
+        assert_eq!(gpu.resynced, vec![root]);
+        let st = stats(&fb);
+        assert_eq!((st.installs_cold, st.installs_warm, st.barriers), (19, 1, 1));
+        // The same stamp: no new question.
+        let ys: Vec<u64> = (0..20u64).map(|i| BASE + 0x50_0000 + i * 0x1000).collect();
+        for (i, y) in ys.iter().enumerate() {
+            fb.write_u64(pt + 8 * (i as u64 + 30), pte(*y));
+        }
+        assert!(poll_sliced(&mut fb, &mut gpu, true, TINY));
+        assert!(poll_sliced(&mut fb, &mut gpu, false, TINY));
+        assert!(!batch_pending(&fb));
+        assert_eq!(gpu.refs_calls.get(), 3);
+        assert_eq!(pooled(&fb, &ys), 20);
+    }
+
+    /// §14: a batch pending past BATCH_FALLBACK runs all its moves at its next hold, well
+    /// inside the guest's poll of the trigger; a wait for a job in flight stays bounded (the
+    /// device lock is never held waiting for the worker), so the trigger reads busy until
+    /// the job is applied.
+    #[test]
+    fn a_batch_pending_past_the_fallback_moves_everything_but_never_waits_to_the_end() {
+        let (mut fb, pt, _) = setup();
+        let mut gpu = FakeGpu::new(0x1234_0000);
+        let xs: Vec<u64> = (0..40u64).map(|i| BASE + 0x30_0000 + i * 0x1000).collect();
+        for (i, x) in xs.iter().enumerate() {
+            fb.write_u64(pt + 8 * (i as u64 + 1), pte(*x));
+        }
+        gpu.in_flight.insert(xs[39], 3);
+        gpu.slow_waits.set(100);
+        assert!(poll_sliced(&mut fb, &mut gpu, true, TINY));
+        assert!(batch_pending(&fb));
+        assert_eq!(pooled(&fb, &xs), 0, "the whole batch waits for job 3");
+        fb.pool_mut().as_mut().unwrap().batch.as_mut().unwrap().since =
+            Instant::now() - BATCH_FALLBACK;
+        assert!(poll_sliced(&mut fb, &mut gpu, false, TINY));
+        assert!(batch_pending(&fb));
+        assert!(gpu.waits.borrow().iter().all(|w| w.1 == Some(WAIT_SLICE)));
+        gpu.slow_waits.set(0);
+        assert!(poll_sliced(&mut fb, &mut gpu, false, TINY));
+        assert!(!batch_pending(&fb));
+        assert_eq!(pooled(&fb, &xs), 40, "all at once past the fallback");
+    }
+
+    /// §15: a page a shadow maps moves behind held rings and worker jobs, with no wait for
+    /// the worker under the device lock: the poll holds the root's rings and queues the
+    /// preempt; the trigger reads (bounded waits) find it done, move the page and queue the
+    /// re-sync; the worker releases the rings after it and the trigger clears. A barrier whose
+    /// preempt fails releases the rings and refuses the page (retried).
+    #[test]
+    fn a_page_the_gpu_maps_moves_behind_held_rings_without_a_wait_under_the_lock() {
+        let (mut fb, pt, pool0) = setup();
+        let root = 0x1234_0000;
+        let x = BASE + 0x30_0000;
+        fb.write(x, &[7; 8]);
+        assert!(poll(&mut fb, &mut NoGpu));
+        let mut gpu = FakeGpu::new(root);
+        gpu.async_barrier = true;
+        gpu.used.insert(x);
+        gpu.barrier_polls.set(2);
+        gpu.resync_polls.set(1);
+        fb.write_u64(pt + 8, pte(x));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, Pace::SLICED));
+        assert!(batch_pending(&fb));
+        assert_eq!(fb.remap(x), x, "nothing moves before the preempt ran");
+        assert_eq!(*gpu.holds.borrow(), BTreeSet::from([root]));
+        // Trigger reads: the preempt is not done yet.
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::SLICED));
+        assert_eq!(fb.remap(x), x);
+        // The preempt ran: the page moves, the re-sync is queued, the rings stay held.
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::SLICED));
+        assert_eq!(fb.remap(x), pool0 + 0x1000);
+        assert_eq!(gpu.resynced, vec![root]);
+        assert!(batch_pending(&fb), "the trigger waits for the re-sync");
+        assert_eq!(gpu.holds.borrow().len(), 1);
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::SLICED));
+        assert!(!batch_pending(&fb));
+        assert!(gpu.holds.borrow().is_empty(), "the worker released the rings");
+        let mut b = [0u8; 8];
+        fb.read(pool0 + 0x1000, &mut b);
+        assert_eq!(b, [7; 8]);
+        let st = stats(&fb);
+        assert_eq!((st.installs_warm, st.barriers, st.barriers_refused, st.preempts), (1, 1, 0, 1));
+        assert_eq!(st.barrier_parked, 3);
+        // A preempt that fails: the rings go, the page is refused and waits.
+        let y = BASE + 0x31_0000;
+        gpu.used.insert(y);
+        gpu.barrier_fail = Some("preempt of host TSG 0x5: status 0x1f".into());
+        gpu.stamp.set(1);
+        fb.write_u64(pt + 16, pte(y));
+        assert!(poll_sliced(&mut fb, &mut gpu, true, Pace::SLICED));
+        assert!(!batch_pending(&fb));
+        assert_eq!(fb.remap(y), y);
+        assert_eq!(gpu.cancelled, 1);
+        assert!(gpu.holds.borrow().is_empty());
+        assert_eq!(pending(&fb), 1);
+        assert_eq!(stats(&fb).barriers_refused, 1);
+        // The invalidate page's pace waits to the end: one poll does it all.
+        gpu.barrier_fail = None;
+        gpu.barrier_polls.set(5);
+        gpu.resync_polls.set(5);
+        expire_retry(&fb);
+        assert!(poll_sliced(&mut fb, &mut gpu, false, Pace::ALL));
+        assert!(!batch_pending(&fb));
+        assert_eq!(fb.remap(y), pool0 + 0x2000);
+        assert!(gpu.holds.borrow().is_empty());
+    }
+
+    /// §16: a trapped BAR0 write that is no merge point polls only when the pool has work
+    /// due: a BAR1 table page written through a tracked path, a retired page to age (at most
+    /// every RETIRE_SCAN), a paced retry; the replica report names each replica.
+    #[test]
+    fn the_pool_has_work_due_only_after_a_tracked_change_or_on_its_clocks() {
+        let (mut fb, pt, _) = setup();
+        let due = |fb: &FakeFb| fb.pool_mut().as_ref().unwrap().work_due(Instant::now());
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!due(&fb), "a quiet pool");
+        let x = BASE + 0x30_0000;
+        fb.write_u64(pt + 8, pte(x));
+        assert!(due(&fb), "a BAR1 PTE written through a tracked path");
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert!(!due(&fb));
+        // Unmapped: retired; the age scan is due once RETIRE_SCAN passed since the last.
+        fb.write_u64(pt + 8, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(retired(&fb), 1);
+        assert!(due(&fb), "never scanned");
+        assert!(!poll(&mut fb, &mut NoGpu), "the scan finds nothing aged");
+        assert!(!due(&fb), "scanned just now");
+        fb.pool_mut().as_mut().unwrap().last_age_scan = Some(Instant::now() - RETIRE_SCAN);
+        assert!(due(&fb));
+        // An alias makes a replica; the report names it.
+        fb.write_u64(pt + 8, pte(x));
+        fb.write_u64(pt + 16, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(replicas(&fb), 1);
+        sync_untracked(&mut fb);
+        let r = fb.pool_mut().as_ref().unwrap().replicas.values().next().map(|r| (r.merges, r.x)).unwrap();
+        assert_eq!(r.1, x);
+        assert!(r.0 >= 1);
     }
 
     #[test]
@@ -2540,18 +4251,22 @@ mod tests {
         let mut gpu = FakeGpu::new(root);
         gpu.used.insert(x);
         gpu.ok = false;
-        // The guest unmaps the area page, then maps another page there.
+        // The guest unmaps the area page: retired, nothing moves and no barrier is asked
+        // for (§13).
         fb.write_u64(pt + 8, 0);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((fb.remap(x), retired(&fb), stats(&fb).barriers_refused), (pool0 + 0x1000, 1, 0));
+        // Then it maps another page there: the retired page must go home, behind the
+        // barrier, which is refused again and again.
+        let y = BASE + 0x31_0000;
+        fb.write_u64(pt + 8, pte(y));
+        assert!(poll(&mut fb, &mut gpu));
         for i in 0..14 {
             expire_retry(&fb);
             assert!(poll(&mut fb, &mut gpu));
             assert_eq!(fb.remap(x), pool0 + 0x1000, "moved at refusal {i}");
             assert!(!fb.pool_rediff_pending(root));
         }
-        let y = BASE + 0x31_0000;
-        fb.write_u64(pt + 8, pte(y));
-        expire_retry(&fb);
-        assert!(poll(&mut fb, &mut gpu));
         assert_eq!((fb.remap(x), fb.remap(y)), (pool0 + 0x1000, y));
         let st = stats(&fb);
         assert_eq!((st.barriers_refused, st.releases_cold, st.releases_warm), (15, 0, 0));
@@ -2566,7 +4281,7 @@ mod tests {
         assert!(poll(&mut fb, &mut gpu));
         assert_eq!((fb.remap(x), fb.remap(y)), (x, pool0 + 0x1000));
         let st = stats(&fb);
-        assert_eq!((st.releases_cold, st.installs_cold, st.barriers), (1, 2, 0));
+        assert_eq!((st.releases_cold, st.installs_cold, st.barriers, st.slot_evictions), (1, 2, 0, 1));
         fb.read(x, &mut b);
         assert_eq!(b, [9; 8]);
         assert!(gpu.resynced.is_empty());
@@ -2652,15 +4367,20 @@ mod tests {
         assert_eq!(fb.remap(x), pool0 + 0x5000);
         let (r0, u0) = (gpu.refs_calls.get(), gpu.userd_calls.get());
         assert_eq!((r0, u0), (1, 1));
-        // The page becomes a channel's USERD; the guest unmaps it: refused, waiting.
+        // The page becomes a channel's USERD; the guest unmaps it: retired, no GPU check
+        // (§13). Once it is due to go home, its move is refused: waiting.
         gpu.userd.insert(x);
         fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((fb.remap(x), retired(&fb)), (pool0 + 0x5000, 1));
+        assert_eq!((gpu.refs_calls.get(), gpu.userd_calls.get()), (r0, u0));
+        age_retired(&fb);
         assert!(poll(&mut fb, &mut gpu));
         assert_eq!(fb.remap(x), pool0 + 0x5000);
         assert_eq!((gpu.refs_calls.get(), gpu.userd_calls.get()), (r0, u0 + 1));
         assert!(stats(&fb).first.iter().any(|l| l.contains("USERD of mirrored channel")));
         let lb = last(&fb);
-        assert_eq!((lb.candidates, lb.ops, lb.refs_pages), (1, 1, 0));
+        assert_eq!((lb.candidates, lb.ops, lb.refs_pages), (0, 1, 0));
         assert!(lb.to_string().contains("(0 page(s)); barrier"), "{lb}");
         // Shadow walks that add table pages outside the pool: the poll stays idle.
         hold_retry(&fb);
@@ -2715,8 +4435,12 @@ mod tests {
         fb.write_u64(pt1 + 8 * 2, 0);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!((stats(&fb).units_walked, stats(&fb).units_path_only), (w0 + 2, 3));
-        assert_eq!(fb.remap(x), x);
         assert_eq!(last(&fb).candidates, 1);
+        // Retired (§13): it stays at its pool page until it ages out.
+        assert_eq!(fb.remap(x), pool0 + 2 * MIB + 0x2000);
+        age_retired(&fb);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(fb.remap(x), x);
     }
 
     /// A poll after a BAR0 write that is no flush point (`poll_at` without `merge`) leaves
@@ -2742,6 +4466,35 @@ mod tests {
         assert!(poll_at(&mut fb, &mut NoGpu, true));
         assert_eq!(fb.read_u64(x + 16), Some(0xabcd));
         assert_eq!(last(&fb).replicas_merged, 1);
+    }
+
+    /// At an MMU invalidate only the replicas whose home is a page table the device follows
+    /// are merged ([`sync_untracked_tables`]): the guest's PTE write through the area reaches
+    /// the walk, while a data replica's write waits for the next engine start, whose flush
+    /// point ([`sync_untracked`]) merges it.
+    #[test]
+    fn an_invalidate_merges_the_table_replicas_and_leaves_the_data_ones() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        // A table replica: the shadow watches cpt, the guest maps it into area page 5.
+        let (root, cpt) = context_tree(&mut fb);
+        fb.write_u64(pt + 8 * 5, pte(cpt));
+        // A data replica: x mapped twice, area page 7 holds it, area page 8 is its replica.
+        let x = BASE + 0x40_0000;
+        fb.write_u64(pt + 8 * 7, pte(x));
+        fb.write_u64(pt + 8 * 8, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(replicas(&fb), 2);
+        // The guest writes both through the area, then invalidates.
+        fb.write_raw(pool0 + 0x5000 + 8 * 4, &pte(BASE + 0x41_0000).to_le_bytes());
+        fb.write_raw(pool0 + 0x8000 + 16, &0xabcdu64.to_le_bytes());
+        assert!(sync_untracked_tables(&mut fb));
+        assert_eq!(fb.read_u64(cpt + 8 * 4), Some(pte(BASE + 0x41_0000)), "the PTE reached the table");
+        assert!(fb.tables_dirty(root));
+        assert_eq!(fb.read_u64(x + 16), Some(0), "the data waits for the engine start");
+        // The engine start's flush point merges the data replica too.
+        assert!(sync_untracked(&mut fb));
+        assert_eq!(fb.read_u64(x + 16), Some(0xabcd));
     }
 
     /// The pool's walk reads each table page from the FB once and keeps a write-through
@@ -2853,7 +4606,6 @@ mod tests {
         fb.write_u64(pt2 + 8 * 3, pte(pt2));
         let cfg = Config {
             traps: vec![0x1f000],
-            sync_doorbell: false,
             defer_flush: false,
             flush_page_memory: false,
         };
@@ -2896,9 +4648,12 @@ mod tests {
         assert_eq!(stats(&fb).installs_cold, 1);
         assert_eq!(fb.remap(x), pool0 + 0x5000);
         assert_eq!(shadow_sees(&fb), 512);
-        // Unmapped the same way: the page moves back.
+        // Unmapped the same way: retired (§13), then back home when it ages out.
         guest.store_word(1, 5, 0);
         fb.bar2_sync(Some(bar2), None);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((fb.remap(x), retired(&fb)), (pool0 + 0x5000, 1));
+        age_retired(&fb);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(stats(&fb).releases_cold, 1);
         assert_eq!(fb.remap(x), x);
@@ -2932,8 +4687,10 @@ mod tests {
         fb.write_u64(x + 16, 0x3333);
         assert_eq!(guest.load_word(2, 2), 0x3333);
         assert_eq!(fb.read_u64(p + 16), Some(0x3333));
-        // Back out of the pool: x in the store has everything.
+        // Back out of the pool (unmapped, retired, aged out): x in the store has everything.
         fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        age_retired(&fb);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(fb.remap(x), x);
         guest.store_word(2, 3, 0x4444);

@@ -1,0 +1,8 @@
+try 1: the game exited: [S_API FAIL] SteamAPI_Init() failed; connect to global user failed.
+steam -silent, game started directly (try 2)
+game window 8388612 after 36 s: game starting
+   3674       00:58  0.0  3400 ./signalwrapper /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/Shadow
+   3675       00:58 95.9 798872 /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaider
+cgroup steam 2622: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-r0b8c25d72ba149c786ca9b02e185de0c.scope
+cgroup signalwrapper 3674: 0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-rb5e2ff5cbb804297aa8900819bf7900a.scope
+Terminated

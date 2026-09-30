@@ -24,8 +24,9 @@
 //!   its uncompressed twin or refused. The shadow samples the host PTEs it made with
 //!   `NV0080_CTRL_CMD_DMA_GET_PTE_INFO` ([`Policy::check_pte`]); a violation is an ERROR
 //!   and stops every compressible map ([`Policy::violation`]).
-//! - (b) Shadow-only execution: [`check_shadow_only`] at start, and the mirror refuses every
-//!   raw path (a host channel on the guest's own tables would use the guest's COMPTAGLINE).
+//! - (b) Shadow-only execution: every host channel runs on a shadow VA space (mirror.rs
+//!   `is_shadow`), and the mirror refuses every raw path (a host channel on the guest's
+//!   own tables would use the guest's COMPTAGLINE).
 //! - (c) Guest comptag values never pass: the walk reads kind and address only
 //!   (ptcache.rs), and `RM_MAP_MEMORY_DMA` has no comptag argument; the host RM computes it.
 //! - (d) Comptags are cleared at start and at free: the host grants compression only with
@@ -45,11 +46,8 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::Mutex;
 
-/// The switch: `slice` or `off` (the default).
+/// The knob: `slice` or `off` (the default).
 pub const ENV: &str = "CARAXES_COMPRESSION";
-/// `0` skips the device's own clear of the slice at start and before the free (A/B only;
-/// the host's scrub-on-free still covers the free).
-pub const CLEAR_ENV: &str = "CARAXES_COMPRESSION_CLEAR";
 
 /// One comptag line per 64 KiB on TU10x (`comprPageShift` 16).
 pub const COMPR_PAGE: u64 = 0x1_0000;
@@ -144,36 +142,6 @@ pub fn parse(v: Option<&str>) -> Result<Mode, String> {
 /// The switch from the environment.
 pub fn requested() -> Result<Mode, String> {
     parse(std::env::var(ENV).ok().as_deref())
-}
-
-/// Invariant (b): compression only with shadow-only host execution. The guest writes
-/// compressible kinds with its own COMPTAGLINE into its page tables; a host channel that
-/// walks those tables (the replayed VAS of `CARAXES_MIRROR_GR=1`, a CE channel without the
-/// shadow) would use the guest's line, which indexes the host's global compbit store. The
-/// same condition as for a translated FB reservation (mirror.rs `Mirror::new`), from the
-/// raw values of `CARAXES_MIRROR_GR_SHADOW`, `CARAXES_CE_SHADOW`, `CARAXES_MIRROR_GR` and
-/// whether the token-less doorbell ioeventfd is requested.
-pub fn check_shadow_only(
-    mode: Mode,
-    gr_shadow: Option<&str>,
-    ce_shadow: Option<&str>,
-    mirror_gr: Option<&str>,
-    ioeventfd: bool,
-) -> Result<(), String> {
-    if mode == Mode::Off {
-        return Ok(());
-    }
-    if gr_shadow != Some("1") || ce_shadow == Some("0") || mirror_gr == Some("1") {
-        return Err(format!(
-            "{ENV}=slice needs shadow-only host execution (no host channel may walk the guest's own page tables, whose COMPTAGLINE the guest writes): CARAXES_MIRROR_GR_SHADOW=1, CARAXES_CE_SHADOW!=0 and CARAXES_MIRROR_GR!=1"
-        ));
-    }
-    if ioeventfd {
-        return Err(format!(
-            "{ENV}=slice refuses the token-less doorbell ioeventfd, as a translated FB does: use trapped or token-pool doorbells so shadow routing is enforced"
-        ));
-    }
-    Ok(())
 }
 
 /// What the host granted for the reservation, read back after the allocation (hostmem.rs
@@ -620,21 +588,6 @@ mod tests {
         assert_eq!(parse(Some("slice")), Ok(Mode::Slice));
         assert!(parse(Some("1")).is_err());
         assert!(parse(Some("on")).is_err());
-    }
-
-    /// Invariant (b): refused unless GR and CE run on shadow VA spaces and no raw GR.
-    #[test]
-    fn compression_needs_shadow_only_execution() {
-        let ok = |g, c, m, io| check_shadow_only(Mode::Slice, g, c, m, io);
-        assert!(ok(Some("1"), None, None, false).is_ok());
-        assert!(ok(Some("1"), Some("1"), Some("0"), false).is_ok());
-        assert!(ok(None, None, None, false).is_err());
-        assert!(ok(Some("0"), None, None, false).is_err());
-        assert!(ok(Some("1"), Some("0"), None, false).is_err());
-        assert!(ok(Some("1"), None, Some("1"), false).is_err());
-        assert!(ok(Some("1"), None, None, true).is_err());
-        // Off: nothing is required.
-        assert!(check_shadow_only(Mode::Off, None, Some("0"), Some("1"), true).is_ok());
     }
 
     #[test]

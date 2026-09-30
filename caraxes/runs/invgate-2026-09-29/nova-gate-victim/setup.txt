@@ -1,0 +1,15 @@
+f548e4bd5db636e193b28494bc584b639d0e203286f7a315b82d950396f53bda  /mnt/vmstore/caraxes/vfio-user-nvgpu-bar2victim-f49bb314
+8f33f98d68733ffdf1c7bc9a2b5447038c81f5077e0f03d296f548b849cf0ef0  /mnt/vmstore/caraxes/nova-kernel/build/arch/x86/boot/bzImage
+b7651733ccade3a420b0c2c5f795b636c3442f0c40e99cd28680ed54ba8391fc  /mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+f49bb314 perf: BAR2 victim cache for page tables that leave the mapping; VRAM reads by caller
+CARAXES_BOOT_MODEL=1
+CARAXES_CPUS=2
+CARAXES_FB_MIB=1024
+CARAXES_GUEST_ABI=
+CARAXES_INITRD=none
+CARAXES_KERNEL=/mnt/vmstore/caraxes/nova-kernel/build/arch/x86/boot/bzImage
+CARAXES_MEM=1G
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-bar2victim-f49bb314
+CARAXES_TAP=none
+CARAXES_VBIOS=/mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+VM=vm9

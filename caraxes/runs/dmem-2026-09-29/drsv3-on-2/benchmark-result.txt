@@ -1,0 +1,60 @@
+
+Raw Benchmark Statistics for 1 run:
+
+	Benchmark Statistics (Run No. 1):
+		Min FPS: 0.0
+		Max FPS: 106.7
+		Average FPS: 15.4
+		Num Frames: 4443
+
+Average Benchmark Statistics for 1 runs with 0 extremes excluded:
+	Min FPS: 0.0
+	Max FPS: 106.7
+	Average FPS: 15.4
+
+
+Video Memory Budget: 3456 MB
+
+Settings:
+
+Fullscreen=true
+ExclusiveFullscreen=true
+CheckerBoard=false
+Monitor=0
+WindowLeft=240
+WindowTop=135
+WindowWidth=1920
+WindowHeight=1080
+UserWindowWidth=1920
+UserWindowHeight=1080
+WindowMaximized=false
+MultiMonitorEnabled=false
+IsBezelCorrected=false
+AspectRatio=0.000000
+FullscreenWidth=1920
+FullscreenHeight=1080
+RefreshRate=60
+ForceHalfRefreshRate=false
+VSync=false
+HighPrecisionRT=true
+FOVCorrection=1.000000
+NormalizedGammaDecodingPower=0.500000
+ResolutionModifier=1000
+TextureQuality=3
+TextureFiltering=3
+ShadowQuality=3
+DOFQuality=2
+MotionBlur=true
+AmbientOcclusionQuality=1
+Bloom=true
+LevelOfDetail=3
+Tessellation=true
+LensFlares=true
+ScreenEffects=true
+ScreenSpaceReflections=true
+HairQuality=1
+AA=2
+SpecularReflectionQuality=0
+ScreenSpaceContactShadows=1
+VolumetricLighting=true
+DefaultMaxNitsSet=false

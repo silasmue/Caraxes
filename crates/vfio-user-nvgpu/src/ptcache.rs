@@ -48,6 +48,91 @@ pub fn fresh_generation() -> u64 {
 /// [`WalkCache::observable`]: memory as `(start, bytes)`, and table page numbers.
 pub type Observable = (Vec<(Target, u64)>, Vec<u64>);
 
+/// The bit that marks a guest-RAM page in a page key (FB page number, or guest-RAM page
+/// number with this bit; bar2area.rs keys its live pages the same way).
+pub const SYS_KEY: u64 = 1 << 63;
+
+/// The page keys `[lo, hi)` that `n` bytes at `t` touch (empty for other targets).
+fn key_range(t: Target, n: u64) -> (u64, u64) {
+    match t {
+        _ if n == 0 => (0, 0),
+        Target::Fb(pa) => (pa >> 12, (pa.saturating_add(n - 1) >> 12) + 1),
+        Target::Sys(pa) => ((pa >> 12) | SYS_KEY, ((pa.saturating_add(n - 1) >> 12) + 1) | SYS_KEY),
+        _ => (0, 0),
+    }
+}
+
+/// The keys among `keys` (ascending) in `[lo, hi)`.
+fn keys_between(keys: &[u64], lo: u64, hi: u64) -> &[u64] {
+    let i = keys.partition_point(|k| *k < lo);
+    let j = i + keys[i..].partition_point(|k| *k < hi);
+    &keys[i..j]
+}
+
+/// The keys among `keys` (ascending page keys, [`SYS_KEY`] for guest RAM) that the memory
+/// `pieces` (`(start, bytes)`) touches, ascending.
+pub fn keys_in(pieces: &[(Target, u64)], keys: &[u64]) -> Vec<u64> {
+    let mut out = Vec::new();
+    for &(t, n) in pieces {
+        let (lo, hi) = key_range(t, n);
+        out.extend_from_slice(keys_between(keys, lo, hi));
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// VA ranges `[lo, hi)` sorted and merged, so that their ends ascend as well.
+fn merged_exclusions(exclude: &[(u64, u64)]) -> Vec<(u64, u64)> {
+    let mut ex: Vec<(u64, u64)> = exclude.iter().copied().filter(|(lo, hi)| lo < hi).collect();
+    ex.sort_unstable();
+    let mut merged: Vec<(u64, u64)> = Vec::with_capacity(ex.len());
+    for (lo, hi) in ex {
+        match merged.last_mut() {
+            Some(last) if lo <= last.1 => last.1 = last.1.max(hi),
+            _ => merged.push((lo, hi)),
+        }
+    }
+    merged
+}
+
+/// The memory of leaf `(va, t, size)` outside every range of `ex` ([`merged_exclusions`]):
+/// `f(start, bytes)` per piece.
+fn leaf_pieces(ex: &[(u64, u64)], &(va, t, size, _): &Leaf, mut f: impl FnMut(Target, u64)) {
+    let (lo, hi) = (va, va + size);
+    let mut at = lo;
+    let first = ex.partition_point(|(_, xhi)| *xhi <= lo);
+    for &(xlo, xhi) in &ex[first..] {
+        if xlo >= hi {
+            break;
+        }
+        if xlo > at {
+            f(offset(t, at - lo), xlo - at);
+        }
+        at = at.max(xhi);
+        if at >= hi {
+            break;
+        }
+    }
+    if at < hi {
+        f(offset(t, at - lo), hi - at);
+    }
+}
+
+/// The page-key spans `[lo, hi)` of a unit's FB and guest-RAM leaves (empty: `lo >= hi`).
+fn leaf_spans(leaves: &[Leaf]) -> [(u64, u64); 2] {
+    let mut spans = [(u64::MAX, 0), (u64::MAX, 0)];
+    for &(_, t, size, _) in leaves {
+        let (lo, hi) = key_range(t, size);
+        let s = &mut spans[usize::from(matches!(t, Target::Sys(_)))];
+        if lo < hi {
+            s.0 = s.0.min(lo);
+            s.1 = s.1.max(hi);
+        }
+    }
+    spans
+}
+
 /// `t` moved on by `by` bytes.
 fn offset(t: Target, by: u64) -> Target {
     match t {
@@ -85,6 +170,8 @@ struct Unit {
     /// The FB pages of its big and small page tables (for the use map).
     pages: Vec<u64>,
     leaves: Vec<Leaf>,
+    /// The page-key spans of its FB and guest-RAM leaves ([`leaf_spans`]).
+    spans: [(u64, u64); 2],
     /// Its malformed PTEs.
     bad: usize,
 }
@@ -195,6 +282,17 @@ pub struct Update {
     pub added: Vec<u64>,
     /// Whether the cache stopped watching a table page in this update.
     pub dropped: bool,
+    /// FB ranges `[start, end)` of the leaves this update removed that no changed unit
+    /// maps any more, sorted and merged. The walk no longer shows them, but the host
+    /// shadow keeps them until the plan made from this update is applied: the BAR1 pool
+    /// waits for that plan only when a page it moves lies in one (bar1-pool.md §14).
+    pub removed: Vec<(u64, u64)>,
+    /// The table pages (4 KiB page numbers) it stopped watching in this update, sorted: the
+    /// victim cache drops their snapshots once no walk reads them (fb.rs `forget_victims`).
+    pub left: Vec<u64>,
+    /// Nodes whose table lives in guest sysmem, re-read in this update (they cannot be
+    /// watched; [`WalkCache::sys_uses`]).
+    pub sys_nodes: usize,
 }
 
 /// The cached walk of one guest root.
@@ -208,6 +306,12 @@ pub struct WalkCache {
     built: bool,
     /// A table of this tree lives in guest sysmem: it cannot be watched.
     pub sys_tables: bool,
+    /// The nodes whose table lives in guest sysmem: every update re-reads them (and follows
+    /// what changed below them), as it re-reads a dirty VRAM table page's nodes. Before
+    /// 2026-09-29 one such table made every update a full walk that re-read every VRAM table
+    /// page too (SotTR under VRAM pressure: 3328 full walks, 6.5 M table reads through the
+    /// BAR1 windows, the loading screen for 20 minutes).
+    sys_uses: BTreeSet<Use>,
     leaves: usize,
     /// Malformed entries in the cached tree (the module docs).
     malformed: usize,
@@ -225,6 +329,10 @@ pub struct WalkCache {
     /// Pages that entered `uses` and whether one left it, during the running update.
     added: Vec<u64>,
     dropped: bool,
+    /// FB `(start, end)` of every leaf dropped during the running update ([`Update::removed`]).
+    removed: Vec<(u64, u64)>,
+    /// The pages that left `uses` during the running update ([`Update::left`]).
+    left: Vec<u64>,
     /// A fresh stamp ([`fresh_generation`]) at creation and at every update that changed a
     /// unit's leaves: equal generations, equal leaves ([`Self::generation`]).
     generation: u64,
@@ -243,6 +351,27 @@ fn page_mix(p: u64) -> u64 {
     z ^ (z >> 31)
 }
 
+/// The FB range `[start, end)` of a leaf, `None` for a sysmem or peer leaf.
+fn fb_range(l: &Leaf) -> Option<(u64, u64)> {
+    match l.1 {
+        Target::Fb(pa) => Some((pa, pa.saturating_add(l.2))),
+        _ => None,
+    }
+}
+
+/// Sort `[start, end)` ranges and merge the overlapping and adjacent ones.
+pub fn merge_ranges(mut v: Vec<(u64, u64)>) -> Vec<(u64, u64)> {
+    v.sort_unstable();
+    let mut out: Vec<(u64, u64)> = Vec::with_capacity(v.len());
+    for (s, e) in v {
+        match out.last_mut() {
+            Some(last) if s <= last.1 => last.1 = last.1.max(e),
+            _ => out.push((s, e)),
+        }
+    }
+    out
+}
+
 impl WalkCache {
     pub fn new(root: Target, max_leaves: usize) -> Self {
         WalkCache {
@@ -253,6 +382,7 @@ impl WalkCache {
             dirty: BTreeSet::new(),
             built: false,
             sys_tables: false,
+            sys_uses: BTreeSet::new(),
             leaves: 0,
             malformed: 0,
             max_leaves,
@@ -261,6 +391,8 @@ impl WalkCache {
             raw: HashMap::new(),
             reread: false,
             added: Vec::new(),
+            removed: Vec::new(),
+            left: Vec::new(),
             dropped: false,
             generation: fresh_generation(),
             tables_generation: fresh_generation(),
@@ -377,6 +509,9 @@ impl WalkCache {
     }
 
     fn add_use(&mut self, t: Target, u: Use) {
+        if let Target::Sys(_) = t {
+            self.sys_uses.insert(u);
+        }
         if let Target::Fb(pa) = t {
             let s = self.uses.entry(pa >> 12).or_default();
             if s.is_empty() {
@@ -394,6 +529,7 @@ impl WalkCache {
                 self.uses.remove(&page);
                 self.uses_hash ^= page_mix(page);
                 self.dropped = true;
+                self.left.push(page);
             }
         }
     }
@@ -406,14 +542,24 @@ impl WalkCache {
         self.reads = 0;
         self.added.clear();
         self.dropped = false;
+        self.removed.clear();
+        self.left.clear();
         let dirty_pages = self.dirty.len();
         let mut changed = BTreeSet::new();
-        let full = full || !self.built || self.sys_tables;
+        let full = full || !self.built;
+        let sys_nodes = if full { 0 } else { self.sys_uses.len() };
         if full {
             changed.extend(self.units.keys().copied());
+            let old: Vec<(u64, u64)> = self
+                .units
+                .values()
+                .flat_map(|u| u.leaves.iter().filter_map(fb_range))
+                .collect();
+            self.removed.extend(old);
             self.dirs.clear();
             self.units.clear();
             self.dropped |= !self.uses.is_empty();
+            self.left.extend(self.uses.keys().copied());
             self.uses.clear();
             self.uses_hash = 0;
             self.dirty.clear();
@@ -422,6 +568,7 @@ impl WalkCache {
             self.malformed = 0;
             self.truncated = false;
             self.sys_tables = false;
+            self.sys_uses.clear();
             let root = self.root;
             self.walk_dir(r, 3, 0, root, &mut changed);
             self.built = true;
@@ -433,6 +580,8 @@ impl WalkCache {
                     work.extend(s.iter().copied());
                 }
             }
+            // The nodes whose table lives in sysmem: unwatchable, so always re-read.
+            work.extend(self.sys_uses.iter().copied());
             // Directories top-down (level 3 first), then the page tables of units.
             let mut dirs: Vec<(u8, u64)> = work
                 .iter()
@@ -459,6 +608,7 @@ impl WalkCache {
                 }
             }
         }
+        self.sys_tables = !self.sys_uses.is_empty();
         if full || !changed.is_empty() {
             self.generation = fresh_generation();
         }
@@ -471,6 +621,20 @@ impl WalkCache {
         added.sort_unstable();
         added.dedup();
         added.retain(|p| uses.contains_key(p));
+        // A dropped leaf that a changed unit maps again (a rebuilt unit, a re-walked
+        // directory) is still in the walk: only the rest is gone from it.
+        let mut removed = std::mem::take(&mut self.removed);
+        if !removed.is_empty() {
+            let kept: std::collections::HashSet<(u64, u64)> = changed
+                .iter()
+                .flat_map(|va| self.unit_leaves(*va).iter().filter_map(fb_range))
+                .collect();
+            removed.retain(|r| !kept.contains(r));
+        }
+        let mut left = std::mem::take(&mut self.left);
+        left.retain(|p| !uses.contains_key(p));
+        left.sort_unstable();
+        left.dedup();
         Update {
             full,
             changed: changed.into_iter().collect(),
@@ -478,6 +642,9 @@ impl WalkCache {
             dirty_pages,
             added,
             dropped: self.dropped,
+            removed: merge_ranges(removed),
+            left,
+            sys_nodes,
         }
     }
 
@@ -561,8 +728,12 @@ impl WalkCache {
                 return;
             }
             let big = bt.and_then(|t| {
-                if let Target::Fb(pa) = t {
-                    pages.push(pa >> 12);
+                match t {
+                    Target::Fb(pa) => pages.push(pa >> 12),
+                    Target::Sys(_) => {
+                        self.sys_uses.insert(Use::Unit(va));
+                    }
+                    _ => {}
                 }
                 self.read(r, t, 32)
             });
@@ -572,8 +743,12 @@ impl WalkCache {
                 }
             }
             if let Some(t) = st {
-                if let Target::Fb(pa) = t {
-                    pages.push(pa >> 12);
+                match t {
+                    Target::Fb(pa) => pages.push(pa >> 12),
+                    Target::Sys(_) => {
+                        self.sys_uses.insert(Use::Unit(va));
+                    }
+                    _ => {}
                 }
                 if let Some(s) = self.read(r, t, 512) {
                     for (i, pte) in s.iter().enumerate() {
@@ -605,23 +780,30 @@ impl WalkCache {
         }
         self.leaves += leaves.len();
         self.malformed += bad;
-        self.units.insert(
+        let replaced = self.units.insert(
             va,
             Unit {
                 lo,
                 hi,
                 pages,
+                spans: leaf_spans(&leaves),
                 leaves,
                 bad,
             },
         );
+        // Every caller drops the unit first; a replaced one still counts as removed.
+        if let Some(u) = replaced {
+            self.removed.extend(u.leaves.iter().filter_map(fb_range));
+        }
     }
 
     fn drop_unit(&mut self, va: u64, changed: &mut BTreeSet<u64>) {
+        self.sys_uses.remove(&Use::Unit(va));
         if let Some(u) = self.units.remove(&va) {
             for p in &u.pages {
                 self.drop_use(*p, Use::Unit(va));
             }
+            self.removed.extend(u.leaves.iter().filter_map(fb_range));
             if !u.leaves.is_empty() {
                 changed.insert(va);
             }
@@ -659,8 +841,12 @@ impl WalkCache {
             for k in keys {
                 if let Some(d) = self.dirs.remove(&k) {
                     self.malformed -= d.bad;
-                    if let Target::Fb(pa) = d.at {
-                        self.drop_use(pa >> 12, Use::Dir(k.0, k.1));
+                    match d.at {
+                        Target::Fb(pa) => self.drop_use(pa >> 12, Use::Dir(k.0, k.1)),
+                        Target::Sys(_) => {
+                            self.sys_uses.remove(&Use::Dir(k.0, k.1));
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -722,48 +908,68 @@ impl WalkCache {
     /// docs/caraxes/bar2-memfd.md §3): every leaf's memory outside the VA ranges `exclude`
     /// (sorted or not), as `(start, bytes)`, and every table page (4 KiB page number) the
     /// MMU reads by physical address (NV_RAMIN_PAGE_DIR_BASE and the directory entries,
-    /// gm107/dev_ram.h:58-66). `None` when the cache cannot say: never built, a table in
-    /// sysmem (unwatched), or truncated at `max_leaves`.
+    /// gm107/dev_ram.h:58-66). `None` when the cache cannot say: never built, or truncated
+    /// at `max_leaves`. A table in sysmem is no reason: it is re-read at every update like a
+    /// dirty VRAM page (`sys_uses`), so the leaves are as current as the last update, which
+    /// is what the rule takes for any table (bar2-memfd.md §3 rule 2). Sysmem tables are not
+    /// among the table pages (they are not behind BAR2).
     pub fn observable(&self, exclude: &[(u64, u64)]) -> Option<Observable> {
-        if !self.built || self.sys_tables || self.truncated {
+        if !self.built || self.truncated {
             return None;
         }
-        let mut ex: Vec<(u64, u64)> = exclude.iter().copied().filter(|(lo, hi)| lo < hi).collect();
-        ex.sort_unstable();
-        // Merged, so that the ends ascend as well (the partition point below).
-        let mut merged: Vec<(u64, u64)> = Vec::with_capacity(ex.len());
-        for (lo, hi) in ex {
-            match merged.last_mut() {
-                Some(last) if lo <= last.1 => last.1 = last.1.max(hi),
-                _ => merged.push((lo, hi)),
-            }
-        }
-        let ex = merged;
+        let ex = merged_exclusions(exclude);
         let mut pieces = Vec::new();
-        for (va, t, size, _) in self.units.values().flat_map(|u| u.leaves.iter()) {
-            let (lo, hi) = (*va, va + size);
-            let mut at = lo;
-            // The parts of [lo, hi) outside every excluded range.
-            let first = ex.partition_point(|(_, xhi)| *xhi <= lo);
-            for &(xlo, xhi) in &ex[first..] {
-                if xlo >= hi {
-                    break;
-                }
-                if xlo > at {
-                    pieces.push((offset(*t, at - lo), xlo - at));
-                }
-                at = at.max(xhi);
-                if at >= hi {
-                    break;
-                }
-            }
-            if at < hi {
-                pieces.push((offset(*t, at - lo), hi - at));
-            }
+        for l in self.units.values().flat_map(|u| u.leaves.iter()) {
+            leaf_pieces(&ex, l, |t, n| pieces.push((t, n)));
         }
         let mut tables: Vec<u64> = self.uses.keys().copied().collect();
         tables.sort_unstable();
         Some((pieces, tables))
+    }
+
+    /// The keys among `keys` (ascending page keys, [`SYS_KEY`] for guest RAM) that this
+    /// walk's leaves less the VA ranges `exclude` touch, ascending: [`keys_in`] of
+    /// [`Self::observable`]'s pieces, without listing every leaf. A unit whose leaves'
+    /// spans hold none of the keys is skipped (SotTR run F: a doorbell's set, made again
+    /// after every walk change, listed every leaf of the VAS, about 1 ms). `None` as for
+    /// `observable`.
+    pub fn observed_keys(&self, exclude: &[(u64, u64)], keys: &[u64]) -> Option<Vec<u64>> {
+        if !self.built || self.truncated {
+            return None;
+        }
+        let mut out = Vec::new();
+        if keys.is_empty() {
+            return Some(out);
+        }
+        let ex = merged_exclusions(exclude);
+        // FB keys, then guest-RAM keys: most units lie outside the range of their kind's
+        // keys (two compares, no search).
+        let split = keys.partition_point(|k| *k < SYS_KEY);
+        let any = |ks: &[u64], (lo, hi): (u64, u64)| match (ks.first(), ks.last()) {
+            (Some(&kmin), Some(&kmax)) => {
+                lo < hi && lo <= kmax && hi > kmin && !keys_between(ks, lo, hi).is_empty()
+            }
+            _ => false,
+        };
+        for u in self.units.values() {
+            if !any(&keys[..split], u.spans[0]) && !any(&keys[split..], u.spans[1]) {
+                continue;
+            }
+            for l in &u.leaves {
+                leaf_pieces(&ex, l, |t, n| {
+                    let (lo, hi) = key_range(t, n);
+                    out.extend_from_slice(keys_between(keys, lo, hi));
+                });
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        Some(out)
+    }
+
+    /// Every cached leaf, ascending by unit, without a copy.
+    pub fn leaves(&self) -> impl Iterator<Item = &Leaf> + '_ {
+        self.units.values().flat_map(|u| u.leaves.iter())
     }
 
     /// Every cached leaf, ascending by unit (tests and the full-walk comparison).
@@ -789,12 +995,24 @@ mod tests {
         }
     }
 
+    /// Guest sysmem in [`Mem`]: its addresses carry this bit.
+    const SYS: u64 = 1 << 62;
+
     impl TableReader for Mem {
         fn block(&self, t: Target, n: usize) -> Option<Vec<u64>> {
-            let Target::Fb(pa) = t else { return None };
+            let pa = match t {
+                Target::Fb(pa) => pa,
+                Target::Sys(pa) => pa | SYS,
+                _ => return None,
+            };
             let m = self.0.borrow();
             Some((0..n as u64).map(|i| *m.get(&(pa + 8 * i)).unwrap_or(&0)).collect())
         }
+    }
+
+    /// A directory entry naming a table in guest sysmem (aperture 2).
+    fn sys(addr: u64) -> u64 {
+        ((addr >> 12) << 8) | 0b100
     }
 
     fn vid(addr: u64) -> u64 {
@@ -864,6 +1082,148 @@ mod tests {
         c.update(&m, false);
         assert_ne!(c.tables_generation(), tg);
         assert!(c.observable(&[]).unwrap().1.contains(&0x16));
+    }
+
+    /// `observed_keys` finds exactly the keys the pieces of `observable` touch, for any key
+    /// set and exclusions, while skipping the units whose spans hold none of the keys.
+    #[test]
+    fn observed_keys_are_the_keys_of_the_observable_pieces() {
+        let m = tree();
+        // Unit 1: a small page table with an FB leaf and a guest-RAM leaf.
+        let spte = |pa: u64| ((pa >> 12) << 8) | (0x06 << 56) | 0b101;
+        m.w(0x13000 + 16 + 8, vid(0x16000));
+        m.w(0x16000, pte(0x30000));
+        m.w(0x16000 + 8, spte(0x9000));
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        assert!(c.observed_keys(&[], &[0x20]).is_none(), "never built");
+        c.update(&m, false);
+        let all: Vec<u64> = (0x10..0x60).chain((0x8..0xB).map(|k| k | SYS_KEY)).collect();
+        let sets: Vec<Vec<u64>> = vec![
+            all.clone(),
+            vec![0x30],
+            vec![0x45],
+            vec![0x4F, 0x50],
+            vec![0x9 | SYS_KEY],
+            vec![0x1F, 0x21, 0x3F],
+            vec![],
+        ];
+        let excls: Vec<Vec<(u64, u64)>> = vec![
+            vec![],
+            vec![(0x13000, 0x16000), (0x12000, 0x14000)],
+            vec![(UNIT, UNIT + 0x1000)],
+            vec![(0, u64::MAX)],
+        ];
+        for ex in &excls {
+            let (pieces, _) = c.observable(ex).unwrap();
+            for keys in &sets {
+                assert_eq!(
+                    c.observed_keys(ex, keys).unwrap(),
+                    keys_in(&pieces, keys),
+                    "exclusions {ex:x?}, keys {keys:x?}"
+                );
+            }
+        }
+        assert_eq!(c.observed_keys(&[], &all).unwrap(), {
+            let mut v: Vec<u64> = (0x40..0x50).collect();
+            v.extend([0x20, 0x30, 0x9 | SYS_KEY]);
+            v.sort_unstable();
+            v
+        });
+        assert_eq!(c.observed_keys(&[], &[0x50]).unwrap(), Vec::<u64>::new());
+    }
+
+    /// The leaves an update took out of the walk, as FB ranges: what the host shadow still
+    /// maps until the plan made from the update is applied (bar1-pool.md §14). A leaf that
+    /// only moved within a rebuilt unit, or stayed, is not among them.
+    #[test]
+    fn an_update_names_the_fb_ranges_it_took_out_of_the_walk() {
+        let m = tree();
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        assert!(c.update(&m, false).removed.is_empty(), "the first walk removes nothing");
+        // A new PTE beside the old ones: nothing removed although the unit is rebuilt.
+        m.w(0x14000 + 8 * 5, pte(0x21000));
+        c.mark_dirty(0x14);
+        assert!(c.update(&m, false).removed.is_empty());
+        // The 4 KiB PTE to 0x20000 cleared, and the one to 0x21000 retargeted to 0x22000.
+        m.w(0x14000 + 8 * 3, 0);
+        m.w(0x14000 + 8 * 5, pte(0x22000));
+        c.mark_dirty(0x14);
+        let u = c.update(&m, false);
+        assert_eq!(u.removed, vec![(0x20000, 0x22000)], "adjacent ranges merge");
+        // The same page mapped at another VA of the unit: still in the walk.
+        m.w(0x14000 + 8 * 5, 0);
+        m.w(0x14000 + 8 * 7, pte(0x22000));
+        c.mark_dirty(0x14);
+        assert!(c.update(&m, false).removed.is_empty());
+        // The PD1 entry cleared: everything below it, the 64 KiB page too.
+        m.w(0x12000, 0);
+        c.mark_dirty(0x12);
+        let u = c.update(&m, false);
+        assert_eq!(u.removed, vec![(0x22000, 0x23000), (0x40000, 0x50000)]);
+        // A full walk of an unchanged tree removes nothing.
+        m.w(0x12000, vid(0x13000));
+        c.mark_dirty(0x12);
+        c.update(&m, false);
+        assert!(c.update(&m, true).removed.is_empty());
+        assert_eq!(merge_ranges(vec![(5, 7), (1, 3), (3, 4), (6, 9)]), vec![(1, 4), (5, 9)]);
+    }
+
+    /// A table in guest sysmem cannot be watched: every update re-reads it and follows
+    /// what changed below it, and nothing else. Before, it made every update a full walk
+    /// that re-read every VRAM table page too.
+    #[test]
+    fn a_sysmem_table_is_re_read_at_every_update_without_a_full_walk() {
+        let m = tree();
+        // Unit 1: its small page table in sysmem at 0x7000.
+        m.w(0x13000 + 16 + 8, sys(0x7000));
+        m.w(SYS | (0x7000 + 8 * 2), pte(0x30000));
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        let u = c.update(&m, false);
+        assert!(u.full);
+        assert!(c.sys_tables && c.is_dirty(), "sysmem is never clean");
+        assert_eq!(c.unit_leaves(UNIT), &[(UNIT + 0x2000, Target::Fb(0x30000), 0x1000, 6)]);
+        // What an engine could read is known all the same: the leaf behind the sysmem table,
+        // and the VRAM table pages (not the sysmem one).
+        let (pieces, tables) = c.observable(&[]).expect("known with a sysmem table");
+        assert!(pieces.contains(&(Target::Fb(0x30000), 0x1000)), "{pieces:x?}");
+        assert!(!tables.contains(&0x7), "{tables:x?}");
+        // Nothing written: only the sysmem table is read again, nothing changed.
+        let u = c.update(&m, false);
+        assert!(!u.full);
+        assert_eq!((u.reads, u.sys_nodes), (1, 1));
+        assert!(u.changed.is_empty());
+        // A new PTE in the sysmem table: its unit changed, still one read.
+        m.w(SYS | (0x7000 + 8 * 4), pte(0x31000));
+        let u = c.update(&m, false);
+        assert_eq!((u.full, u.reads), (false, 1));
+        assert_eq!(u.changed, vec![UNIT]);
+        let mut full = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        full.update(&m, true);
+        assert_eq!(c.all_leaves(), full.all_leaves());
+        // A PD0 in sysmem under a watched PD1: its entry changes are followed as well.
+        m.w(0x12000 + 8, sys(0x8000));
+        m.w(SYS | (0x8000 + 8), vid(0x14000));
+        c.mark_dirty(0x12);
+        let u = c.update(&m, false);
+        assert!(!u.full);
+        assert!(u.changed.contains(&(0x2000_0000)), "{:x?}", u.changed);
+        m.w(SYS | (0x8000 + 16 + 8), vid(0x14000));
+        let u = c.update(&m, false);
+        assert_eq!(u.sys_nodes, 2, "the sysmem PD0 and unit 1's sysmem table");
+        assert_eq!(u.changed, vec![0x2000_0000 + UNIT]);
+        let mut full = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        full.update(&m, true);
+        assert_eq!(c.all_leaves(), full.all_leaves());
+        // Both sysmem tables gone: the cache is clean again and watches only VRAM.
+        m.w(0x12000 + 8, 0);
+        m.w(0x13000 + 16 + 8, 0);
+        c.mark_dirty(0x12);
+        c.mark_dirty(0x13);
+        c.update(&m, false);
+        assert!(!c.sys_tables && !c.is_dirty());
+        let mut full = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        full.update(&m, true);
+        assert_eq!(c.all_leaves(), full.all_leaves());
     }
 
     #[test]

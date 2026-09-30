@@ -4,6 +4,20 @@
 use std::fmt;
 
 pub const CMD_DEFERRED_API: u32 = 0x5080_0101;
+/// `NV5080_CTRL_CMD_REMOVE_API` (ctrl5080.h:188-212).
+pub const CMD_REMOVE_API: u32 = 0x5080_0102;
+/// `NV5080_CTRL_CMD_DEFERRED_API_V2`: the legacy layout with more bundles
+/// (ctrl5080.h:125-180).
+pub const CMD_DEFERRED_API_V2: u32 = 0x5080_0103;
+/// `NV5080_CTRL_CMD_DEFERRED_API_INTERNAL`: V2 as the kernel RM forwards it to GSP-RM,
+/// parameters unchanged (ctrl5080.h:182-186; deferred_api.c `defapiCtrlCmdDeferredApiV2`).
+pub const CMD_DEFERRED_API_INTERNAL: u32 = 0x5080_0104;
+/// `NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO`: a channel moves to a new USERD and GPFIFO
+/// (ctrl2080fifo.h:693-725), directly or as a deferred API.
+pub const CMD_UPDATE_CHANNEL_INFO: u32 = 0x2080_1116;
+/// `NV2080_CTRL_FIFO_UPDATE_CHANNEL_INFO_PARAMS`: three handles, the entry count, then the
+/// 8-aligned GPFIFO offset and USERD offset.
+pub const UPDATE_CHANNEL_INFO_SIZE: usize = 32;
 pub const CMD_INITIALIZE_CTX: u32 = 0x2080_012d;
 pub const CMD_PROMOTE_CTX: u32 = 0x2080_012b;
 pub const CMD_EVICT_CTX: u32 = 0x2080_012c;
@@ -113,6 +127,119 @@ impl Request {
         }
         out
     }
+}
+
+/// Whether `cmd` registers a deferred API (legacy, V2, or V2 forwarded as INTERNAL): one
+/// parameter layout, `NV5080_CTRL_DEFERRED_API[_V2]_PARAMS` (ctrl5080.h:91-116, 152-180).
+pub fn is_registration(cmd: u32) -> bool {
+    matches!(cmd, CMD_DEFERRED_API | CMD_DEFERRED_API_V2 | CMD_DEFERRED_API_INTERNAL)
+}
+
+/// The nested command of a registration's parameters.
+pub fn nested_command(bytes: &[u8]) -> Option<u32> {
+    bytes.get(4..8).map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+}
+
+/// `NV2080_CTRL_FIFO_UPDATE_CHANNEL_INFO_PARAMS` (ctrl2080fifo.h:717-724).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChannelInfo {
+    pub h_client: u32,
+    pub h_channel: u32,
+    pub h_userd_memory: u32,
+    pub gp_fifo_entries: u32,
+    pub gp_fifo_offset: u64,
+    pub userd_offset: u64,
+}
+
+impl ChannelInfo {
+    /// The control's own parameters (the direct call, or a deferred API's bundle).
+    pub fn parse(bytes: &[u8]) -> Result<Self, ParseError> {
+        if bytes.len() < UPDATE_CHANNEL_INFO_SIZE {
+            return Err(ParseError::Length {
+                expected: UPDATE_CHANNEL_INFO_SIZE,
+                actual: bytes.len(),
+            });
+        }
+        let info = Self {
+            h_client: u32_at(bytes, 0),
+            h_channel: u32_at(bytes, 4),
+            h_userd_memory: u32_at(bytes, 8),
+            gp_fifo_entries: u32_at(bytes, 12),
+            gp_fifo_offset: u64_at(bytes, 16),
+            userd_offset: u64_at(bytes, 24),
+        };
+        // kernel_fifo_ctrl.c: no USERD handle is NV_ERR_INVALID_ARGUMENT. A GPFIFO holds a
+        // power-of-two number of 8-byte entries at an 8-byte aligned address (clc46f.h).
+        if info.h_userd_memory == 0 {
+            return Err(ParseError::InvalidField { field: "hUserdMemory", value: 0 });
+        }
+        if info.gp_fifo_entries < 2 || !info.gp_fifo_entries.is_power_of_two() {
+            return Err(ParseError::InvalidField {
+                field: "gpFifoEntries",
+                value: u64::from(info.gp_fifo_entries),
+            });
+        }
+        if info.gp_fifo_offset % 8 != 0 || info.userd_offset % 512 != 0 {
+            return Err(ParseError::InvalidField {
+                field: "gpFifoOffset/userdOffset alignment",
+                value: info.gp_fifo_offset | info.userd_offset,
+            });
+        }
+        checked_end("GPFIFO", info.gp_fifo_offset, 8 * u64::from(info.gp_fifo_entries))?;
+        Ok(info)
+    }
+
+    pub fn encode(&self) -> [u8; UPDATE_CHANNEL_INFO_SIZE] {
+        let mut out = [0; UPDATE_CHANNEL_INFO_SIZE];
+        put_u32(&mut out, 0, self.h_client);
+        put_u32(&mut out, 4, self.h_channel);
+        put_u32(&mut out, 8, self.h_userd_memory);
+        put_u32(&mut out, 12, self.gp_fifo_entries);
+        put_u64(&mut out, 16, self.gp_fifo_offset);
+        put_u64(&mut out, 24, self.userd_offset);
+        out
+    }
+}
+
+/// The UpdateChannelInfo a control carries: directly, or as the bundle of a deferred API
+/// registration. `None` for any other control or a malformed one (its handler reports it).
+pub fn migration_bundle(cmd: u32, params: &[u8]) -> Option<ChannelInfo> {
+    if cmd == CMD_UPDATE_CHANNEL_INFO {
+        return ChannelInfo::parse(params).ok();
+    }
+    if is_registration(cmd) && params.len() == PARAMS_SIZE && nested_command(params) == Some(CMD_UPDATE_CHANNEL_INFO) {
+        return ChannelInfo::parse(&params[BUNDLE..BUNDLE + UPDATE_CHANNEL_INFO_SIZE]).ok();
+    }
+    None
+}
+
+/// A deferred UpdateChannelInfo: `hApiHandle`, `flags` (DELETE and WAIT_FOR_TLB_FLUSH,
+/// ctrl5080.h:118-123) and the bundle, from registration parameters of any of the three
+/// registration controls.
+pub fn parse_channel_info_request(bytes: &[u8]) -> Result<(u32, u32, ChannelInfo), ParseError> {
+    if bytes.len() != PARAMS_SIZE {
+        return Err(ParseError::Length {
+            expected: PARAMS_SIZE,
+            actual: bytes.len(),
+        });
+    }
+    let command = u32_at(bytes, 4);
+    if command != CMD_UPDATE_CHANNEL_INFO {
+        return Err(ParseError::UnsupportedCommand(command));
+    }
+    require_zero(bytes, BUNDLE + UPDATE_CHANNEL_INFO_SIZE, PARAMS_SIZE)?;
+    let info = ChannelInfo::parse(&bytes[BUNDLE..BUNDLE + UPDATE_CHANNEL_INFO_SIZE])?;
+    Ok((u32_at(bytes, 0), u32_at(bytes, 8), info))
+}
+
+/// The registration parameters of a deferred UpdateChannelInfo (V2 layout, no VA owner).
+pub fn encode_channel_info_request(api_handle: u32, flags: u32, info: &ChannelInfo) -> [u8; PARAMS_SIZE] {
+    let mut out = [0; PARAMS_SIZE];
+    put_u32(&mut out, 0, api_handle);
+    put_u32(&mut out, 4, CMD_UPDATE_CHANNEL_INFO);
+    put_u32(&mut out, 8, flags);
+    out[BUNDLE..BUNDLE + UPDATE_CHANNEL_INFO_SIZE].copy_from_slice(&info.encode());
+    out
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -316,6 +443,60 @@ mod tests {
                 digit(pair[0]) << 4 | digit(pair[1])
             })
             .collect()
+    }
+
+    /// C115 (Windows, Steam beside Heaven): the request the kernel forwarded as
+    /// DEFERRED_API_INTERNAL, which moved chid 22 to a 64K-entry GPFIFO and a new USERD.
+    #[test]
+    fn the_captured_channel_migration_parses_and_round_trips() {
+        let mut bytes = decode_hex(
+            "7e0000401611802000000000000000000000000000000000b500d0c1130004ff02a000ff00000100000038250200000000040000000000000000",
+        );
+        bytes.resize(PARAMS_SIZE, 0);
+        assert!(is_registration(CMD_DEFERRED_API_INTERNAL));
+        assert_eq!(nested_command(&bytes), Some(CMD_UPDATE_CHANNEL_INFO));
+        let (api, flags, info) = parse_channel_info_request(&bytes).unwrap();
+        assert_eq!((api, flags), (0x4000_007e, 0));
+        assert_eq!(
+            info,
+            ChannelInfo {
+                h_client: 0xc1d0_00b5,
+                h_channel: 0xff04_0013,
+                h_userd_memory: 0xff00_a002,
+                gp_fifo_entries: 0x1_0000,
+                gp_fifo_offset: 0x2_2538_0000,
+                userd_offset: 0x400,
+            }
+        );
+        assert_eq!(encode_channel_info_request(api, flags, &info).as_slice(), bytes);
+        // The context parser refuses it: it is not a context request.
+        assert!(parse(&bytes).is_err());
+        assert_eq!(migration_bundle(CMD_DEFERRED_API_INTERNAL, &bytes), Some(info));
+        assert_eq!(migration_bundle(CMD_UPDATE_CHANNEL_INFO, &info.encode()), Some(info));
+        assert_eq!(migration_bundle(0x2080_110b, &info.encode()), None);
+    }
+
+    #[test]
+    fn a_channel_migration_needs_a_userd_and_a_power_of_two_ring() {
+        let good = ChannelInfo {
+            h_client: 1,
+            h_channel: 2,
+            h_userd_memory: 3,
+            gp_fifo_entries: 8,
+            gp_fifo_offset: 0x1000,
+            userd_offset: 0,
+        };
+        assert_eq!(ChannelInfo::parse(&good.encode()), Ok(good));
+        let mut no_userd = good;
+        no_userd.h_userd_memory = 0;
+        assert!(ChannelInfo::parse(&no_userd.encode()).is_err());
+        let mut odd = good;
+        odd.gp_fifo_entries = 12;
+        assert!(ChannelInfo::parse(&odd.encode()).is_err());
+        let mut unaligned = good;
+        unaligned.userd_offset = 0x10;
+        assert!(ChannelInfo::parse(&unaligned.encode()).is_err());
+        assert!(ChannelInfo::parse(&good.encode()[..16]).is_err());
     }
 
     #[test]

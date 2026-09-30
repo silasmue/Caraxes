@@ -1,0 +1,8 @@
+09:53:07 bench pid 3314705, binary /mnt/vmstore/caraxes/vfio-user-nvgpu-stack-ffec4d49, extra: 
+09:57:04 dump A (benchmark rendering, gpu=11)
+09:57:29 dump B
+10:02:49 bench rc=0
+10:02:55 down
+		Min FPS: 0.0
+		Max FPS: 122.4
+		Average FPS: 34.7

@@ -1,0 +1,2 @@
+FPS:	140.428
+FAIL: no score in the output

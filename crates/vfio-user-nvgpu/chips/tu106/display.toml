@@ -42,230 +42,378 @@ lanes = 4
 dsc = true
 fec = true
 
-# The NVC573 capabilities page at BAR0 0x640000 (4096 bytes, clc573.h). Offsets are
-# relative to 0x640000; every dword not listed reads 0 (nvkms-evo3.c reads the
-# precomp caps of all 32 windows, so windows 8-31 must stay 0).
+# The NVC573 capabilities page at BAR0 0x640000 (4096 bytes, clc573.h), as the TU106
+# answers it: caraxes/reference/rtx2070/display-caps-2026-09-27.txt (the RTX 2070 under host
+# RM 615.71.09, READ_32 only). Offsets are relative to 0x640000; every dword not listed reads
+# 0, as on the card (NVKMS reads the precomp caps of all 32 windows; windows 8-31 are 0).
+# Every nonzero dword of the capture is served, including those clc573.h does not name,
+# with two exceptions for features the model does not have:
+# - IHUB_COMMON_CAPA keeps the mempool geometry, SUPPORT_PLANAR and the request size, not
+#   the card's VGA, mempool-compression, MSCG, MCLK-switch and bit-24 bits;
+# - POSTCOMP_HEAD_HDR_CAPB(0) omits VGA (0:0), the head that scans out the VGA console.
+# HEAD_CLK_CAP and SOR_CLK_CAP read 0 at clc573.h's offsets (0x5e8, 0x608) on the card, as
+# NVKMS expects of Turing (nvkms-evo3.c:5181-5200); IS_MODE_POSSIBLE uses head_clk_cap_khz.
+# The earlier synthesized page (NVKMS-shaped: no scalers, no pipe widths, every CSC stage on
+# every window) left the window pipes without FULL_WIDTH/UNIT_WIDTH and the scaler line
+# limits at 0, unlike any TU106; the Windows KMD accepted flips on it but never programmed a
+# window (docs/research/windows-findings.md, CH step 4: the suspected cause).
 [[caps]]
 offset = 0x000
-name = "SYS_CAP: HEAD_EXISTS(0-3), SOR_EXISTS(0-3)"
-value = 0x0000_0F0F
+name = "SYS_CAP"
+value = 0x00000f0f
 [[caps]]
 offset = 0x004
-name = "SYS_CAPB: WINDOW_EXISTS(0-7)"
-value = 0x0000_00FF
+name = "SYS_CAPB"
+value = 0x000000ff
+[[caps]]
+offset = 0x00c
+name = "not named in clc573.h"
+value = 0x00000100
 [[caps]]
 offset = 0x010
-name = "IHUB_COMMON_CAPA: 5120 x 128-byte entries, 128-byte requests, SUPPORT_PLANAR"
-# RTX 2070 (TU106), 2026-09-27: hostreg-read READ_32 through RM returned 0x81FA1400
-# at BAR0 0x640010. clc573.h defines MEMPOOL_ENTRIES[15:0] = 0x1400,
-# MEMPOOL_ENTRY_WIDTH[17:16] = 2 (128B), and
-# REQUEST_SIZE_PER_LINE_NON_ROTATION[31:30] = 2 (128B). A zero entry count advertises
-# no display input buffer. Keep the model's feature bits: SUPPORT_PLANAR only;
-# do not copy the card's VGA, compression, power-management or reserved bits.
-value = 0x800A_1400
-# SOR_CAP(i) = 0x144 + 8i: SINGLE_TMDS_A/B, DUAL_TMDS, DP_A, DP_B; HDMI_FRL (bit 28) 0.
+name = "IHUB_COMMON_CAPA"
+value = 0x800a1400  # the card: 0x81fa1400 (VGA, compression, MSCG, MCLK switch, bit 24 omitted)
+[[caps]]
+offset = 0x018
+name = "IHUB_COMMON_CAPC (clc673.h and later; not in clc573.h)"
+value = 0x00000012
+[[caps]]
+offset = 0x048
+name = "not named in clc573.h"
+value = 0x00000a00
+[[caps]]
+offset = 0x068
+name = "not named in clc573.h"
+value = 0x00000a00
+[[caps]]
+offset = 0x088
+name = "not named in clc573.h"
+value = 0x00000a00
+[[caps]]
+offset = 0x0a8
+name = "not named in clc573.h"
+value = 0x00000a00
 [[caps]]
 offset = 0x144
 name = "SOR_CAP(0)"
-value = 0x0300_0B00
+value = 0x0b004b00
 [[caps]]
-offset = 0x14C
+offset = 0x14c
 name = "SOR_CAP(1)"
-value = 0x0300_0B00
+value = 0x0b004b00
 [[caps]]
 offset = 0x154
 name = "SOR_CAP(2)"
-value = 0x0300_0B00
+value = 0x0b004b00
 [[caps]]
-offset = 0x15C
+offset = 0x15c
 name = "SOR_CAP(3)"
-value = 0x0300_0B00
-# HEAD_CLK_CAP(i) = 0x5E8 + 4i: PCLK_MAX 133 x 10 MHz, the Turing reset value NVKMS
-# itself carries (nvkms-evo3.c:5182-5186).
+value = 0x0b004b00
 [[caps]]
-offset = 0x5E8
+offset = 0x5e4
+name = "not named in clc573.h"
+value = 0x00000085
+[[caps]]
+offset = 0x5e8
 name = "HEAD_CLK_CAP(0)"
-value = 0x85
+value = 0x00000085
 [[caps]]
-offset = 0x5EC
+offset = 0x5ec
 name = "HEAD_CLK_CAP(1)"
-value = 0x85
+value = 0x00000085
 [[caps]]
-offset = 0x5F0
+offset = 0x5f0
 name = "HEAD_CLK_CAP(2)"
-value = 0x85
+value = 0x00000085
 [[caps]]
-offset = 0x5F4
+offset = 0x5f4
 name = "HEAD_CLK_CAP(3)"
-value = 0x85
-# SOR_CLK_CAP(i) = 0x608 + 4i: DP_MAX 0x51 (8.1 Gbit/s), TMDS_MAX 0x3C (600 MHz), the
-# clc573.h INIT values.
+value = 0x00000085
+[[caps]]
+offset = 0x5f8
+name = "HEAD_CLK_CAP(4)"
+value = 0x00000085
+[[caps]]
+offset = 0x5fc
+name = "HEAD_CLK_CAP(5)"
+value = 0x00000085
+[[caps]]
+offset = 0x600
+name = "HEAD_CLK_CAP(6)"
+value = 0x00000085
+[[caps]]
+offset = 0x604
+name = "HEAD_CLK_CAP(7)"
+value = 0x00000085
 [[caps]]
 offset = 0x608
-name = "SOR_CLK_CAP(0)"
-value = 0x003C_0051
+name = "HEAD_CLK_CAP(8)"
+value = 0x003c0051
 [[caps]]
-offset = 0x60C
-name = "SOR_CLK_CAP(1)"
-value = 0x003C_0051
+offset = 0x60c
+name = "HEAD_CLK_CAP(9)"
+value = 0x003c0051
 [[caps]]
 offset = 0x610
-name = "SOR_CLK_CAP(2)"
-value = 0x003C_0051
+name = "HEAD_CLK_CAP(10)"
+value = 0x003c0051
 [[caps]]
 offset = 0x614
-name = "SOR_CLK_CAP(3)"
-value = 0x003C_0051
-# POSTCOMP_HEAD_HDR_CAPA(i) = 0x680 + 32i: UNIT_WIDTH 16, OCSC0/1, DTH, DSC_PRESENT; no
-# scaler.
+name = "HEAD_CLK_CAP(11)"
+value = 0x003c0051
+[[caps]]
+offset = 0x618
+name = "HEAD_CLK_CAP(12)"
+value = 0x003c0051
+[[caps]]
+offset = 0x61c
+name = "HEAD_CLK_CAP(13)"
+value = 0x003c0051
+[[caps]]
+offset = 0x620
+name = "HEAD_CLK_CAP(14)"
+value = 0x003c0051
+[[caps]]
+offset = 0x624
+name = "HEAD_CLK_CAP(15)"
+value = 0x003c0051
 [[caps]]
 offset = 0x680
 name = "POSTCOMP_HEAD_HDR_CAPA(0)"
-value = 0x0053_0200
-[[caps]]
-offset = 0x6A0
-name = "POSTCOMP_HEAD_HDR_CAPA(1)"
-value = 0x0053_0200
-[[caps]]
-offset = 0x6C0
-name = "POSTCOMP_HEAD_HDR_CAPA(2)"
-value = 0x0053_0200
-[[caps]]
-offset = 0x6E0
-name = "POSTCOMP_HEAD_HDR_CAPA(3)"
-value = 0x0053_0200
-# PRECOMP_WIN_PIPE_HDR_CAPA(w) = 0x780 + 32w: CSC00, CSC0LUT, CSC01, CSC10, CSC1LUT,
-# CSC11 (CSC11 is asserted on every flip, nvkms-evo3.c:1150); TMO on the even windows as
-# captured (0x01D7_0000), no scaler.
-[[caps]]
-offset = 0x780
-name = "PRECOMP_WIN_PIPE_HDR_CAPA(0)"
-value = 0x01D7_0000
-[[caps]]
-offset = 0x7A0
-name = "PRECOMP_WIN_PIPE_HDR_CAPA(1)"
-value = 0x01C7_0000
-[[caps]]
-offset = 0x7C0
-name = "PRECOMP_WIN_PIPE_HDR_CAPA(2)"
-value = 0x01D7_0000
-[[caps]]
-offset = 0x7E0
-name = "PRECOMP_WIN_PIPE_HDR_CAPA(3)"
-value = 0x01C7_0000
-[[caps]]
-offset = 0x800
-name = "PRECOMP_WIN_PIPE_HDR_CAPA(4)"
-value = 0x01D7_0000
-[[caps]]
-offset = 0x820
-name = "PRECOMP_WIN_PIPE_HDR_CAPA(5)"
-value = 0x01C7_0000
-[[caps]]
-offset = 0x840
-name = "PRECOMP_WIN_PIPE_HDR_CAPA(6)"
-value = 0x01D7_0000
-[[caps]]
-offset = 0x860
-name = "PRECOMP_WIN_PIPE_HDR_CAPA(7)"
-value = 0x01C7_0000
-
-# TMO resource geometry from the TU106 capture, no GMA bits (the Windows KMD's display
-# init needs it: P40, without it the KMD loops on 0x50700117 and unloads, Code 43).
-[[caps]]
-offset = 0x78c
-name = "PRECOMP_WIN_PIPE_HDR_CAPD(0)"
-value = 0x0000_016A
-
-# TMO resource geometry from the TU106 capture, no GMA bits (the Windows KMD's display
-# init needs it: P40, without it the KMD loops on 0x50700117 and unloads, Code 43).
-[[caps]]
-offset = 0x7cc
-name = "PRECOMP_WIN_PIPE_HDR_CAPD(2)"
-value = 0x0000_016A
-
-# TMO resource geometry from the TU106 capture, no GMA bits (the Windows KMD's display
-# init needs it: P40, without it the KMD loops on 0x50700117 and unloads, Code 43).
-[[caps]]
-offset = 0x80c
-name = "PRECOMP_WIN_PIPE_HDR_CAPD(4)"
-value = 0x0000_016A
-
-# TMO resource geometry from the TU106 capture, no GMA bits (the Windows KMD's display
-# init needs it: P40, without it the KMD loops on 0x50700117 and unloads, Code 43).
-[[caps]]
-offset = 0x84c
-name = "PRECOMP_WIN_PIPE_HDR_CAPD(6)"
-value = 0x0000_016A
-
-# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
-[[caps]]
-offset = 0x784
-name = "PRECOMP_WIN_PIPE_HDR_CAPB(0)"
-value = 0x0000_DA90
-
-# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
-[[caps]]
-offset = 0x7a4
-name = "PRECOMP_WIN_PIPE_HDR_CAPB(1)"
-value = 0x0000_DA90
-
-# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
-[[caps]]
-offset = 0x7c4
-name = "PRECOMP_WIN_PIPE_HDR_CAPB(2)"
-value = 0x0000_DA90
-
-# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
-[[caps]]
-offset = 0x7e4
-name = "PRECOMP_WIN_PIPE_HDR_CAPB(3)"
-value = 0x0000_DA90
-
-# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
-[[caps]]
-offset = 0x804
-name = "PRECOMP_WIN_PIPE_HDR_CAPB(4)"
-value = 0x0000_DA90
-
-# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
-[[caps]]
-offset = 0x824
-name = "PRECOMP_WIN_PIPE_HDR_CAPB(5)"
-value = 0x0000_DA90
-
-# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
-[[caps]]
-offset = 0x844
-name = "PRECOMP_WIN_PIPE_HDR_CAPB(6)"
-value = 0x0000_DA90
-
-# ILUT geometry from the TU106 capture (the Windows KMD's display init, P40).
-[[caps]]
-offset = 0x864
-name = "PRECOMP_WIN_PIPE_HDR_CAPB(7)"
-value = 0x0000_DA90
-
-# OLUT geometry from the TU106 capture; the captured head-0 low-latency state bit omitted.
+value = 0x007f01d0
 [[caps]]
 offset = 0x684
 name = "POSTCOMP_HEAD_HDR_CAPB(0)"
-value = 0x0000_D680
-
-# OLUT geometry from the TU106 capture; the captured head-0 low-latency state bit omitted.
+value = 0x0000d680  # the card: 0x0000d681 (VGA omitted)
+[[caps]]
+offset = 0x688
+name = "POSTCOMP_HEAD_HDR_CAPC(0)"
+value = 0x03580e0e
+[[caps]]
+offset = 0x68c
+name = "POSTCOMP_HEAD_HDR_CAPD(0)"
+value = 0x0a001400
+[[caps]]
+offset = 0x690
+name = "POSTCOMP_HEAD_HDR_CAPE(0)"
+value = 0x00000506
+[[caps]]
+offset = 0x6a0
+name = "POSTCOMP_HEAD_HDR_CAPA(1)"
+value = 0x007f01d0
 [[caps]]
 offset = 0x6a4
 name = "POSTCOMP_HEAD_HDR_CAPB(1)"
-value = 0x0000_D680
-
-# OLUT geometry from the TU106 capture; the captured head-0 low-latency state bit omitted.
+value = 0x0000d680
+[[caps]]
+offset = 0x6a8
+name = "POSTCOMP_HEAD_HDR_CAPC(1)"
+value = 0x03580e0e
+[[caps]]
+offset = 0x6ac
+name = "POSTCOMP_HEAD_HDR_CAPD(1)"
+value = 0x0a001400
+[[caps]]
+offset = 0x6b0
+name = "POSTCOMP_HEAD_HDR_CAPE(1)"
+value = 0x00000506
+[[caps]]
+offset = 0x6c0
+name = "POSTCOMP_HEAD_HDR_CAPA(2)"
+value = 0x007f01d0
 [[caps]]
 offset = 0x6c4
 name = "POSTCOMP_HEAD_HDR_CAPB(2)"
-value = 0x0000_D680
-
-# OLUT geometry from the TU106 capture; the captured head-0 low-latency state bit omitted.
+value = 0x0000d680
+[[caps]]
+offset = 0x6c8
+name = "POSTCOMP_HEAD_HDR_CAPC(2)"
+value = 0x03580e0e
+[[caps]]
+offset = 0x6cc
+name = "POSTCOMP_HEAD_HDR_CAPD(2)"
+value = 0x0a001400
+[[caps]]
+offset = 0x6d0
+name = "POSTCOMP_HEAD_HDR_CAPE(2)"
+value = 0x00000506
+[[caps]]
+offset = 0x6e0
+name = "POSTCOMP_HEAD_HDR_CAPA(3)"
+value = 0x007f01d0
 [[caps]]
 offset = 0x6e4
 name = "POSTCOMP_HEAD_HDR_CAPB(3)"
-value = 0x0000_D680
+value = 0x0000d680
+[[caps]]
+offset = 0x6e8
+name = "POSTCOMP_HEAD_HDR_CAPC(3)"
+value = 0x03580e0e
+[[caps]]
+offset = 0x6ec
+name = "POSTCOMP_HEAD_HDR_CAPD(3)"
+value = 0x0a001400
+[[caps]]
+offset = 0x6f0
+name = "POSTCOMP_HEAD_HDR_CAPE(3)"
+value = 0x00000506
+[[caps]]
+offset = 0x780
+name = "POSTCOMP_HEAD_HDR_CAPA(8)"
+value = 0x01df21d0
+[[caps]]
+offset = 0x784
+name = "POSTCOMP_HEAD_HDR_CAPB(8)"
+value = 0x0000da90
+[[caps]]
+offset = 0x788
+name = "POSTCOMP_HEAD_HDR_CAPC(8)"
+value = 0x000e164e
+[[caps]]
+offset = 0x78c
+name = "POSTCOMP_HEAD_HDR_CAPD(8)"
+value = 0x5075816a
+[[caps]]
+offset = 0x790
+name = "POSTCOMP_HEAD_HDR_CAPE(8)"
+value = 0x000e1a4e
+[[caps]]
+offset = 0x794
+name = "PRECOMP_WIN_PIPE_HDR_CAPF(0)"
+value = 0x0a001400
+[[caps]]
+offset = 0x7a0
+name = "POSTCOMP_HEAD_HDR_CAPA(9)"
+value = 0x010021d0
+[[caps]]
+offset = 0x7a4
+name = "POSTCOMP_HEAD_HDR_CAPB(9)"
+value = 0x0000da90
+[[caps]]
+offset = 0x7b0
+name = "POSTCOMP_HEAD_HDR_CAPE(9)"
+value = 0x000e0000
+[[caps]]
+offset = 0x7b4
+name = "PRECOMP_WIN_PIPE_HDR_CAPF(1)"
+value = 0x0a001400
+[[caps]]
+offset = 0x7c0
+name = "POSTCOMP_HEAD_HDR_CAPA(10)"
+value = 0x01df21d0
+[[caps]]
+offset = 0x7c4
+name = "POSTCOMP_HEAD_HDR_CAPB(10)"
+value = 0x0000da90
+[[caps]]
+offset = 0x7c8
+name = "POSTCOMP_HEAD_HDR_CAPC(10)"
+value = 0x000e164e
+[[caps]]
+offset = 0x7cc
+name = "POSTCOMP_HEAD_HDR_CAPD(10)"
+value = 0x5075816a
+[[caps]]
+offset = 0x7d0
+name = "POSTCOMP_HEAD_HDR_CAPE(10)"
+value = 0x000e1a4e
+[[caps]]
+offset = 0x7d4
+name = "PRECOMP_WIN_PIPE_HDR_CAPF(2)"
+value = 0x0a001400
+[[caps]]
+offset = 0x7e0
+name = "POSTCOMP_HEAD_HDR_CAPA(11)"
+value = 0x010021d0
+[[caps]]
+offset = 0x7e4
+name = "POSTCOMP_HEAD_HDR_CAPB(11)"
+value = 0x0000da90
+[[caps]]
+offset = 0x7f0
+name = "POSTCOMP_HEAD_HDR_CAPE(11)"
+value = 0x000e0000
+[[caps]]
+offset = 0x7f4
+name = "PRECOMP_WIN_PIPE_HDR_CAPF(3)"
+value = 0x0a001400
+[[caps]]
+offset = 0x800
+name = "POSTCOMP_HEAD_HDR_CAPA(12)"
+value = 0x01df21d0
+[[caps]]
+offset = 0x804
+name = "POSTCOMP_HEAD_HDR_CAPB(12)"
+value = 0x0000da90
+[[caps]]
+offset = 0x808
+name = "POSTCOMP_HEAD_HDR_CAPC(12)"
+value = 0x000e164e
+[[caps]]
+offset = 0x80c
+name = "POSTCOMP_HEAD_HDR_CAPD(12)"
+value = 0x5075816a
+[[caps]]
+offset = 0x810
+name = "POSTCOMP_HEAD_HDR_CAPE(12)"
+value = 0x000e1a4e
+[[caps]]
+offset = 0x814
+name = "PRECOMP_WIN_PIPE_HDR_CAPF(4)"
+value = 0x0a001400
+[[caps]]
+offset = 0x820
+name = "POSTCOMP_HEAD_HDR_CAPA(13)"
+value = 0x010021d0
+[[caps]]
+offset = 0x824
+name = "POSTCOMP_HEAD_HDR_CAPB(13)"
+value = 0x0000da90
+[[caps]]
+offset = 0x830
+name = "POSTCOMP_HEAD_HDR_CAPE(13)"
+value = 0x000e0000
+[[caps]]
+offset = 0x834
+name = "PRECOMP_WIN_PIPE_HDR_CAPF(5)"
+value = 0x0a001400
+[[caps]]
+offset = 0x840
+name = "POSTCOMP_HEAD_HDR_CAPA(14)"
+value = 0x01df21d0
+[[caps]]
+offset = 0x844
+name = "POSTCOMP_HEAD_HDR_CAPB(14)"
+value = 0x0000da90
+[[caps]]
+offset = 0x848
+name = "POSTCOMP_HEAD_HDR_CAPC(14)"
+value = 0x000e164e
+[[caps]]
+offset = 0x84c
+name = "POSTCOMP_HEAD_HDR_CAPD(14)"
+value = 0x5075816a
+[[caps]]
+offset = 0x850
+name = "POSTCOMP_HEAD_HDR_CAPE(14)"
+value = 0x000e1a4e
+[[caps]]
+offset = 0x854
+name = "PRECOMP_WIN_PIPE_HDR_CAPF(6)"
+value = 0x0a001400
+[[caps]]
+offset = 0x860
+name = "POSTCOMP_HEAD_HDR_CAPA(15)"
+value = 0x010021d0
+[[caps]]
+offset = 0x864
+name = "POSTCOMP_HEAD_HDR_CAPB(15)"
+value = 0x0000da90
+[[caps]]
+offset = 0x870
+name = "POSTCOMP_HEAD_HDR_CAPE(15)"
+value = 0x000e0000
+[[caps]]
+offset = 0x874
+name = "PRECOMP_WIN_PIPE_HDR_CAPF(7)"
+value = 0x0a001400

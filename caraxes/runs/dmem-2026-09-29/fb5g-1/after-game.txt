@@ -1,0 +1,11 @@
+after the game:
+06:20:09 vram=4660 free=252 gpu=66 app=4207/max session=161 game=7496 nvkms_fail=1 xid=0
+app.slice dmem.current: nvidia/00000000:00:06.0/vidmem 4412041824
+session.slice dmem.current: nvidia/00000000:00:06.0/vidmem 168823744
+4659 MiB, 253 MiB
+game gone
+06:20:47 vram=366 free=4552 gpu=9 app=64/max session=158 game=none nvkms_fail=1 xid=0
+app.slice dmem.current: nvidia/00000000:00:06.0/vidmem 67496032
+session.slice dmem.current: nvidia/00000000:00:06.0/vidmem 166599616
+360 MiB, 4552 MiB
+[  878.108263] [drm:nv_drm_gem_alloc_nvkms_memory_ioctl [nvidia_drm]] *ERROR* [nvidia-drm] [GPU ID 0x00000006] Failed to allocate NVKMS memory for GEM object

@@ -1,0 +1,18 @@
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+loaded /opt/caraxes/display-reserve/6.8.0-136-generic/nvidia.ko: RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0;RmDisplayReserve=1"
+RegistryDwordsPerDevice: ""
+load rc=0
+RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0;RmDisplayReserve=1"
+RegistryDwordsPerDevice: ""
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+modeset-drm-ok
+1 MiB, 823 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+150 MiB, 675 MiB
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+sudo: unable to resolve host caraxes-desktop-b: Temporary failure in name resolution
+[    0.000000] [Firmware Bug]: TSC doesn't count with P0 frequency!
+[    0.266063] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    4.785937] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...

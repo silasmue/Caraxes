@@ -28,7 +28,8 @@
 //!   (two looks per renewal interval), and an unpark (one futex wake) for the first
 //!   activity after the worker went idle. The RM call runs on the `host-boost` thread,
 //!   never under the device mutex.
-//! - `CARAXES_HOST_BOOST=0` turns it off (A/B). The exit summary prints one line.
+//! - On with host execution (the default since 78d4b0fd, 2026-09-28; its off switch
+//!   `CARAXES_HOST_BOOST=0` went on 2026-09-30). The exit summary prints one line.
 
 use core::mem::{offset_of, size_of};
 use std::sync::atomic::{
@@ -41,8 +42,6 @@ use std::time::{Duration, Instant};
 use crate::ctrl::HostRm;
 use crate::ver::common::{self as v, NV20_SUBDEVICE_0, NV_OK};
 
-/// The switch: `0` (or `off`) turns the host boost off; anything else, or unset, leaves it on.
-pub const ENV: &str = "CARAXES_HOST_BOOST";
 
 /// `NV2080_CTRL_CMD_PERF_BOOST` (615 ctrl2080perf.h:99, 610 :95). NON_PRIVILEGED: export
 /// flags 0x10318 (615 g_subdevice_nvoc.c:11198, 610 :11032).
@@ -116,11 +115,6 @@ pub fn forwarded(guest: u32, host_flags: u32) -> Option<u32> {
     };
     let keep = host_flags & !(FLAGS_CMD | FLAG_CUDA | FLAG_CUDA_PRIORITY | FLAG_ASYNC);
     Some(cmd | (guest & keep))
-}
-
-/// The switch's value: on unless `0` or `off`.
-pub fn enabled(env: Option<&str>) -> bool {
-    !matches!(env.map(str::trim), Some("0") | Some("off"))
 }
 
 // ---------------------------------------------------------------------------------
@@ -464,7 +458,7 @@ fn describe_guest(params: &[u8]) -> (u32, String) {
 
 fn request(sig: &Signal, flags: u32, what: &str) -> String {
     if !sig.on() {
-        return format!("{what}: nothing boosted (host boost off: {ENV}=0 or no host execution)");
+        return format!("{what}: nothing boosted (host boost off: no host execution, or it failed to start)");
     }
     sig.post_guest(flags);
     if flags & FLAGS_CMD == CMD_CLEAR {
@@ -658,8 +652,6 @@ mod tests {
         // Only a worker's first look arms the signal.
         assert!(!sig.take());
         assert!(sig.on());
-        assert!(enabled(None) && enabled(Some("1")) && enabled(Some("")));
-        assert!(!enabled(Some("0")) && !enabled(Some(" 0 ")) && !enabled(Some("off")));
     }
 
     /// The guest's cuCtxCreate request {BOOST_TO_MAX | CUDA, infinite} reaches the host as

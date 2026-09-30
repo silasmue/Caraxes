@@ -1,0 +1,25 @@
+32b1c1f37b3be2e8282b484ad50bf5b0426a619963c722b9c80e4d997dc9778e  /mnt/vmstore/caraxes/vfio-user-nvgpu-stack-ffec4d49
+98908e0833b2d10ee6018529eaa3217e82794c73a6e31d0acac01fc1165febf8  /mnt/vmstore/caraxes/nova-kernel/build-openrender/arch/x86/boot/bzImage
+b7651733ccade3a420b0c2c5f795b636c3442f0c40e99cd28680ed54ba8391fc  /mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+42a5aa3c runs: the final gate's chain (legs-stack.sh); session3.sh gains the reconnect check and keeps the exit profile
+CARAXES_BAR2_MEMFD=1
+CARAXES_BOOT_MODEL=1
+CARAXES_COMPRESSION=slice
+CARAXES_CPUS=4
+CARAXES_DMA=register
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_HOST_BAR1_FLOOR_MIB=64
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_INITRD=none
+CARAXES_KERNEL=/mnt/vmstore/caraxes/nova-kernel/build-openrender/arch/x86/boot/bzImage
+CARAXES_MEM=4G
+CARAXES_MSI_REARM_IOEVENTFD=1
+CARAXES_RESERVE_SLOT=4
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-stack-ffec4d49
+CARAXES_TAP=none
+CARAXES_VBIOS=/mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+VM=vm10

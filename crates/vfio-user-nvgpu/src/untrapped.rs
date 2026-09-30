@@ -39,20 +39,8 @@
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-/// The switch (default on).
-pub const ENV: &str = "CARAXES_SHADOW_UNTRAPPED_HOLD";
 /// Findings logged at most (the counters are complete).
 const LOG_FIRST: usize = 16;
-
-/// `CARAXES_SHADOW_UNTRAPPED_HOLD`: unset, empty, `1`/`on` on; `0`/`off` off; anything else
-/// an error (the caller then keeps the rule on: fail closed).
-pub fn parse_switch(v: Option<&str>) -> Result<bool, String> {
-    match v.map(str::trim) {
-        None | Some("") | Some("1") | Some("on") => Ok(true),
-        Some("0") | Some("off") => Ok(false),
-        Some(x) => Err(format!("{ENV}={x:?}: expected 1, on, 0 or off")),
-    }
-}
 
 /// Whether a guest MMU invalidate of `pdb` (`None`: `ALL_PDB`) must be planned and applied
 /// before it returns: it names the shadow root of a mirrored channel whose USERD the guest
@@ -61,6 +49,18 @@ pub fn must_hold(pdb: Option<u64>, untrapped: &BTreeSet<u64>) -> bool {
     match pdb {
         Some(r) => untrapped.contains(&r),
         None => !untrapped.is_empty(),
+    }
+}
+
+/// The roots a held invalidate of `pdb` (`None`: `ALL_PDB`) waits for, when it holds
+/// ([`must_hold`]): the root it names, or for `ALL_PDB` every root whose GPPut store does not
+/// trap. Only those host channels can fetch the guest's next work without a doorbell; every
+/// other root's channel runs after a doorbell barrier that plans and waits for its root
+/// (mirror.rs `gr_shadow_doorbell`), so the invalidate's completion does not wait for it.
+pub fn held_roots(pdb: Option<u64>, untrapped: &BTreeSet<u64>) -> Vec<u64> {
+    match pdb {
+        Some(r) => vec![r],
+        None => untrapped.iter().copied().collect(),
     }
 }
 
@@ -122,6 +122,10 @@ pub struct HoldStats {
     /// plans pending (lazy or in the worker).
     pub ahead: u64,
     pub ahead_pending: u64,
+    /// Of those, the ones that found plans of the channel's own shadow root pending: the
+    /// entries the host channel fetched may have met a stale or missing leaf. The others
+    /// found only other roots' plans pending, which the channel does not translate through.
+    pub ahead_own_root: u64,
     pub first: Vec<String>,
 }
 
@@ -140,12 +144,20 @@ impl HoldStats {
 
     /// A doorbell that found its host channel ahead; `pending` whether plans were pending.
     /// Returns the log line of the first few with plans pending.
-    pub fn note_ahead(&mut self, pending: bool, line: impl FnOnce() -> String) -> Option<String> {
+    pub fn note_ahead(
+        &mut self,
+        pending: bool,
+        own_root: bool,
+        line: impl FnOnce() -> String,
+    ) -> Option<String> {
         self.ahead += 1;
         if !pending {
             return None;
         }
         self.ahead_pending += 1;
+        if own_root {
+            self.ahead_own_root += 1;
+        }
         (self.first.len() < LOG_FIRST).then(|| {
             let l = line();
             self.first.push(l.clone());
@@ -153,10 +165,9 @@ impl HoldStats {
         })
     }
 
-    pub fn summary(&self, on: bool) -> String {
+    pub fn summary(&self) -> String {
         format!(
-            "untrapped GPPut: rule {} ({ENV}); {} invalidate(s) held until applied ({} ms in total, longest {} us); {} software MEM_OP invalidate(s) of a shadow root held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending (docs/caraxes/bar1-pool.md §9)",
-            if on { "on" } else { "OFF" },
+            "untrapped GPPut: {} invalidate(s) held until applied ({} ms in total, longest {} us); {} software MEM_OP invalidate(s) of a shadow root held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending, {} with plans of the channel's own root pending (docs/caraxes/bar1-pool.md §9)",
             self.held,
             self.held_total.as_millis(),
             self.held_max.as_micros(),
@@ -164,7 +175,8 @@ impl HoldStats {
             self.memop_total.as_millis(),
             self.memop_max.as_micros(),
             self.ahead,
-            self.ahead_pending
+            self.ahead_pending,
+            self.ahead_own_root
         )
     }
 }
@@ -180,17 +192,20 @@ pub fn wall() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
+    /// A held invalidate waits for its own root, or for ALL_PDB for the untrapped roots
+    /// only (not every shadow root).
     #[test]
-    fn the_switch_is_on_unless_turned_off() {
-        assert_eq!(parse_switch(None), Ok(true));
-        assert_eq!(parse_switch(Some("")), Ok(true));
-        assert_eq!(parse_switch(Some("1")), Ok(true));
-        assert_eq!(parse_switch(Some("0")), Ok(false));
-        assert_eq!(parse_switch(Some("off")), Ok(false));
-        assert!(parse_switch(Some("maybe")).is_err());
+    fn a_held_invalidate_waits_for_its_scope_only() {
+        let untrapped: BTreeSet<u64> = [0xA000, 0xB000].into_iter().collect();
+        assert!(must_hold(Some(0xA000), &untrapped));
+        assert_eq!(held_roots(Some(0xA000), &untrapped), vec![0xA000]);
+        assert!(must_hold(None, &untrapped));
+        assert_eq!(held_roots(None, &untrapped), vec![0xA000, 0xB000]);
+        assert!(!must_hold(Some(0xC000), &untrapped), "a trapped root is not held");
+        assert!(!must_hold(None, &BTreeSet::new()));
     }
+
+    use super::*;
 
     /// An invalidate is held when it names a root with an untrapped USERD, or every root
     /// while there is one; never when no mirrored channel has an untrapped USERD.
@@ -246,20 +261,22 @@ mod tests {
     #[test]
     fn only_the_first_pending_cases_are_logged() {
         let mut s = HoldStats::default();
-        assert!(s.note_ahead(false, || "x".into()).is_none());
-        for _ in 0..LOG_FIRST {
-            assert!(s.note_ahead(true, || "y".into()).is_some());
+        assert!(s.note_ahead(false, false, || "x".into()).is_none());
+        for i in 0..LOG_FIRST {
+            assert!(s.note_ahead(true, i % 2 == 0, || "y".into()).is_some());
         }
-        assert!(s.note_ahead(true, || "z".into()).is_none());
+        assert!(s.note_ahead(true, true, || "z".into()).is_none());
         assert_eq!((s.ahead, s.ahead_pending), (LOG_FIRST as u64 + 2, LOG_FIRST as u64 + 1));
+        assert_eq!(s.ahead_own_root, LOG_FIRST as u64 / 2 + 1, "own-root cases counted apart");
+        assert!(s.summary().contains("with plans of the channel's own root pending"));
         s.note_held(Duration::from_micros(300));
         s.note_held(Duration::from_micros(100));
         assert_eq!((s.held, s.held_max), (2, Duration::from_micros(300)));
-        assert!(s.summary(true).contains("2 invalidate(s) held"));
+        assert!(s.summary().contains("2 invalidate(s) held"));
         s.note_memop_held(Duration::from_micros(3123));
         assert_eq!((s.memop_held, s.memop_max), (1, Duration::from_micros(3123)));
         assert!(s
-            .summary(true)
+            .summary()
             .contains("1 software MEM_OP invalidate(s) of a shadow root held until applied (3 ms in total, longest 3123 us)"));
     }
 }

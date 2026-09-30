@@ -277,8 +277,22 @@ One periodic timer per active head.
      last latch; and any `SET_UPDATE_TIMESTAMP` time has arrived. An eligible flip latches:
      - the device releases the **previous** flip's release semaphore (hardware releases on
        flip-away; the displayless HAL copies this rule, `nvkms-displayless.c:262-276`);
-     - it writes the window notifier: status FINISHED in word 0, the device's PTIMER value
-       in words 2-3 (`NV_DISP_NOTIFIER__2/3_TIMESTAMP`, `clc67d.h:45-54`);
+     - it writes the window notifier: the device's PTIMER value of the latch in words
+       2-3 (`NV_DISP_NOTIFIER__2/3_TIMESTAMP`, `clc67d.h:45-54`), then status BEGUN in word
+       0; the presentation it displaces gets FINISHED in its notifier. The class lists the
+       states without timing; the drivers fix it:
+       - nouveau waits for exactly BEGUN right after its `UPDATE`
+         (`nv50_wndw_wait_armed`, `base507c_ntfy_wait_begun`, 2 s timeout);
+       - NVKMS headsurface asserts BEGUN with a valid timestamp for the previous flip at its
+         next frame (`nvkms-headsurface.c:1996-2008`);
+       - the Windows KMD presets its notifier slots FINISHED, resets one to NOT_BEGUN before
+         a flip, and checks it ~0.6 ms after programming the flip: a FINISHED there (the
+         flip latched and was already complete) sends it into a GET/PUT poll that never
+         ends and a VSync timeout TDR (windows-findings.md steps 13-16). With a flip on a
+         head without scanout the notifier is FINISHED at once (its unblank waits for it,
+         C49-C54).
+       A flip on an inactive head is FINISHED at once. nvidia-drm reads neither (it waits
+       for AWAKEN);
      - it sets the window's `AWAKEN_WIN` bit if the notifier mode is `WRITE_AWAKEN`.
   2. **Advance the raster.** Increment the `RG_DPCA` frame count and the LOADV counter.
   3. **Raise vblank.** Set `LAST_DATA` if the RM enabled it.
@@ -287,7 +301,8 @@ One periodic timer per active head.
   path) latch as soon as their acquire is satisfied, without waiting for a tick.
 - **PTIMER.** It must be the same clock the notifier timestamps use.
   `NV2080_CTRL_CMD_TIMER_GET_TIME` (`nvkms-rm.c:4914-4933`) and the notifier words must
-  agree, so the device serves PTIMER from the same `CLOCK_MONOTONIC` base.
+  agree, so the device serves PTIMER from the same `CLOCK_MONOTONIC` base: one device
+  clock per process (`channel::device_epoch`), kept across a function-level reset.
 - **Latency.** The chain is: device thread → vfio-user `SET_IRQS` eventfd → Cloud
   Hypervisor/KVM irqfd → guest MSI → RM ISR → NVKMS deferred timer work
   (`nvkms_alloc_timer_with_ref_ptr(..., 0)`) → nvidia-drm event. Tens to a few hundred µs

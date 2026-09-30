@@ -1,0 +1,49 @@
+# census-cu e4dbcd8a49b50563, bench-cu c5b48cf1181bfcfc
+CUBIN bytes=4712 out=census.cubin
+=== bench-cu init
+INIT cuinit_ms=10.962 devget_ms=0.000 ctxcreate_ms=261.031 ctxdestroy_ms=112.364
+INIT cuinit_ms=19.695 devget_ms=0.000 ctxcreate_ms=191.222 ctxdestroy_ms=109.868
+INIT cuinit_ms=10.882 devget_ms=0.000 ctxcreate_ms=244.737 ctxdestroy_ms=108.477
+INIT cuinit_ms=10.728 devget_ms=0.000 ctxcreate_ms=180.049 ctxdestroy_ms=115.520
+INIT cuinit_ms=11.372 devget_ms=0.000 ctxcreate_ms=277.970 ctxdestroy_ms=121.599
+INIT cuinit_ms=12.541 devget_ms=0.001 ctxcreate_ms=184.252 ctxdestroy_ms=127.681
+INIT cuinit_ms=11.198 devget_ms=0.001 ctxcreate_ms=302.312 ctxdestroy_ms=134.528
+INIT cuinit_ms=10.867 devget_ms=0.000 ctxcreate_ms=216.106 ctxdestroy_ms=147.491
+INIT cuinit_ms=13.736 devget_ms=0.000 ctxcreate_ms=271.234 ctxdestroy_ms=112.682
+INIT cuinit_ms=16.430 devget_ms=0.000 ctxcreate_ms=196.153 ctxdestroy_ms=117.090
+=== bench-cu churn
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=154.2 free_med_us=243.5 cycle_med_ms=33.627 total_ms=723.6
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=2174.8 free_med_us=2194.2 cycle_med_ms=36.276 total_ms=746.6
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=151.4 free_med_us=248.3 cycle_med_ms=33.822 total_ms=717.6
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=2294.2 free_med_us=2294.5 cycle_med_ms=38.078 total_ms=783.0
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=145.1 free_med_us=242.1 cycle_med_ms=33.153 total_ms=749.6
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=2136.4 free_med_us=2202.9 cycle_med_ms=35.568 total_ms=775.5
+--- xid: 0
+=== census-cu ctx
+OP name=cuCtxCreate id=3 reps=5 per_rep=1 med_us=213083.3 min_us=196005.1 max_us=319472.1
+OP name=cuCtxDestroy id=4 reps=5 per_rep=1 med_us=135862.5 min_us=110522.6 max_us=140329.2
+=== census-cu ops
+OP name=idle_100ms id=1 reps=10 per_rep=1 med_us=100075.6 min_us=100071.2 max_us=100138.1
+OP name=cuMemAlloc_1M id=10 reps=20 per_rep=1 med_us=292.4 min_us=4.9 max_us=973.8
+OP name=cuMemFree_1M id=11 reps=20 per_rep=1 med_us=361.0 min_us=6.6 max_us=986.3
+OP name=cuMemAlloc_64M id=12 reps=10 per_rep=1 med_us=2646.3 min_us=2278.6 max_us=3569.7
+OP name=cuMemFree_64M id=13 reps=10 per_rep=1 med_us=2370.6 min_us=1811.8 max_us=2726.9
+OP name=cuMemHostAlloc_1M id=14 reps=10 per_rep=1 med_us=1906.5 min_us=9.7 max_us=5081.6
+OP name=cuMemFreeHost_1M id=15 reps=10 per_rep=1 med_us=803.8 min_us=8.0 max_us=2545.9
+OP name=cuMemHostRegister_1M id=16 reps=10 per_rep=1 med_us=1371.7 min_us=1227.7 max_us=5390.8
+OP name=cuMemHostUnregister_1M id=17 reps=10 per_rep=1 med_us=1364.4 min_us=1096.1 max_us=1619.1
+OP name=launch_1_sync id=20 reps=20 per_rep=1 med_us=44.6 min_us=28.1 max_us=547.6
+OP name=launch_1000_sync id=21 reps=1000 per_rep=1000 med_us=10.7 min_us=10.2 max_us=60.5
+OP name=h2d_pinned_1M id=30 reps=10 per_rep=1 med_us=160.7 min_us=113.5 max_us=180.8
+OP name=d2h_pinned_1M id=31 reps=10 per_rep=1 med_us=116.3 min_us=105.4 max_us=139.0
+OP name=d2d_1M id=32 reps=10 per_rep=1 med_us=44.5 min_us=27.8 max_us=74.0
+OP name=h2d_pageable_1M id=36 reps=10 per_rep=1 med_us=186.6 min_us=182.8 max_us=212.1
+OP name=d2h_pageable_1M id=37 reps=10 per_rep=1 med_us=237.6 min_us=191.3 max_us=2792.5
+OP name=h2d_pinned_16M id=33 reps=10 per_rep=1 med_us=1346.8 min_us=1312.4 max_us=1366.9
+OP name=d2h_pinned_16M id=34 reps=10 per_rep=1 med_us=1337.8 min_us=1299.0 max_us=1430.1
+OP name=d2d_16M id=35 reps=10 per_rep=1 med_us=129.7 min_us=111.3 max_us=713.9
+OP name=cuStreamSynchronize_idle id=40 reps=20 per_rep=1 med_us=6.4 min_us=1.9 max_us=94.2
+OP name=cuEventRecord_Synchronize id=41 reps=20 per_rep=1 med_us=44.3 min_us=24.9 max_us=260.4
+OP name=cuModuleLoad_cubin id=50 reps=10 per_rep=1 med_us=311.6 min_us=266.5 max_us=783.4
+OP name=cuModuleUnload id=51 reps=10 per_rep=1 med_us=12.8 min_us=6.3 max_us=32.1
+--- xid: 0

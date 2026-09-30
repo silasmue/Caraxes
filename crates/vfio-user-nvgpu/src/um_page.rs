@@ -70,7 +70,7 @@ pub fn parse(v: Option<&str>, intr_page: bool, boot_model: bool) -> Result<bool,
     };
     if on && !intr_page {
         return Err(format!(
-            "{USERMODE_PAGE_ENV}=1 needs CARAXES_INTR_PAGE=1 (its memfd and its reactor)"
+            "{USERMODE_PAGE_ENV}=1 needs the interrupt page, which host execution runs (its memfd and its reactor)"
         ));
     }
     if on && !boot_model {

@@ -11,8 +11,8 @@
 //!   (`chips/<chip>/display.toml`), the board's connectors (`boards/<board>.toml`
 //!   `[display]`) and one [`dp_sink::DpSink`] per connector ([`aux`] adapts the NV0073
 //!   AUX encoding onto it);
-//! - the BAR0 pages of the channels (USERD PUT/GET, the core channel's ARMED state
-//!   mirror, cursor `Free`) and the NVC573 capabilities page.
+//! - the BAR0 pages of the channels (USERD PUT/GET, every channel's assembly and ARMED
+//!   method state, cursor `Free`) and the NVC573 capabilities page.
 //!
 //! Nothing here is forwarded to the host: every answer is `synthesized` (chip data),
 //! `board` (the connector table) or `guest` (derived from what the guest wrote), D9.
@@ -21,7 +21,9 @@
 //! and latches them on a per-head clock that also raises vblank.
 
 pub mod aux;
+pub mod core_path;
 pub mod edid;
+pub mod dump;
 pub mod engine;
 pub mod chan_page;
 pub mod fe_page;
@@ -50,9 +52,25 @@ pub const NV_PDISP_VGA_WORKSPACE_BASE: u64 = 0x0062_5F04;
 pub const NV_PDISP_FE_SW: u64 = 0x0064_0000;
 pub const CAPS_PAGE_SIZE: u64 = 0x1000;
 pub const CORE_USERD: u64 = 0x0068_0000;
+/// The core channel's PIO registers in its user page (clc57d.h:285-297): `GET_RG_SCAN_LINE(b)`
+/// at 0x220 and `SET_GET_BLANKING_CTRL(b)` at 0x240, one word per head.
+pub const CORE_GET_RG_SCAN_LINE: u64 = 0x220;
+pub const CORE_SET_GET_BLANKING_CTRL: u64 = 0x240;
 pub const CORE_ARMED: u64 = 0x0068_8000;
 pub const WIN_USERD: u64 = 0x0069_0000;
+/// Methods start at 0x200 of a channel's page (`UPDATE`, clc57e.h:53); below are the
+/// channel's control words (PUT, GET, cursor `Free`).
+pub const CHN_METHODS: u64 = 0x200;
+/// A window, window-immediate or cursor channel's page is its assembly state, the upper
+/// half its ARMED state: `NV_UDISP_FE_CHN_ARMED_BASEADR_WIN(i)` is
+/// `NV_UDISP_FE_CHN_ASSY_BASEADR_WIN(i)` plus 2048, likewise `WINIM` and `CURS` (NVIDIA
+/// open-gpu-doc, volta/gv100/dev_display_withoffset.ref.txt:5956-5973; the core's ARMED
+/// half is `CORE_ARMED`).
+pub const CHN_ARMED: u64 = 0x800;
 pub const CURSOR_USERD: u64 = 0x006D_8000;
+/// Every display channel's USERD page (`PUT` at +0): core, 32 window, 32 window-immediate
+/// and 8 cursor channels ([`userd_base`]).
+pub const USERD_RANGE: std::ops::Range<u64> = CORE_USERD..USERD_END;
 pub const USERD_END: u64 = 0x006E_0000;
 /// `NVC57A_FREE` (+0x08 of the cursor PIO page): space for methods; must be non-zero.
 const CURSOR_FREE: u64 = 0x08;
@@ -266,6 +284,11 @@ pub struct Connector {
     pub sw_auto_read_war: bool,
 }
 
+/// The kicks of each window channel whose methods the trace lists (twice as many of the core
+/// channel's): the setup and the first presentations, which differ between guest drivers
+/// (NVKMS, the Windows KMD).
+const WINDOW_TRACE_KICKS: u32 = 8;
+
 /// A display channel: its pushbuffer (from `INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER`) and
 /// its USERD page.
 #[derive(Clone, Copy, Debug, Default)]
@@ -282,6 +305,42 @@ pub struct Channel {
     pub methods: u32,
 }
 
+/// A window, window-immediate or cursor channel's method state: `assembly` holds what the
+/// methods wrote, `armed` what the last `UPDATE` promoted (the EVO/NVDisplay ASSEMBLY ->
+/// ARMED step; the core channel's is `core_assembly`/`core_armed`).
+#[derive(Clone, Debug, Default)]
+pub struct ChanState {
+    pub assembly: BTreeMap<u32, u32>,
+    pub armed: BTreeMap<u32, u32>,
+}
+
+impl ChanState {
+    /// Method `m` with `data`: `UPDATE` (0x200) arms the assembly state. Returns the page
+    /// words that changed (offset in the page, value).
+    fn method(&mut self, m: u32, data: u32) -> Vec<(u64, u32)> {
+        let mut changed = Vec::new();
+        if m as u64 == CHN_METHODS {
+            for (&k, &v) in &self.assembly {
+                if self.armed.insert(k, v) != Some(v) {
+                    changed.push((CHN_ARMED + k as u64, v));
+                }
+            }
+        } else if (m as u64) < CHN_ARMED && self.assembly.insert(m, data) != Some(data) {
+            changed.push((m as u64, data));
+        }
+        changed
+    }
+
+    /// The word at `rel` of the channel's page, for `rel` at or above [`CHN_METHODS`].
+    fn read(&self, rel: u64) -> Option<u32> {
+        if rel >= CHN_ARMED {
+            Some(self.armed.get(&((rel - CHN_ARMED) as u32)).copied().unwrap_or(0))
+        } else {
+            self.assembly.get(&(rel as u32)).copied()
+        }
+    }
+}
+
 /// The display state of one device.
 pub struct Display {
     pub enabled: bool,
@@ -295,6 +354,9 @@ pub struct Display {
     /// Core channel method state: assembly (written) and armed (after `UPDATE`).
     pub core_assembly: BTreeMap<u32, u32>,
     pub core_armed: BTreeMap<u32, u32>,
+    /// The other channels' method state by USERD base, read back through the page's lower
+    /// (assembly) and upper (ARMED, [`CHN_ARMED`]) half.
+    pub chan_state: BTreeMap<u64, ChanState>,
     /// Latched writes to display pages without a model.
     latched: BTreeMap<u64, u32>,
     /// The AUX transcript in dp-sink's format (`aux::record_line`).
@@ -308,9 +370,62 @@ pub struct Display {
     /// NV2080_NOTIFIERS_HOTPLUG events the guest allocated (hClient, hEvent), for
     /// POST_EVENT (docs/caraxes/display-cd.md, phase D).
     pub hotplug_events: Vec<(u32, u32)>,
-    /// Phase C: methods, heads, the clock and the interrupt registers (engine.rs).
-    pub engine: engine::Engine,
+    /// Phase C: methods, heads, the clock and the interrupt registers (engine.rs), behind
+    /// the display lock: the display clock and the routed status accesses reach it without
+    /// the device mutex (docs/caraxes/display-own-clock.md §2.1). Lock order: device mutex,
+    /// then this; code holding it never takes the device mutex.
+    pub engine: std::sync::Arc<std::sync::Mutex<engine::Engine>>,
+    /// `dump auto` (display-ctl): window 0's scanout dumped after new latches, at most one
+    /// per `AUTO_DUMP_PERIOD`, the last `AUTO_DUMP_KEEP` kept (dump.rs).
+    pub auto_dump: Option<AutoDump>,
 }
+
+/// The state of `dump auto`.
+#[derive(Debug, Default)]
+pub struct AutoDump {
+    pub dir: std::path::PathBuf,
+    pub next_ns: u64,
+    pub flips: u64,
+    pub count: u64,
+    /// The surface being read, a chunk per step ([`AUTO_DUMP_CHUNK`]).
+    pub capture: Option<Capture>,
+    /// The thread that decodes and writes the last capture (off the device lock).
+    pub writer: Option<std::thread::JoinHandle<()>>,
+}
+
+impl AutoDump {
+    pub fn new(dir: std::path::PathBuf) -> Self {
+        AutoDump { dir, ..Default::default() }
+    }
+
+    /// Wait for the last PNG to be written (tests, `dump off`).
+    pub fn join(&mut self) {
+        if let Some(w) = self.writer.take() {
+            let _ = w.join();
+        }
+    }
+}
+
+/// An automatic dump in progress: the latched surface and the bytes read so far.
+#[derive(Debug)]
+pub struct Capture {
+    pub surface: engine::Surface,
+    pub raw: Vec<u8>,
+    pub done: usize,
+    pub flips: u64,
+    pub steps: u32,
+    pub lock_ns: u64,
+}
+
+/// At most one automatic dump per 3 s (each reads the whole surface through the FB store
+/// under the device lock), and the last 10 files kept (`scanout-auto-<n % 10>.png`).
+pub const AUTO_DUMP_PERIOD_NS: u64 = 3_000_000_000;
+pub const AUTO_DUMP_KEEP: u64 = 10;
+/// Bytes of the surface one step of an automatic dump reads under the device lock. The FB
+/// reads through the host's BAR1 at about 14 MB/s (uncached): a 1080p surface in one piece
+/// held the lock for 591 ms (C53). A step runs at each engine catch-up (every tick and
+/// display register read), so a frame is read in about 128 steps of ~4 ms.
+pub const AUTO_DUMP_CHUNK: usize = 64 << 10;
 
 fn put32(b: &mut [u8], off: usize, v: u32) {
     if off + 4 <= b.len() {
@@ -406,13 +521,15 @@ impl Display {
             channels: BTreeMap::new(),
             core_assembly: BTreeMap::new(),
             core_armed: BTreeMap::new(),
+            chan_state: BTreeMap::new(),
             latched: BTreeMap::new(),
             aux_transcript: Vec::new(),
             link: None,
             fec: false,
             notes: Vec::new(),
             hotplug_events: Vec::new(),
-            engine: engine::Engine::new(0, 0),
+            engine: std::sync::Arc::new(std::sync::Mutex::new(engine::Engine::new(0, 0))),
+            auto_dump: None,
         }
     }
 
@@ -458,9 +575,12 @@ impl Display {
             });
         }
         disp.enabled = true;
-        disp.engine = engine::Engine::new(chip.heads as usize, chip.windows as usize);
+        disp.engine = std::sync::Arc::new(std::sync::Mutex::new(engine::Engine::new(
+            chip.heads as usize,
+            chip.windows as usize,
+        )));
         if let Some(p) = fe_page() {
-            disp.engine.attach_page(p);
+            disp.eng().attach_page(p);
         }
         if let Some(i) = intr_shared() {
             engine::ticker().attach(i, chip.intr_vector);
@@ -472,6 +592,11 @@ impl Display {
 
     fn chip(&self) -> &ChipDisplay {
         self.chip.as_ref().expect("enabled display has chip data")
+    }
+
+    /// The engine, under the display lock (held for one statement at a time here).
+    pub fn eng(&self) -> std::sync::MutexGuard<'_, engine::Engine> {
+        engine::lock(&self.engine)
     }
 
     fn supported_mask(&self) -> u32 {
@@ -566,7 +691,7 @@ impl Display {
                     get32(params, d::WRITE_INST_MEM_ADDR_SPACE),
                 );
                 self.inst_mem = Some((pa, size, aspace));
-                self.engine.inst = Some(pa);
+                self.eng().inst = Some(pa);
                 ok(
                     b,
                     GUEST,
@@ -709,25 +834,44 @@ impl Display {
                     format!("head routing map: {asked:#x} -> map {map:#x} (fits {fits})"),
                 )
             }
-            // No head is lit by firmware, so no head is stale either: from 615 on the output
-            // flag GOP_STALE_HEAD_NEEDS_CLEANUP stays NO and `staleSorIndex` 0
-            // (615 ctrl0073system.h:638-678; ver/v615/display.rs).
+            // SYSTEM_GET_ACTIVE (ctrl0073system.h:611-678): the displayId driven by `head`,
+            // "setup at system boot by low-level software or later by an NV client", 0 for
+            // none; a head outside the chip's heads is an invalid argument. No head is lit
+            // by firmware here, so the input flag CLIENT (only heads an NV client set up)
+            // gives the same answer, and no head is stale: from 615 on the output flag
+            // GOP_STALE_HEAD_NEEDS_CLEANUP stays NO and `staleSorIndex` 0 (ver/v615/display.rs).
+            // The driving SOR is the one whose ARMED owner mask names the head (engine.rs
+            // `head_sor`), and the display is the connector on that SOR.
             d::CMD_SYSTEM_GET_ACTIVE => {
-                put32(&mut b, d::GET_ACTIVE_DISPLAY_ID, 0);
+                let head = get32(params, d::GET_ACTIVE_HEAD);
+                if head as usize >= self.eng().heads.len() {
+                    return Some(fail(
+                        NV_ERR_INVALID_ARGUMENT,
+                        b,
+                        SYNTH,
+                        format!(
+                            "head {head} active: not a head of this chip ({} heads; the header's INVALID_ARGUMENT)",
+                            self.eng().heads.len()
+                        ),
+                    ));
+                }
+                let sor = self.eng().head_sor(head as usize);
+                let did = sor
+                    .and_then(|s| self.connectors.iter().find(|c| c.sor == s))
+                    .map_or(0, |c| c.display_id);
+                put32(&mut b, d::GET_ACTIVE_DISPLAY_ID, did);
                 let l = &crate::ver::layouts().display;
                 let flags = get32(params, d::GET_ACTIVE_FLAGS) & !l.get_active_flags_gop_stale_head;
                 put32(&mut b, d::GET_ACTIVE_FLAGS, flags);
                 if let Some(o) = l.get_active_stale_sor_index {
                     put32(&mut b, o, 0);
                 }
-                ok(
-                    b,
-                    SYNTH,
-                    format!(
-                        "head {} active: none (no firmware-lit head)",
-                        get32(params, d::GET_ACTIVE_HEAD)
-                    ),
-                )
+                let what = match (sor, did) {
+                    (Some(s), 0) => format!("none (SOR{s} drives it, no connector on that SOR)"),
+                    (Some(s), d) => format!("{d:#x} (SOR{s}, set up by a client)"),
+                    (None, _) => "none (idle; no firmware-lit head)".into(),
+                };
+                ok(b, SYNTH, format!("head {head} active: {what}"))
             }
             d::CMD_SYSTEM_GET_INTERNAL_DISPLAYS => {
                 ok(vec![0u8; n], BOARD, "internal displays: none")
@@ -735,7 +879,7 @@ impl Display {
             d::CMD_SYSTEM_GET_BOOT_DISPLAYS => ok(vec![0u8; n], BOARD, "boot displays: none"),
             d::CMD_SYSTEM_GET_SCANLINE => {
                 let head = get32(params, 4) as usize;
-                let line = self.engine.scanline(head, engine::now_ns());
+                let line = self.eng().scanline(head, engine::now_ns());
                 put32(&mut b, d::GET_SCANLINE_CURRENT, line);
                 ok(b, SYNTH, format!("scanline of head {head}: {line} (device clock)"))
             }
@@ -1017,7 +1161,7 @@ impl Display {
                 // A window UPDATE is pending until the clock latches it (NVKMS's
                 // IsChannelMethodPending, nvkms-evo3.c:6474-6490).
                 let latching = class == d::NVC57E_WINDOW_CHANNEL_DMA
-                    && self.engine.window_busy(inst as usize);
+                    && self.eng().window_busy(inst as usize);
                 let idle = !latching
                     && userd_base(class, inst)
                         .and_then(|base| self.channels.get(&base))
@@ -1559,8 +1703,9 @@ impl Display {
         if off == NV_PDISP_VGA_WORKSPACE_BASE {
             return Some(self.chip().vga_workspace_base);
         }
-        if let Some(v) = self.engine.read32(off, engine::now_ns()) {
-            return Some(v);
+        let v = self.eng().read32(off, engine::now_ns());
+        if v.is_some() {
+            return v;
         }
         if (NV_PDISP_FE_SW..NV_PDISP_FE_SW + CAPS_PAGE_SIZE).contains(&off) {
             let rel = (off - NV_PDISP_FE_SW) as u32;
@@ -1585,8 +1730,32 @@ impl Display {
                     _ => {}
                 }
             }
+            if base == CORE_USERD {
+                let heads = self.eng().heads.len();
+                if let Some(h) = core_pio_head(rel, CORE_GET_RG_SCAN_LINE, heads) {
+                    return Some(self.eng().rg_scan_line(h, engine::now_ns()));
+                }
+                if let Some(h) = core_pio_head(rel, CORE_SET_GET_BLANKING_CTRL, heads) {
+                    return Some(self.eng().blanking_ctrl(h));
+                }
+            }
             if base >= CURSOR_USERD && rel == CURSOR_FREE {
                 return Some(CURSOR_FREE_ENTRIES);
+            }
+            if rel >= CHN_METHODS {
+                if base == CORE_USERD {
+                    if let Some(&v) = self.core_assembly.get(&(rel as u32)) {
+                        return Some(v);
+                    }
+                } else {
+                    let st = self.chan_state.get(&base);
+                    if rel >= CHN_ARMED {
+                        return Some(st.and_then(|s| s.read(rel)).unwrap_or(0));
+                    }
+                    if let Some(v) = st.and_then(|s| s.read(rel)) {
+                        return Some(v);
+                    }
+                }
             }
             return Some(self.latched.get(&off).copied().unwrap_or(0));
         }
@@ -1597,9 +1766,15 @@ impl Display {
     /// interrupt handler sees the state of now, with the notifiers already written.
     pub fn read32_io(&mut self, off: u64, fb: &mut FakeFb, mem: &GuestMemory) -> Option<u32> {
         if self.enabled && engine::Engine::handles(off) {
-            self.engine.catch_up(engine::now_ns(), fb, mem);
+            self.eng().catch_up(engine::now_ns(), fb, mem);
+            self.maybe_auto_dump(fb, mem);
         }
         self.read32(off)
+    }
+
+    /// Whether the display interrupt line is asserted (the FE's status, engine.rs).
+    pub fn line(&self) -> bool {
+        self.enabled && self.eng().pending()
     }
 
     /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`):
@@ -1610,8 +1785,9 @@ impl Display {
             return Vec::new();
         }
         let t0 = engine::now_ns();
-        self.engine.catch_up(t0, fb, mem);
+        self.eng().catch_up(t0, fb, mem);
         engine::ticker().note_catch_up(engine::now_ns().saturating_sub(t0) / 1000);
+        self.maybe_auto_dump(fb, mem);
         let mut n = self.take_engine_notes();
         if let Some(p) = fe_page() {
             n.extend(p.take_notes());
@@ -1619,10 +1795,132 @@ impl Display {
         n
     }
 
+    /// Window `w`'s latched surface as a PNG at `path` (dump.rs): read through the FB store
+    /// or guest RAM, block-linear or pitch layout undone. Returns what was written.
+    pub fn dump_window(
+        &self,
+        w: usize,
+        fb: &FakeFb,
+        mem: &GuestMemory,
+        path: &std::path::Path,
+    ) -> Result<String, String> {
+        let latched = self.eng().windows.get(w).map(|win| win.latched.clone());
+        let s = &latched.ok_or_else(|| format!("no window {w}"))?;
+        let m = s.mem.ok_or_else(|| format!("window {w} scans out no surface"))?;
+        let (width, height) = (s.width as u64, s.height as u64);
+        if width == 0 || height == 0 || width > 16384 || height > 16384 {
+            return Err(format!("window {w}: surface {width}x{height}"));
+        }
+        let span = surface_span(s).map_err(|e| format!("window {w}: {e}"))?;
+        let mut raw = vec![0u8; span as usize];
+        let ok = if m.target == 1 { fb.read(m.addr, &mut raw) } else { mem.read(m.addr, &mut raw) };
+        if !ok {
+            return Err(format!("window {w}: {} bytes at {m:?} not readable", raw.len()));
+        }
+        let png = surface_png(s, &raw);
+        std::fs::write(path, &png).map_err(|e| format!("{}: {e}", path.display()))?;
+        Ok(format!(
+            "display: window {w} surface {} {width}x{height} format {:#x} {} written to {} ({} bytes)",
+            if m.target == 1 { format!("fb {:#x}", m.addr) } else { format!("sys {:#x}", m.addr) },
+            s.format,
+            if s.pitch_layout { "pitch" } else { "block-linear" },
+            path.display(),
+            png.len()
+        ))
+    }
+
+    /// `dump auto`: after the engine advanced, dump window 0's scanout when it latched a new
+    /// surface since the last dump, its head is unblanked and the period has passed. The
+    /// surface is read [`AUTO_DUMP_CHUNK`] bytes per call (the device lock is held), then
+    /// decoded and written by a thread of its own.
+    pub fn maybe_auto_dump(&mut self, fb: &FakeFb, mem: &GuestMemory) {
+        let Some(a) = self.auto_dump.as_mut() else {
+            return;
+        };
+        if let Some(c) = a.capture.as_mut() {
+            let t0 = std::time::Instant::now();
+            let m = c.surface.mem.expect("a capture has a surface");
+            let end = (c.done + AUTO_DUMP_CHUNK).min(c.raw.len());
+            let buf = &mut c.raw[c.done..end];
+            let at = m.addr + c.done as u64;
+            let ok = if m.target == 1 { fb.read(at, buf) } else { mem.read(at, buf) };
+            c.steps += 1;
+            c.lock_ns += t0.elapsed().as_nanos() as u64;
+            if !ok {
+                let note = format!("display: auto dump abandoned: {} bytes at {at:#x} not readable", end - c.done);
+                a.capture = None;
+                a.next_ns = engine::now_ns() + AUTO_DUMP_PERIOD_NS;
+                self.notes.push(note);
+                return;
+            }
+            c.done = end;
+            if c.done < c.raw.len() {
+                return;
+            }
+            let c = a.capture.take().expect("checked");
+            let path = a.dir.join(format!("scanout-auto-{}.png", a.count % AUTO_DUMP_KEEP));
+            let s = &c.surface;
+            self.notes.push(format!(
+                "display: auto dump #{} of window 0 (flip {}): {}x{} format {:#x} at {}, {} bytes read in {} step(s), {} ms under the device lock in all; decoding to {}",
+                a.count,
+                c.flips,
+                s.width,
+                s.height,
+                s.format,
+                m.describe(),
+                c.raw.len(),
+                c.steps,
+                c.lock_ns / 1_000_000,
+                path.display()
+            ));
+            a.join();
+            a.writer = Some(std::thread::spawn(move || {
+                let png = surface_png(&c.surface, &c.raw);
+                if let Err(e) = std::fs::write(&path, &png) {
+                    eprintln!("vfio-user-nvgpu: display: auto dump: {}: {e}", path.display());
+                }
+            }));
+            a.count += 1;
+            a.next_ns = engine::now_ns() + AUTO_DUMP_PERIOD_NS;
+            return;
+        }
+        let now = engine::now_ns();
+        let (flips, latched, blanked) = {
+            let e = engine::lock(&self.engine);
+            let Some(w) = e.windows.first() else {
+                return;
+            };
+            let blanked = w.head.and_then(|h| e.heads.get(h)).is_none_or(|h| h.blanked);
+            (w.flips, w.latched.clone(), blanked)
+        };
+        if flips == a.flips || now < a.next_ns || blanked || latched.mem.is_none() {
+            return;
+        }
+        a.flips = flips;
+        match surface_span(&latched) {
+            Ok(span) => {
+                a.capture = Some(Capture {
+                    surface: latched,
+                    raw: vec![0u8; span as usize],
+                    done: 0,
+                    flips,
+                    steps: 0,
+                    lock_ns: 0,
+                });
+                // The first chunk now.
+                self.maybe_auto_dump(fb, mem);
+            }
+            Err(e) => {
+                a.next_ns = now + AUTO_DUMP_PERIOD_NS;
+                self.notes.push(format!("display: auto dump refused: window 0: {e}"));
+            }
+        }
+    }
+
     /// Notes of the engine not yet in the trace.
     pub fn take_engine_notes(&mut self) -> Vec<String> {
         let mut n = std::mem::take(&mut self.notes);
-        n.append(&mut self.engine.notes);
+        n.append(&mut engine::lock(&self.engine).notes);
         n
     }
 
@@ -1653,8 +1951,8 @@ impl Display {
             return None;
         }
         if engine::Engine::handles(off) {
-            self.engine.catch_up(engine::now_ns(), fb, mem);
-            let n = self.engine.write32(off, v).unwrap_or_default();
+            self.eng().catch_up(engine::now_ns(), fb, mem);
+            let n = self.eng().write32(off, v).unwrap_or_default();
             let mut notes = self.take_engine_notes();
             if !n.is_empty() {
                 notes.push(n);
@@ -1673,17 +1971,38 @@ impl Display {
             return None;
         }
         let (base, rel) = page_of(off);
+        if base == CORE_USERD {
+            let heads = self.eng().heads.len();
+            if core_pio_head(rel, CORE_GET_RG_SCAN_LINE, heads).is_some() {
+                return Some(vec![format!(
+                    "display: write {v:#x} to GET_RG_SCAN_LINE at {off:#x} (read-only) dropped [guest]"
+                )]);
+            }
+            if let Some(h) = core_pio_head(rel, CORE_SET_GET_BLANKING_CTRL, heads) {
+                return Some(vec![self.eng().set_blanking_ctrl(h, v)]);
+            }
+        }
         if rel == 0 && base < CURSOR_USERD {
             if let Some(mut ch) = self.channels.get(&base).copied() {
                 ch.put = v;
                 ch.kicks += 1;
-                self.engine.catch_up(engine::now_ns(), fb, mem);
+                self.eng().catch_up(engine::now_ns(), fb, mem);
                 let note = self.kick(base, &mut ch, mem, fb);
                 self.channels.insert(base, ch);
                 let mut notes = vec![note];
                 notes.extend(self.take_engine_notes());
                 return Some(notes);
             }
+        }
+        if base != CORE_USERD && rel >= CHN_ARMED {
+            return Some(vec![format!(
+                "display: write {v:#x} to the ARMED state at {off:#x} (read-only) dropped [guest]"
+            )]);
+        }
+        if base >= CURSOR_USERD && rel >= CHN_METHODS {
+            // The cursor channel is PIO (NVC57A): its methods are these writes, `UPDATE`
+            // (0x200) arms them.
+            self.chan_state.entry(base).or_default().method(rel as u32, v);
         }
         self.latched.insert(off, v);
         Some(Vec::new())
@@ -1699,9 +2018,19 @@ impl Display {
         let (start, end) = (ch.get as u64, ch.put as u64);
         let mut methods = 0u32;
         let mut updates = 0u32;
-        // Core methods written in this kick (for the trace: which state an UPDATE commits).
+        // Methods written in this kick, for the trace: which state a core UPDATE commits, and
+        // a window channel's first kicks and first presentations (`WINDOW_TRACE_KICKS`).
         let mut seen: Vec<(u32, u32)> = Vec::new();
+        let early = ch.kicks <= WINDOW_TRACE_KICKS * 2;
+        let listed = match (base == CORE_USERD, window.is_some()) {
+            (true, _) if early => 1024,
+            (true, _) => 64,
+            (false, true) if ch.kicks <= WINDOW_TRACE_KICKS => 1024,
+            _ => 0,
+        };
         let mut unreadable = false;
+        // Assembly and ARMED words this kick changed, for the kick page (chan_page.rs).
+        let mut published: Vec<(u64, u32)> = Vec::new();
         if ch.valid && ch.pb_aspace == 1 && end <= ch.pb_limit + 1 {
             let mut pos = start;
             let mut budget = 4096u32;
@@ -1730,7 +2059,7 @@ impl Display {
                             pos += 4;
                             let m = if op == 0 { addr + 4 * k } else { addr };
                             methods += 1;
-                            if base == CORE_USERD && seen.len() < 64 {
+                            if seen.len() < listed {
                                 seen.push((m, data));
                             }
                             if base == CORE_USERD {
@@ -1739,19 +2068,22 @@ impl Display {
                                     let a = self.core_assembly.clone();
                                     self.core_armed.extend(a);
                                     let armed = self.core_armed.clone();
-                                    self.engine.core_update(&armed, engine::now_ns(), fb, mem);
+                                    self.eng().core_update(&armed, engine::now_ns(), fb, mem);
                                 } else {
                                     self.core_assembly.insert(m, data);
                                 }
-                            } else if let Some(w) = window {
-                                if m == 0x200 {
+                            } else {
+                                published.extend(self.chan_state.entry(base).or_default().method(m, data));
+                                if let Some(w) = window {
+                                    if m == 0x200 {
+                                        updates += 1;
+                                        self.eng().window_update(w, engine::now_ns(), fb, mem);
+                                    } else {
+                                        self.eng().window_method(w, m, data);
+                                    }
+                                } else if m == 0x200 {
                                     updates += 1;
-                                    self.engine.window_update(w, engine::now_ns(), fb, mem);
-                                } else {
-                                    self.engine.window_method(w, m, data);
                                 }
-                            } else if m == 0x200 {
-                                updates += 1;
                             }
                         }
                     }
@@ -1761,17 +2093,23 @@ impl Display {
         }
         ch.methods += methods;
         ch.get = ch.put;
+        if let Some(p) = chan_page() {
+            for (rel, v) in published {
+                p.publish(base, rel, v);
+            }
+        }
         // HEAD_SET_RASTER_SIZE/SYNC_END/BLANK_END/BLANK_START(h) = 0x2064-0x2070 + 0x400h
         // (clc57d.h): an UPDATE carrying them is a modeset (display-adapter.md §5).
         let raster = seen
             .iter()
+            .filter(|_| base == CORE_USERD)
             .filter(|(m, _)| {
                 *m >= 0x2000 && ((m - 0x2000) % 0x400) >= 0x64 && ((m - 0x2000) % 0x400) <= 0x70
             })
             .count();
-        let list = if updates > 0 && base == CORE_USERD {
+        let list = if (base == CORE_USERD && (updates > 0 || early)) || (window.is_some() && !seen.is_empty()) {
             let l: Vec<String> = seen.iter().map(|(m, v)| format!("{m:#x}={v:#x}")).collect();
-            format!("; core methods {}", l.join(" "))
+            format!("; {} methods {}", if window.is_some() { "window" } else { "core" }, l.join(" "))
         } else {
             String::new()
         };
@@ -1875,6 +2213,12 @@ impl Display {
     }
 }
 
+/// The head of a core PIO register array at `base` (one word per head) that `rel` names,
+/// if `rel` lies in it and the head exists.
+fn core_pio_head(rel: u64, base: u64, heads: usize) -> Option<usize> {
+    (rel >= base && rel < base + 4 * heads as u64 && rel % 4 == 0).then(|| ((rel - base) / 4) as usize)
+}
+
 /// The page and offset within it of a USERD access.
 fn page_of(off: u64) -> (u64, u64) {
     if off < WIN_USERD {
@@ -1882,6 +2226,41 @@ fn page_of(off: u64) -> (u64, u64) {
     } else {
         (off & !0xFFF, off & 0xFFF)
     }
+}
+
+/// The bytes a latched surface spans: pitch layout `pitch` 64-byte units per row;
+/// block-linear, `pitch` blocks of one GOB width per row of blocks (dump.rs).
+pub fn surface_span(s: &engine::Surface) -> Result<u64, String> {
+    let (width, height) = (s.width as u64, s.height as u64);
+    if width == 0 || height == 0 || width > 16384 || height > 16384 {
+        return Err(format!("surface {width}x{height}"));
+    }
+    dump::rgb(s.format, 0)
+        .ok_or_else(|| format!("format {:#x} not decoded (32-bit RGB only)", s.format))?;
+    Ok(if s.pitch_layout {
+        s.pitch as u64 * 64 * height
+    } else {
+        let gob_rows = 8u64 << s.block_height_log2;
+        s.pitch as u64 * 512 * (height.div_ceil(gob_rows) << s.block_height_log2)
+    })
+}
+
+/// The PNG of a surface from its raw bytes ([`surface_span`] of them).
+pub fn surface_png(s: &engine::Surface, raw: &[u8]) -> Vec<u8> {
+    let (width, height) = (s.width as u64, s.height as u64);
+    let mut rgb = Vec::with_capacity((width * height * 3) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let o = if s.pitch_layout {
+                y * s.pitch as u64 * 64 + x * 4
+            } else {
+                dump::block_linear_offset(x * 4, y, s.pitch as u64, s.block_height_log2)
+            } as usize;
+            let px = raw.get(o..o + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
+            rgb.extend_from_slice(&dump::rgb(s.format, px).unwrap_or_default());
+        }
+    }
+    dump::png(width as u32, height as u32, &rgb)
 }
 
 /// The USERD page of a channel (disp/v03_00/dev_disp.h `NV_UDISP_FE_CHN_ASSY_BASEADR*`).

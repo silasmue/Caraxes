@@ -105,6 +105,7 @@ the soak line (§4). Rows marked **fixed** leaked before this change.
 | doorbell usermode object | `map_doorbell`, hostmem.rs:1316 | reset | `event` |
 | OS events (one per engine and RC) | `os_event`, hostmem.rs:1328 | reset, event thread joined (mirror.rs:2607) | `event` |
 | BAR1 windows of the reservation | `VramStore`, fb.rs:431 | LRU eviction, at most `CARAXES_BAR1_WINDOWS` (2); dropped with the FB | `vram_windows`, `vram_failed` |
+| Side windows of the reservation (BAR2 memfd accesses, page-table reads) | `VramStore::bar2_map` | 4 of 2 MiB beside the data windows (8 MiB of host BAR1), LRU among themselves; admitted by the BAR1 floor like every window, a refusal sends the BAR2 accesses to the data windows for 1 s (logged once per 10 s); dropped with the FB | the `vram store` exit line's `BAR2 windows` part |
 | BAR1 dma-buf (P21 area or pool) | `export_bar1_passthrough`, hostmem.rs:1297 | process exit (one per device) | (host `bar1_used_mib`) |
 | BAR2 memfd | `Bar2Area::create`, bar2area.rs:683 | process exit (one per device) | `rss_kib` |
 | cached page-table walks (device RAM, up to 4M leaves per root) | `FakeFb::walks`, fb.rs:748 | **fixed**: `reap_shadows` never had the FB, so every root that ever ran kept its walk; now dropped at the next shadow doorbell or guest FREE (`take_reaped_roots`, ctrl.rs:428, boot.rs:1642) | `walk_caches`, `rss_kib` |

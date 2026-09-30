@@ -1,0 +1,8 @@
+07:25:33 start: 148 MiB, 677 MiB
+fill: holding 576 MiB
+07:25:48 filled: 820 MiB, 5 MiB
+07:25:49 dumb 1: dumb 1920x1080: FAILED errno 12 (Cannot allocate memory)
+07:25:51 after dumb 1 freed: 820 MiB, 5 MiB
+07:25:56 dumb 2: dumb 1920x1080: FAILED errno 12 (Cannot allocate memory)
+07:25:58 after dumb 2 freed: 820 MiB, 5 MiB
+07:26:01 filler gone: 148 MiB, 677 MiB

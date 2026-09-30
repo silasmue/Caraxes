@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
-//! The interrupt page (`CARAXES_INTR_PAGE=1`, docs/caraxes/intr-page.md).
+//! The interrupt page (on with host execution, docs/caraxes/intr-page.md).
 //!
 //! BAR0 page 0 (`NV_PMC`: boot constants and the latched `NV_PMC_INTR_EN_SET/CLEAR`) and
 //! the page of the VF CPU interrupt tree are offered to the client as sparse mmap areas of
@@ -15,11 +15,21 @@
 //! vector, checked at start) in the leaves and in `TOP_EN_SET`, 0 in the clear registers,
 //! `TRIGGER_IDLE` in the trigger. `LEAF_EN_SET` shows the exact mask (the guest reads and
 //! caches it, intr_tu102.c:250-270); a store of that same mask is a no-op anyway.
+//!
+//! Exact mode: when the VMM maps the tree page read-only (Cloud Hypervisor's
+//! `x_readonly_mmap_areas`) or not at all, the guest's stores to it trap. The first such
+//! store switches the page to the registers' own values (turing/tu102/dev_vm.h:31-67: a
+//! leaf shows its pending bits, `LEAF_EN_SET`/`LEAF_EN_CLEAR` both read the enable mask,
+//! `TOP_EN_SET`/`TOP_EN_CLEAR` both the top enables, the write-only `LEAF_TRIGGER` 0, the
+//! enables start at their reset value 0) and applies every store as it arrives
+//! ([`IntrPage::write`]); no tag, no scan for stores. Reads stay memory. The Windows KMD
+//! needs this: with the tag in every leaf it reset the GSP three times (windows-findings.md
+//! P37 arm 2).
 
 use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -27,29 +37,6 @@ use crate::intr::{
     IntrShared, LEAF, LEAF_EN_CLEAR, LEAF_EN_SET, LEAF_TRIGGER, LEAVES, TOP, TOP_EN_CLEAR,
     TOP_EN_SET,
 };
-
-/// The switch.
-pub const INTR_PAGE_ENV: &str = "CARAXES_INTR_PAGE";
-/// Hybrid reactor: the longest blocking wait while the page is on, in milliseconds.
-pub const SLEEP_ENV: &str = "CARAXES_INTR_PAGE_SLEEP_MS";
-/// The retrigger watchdog's period in milliseconds (0: off).
-pub const RETRIGGER_ENV: &str = "CARAXES_INTR_PAGE_RETRIGGER_MS";
-
-/// Spin from this many microseconds before each display tick (display page only; 0 or
-/// unset: off), docs/caraxes/intr-page.md §11.4.
-pub const VBLANK_SPIN_ENV: &str = "CARAXES_INTR_PAGE_VBLANK_SPIN_US";
-
-/// `CARAXES_INTR_PAGE_VBLANK_SPIN_US`: microseconds, 0 to 16000.
-pub fn vblank_spin(v: Option<&str>) -> Result<u64, String> {
-    match v.map(str::trim).filter(|v| !v.is_empty()) {
-        None => Ok(0),
-        Some(v) => v
-            .parse::<u64>()
-            .ok()
-            .filter(|&us| us <= 16_000)
-            .ok_or_else(|| format!("{VBLANK_SPIN_ENV}={v:?}: microseconds, 0 to 16000")),
-    }
-}
 
 /// The page granularity of the sparse areas (the host's; checked at start).
 pub const PAGE: u64 = 4096;
@@ -68,7 +55,7 @@ const BOOT_OFFSETS: [u64; 3] = [
     crate::bar0::NV_PMC_BOOT_42,
 ];
 
-/// The configuration the environment asks for.
+/// The page's settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Config {
     /// Hybrid: the longest blocking wait (ms).
@@ -86,55 +73,10 @@ impl Default for Config {
     }
 }
 
-/// `CARAXES_INTR_PAGE` and its two settings; `None` when the page is off. A setting given
-/// without the switch is refused rather than ignored.
-pub fn requested() -> Result<Option<Config>, String> {
-    let get = |k: &str| std::env::var(k).ok();
-    parse(
-        get(INTR_PAGE_ENV).as_deref(),
-        get(SLEEP_ENV).as_deref(),
-        get(RETRIGGER_ENV).as_deref(),
-    )
-}
-
-pub fn parse(
-    on: Option<&str>,
-    sleep: Option<&str>,
-    retrigger: Option<&str>,
-) -> Result<Option<Config>, String> {
-    fn set(v: Option<&str>) -> Option<&str> {
-        v.map(str::trim).filter(|v| !v.is_empty())
-    }
-    let (on, sleep, retrigger) = (set(on), set(sleep), set(retrigger));
-    let on = match on.unwrap_or("0") {
-        "0" | "off" => false,
-        "1" | "on" => true,
-        v => return Err(format!("{INTR_PAGE_ENV}={v:?}: 0 or 1")),
-    };
-    if !on {
-        if sleep.is_some() || retrigger.is_some() {
-            return Err(format!(
-                "{SLEEP_ENV} or {RETRIGGER_ENV} is set but {INTR_PAGE_ENV} is off"
-            ));
-        }
-        return Ok(None);
-    }
-    let mut c = Config::default();
-    if let Some(v) = sleep {
-        c.sleep_ms = v
-            .parse::<u16>()
-            .ok()
-            .filter(|&ms| ms >= 1)
-            .map(i32::from)
-            .ok_or_else(|| format!("{SLEEP_ENV}={v:?}: milliseconds, 1 to 65535"))?;
-    }
-    if let Some(v) = retrigger {
-        let ms = v
-            .parse::<u64>()
-            .map_err(|_| format!("{RETRIGGER_ENV}={v:?}: milliseconds, a whole number"))?;
-        c.retrigger = (ms > 0).then(|| Duration::from_millis(ms));
-    }
-    Ok(Some(c))
+/// The page is on with host execution (every production launcher's `CARAXES_INTR_PAGE=1`
+/// until 2026-09-30) and off without: pure emulation keeps the trapped interrupt tree.
+pub fn requested(host_exec: bool) -> Option<Config> {
+    host_exec.then(Config::default)
 }
 
 /// The direct completion (docs/caraxes/launch-path.md): a raise from the host's event
@@ -149,7 +91,7 @@ pub fn direct_requested(v: Option<&str>, page_on: bool) -> Result<bool, String> 
     match v.map(str::trim).filter(|v| !v.is_empty()).unwrap_or("0") {
         "0" | "off" => Ok(false),
         "1" | "on" if page_on => Ok(true),
-        "1" | "on" => Err(format!("{DIRECT_ENV}=1 needs {INTR_PAGE_ENV}=1")),
+        "1" | "on" => Err(format!("{DIRECT_ENV}=1 needs the interrupt page (--host-exec)")),
         v => Err(format!("{DIRECT_ENV}={v:?}: 0 or 1")),
     }
 }
@@ -256,15 +198,20 @@ impl Model {
         t
     }
 
-    /// The word the page shows for watched word `i`.
-    fn display(&self, i: usize) -> u32 {
+    /// The word the page shows for watched word `i`; `exact`: the register's own value
+    /// (the stores trap), else the tagged display a store can be told from.
+    fn display(&self, i: usize, exact: bool) -> u32 {
+        let tag = if exact { 0 } else { TAG };
         match i {
-            i if i < W_EN_SET => self.leaf[i] | TAG,
+            i if i < W_EN_SET => self.leaf[i] | tag,
             i if i < W_EN_CLEAR => self.leaf_en[i - W_EN_SET],
+            i if i < W_TOP && exact => self.leaf_en[i - W_EN_CLEAR],
             i if i < W_TOP => 0,
             W_TOP => self.top(),
-            W_TOP_EN_SET => (self.top_en & SUBTREES) | TAG,
+            W_TOP_EN_SET => (self.top_en & SUBTREES) | tag,
+            W_TOP_EN_CLEAR if exact => self.top_en & SUBTREES,
             W_TOP_EN_CLEAR => 0,
+            _ if exact => 0,
             _ => TRIGGER_IDLE,
         }
     }
@@ -280,15 +227,17 @@ enum Odd {
     BadTrigger,
     BootStore,
     TreeHole,
+    ExactStore,
 }
 
-const ODD_NAMES: [&str; 6] = [
+const ODD_NAMES: [&str; 7] = [
     "a store to the read-only TOP register (restored)",
     "a leaf store with the tag bit 31 (bit ignored)",
     "a LEAF_EN_SET store with the tag bit 31 (bit ignored)",
     "a LEAF_TRIGGER store outside the 256 vectors or at a tag bit (ignored)",
     "a store to a boot constant in page 0 (restored)",
     "a store to a word of the tree that is no register (restored to 0)",
+    "a store to the tree page in exact mode that did not trap (the page is writable; restored)",
 ];
 
 struct State {
@@ -301,7 +250,31 @@ struct State {
     /// When an enabled vector was last seen pending with no ack or MSI since (watchdog).
     stale_since: Option<Instant>,
     logged: u32,
+    /// Trapped stores traced since the last reset or the switch to exact mode (the first
+    /// [`STORES_TRACED`] of each, for a driver's (re-)initialisation).
+    stores_traced: u32,
+    /// The host engines' non-stall vectors ([`IntrPage::set_hint_vectors`]).
+    hint: [u32; LEAVES],
+    /// MSI re-arms that sent the MSI again for pending host hints only, with no ack of one
+    /// of them since ([`IntrPage::rearm`]).
+    hint_rearms: u32,
+    /// Host hints withdrawn from a handler that does not service them: their raises are
+    /// dropped until the guest acknowledges or enables them, a reset, or [`HINT_MUTE`].
+    muted: [u32; LEAVES],
+    muted_since: Option<Instant>,
+    withdrawals_logged: u32,
 }
+
+/// Trapped stores traced after each reset (and after the switch to exact mode).
+const STORES_TRACED: u32 = 256;
+
+/// Re-arms of pending host hints without an ack after which the handler counts as not
+/// servicing them ([`IntrPage::rearm`]). A handler that services a vector acknowledges it
+/// at its first pass; C74 and C78 re-armed 16-19 million times without one.
+const HINT_REARMS: u32 = 256;
+
+/// How long withdrawn host hints stay muted without a sign from the guest.
+const HINT_MUTE: Duration = Duration::from_secs(1);
 
 /// Counters for the exit summary.
 #[derive(Default)]
@@ -321,7 +294,15 @@ pub struct Stats {
     pub msi_watchdog: AtomicU64,
     pub msi_refused: AtomicU64,
     pub cas_retries: AtomicU64,
-    pub odd: [AtomicU64; 6],
+    /// MSI re-arms (`NV_XVE_CYA_2`) taken without the device mutex, and the MSIs they sent.
+    pub rearms: AtomicU64,
+    pub msi_rearm: AtomicU64,
+    /// Host hints withdrawn at a re-arm, and their raises dropped while muted.
+    pub withdrawn: AtomicU64,
+    pub muted_raises: AtomicU64,
+    /// Trapped accesses of the two pages served without the device mutex.
+    pub routed: AtomicU64,
+    pub odd: [AtomicU64; 7],
     pub slow_ns_max: AtomicU64,
 }
 
@@ -351,6 +332,8 @@ pub struct IntrPage {
     state: Mutex<State>,
     /// The display values last written, for the lock-free comparison.
     expected: [AtomicU32; WATCHED],
+    /// The guest's stores to the tree page trap: exact mode (module doc).
+    exact: AtomicBool,
     pub stats: Stats,
 }
 
@@ -407,8 +390,15 @@ impl IntrPage {
                 again: [0; LEAVES],
                 stale_since: None,
                 logged: 0,
+                stores_traced: 0,
+                hint: [0; LEAVES],
+                hint_rearms: 0,
+                muted: [0; LEAVES],
+                muted_since: None,
+                withdrawals_logged: 0,
             }),
             expected: std::array::from_fn(|_| AtomicU32::new(0)),
+            exact: AtomicBool::new(false),
             stats: Stats::default(),
         };
         page.reset();
@@ -444,6 +434,109 @@ impl IntrPage {
             ));
         }
         Mapping::new(self.fd.as_raw_fd(), off).map_err(|e| format!("mmap page {off:#x}: {e}"))
+    }
+
+    /// The RM's MSI re-arm (`kbifRearmMSI_GM107`, kernel_bif_gm107.c:129-150: a write of
+    /// `NV_PCFG` + `NV_XVE_CYA_2`, "HW only looks at the offset", at the end of every
+    /// interrupt service): the card sends its MSI again while an enabled interrupt is still
+    /// pending. Exact mode does that; the tagged display leaves the retrigger to its watchdog
+    /// as before. Needs no device mutex (docs/caraxes/display-own-clock.md §2.4).
+    ///
+    /// Host hints ([`Self::set_hint_vectors`]): the card raises an engine's non-stall vector
+    /// only for its own driver's work, while the host engines' non-stall events the device
+    /// forwards come for every client of the host GPU (C78: 128,200 of 129,504 with no
+    /// guest work waiting). A handler in its reset path neither acknowledges nor masks
+    /// them but re-arms, and the re-arm's MSI then livelocks the vCPU (C74, C78: 16-19
+    /// million MSIs, the Windows KMD's config save before its FLR never finished). When the
+    /// MSI would be for pending host hints only and the guest re-armed [`HINT_REARMS`]
+    /// times without acknowledging one, they are withdrawn and muted.
+    pub fn rearm(&self) -> bool {
+        bump(&self.stats.rearms);
+        if !self.exact() {
+            return false;
+        }
+        let mut st = self.lock();
+        if st.model.top() & st.model.top_en == 0 {
+            return false;
+        }
+        let live: [u32; LEAVES] = std::array::from_fn(|i| {
+            if st.model.top_en & (1 << (i / 2)) != 0 {
+                st.model.leaf[i] & st.model.leaf_en[i]
+            } else {
+                0
+            }
+        });
+        if (0..LEAVES).all(|i| live[i] & !st.hint[i] == 0) {
+            st.hint_rearms += 1;
+            if st.hint_rearms >= HINT_REARMS {
+                self.withdraw(&mut st, live);
+                return false;
+            }
+        }
+        drop(st);
+        std::sync::atomic::fence(Ordering::SeqCst);
+        let msi = self.shared.signal_msi();
+        bump(if msi {
+            &self.stats.msi_rearm
+        } else {
+            &self.stats.msi_refused
+        });
+        msi
+    }
+
+    /// The host engines' non-stall vectors (mirror.rs `hint_vectors`): notifications the
+    /// device forwards from the host, which [`Self::rearm`] may withdraw.
+    pub fn set_hint_vectors(&self, vectors: &[u32]) {
+        let mut st = self.lock();
+        st.hint = [0; LEAVES];
+        for &v in vectors.iter().filter(|&&v| v < 256) {
+            st.hint[(v / 32) as usize] |= 1 << (v % 32);
+        }
+    }
+
+    /// Withdraw the pending host hints `live` (the state lock held) and mute their raises.
+    fn withdraw(&self, st: &mut State, live: [u32; LEAVES]) {
+        let before = (st.model.top(), st.model.top_en, st.model.leaf, st.model.leaf_en);
+        for (i, &bits) in live.iter().enumerate() {
+            st.model.leaf[i] &= !bits;
+            st.again[i] &= !bits;
+            st.muted[i] |= bits;
+        }
+        st.muted_since = Some(Instant::now());
+        st.hint_rearms = 0;
+        st.stale_since = None;
+        self.publish(&st.model);
+        bump(&self.stats.withdrawn);
+        let n = self.stats.withdrawn.load(Ordering::Relaxed);
+        if st.withdrawals_logged < 8 || n % 100 == 0 {
+            st.withdrawals_logged += 1;
+            let hex = |a: &[u32; LEAVES]| a.iter().map(|x| format!("{x:x}")).collect::<Vec<_>>().join(" ");
+            let m = format!(
+                "intr page: withdrawal {n}: the guest re-armed the MSI {HINT_REARMS} times without acknowledging the pending host non-stall hint(s) [{}]; withdrawn and muted for {} ms or until the guest acknowledges or enables them (top {:#x} top_en {:#x}, pending [{}], leaf enables [{}])",
+                hex(&live),
+                HINT_MUTE.as_millis(),
+                before.0,
+                before.1,
+                hex(&before.2),
+                hex(&before.3),
+            );
+            eprintln!("vfio-user-nvgpu: {m}");
+            self.shared.note(m);
+        }
+    }
+
+    /// Unmute `bits` of leaf `i` (the guest acknowledged or enabled them).
+    fn unmute(st: &mut State, i: usize, bits: u32) {
+        st.muted[i] &= !bits;
+        if st.muted.iter().all(|&m| m == 0) {
+            st.muted_since = None;
+        }
+    }
+
+    /// A trapped access of the two pages served without the device mutex (the vfio-user
+    /// server's route, device.rs `Routes`): counted here.
+    pub fn note_routed(&self) {
+        bump(&self.stats.routed);
     }
 
     /// Whether BAR0 offset `off` lies in one of the two pages.
@@ -508,12 +601,29 @@ impl IntrPage {
     /// constants, the tree page showing the initial displays.
     pub fn reset(&self) {
         let mut st = self.lock();
+        let exact = self.exact();
+        // Raised and not yet folded: gone with the rest of the interrupt state.
+        let dropped = self.shared.reset_pending();
+        if dropped.iter().any(|&p| p != 0) {
+            self.shared
+                .note(format!("intr page: reset: raised vectors dropped, per leaf: {dropped:x?}"));
+        }
         st.model = Model {
-            leaf_en: st.table_en,
+            // Exact mode: the enables' reset value (dev_vm.h:61, :65); else every vector of
+            // the kernel table (the tagged display's lost-store rule, `scan`).
+            leaf_en: if exact { [0; LEAVES] } else { st.table_en },
             ..Model::default()
         };
+        st.hint_rearms = 0;
+        st.muted = [0; LEAVES];
+        st.muted_since = None;
         st.again = [0; LEAVES];
         st.stale_since = None;
+        st.stores_traced = 0;
+        if exact {
+            self.shared
+                .note("intr page: reset in exact mode: leaves, leaf and top enables 0 until the guest's stores".into());
+        }
         for off in (0..PAGE).step_by(4) {
             self.pmc.word(off).store(0, Ordering::Relaxed);
             self.tree.word(off).store(0, Ordering::Relaxed);
@@ -521,12 +631,23 @@ impl IntrPage {
         for (off, v) in self.boot {
             self.pmc.word(off).store(v, Ordering::Relaxed);
         }
+        self.publish(&st.model);
+        std::sync::atomic::fence(Ordering::SeqCst);
+    }
+
+    /// Exact mode (module doc): the guest's stores to the tree page trap.
+    pub fn exact(&self) -> bool {
+        self.exact.load(Ordering::Acquire)
+    }
+
+    /// Every watched word shows `model`'s display (the state lock held).
+    fn publish(&self, model: &Model) {
+        let exact = self.exact();
         for i in 0..WATCHED {
-            let d = st.model.display(i);
-            self.watched(i).store(d, Ordering::Relaxed);
+            let d = model.display(i, exact);
+            self.watched(i).store(d, Ordering::Release);
             self.expected[i].store(d, Ordering::Relaxed);
         }
-        std::sync::atomic::fence(Ordering::SeqCst);
     }
 
     /// A trapped read of the pages (a client that did not map them): the memory.
@@ -534,8 +655,14 @@ impl IntrPage {
         self.word_at(off).load(Ordering::Acquire)
     }
 
-    /// A trapped write: stored as the guest would store it, found by the next scan.
+    /// A trapped write. To the tree page: applied at once with the register's semantics
+    /// (exact mode, switched on by the first); to page 0: stored as the guest would store
+    /// it (latched values and boot constants, `tick` restores the latter).
     pub fn write(&self, off: u64, data: &[u8]) {
+        if (self.tree_base..self.tree_base + PAGE).contains(&off) {
+            self.write_tree(off - self.tree_base, data);
+            return;
+        }
         for (i, &b) in data.iter().enumerate() {
             let o = off + i as u64;
             let shift = (o & 3) * 8;
@@ -551,6 +678,116 @@ impl IntrPage {
         }
     }
 
+    /// A trapped store of `data` at tree-page offset `rel` (exact mode). Byte lanes not
+    /// written are 0 in the value, as a narrower store enables only its own lanes.
+    fn write_tree(&self, rel: u64, data: &[u8]) {
+        let a = rel & !3;
+        let mut v = 0u32;
+        for (i, &b) in data.iter().enumerate() {
+            let o = rel + i as u64;
+            if o & !3 == a {
+                v |= u32::from(b) << ((o & 3) * 8);
+            }
+        }
+        let mut st = self.lock();
+        if !self.exact.swap(true, Ordering::AcqRel) {
+            // The first trapped store: the guest's stores reach the device synchronously,
+            // so the registers' own values and semantics hold from here; the enables start
+            // at their reset value (dev_vm.h:61, :65).
+            st.model.leaf_en = [0; LEAVES];
+            st.stores_traced = 0;
+            let m = "intr page: the guest's stores to the interrupt tree trap (read-only mapping): exact register values from now on".to_string();
+            eprintln!("vfio-user-nvgpu: {m}");
+            self.shared.note(m);
+        }
+        let i = (0..WATCHED).find(|&i| watched_offset(i) == a);
+        let (mut rearm, mut rearm_by_set, mut acked) = (false, false, false);
+        match i {
+            Some(i) if i < W_EN_SET => {
+                self.shared.note_ack(i, v & st.model.leaf[i]);
+                st.model.leaf[i] &= !v;
+                acked = true;
+                bump(&self.stats.acks);
+                if v & st.hint[i] != 0 {
+                    // The handler services host hints.
+                    st.hint_rearms = 0;
+                    Self::unmute(&mut st, i, v);
+                }
+                let again = st.again[i] & v;
+                st.again[i] &= !again;
+                st.model.leaf[i] |= again;
+                if again != 0 {
+                    rearm = true;
+                    bump(&self.stats.again);
+                }
+            }
+            Some(i) if i < W_EN_CLEAR => {
+                st.model.leaf_en[i - W_EN_SET] |= v;
+                Self::unmute(&mut st, i - W_EN_SET, v);
+                rearm_by_set = true;
+                bump(&self.stats.en_set);
+            }
+            Some(i) if i < W_TOP => {
+                st.model.leaf_en[i - W_EN_CLEAR] &= !v;
+                bump(&self.stats.en_clear);
+            }
+            Some(W_TOP) => self.odd(&mut st, Odd::TopStore),
+            Some(W_TOP_EN_SET) => {
+                st.model.top_en |= v & SUBTREES;
+                rearm_by_set = true;
+                bump(&self.stats.top_en_set);
+            }
+            Some(W_TOP_EN_CLEAR) => {
+                st.model.top_en &= !v;
+                bump(&self.stats.top_en_clear);
+            }
+            Some(_) => {
+                let t = v & 0xFFF;
+                if t < 256 {
+                    let (l, b) = ((t / 32) as usize, 1u32 << (t % 32));
+                    if st.model.leaf[l] & b == 0 {
+                        rearm = true;
+                    }
+                    st.model.leaf[l] |= b;
+                    bump(&self.stats.triggers);
+                } else {
+                    self.odd(&mut st, Odd::BadTrigger);
+                }
+            }
+            None => self.odd(&mut st, Odd::TreeHole),
+        }
+        self.publish(&st.model);
+        let edge = rearm_by_set && !rearm && st.model.top() != 0;
+        if st.stores_traced < STORES_TRACED {
+            st.stores_traced += 1;
+            let m = &st.model;
+            let en: Vec<String> = m.leaf_en.iter().map(|e| format!("{e:x}")).collect();
+            self.shared.note(format!(
+                "intr page: store {} at tree {rel:#x} = {v:#x}: top {:#x} top_en {:#x}, leaf enables [{}], pending [{}]",
+                st.stores_traced,
+                m.top(),
+                m.top_en,
+                en.join(" "),
+                m.leaf.iter().map(|l| format!("{l:x}")).collect::<Vec<_>>().join(" ")
+            ));
+        }
+        let mut msi = false;
+        if edge || rearm {
+            std::sync::atomic::fence(Ordering::SeqCst);
+            msi = self.shared.signal_msi();
+            bump(if !msi {
+                &self.stats.msi_refused
+            } else if edge {
+                &self.stats.msi_edge
+            } else {
+                &self.stats.msi_raise
+            });
+        }
+        if acked || msi {
+            st.stale_since = None;
+        }
+    }
+
     /// The vectors of the chip's kernel table (stall and non-stall; vector 0 counts): the
     /// leaf enables the page reports from the start (§3 of docs/caraxes/intr-page.md).
     pub fn enable_vectors(&self, vectors: &[u32]) {
@@ -561,6 +798,23 @@ impl IntrPage {
             }
         }
         self.reset();
+    }
+
+    /// The interrupt tree now, for a live state dump: per leaf pending and enabled, the
+    /// top enable and the pending subtrees, the host hints and what is muted.
+    pub fn state_line(&self) -> String {
+        let st = self.lock();
+        let m = &st.model;
+        format!(
+            "intr page: leaf pending {:x?} enabled {:x?}; top_en {:#x} top {:#x}; hints {:x?} ({} re-arm(s) without an ack), muted {:x?}",
+            m.leaf,
+            m.leaf_en,
+            m.top_en,
+            m.top(),
+            st.hint,
+            st.hint_rearms,
+            st.muted
+        )
     }
 
     /// The model as the reactor last applied it (tests, summary).
@@ -606,88 +860,102 @@ impl IntrPage {
         let w: [u32; WATCHED] = std::array::from_fn(|i| self.watched(i).load(Ordering::Acquire));
         let exp: [u32; WATCHED] = std::array::from_fn(|i| self.expected[i].load(Ordering::Relaxed));
         let changed = |i: usize| w[i] != exp[i];
-        // 1. Enable stores. The leaf enables are reported, not modelled (docs/caraxes/
-        // intr-page.md §3): the page shows every vector of the kernel table and every bit
-        // the guest ever set, because the guest's per-vector enable loops at state load
-        // store faster than any scan and lose all but the last value (series B on vm0:
-        // LEAF_EN_SET(0) read 0x1 instead of 0xff, the non-stall vectors never showed in
-        // TOP, the compositor stalled). Clears are counted and dropped. Every set store is
-        // the guest re-enabling (a lock release, intrSetDisplayInterruptEnable,
-        // intrEnableTopNonstall): a re-arm, as the edge of the trapped tree is.
-        let mut rearm_by_set = false;
-        for i in 0..LEAVES {
-            if w[W_EN_CLEAR + i] != 0 {
-                bump(&self.stats.en_clear);
-            }
-            if changed(W_EN_SET + i) {
-                let v = w[W_EN_SET + i];
-                if v & TAG != 0 {
-                    self.odd(&mut st, Odd::TagInEnable);
+        // Exact mode: the guest's stores trapped and were applied at once (`write_tree`);
+        // the page only folds raises and shows the registers' values.
+        let exact = self.exact();
+        let (mut rearm_by_set, mut acked, mut rearm) = (false, false, false);
+        if !exact {
+            // 1. Enable stores. The leaf enables are reported, not modelled (docs/caraxes/
+            // intr-page.md §3): the page shows every vector of the kernel table and every bit
+            // the guest ever set, because the guest's per-vector enable loops at state load
+            // store faster than any scan and lose all but the last value (series B on vm0:
+            // LEAF_EN_SET(0) read 0x1 instead of 0xff, the non-stall vectors never showed in
+            // TOP, the compositor stalled). Clears are counted and dropped. Every set store is
+            // the guest re-enabling (a lock release, intrSetDisplayInterruptEnable,
+            // intrEnableTopNonstall): a re-arm, as the edge of the trapped tree is.
+            for i in 0..LEAVES {
+                if w[W_EN_CLEAR + i] != 0 {
+                    bump(&self.stats.en_clear);
                 }
-                st.model.leaf_en[i] |= v & !TAG;
+                if changed(W_EN_SET + i) {
+                    let v = w[W_EN_SET + i];
+                    if v & TAG != 0 {
+                        self.odd(&mut st, Odd::TagInEnable);
+                    }
+                    st.model.leaf_en[i] |= v & !TAG;
+                    rearm_by_set = true;
+                    bump(&self.stats.en_set);
+                }
+            }
+            if w[W_TOP_EN_CLEAR] != 0 {
+                st.model.top_en &= !w[W_TOP_EN_CLEAR];
+                bump(&self.stats.top_en_clear);
+            }
+            if changed(W_TOP_EN_SET) {
+                st.model.top_en |= w[W_TOP_EN_SET] & SUBTREES;
                 rearm_by_set = true;
-                bump(&self.stats.en_set);
+                bump(&self.stats.top_en_set);
             }
-        }
-        if w[W_TOP_EN_CLEAR] != 0 {
-            st.model.top_en &= !w[W_TOP_EN_CLEAR];
-            bump(&self.stats.top_en_clear);
-        }
-        if changed(W_TOP_EN_SET) {
-            st.model.top_en |= w[W_TOP_EN_SET] & SUBTREES;
-            rearm_by_set = true;
-            bump(&self.stats.top_en_set);
-        }
-        // 3. Acks: the word lost the tag, the word is the mask.
-        let mut acked = false;
-        let mut rearm = false;
-        for i in 0..LEAVES {
-            let v = w[W_LEAF + i];
-            if changed(W_LEAF + i) {
-                if v & TAG != 0 {
-                    self.odd(&mut st, Odd::TagInLeaf);
-                }
-                let mask = v & !TAG;
-                st.model.leaf[i] &= !mask;
-                acked = true;
-                bump(&self.stats.acks);
-                // A raise that came while the bit was pending may be after the guest's
-                // read: pend it again, with its own MSI (below).
-                let again = st.again[i] & mask;
-                st.again[i] &= !again;
-                st.model.leaf[i] |= again;
-                if again != 0 {
-                    rearm = true;
-                    bump(&self.stats.again);
+            // 3. Acks: the word lost the tag, the word is the mask.
+            for i in 0..LEAVES {
+                let v = w[W_LEAF + i];
+                if changed(W_LEAF + i) {
+                    if v & TAG != 0 {
+                        self.odd(&mut st, Odd::TagInLeaf);
+                    }
+                    let mask = v & !TAG;
+                    self.shared.note_ack(i, mask & st.model.leaf[i]);
+                    st.model.leaf[i] &= !mask;
+                    acked = true;
+                    bump(&self.stats.acks);
+                    // A raise that came while the bit was pending may be after the guest's
+                    // read: pend it again, with its own MSI (below).
+                    let again = st.again[i] & mask;
+                    st.again[i] &= !again;
+                    st.model.leaf[i] |= again;
+                    if again != 0 {
+                        rearm = true;
+                        bump(&self.stats.again);
+                    }
                 }
             }
-        }
-        // 4. Triggers: a newly pending vector, with its MSI as a raise.
-        if changed(W_TRIGGER) {
-            let v = w[W_TRIGGER] & 0xFFF;
-            if v < 256 && v % 32 != 31 {
-                let (l, b) = ((v / 32) as usize, 1u32 << (v % 32));
-                if st.model.leaf[l] & b == 0 {
-                    rearm = true;
+            // 4. Triggers: a newly pending vector, with its MSI as a raise.
+            if changed(W_TRIGGER) {
+                let v = w[W_TRIGGER] & 0xFFF;
+                if v < 256 && v % 32 != 31 {
+                    let (l, b) = ((v / 32) as usize, 1u32 << (v % 32));
+                    if st.model.leaf[l] & b == 0 {
+                        rearm = true;
+                    }
+                    st.model.leaf[l] |= b;
+                    bump(&self.stats.triggers);
+                } else {
+                    self.odd(&mut st, Odd::BadTrigger);
                 }
-                st.model.leaf[l] |= b;
-                bump(&self.stats.triggers);
-            } else {
-                self.odd(&mut st, Odd::BadTrigger);
             }
-        }
-        if changed(W_TOP) {
-            self.odd(&mut st, Odd::TopStore);
+            if changed(W_TOP) {
+                self.odd(&mut st, Odd::TopStore);
+            }
         }
         // 5. Vectors raised by other threads; their MSI is the raise's, not an edge.
         // A vector still pending in the page costs no second MSI (the guest has not
         // acked it; `IntrShared::raise` coalesces the same way while the guest has not
         // looked); it is remembered and pended again at its ack.
         let mut raise_msi = rearm;
+        if st.muted_since.is_some_and(|t| t.elapsed() >= HINT_MUTE) {
+            st.muted = [0; LEAVES];
+            st.muted_since = None;
+        }
         if self.shared.page_raised.swap(false, Ordering::AcqRel) {
             self.shared.page_msi.store(false, Ordering::Release);
             for i in 0..LEAVES {
-                let p = self.shared.take_pending(i) & !TAG;
+                let mut p = self.shared.take_pending(i) & !TAG;
+                // Withdrawn host hints (`rearm`): dropped while muted.
+                if p & st.muted[i] != 0 {
+                    self.shared.note_muted(i, p & st.muted[i]);
+                    p &= !st.muted[i];
+                    bump(&self.stats.muted_raises);
+                }
                 if p != 0 {
                     let newly = p & !st.model.leaf[i];
                     st.again[i] |= p & st.model.leaf[i];
@@ -704,8 +972,13 @@ impl IntrPage {
         between();
         // Write the displays: compare-and-swap from what was read, so a store that
         // landed since is kept for the next scan.
+        if exact && (0..WATCHED).any(changed) {
+            // Exact mode shows the registers' own values: a store that did not trap means
+            // the page is writable after all; it cannot be told from the value it held.
+            self.odd(&mut st, Odd::ExactStore);
+        }
         for (i, &was) in w.iter().enumerate() {
-            let d = st.model.display(i);
+            let d = st.model.display(i, exact);
             if was != d
                 && self
                     .watched(i)
@@ -774,7 +1047,15 @@ impl IntrPage {
             return false;
         };
         let m = &st.model;
-        let enabled = (0..LEAVES).any(|i| m.leaf[i] & m.leaf_en[i] != 0);
+        let exact = self.exact();
+        // Exact mode sees every store, so no enable can be lost: only a vector pending and
+        // enabled at both levels counts, and the MSI is sent again without touching the
+        // enables the guest set.
+        let enabled = if exact {
+            m.top() & m.top_en != 0
+        } else {
+            (0..LEAVES).any(|i| m.leaf[i] & m.leaf_en[i] != 0)
+        };
         if !enabled {
             st.stale_since = None;
             return false;
@@ -785,9 +1066,12 @@ impl IntrPage {
                 false
             }
             Some(t) if now.saturating_duration_since(t) >= period => {
-                // Late, not lost: every subtree enabled again, the MSI again.
-                st.model.top_en |= SUBTREES;
-                let d = st.model.display(W_TOP_EN_SET);
+                // Late, not lost: every subtree enabled again (the tagged display's lost
+                // enables), the MSI again.
+                if !exact {
+                    st.model.top_en |= SUBTREES;
+                }
+                let d = st.model.display(W_TOP_EN_SET, self.exact());
                 let w = self.watched(W_TOP_EN_SET);
                 let was = self.expected[W_TOP_EN_SET].load(Ordering::Relaxed);
                 if w.compare_exchange(was, d, Ordering::AcqRel, Ordering::Acquire)
@@ -820,7 +1104,7 @@ impl IntrPage {
             .map(|(what, n)| format!("{} x {what}", l(n)))
             .collect();
         format!(
-            "intr page: {} scan(s) with work (slowest {:.1} us); guest stores applied: {} ack(s), {} LEAF_EN_SET, {} LEAF_EN_CLEAR, {} TOP_EN_SET, {} TOP_EN_CLEAR, {} trigger(s); {} raise fold(s) ({} coalesced while pending, {} pended again at the ack); MSIs: {} for raises, {} re-arms (a set store while a vector is pending), {} by the watchdog, {} not written (MSI off or no eventfd); {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
+            "intr page: {} scan(s) with work (slowest {:.1} us); guest stores applied: {} ack(s), {} LEAF_EN_SET, {} LEAF_EN_CLEAR, {} TOP_EN_SET, {} TOP_EN_CLEAR, {} trigger(s); {} raise fold(s) ({} coalesced while pending, {} pended again at the ack); MSIs: {} for raises, {} re-arms (a set store while a vector is pending), {} by the watchdog, {} at an MSI re-arm ({} re-arm(s)), {} not written (MSI off or no eventfd); host non-stall hints withdrawn from a handler that re-armed without servicing them: {} ({} raise(s) muted); {} trapped access(es) served without the device mutex; {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
             l(&s.scans),
             l(&s.slow_ns_max) as f64 / 1000.0,
             l(&s.acks),
@@ -835,7 +1119,12 @@ impl IntrPage {
             l(&s.msi_raise),
             l(&s.msi_edge),
             l(&s.msi_watchdog),
+            l(&s.msi_rearm),
+            l(&s.rearms),
             l(&s.msi_refused),
+            l(&s.withdrawn),
+            l(&s.muted_raises),
+            l(&s.routed),
             l(&s.cas_retries),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
         ) + &if self.shared.direct() {
@@ -864,9 +1153,6 @@ pub struct PageHook {
         Arc<crate::display::chan_page::ChanPage>,
         Arc<crate::display::chan_page::Driver>,
     )>,
-    /// `CARAXES_INTR_PAGE_VBLANK_SPIN_US`: spin from this long before each display tick
-    /// (docs/caraxes/intr-page.md §11.4); 0 off.
-    vblank_lead_ns: u64,
     /// From a display raise to the reactor's wake-up for it (a blocked reactor only).
     pub raise_wake: Arc<Mutex<crate::display::engine::Hist>>,
     wake: File,
@@ -893,7 +1179,6 @@ impl PageHook {
                 inv: None,
                 um: None,
                 kicks: None,
-                vblank_lead_ns: 0,
                 raise_wake: Arc::new(Mutex::new(Default::default())),
                 wake,
                 iterations: 0,
@@ -910,23 +1195,6 @@ impl PageHook {
     pub fn with_display(mut self, fe: Arc<crate::display::fe_page::FePage>) -> Self {
         self.fe = Some(fe);
         self
-    }
-
-    /// Spin from `lead_us` before each display tick until it is served (0: off).
-    pub fn with_vblank_spin(mut self, lead_us: u64) -> Self {
-        self.vblank_lead_ns = lead_us * 1000;
-        self
-    }
-
-    /// The vblank window: a display tick is due within the lead (the clock's next tick).
-    fn vblank_window(&self) -> bool {
-        if self.vblank_lead_ns == 0 || self.fe.is_none() {
-            return false;
-        }
-        let t = crate::display::engine::ticker();
-        t.next_due().is_some_and(|d| {
-            crate::display::engine::now_ns() + self.vblank_lead_ns >= d
-        })
     }
 
     /// Scan the MMU invalidate page and run `driver` for each trigger found.
@@ -987,7 +1255,6 @@ impl crate::poll::Hook for PageHook {
         if let Some((p, d)) = &self.kicks {
             work |= crate::display::chan_page::poll(p, d.as_ref());
         }
-        work |= self.vblank_window();
         self.iterations = self.iterations.wrapping_add(1);
         if woken || self.iterations % TICK_ITERATIONS == 0 {
             let now = Instant::now();
@@ -1071,18 +1338,13 @@ mod tests {
         p.tree.word(reg).load(Ordering::Acquire)
     }
 
+    /// On with host execution, with the 1 ms sleep bound and the 10 ms retrigger watchdog.
     #[test]
-    fn switch_and_settings() {
-        assert_eq!(parse(None, None, None), Ok(None));
-        assert_eq!(parse(Some("0"), None, None), Ok(None));
-        assert_eq!(parse(Some("1"), None, None), Ok(Some(Config::default())));
-        let c = parse(Some("1"), Some("5"), Some("0")).unwrap().unwrap();
-        assert_eq!(c.sleep_ms, 5);
-        assert_eq!(c.retrigger, None);
-        assert!(parse(Some("yes"), None, None).is_err());
-        assert!(parse(None, Some("5"), None).unwrap_err().contains("is off"));
-        assert!(parse(Some("1"), Some("0"), None).is_err());
-        assert!(parse(Some("1"), None, Some("-3")).is_err());
+    fn the_page_follows_host_execution() {
+        assert_eq!(requested(false), None);
+        let c = requested(true).unwrap();
+        assert_eq!(c.sleep_ms, 1);
+        assert_eq!(c.retrigger, Some(Duration::from_millis(10)));
     }
 
     #[test]
@@ -1148,6 +1410,177 @@ mod tests {
         assert_eq!(count(&mut msi), 1);
         assert_eq!(p.stats.acks.load(Ordering::Relaxed), 1);
         assert!(p.summary().contains("1 ack(s)"));
+    }
+
+    /// Exact mode (read-only mapping, Cloud Hypervisor's `x_readonly_mmap_areas`): the
+    /// first trapped store to the tree switches the page to the registers' own values
+    /// (dev_vm.h:31-67) and applies each store as it arrives: no tag, the clear registers
+    /// read the enables, the enables start at 0, W1C acks, trigger, re-arm edges.
+    #[test]
+    fn trapped_stores_make_the_page_exact() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        p.enable_vectors(&[4, 33]);
+        assert!(!p.exact());
+        assert_eq!(load(&p, LEAF), TAG);
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        // The first trapped store: the enables at their reset value, then this store.
+        w(&p, LEAF_EN_SET, 0x10);
+        assert!(p.exact());
+        assert_eq!(p.model().leaf_en[0], 0x10);
+        assert_eq!(p.model().leaf_en[1], 0, "the kernel table is not shown as enabled");
+        assert_eq!(load(&p, LEAF), 0);
+        assert_eq!(load(&p, LEAF_EN_SET), 0x10);
+        assert_eq!(load(&p, LEAF_EN_CLEAR), 0x10, "EN_CLEAR reads the enables");
+        assert_eq!(load(&p, LEAF_TRIGGER), 0);
+        w(&p, TOP_EN_SET, 0x1);
+        assert_eq!(load(&p, TOP_EN_SET), 1);
+        assert_eq!(load(&p, TOP_EN_CLEAR), 1);
+        assert_eq!(count(&mut msi), 0, "nothing pending: no edge");
+        // A raise: the page shows the bit without a tag, and the MSI.
+        assert!(shared.raise(4));
+        assert!(p.scan().msi);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert_eq!(load(&p, TOP), 1);
+        assert_eq!(count(&mut msi), 1);
+        // A raise while pending, then the W1C ack: pended again with its MSI.
+        assert!(shared.raise(4));
+        assert!(!p.scan().msi);
+        w(&p, LEAF, 0x10);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert_eq!(count(&mut msi), 1);
+        w(&p, LEAF, 0x10);
+        assert_eq!(load(&p, LEAF), 0);
+        assert_eq!(load(&p, TOP), 0);
+        // Masking the leaf, a trigger while masked, unmasking: the set store is an edge.
+        w(&p, LEAF_EN_CLEAR, 0x10);
+        assert_eq!(load(&p, LEAF_EN_SET), 0);
+        w(&p, LEAF_TRIGGER, 4);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert_eq!(count(&mut msi), 1, "a trigger pends and signals");
+        w(&p, LEAF_EN_SET, 0x10);
+        assert_eq!(count(&mut msi), 1, "the unmask of a pending vector is an edge");
+        w(&p, TOP_EN_CLEAR, 1);
+        assert_eq!(load(&p, TOP_EN_SET), 0);
+        // A byte store enables only its lane: bits 15:8 of LEAF_EN_SET(1).
+        p.write(p.tree_base + LEAF_EN_SET + 4 + 1, &[0x02]);
+        assert_eq!(p.model().leaf_en[1], 0x200);
+        // A store that did not trap is an inconsistency, restored at the next scan.
+        store(&p, LEAF, 0);
+        assert!(p.scan().work);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert!(p.summary().contains("did not trap"));
+        // A reset keeps exact mode, with the enables at 0, and drops a raise not yet folded
+        // (the page's reactor had not scanned since).
+        assert!(shared.raise(33));
+        p.reset();
+        assert!(p.exact());
+        assert!(!p.scan().msi, "the raise went with the reset");
+        assert_eq!(load(&p, LEAF + 4), 0);
+        assert_eq!(load(&p, LEAF_EN_SET), 0);
+    }
+
+    /// The MSI re-arm (`kbifRearmMSI_GM107`): exact mode sends the MSI again while an
+    /// enabled vector is pending, not otherwise; the tagged display leaves it to the watchdog.
+    #[test]
+    fn rearm_resends_the_msi_of_a_pending_enabled_vector() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        assert!(!p.rearm(), "tagged display: no re-arm MSI");
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        w(&p, LEAF_EN_SET, 0x10);
+        w(&p, TOP_EN_SET, 1);
+        assert!(!p.rearm(), "nothing pending");
+        assert!(shared.raise(4));
+        p.scan();
+        assert_eq!(count(&mut msi), 1);
+        assert!(p.rearm(), "still pending after the service: the MSI again");
+        assert_eq!(count(&mut msi), 1);
+        w(&p, LEAF, 0x10);
+        assert!(!p.rearm(), "acked");
+        assert!(p.summary().contains("1 at an MSI re-arm"), "{}", p.summary());
+    }
+
+    /// A host hint (a host engine's non-stall event) that the guest's handler re-arms
+    /// without servicing is withdrawn after `HINT_REARMS` re-arms and muted until the guest
+    /// enables it again (C74, C78: the Windows KMD's reset path, 16-19 million MSIs).
+    #[test]
+    fn rearm_withdraws_a_host_hint_the_handler_does_not_service() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        p.set_hint_vectors(&[4, 5]);
+        w(&p, LEAF_EN_SET, 0x30);
+        w(&p, TOP_EN_SET, 1);
+        assert!(shared.raise(4));
+        p.scan();
+        assert_eq!(count(&mut msi), 1);
+        for n in 1..HINT_REARMS {
+            assert!(p.rearm(), "re-arm {n}: the MSI again");
+        }
+        assert!(!p.rearm(), "withdrawn");
+        assert_eq!(load(&p, LEAF), 0, "no longer pending");
+        assert_eq!(p.stats.withdrawn.load(Ordering::Relaxed), 1);
+        count(&mut msi);
+        // Muted: a raise of the vector is dropped, one of the other hint is not.
+        assert!(shared.raise(4));
+        assert!(!p.scan().msi);
+        assert_eq!(load(&p, LEAF), 0);
+        assert_eq!(p.stats.muted_raises.load(Ordering::Relaxed), 1);
+        assert!(shared.raise(5));
+        assert!(p.scan().msi);
+        assert_eq!(load(&p, LEAF), 0x20);
+        w(&p, LEAF, 0x20);
+        // The guest enables the vector again: its raises count again.
+        w(&p, LEAF_EN_SET, 0x10);
+        assert!(shared.raise(4));
+        assert!(p.scan().msi);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert!(p.summary().contains("withdrawn from a handler that re-armed without servicing them: 1 (1 raise(s) muted)"), "{}", p.summary());
+    }
+
+    /// A handler that services the host hints is never withdrawn from, and a pending vector
+    /// of the device's own (the display's) is sent again at every re-arm as before.
+    #[test]
+    fn rearm_keeps_serviced_hints_and_device_vectors() {
+        let (p, shared, _msi, _wake) = page(Config::default());
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        p.set_hint_vectors(&[4]);
+        w(&p, LEAF_EN_SET, 0x10);
+        w(&p, LEAF_EN_SET + 16, 0x1000_0000);
+        w(&p, TOP_EN_SET, 0x5);
+        for _ in 0..2 * HINT_REARMS {
+            assert!(shared.raise(4));
+            p.scan();
+            assert!(p.rearm());
+            w(&p, LEAF, 0x10);
+        }
+        assert!(shared.raise(156));
+        p.scan();
+        for _ in 0..2 * HINT_REARMS {
+            assert!(p.rearm(), "the display's vector stays");
+        }
+        assert_eq!(load(&p, LEAF + 16), 0x1000_0000);
+        assert_eq!(p.stats.withdrawn.load(Ordering::Relaxed), 0);
+    }
+
+    /// Exact mode's watchdog leaves the guest's enables alone: a vector pending under a
+    /// masked subtree is no lost interrupt; one pending and enabled gets its MSI again.
+    /// (A raise signals as the trapped path's `IntrShared::raise` does, enables or not.)
+    #[test]
+    fn exact_watchdog_keeps_the_guests_enables() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        let w = |p: &IntrPage, reg: u64, v: u32| p.write(p.tree_base + reg, &v.to_le_bytes());
+        w(&p, LEAF_EN_SET, 0x10);
+        assert!(shared.raise(4));
+        p.scan();
+        assert_eq!(count(&mut msi), 1, "the raise's MSI, as the trapped path");
+        let t = Instant::now();
+        assert!(!p.tick(t));
+        assert!(!p.tick(t + Duration::from_millis(50)));
+        assert_eq!(load(&p, TOP_EN_SET), 0, "the mask stays");
+        w(&p, TOP_EN_SET, 1);
+        assert_eq!(count(&mut msi), 1, "the unmask is the edge");
+        assert!(!p.tick(t + Duration::from_millis(60)));
+        assert!(p.tick(t + Duration::from_millis(80)), "late, not lost: the MSI again");
+        assert_eq!(count(&mut msi), 1);
     }
 
     /// A host event for a vector the page still shows pending costs no MSI (series B on
@@ -1352,7 +1785,7 @@ mod tests {
             .iter()
             .map(|a| a.load(Ordering::Relaxed))
             .collect();
-        assert_eq!(odd, vec![1, 1, 0, 2, 1, 1]);
+        assert_eq!(odd, vec![1, 1, 0, 2, 1, 1, 0]);
         assert!(p
             .summary()
             .contains("inconsistencies: 1 x a store to the read-only TOP"));

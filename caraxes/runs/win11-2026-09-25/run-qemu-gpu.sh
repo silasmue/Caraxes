@@ -6,6 +6,7 @@
 # comes from a shared memfd so the device can map it. rombar=0 by default: the VBIOS GOP driver
 # in the device's ROM spins on NV_PTIMER_TIME (0 before the PTIMER model) and hung the firmware.
 # Same firmware, TPM and disk as install-qemu.sh; the virtio-win ISO stays attached for drivers.
+# The RTC is UTC (the guest sets RealTimeIsUniversal=1), as under Cloud Hypervisor.
 # Start gpu-up.sh first. The QEMU guest agent of the virtio-win tools listens on $W/qga.sock
 # (qga.py runs PowerShell in the guest as SYSTEM and fetches files: ETW traces, logs); QMP on
 # $W/qmp.sock (qmp.py: screendump, sendkey, system_powerdown) for unattended runs.
@@ -40,7 +41,21 @@ gpu=("${port[@]}" -device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"
 if [[ ${WIN_GPU:-1} == 0 ]]; then gpu=(); echo "WIN_GPU=0: memfd RAM, no device (isolation run)"; else
     [[ -S $W/gpu.sock ]] || die "no device socket $W/gpu.sock: run gpu-up.sh first"
 fi
-[[ -s $W/win11.qcow2 ]] || die "no $W/win11.qcow2: run install-qemu.sh first"
+# WIN_TAP=<tap>: a second virtio-net on that host tap (created beforehand, owned by this user),
+# MAC WIN_TAP_MAC (default 02:00:00:00:00:47): the NIC the Cloud Hypervisor runs use, so the
+# guest's SSH and address setup (tools/windows/ssh-setup.ps1) can be checked under QEMU too.
+tap=()
+if [[ -n ${WIN_TAP:-} ]]; then
+    ip link show "$WIN_TAP" >/dev/null 2>&1 || die "no tap $WIN_TAP"
+    tap=(-device "virtio-net-pci,netdev=n1,mac=${WIN_TAP_MAC:-02:00:00:00:00:47}" -netdev "tap,id=n1,ifname=$WIN_TAP,script=no,downscript=no")
+fi
+# The flattened raw image when it exists (as run-ch-gpu.sh), else the qcow2 chain.
+if [[ -s $W/win11.raw ]]; then
+    drive="file=$W/win11.raw,if=virtio,format=raw,cache=writeback,discard=unmap"
+else
+    [[ -s $W/win11.qcow2 ]] || die "no $W/win11.qcow2: run install-qemu.sh first"
+    drive="file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap"
+fi
 [[ -f $VARS ]] || die "no $VARS (install-qemu.sh creates it)"
 mkdir -p "$W/swtpm"
 if ! pgrep -f "swtpm socket.*$W/swtpm" >/dev/null; then
@@ -55,12 +70,13 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -drive "if=pflash,format=raw,readonly=on,file=$CODE" \
     -drive "if=pflash,format=raw,file=$VARS" \
     -chardev "socket,id=chrtpm,path=$W/swtpm/sock" -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-crb,tpmdev=tpm0 \
-    -drive "file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap" \
+    -drive "$drive" \
     -drive "file=$VIRTIO,media=cdrom,readonly=on" \
     -device virtio-net-pci,netdev=n0 -netdev user,id=n0,hostfwd=tcp:127.0.0.1:3389-:3389 \
+    "${tap[@]}" \
     -qmp "unix:$W/qmp.sock,server=on,wait=off" \
     -device virtio-serial-pci -chardev "socket,id=qga0,path=$W/qga.sock,server=on,wait=off" \
     -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0 \
     "${gpu[@]}" \
     -device qemu-xhci -device usb-tablet -device usb-kbd \
-    -vga "${WIN_VGA:-std}" -display "${WIN_QEMU_DISPLAY:-gtk}" -rtc base=localtime
+    -vga "${WIN_VGA:-std}" -display "${WIN_QEMU_DISPLAY:-gtk}" -rtc base=utc

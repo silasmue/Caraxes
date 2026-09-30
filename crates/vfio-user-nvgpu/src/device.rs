@@ -18,7 +18,7 @@ use std::fs::File;
 use std::mem::size_of;
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use vfio_bindings::bindings::vfio::{
     vfio_region_info, VFIO_IRQ_INFO_EVENTFD, VFIO_IRQ_INFO_NORESIZE, VFIO_IRQ_SET_ACTION_TRIGGER,
@@ -64,13 +64,17 @@ pub struct DmaMapping {
 
 pub struct Device {
     cfg: ConfigSpace,
+    /// The configuration space as the device came up, for a new client ([`Device::client_gone`]).
+    cfg_reset: ConfigSpace,
     bar0: Bar0,
     trace: Trace,
     dma: Vec<DmaMapping>,
     mem: GuestMemory,
     irq_fds: Vec<Vec<File>>,
     guest_ram: GuestRam,
-    /// Fixed for this session: QEMU/Windows uses GPAs and page-sized RAM fragments.
+    /// Fixed for this session (with host execution, [`Device::with_guest_dma_gpa`]): the
+    /// guest's DMA addresses are its GPAs, registered guest RAM is translated by the host
+    /// shadow maps, and no guest helper (caraxes_dma_range) is loaded.
     guest_dma_gpa: bool,
     /// Where the table is published (`<state dir>/dma-ranges`), in the module's format.
     dma_ranges: Option<PathBuf>,
@@ -82,11 +86,20 @@ pub struct Device {
     registrar_thread: Option<std::thread::JoinHandle<()>>,
     /// The vectors and MSI state the host event thread raises through (E5b part 2).
     intr: Option<Arc<IntrShared>>,
+    /// The display engine the display clock and the routed status accesses reach without
+    /// the device mutex, republished at every reset (display/core_path.rs).
+    display_slot: DisplaySlot,
     /// Doorbell ioeventfd: wakeups of the reader thread and guest writes they counted.
     doorbell_wakeups: u64,
     doorbell_writes: u64,
+    /// Guest-token ioeventfds (`CARAXES_DOORBELL_GUEST_TOKENS`): wakeups and guest writes.
+    guest_token_rings: u64,
+    guest_token_writes: u64,
     /// MSI re-arm ioeventfd (`CARAXES_MSI_REARM_IOEVENTFD=1`): wakeups and guest writes.
     rearm_wakeups: u64,
+    /// Posted doorbells are being rung (`ring_posted`): a guest-signal handler reached from
+    /// one of them does not ring the newer ones before the older ones left.
+    ringing_posted: bool,
     rearm_writes: u64,
     /// BAR0 writes that landed in the config-space mirror (the MSI re-arm among them), after
     /// which the BAR1 pool's poll did not run (`after_bar0_write`), and the polls that held
@@ -103,14 +116,6 @@ pub struct Device {
 /// display clock, the doorbell reactor and every trapped access wait for the device lock,
 /// docs/caraxes/sottr-stage.md §11).
 pub const SLOW_POOL_POLL: std::time::Duration = std::time::Duration::from_millis(2);
-
-/// The switch for the doorbell ioeventfd.
-pub const DOORBELL_IOEVENTFD_ENV: &str = "CARAXES_DOORBELL_IOEVENTFD";
-
-/// Whether `CARAXES_DOORBELL_IOEVENTFD=1` is set.
-pub fn doorbell_ioeventfd_requested() -> bool {
-    std::env::var(DOORBELL_IOEVENTFD_ENV).is_ok_and(|v| v.trim() == "1")
-}
 
 /// The switch for the MSI re-arm ioeventfd (docs/caraxes/intr-page.md §4).
 pub const MSI_REARM_IOEVENTFD_ENV: &str = "CARAXES_MSI_REARM_IOEVENTFD";
@@ -142,18 +147,17 @@ pub fn rpc_head_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, 
 }
 
 /// The MSI re-arm sub-region at BAR0 `offset` (the `NV_PCFG` base plus [`NV_XVE_CYA_2`]):
-/// 4 bytes, no datamatch (the value is ignored), and the eventfd's reading end. The shape
-/// is the token-less doorbell's ([`doorbell_sub_region`]).
+/// 4 bytes, no datamatch (the value is ignored), and the eventfd's reading end
+/// ([`doorbell_sub_region`]).
 pub fn msi_rearm_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, File)> {
     doorbell_sub_region(offset)
 }
 
-/// The doorbell sub-region to offer on BAR0 and the eventfd's reading end. `offset` is
-/// the chip's `registers.usermode_doorbell` (`NOTIFY_CHANNEL_PENDING`, a 32-bit
-/// register), so the size is 4. There is no datamatch here: this is the token-less
-/// path, one eventfd for every value written. The token pool
-/// ([`doorbell_token_sub_regions`]) gives each pool token its own datamatch entry and
-/// eventfd instead.
+/// A 4-byte sub-region at BAR0 `offset` without datamatch (one eventfd for every value
+/// written: the MSI re-arm and the command-queue head) and the eventfd's reading end. The
+/// doorbell register itself is offered only with datamatch, one eventfd per token
+/// ([`doorbell_token_sub_regions`]): a wildcard next to datamatch entries at one address
+/// is refused by KVM (EEXIST).
 pub fn doorbell_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, File)> {
     // SAFETY: a plain syscall; the result is checked before use.
     let raw = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC) };
@@ -193,6 +197,26 @@ pub fn doorbell_token_sub_regions(
         .collect()
 }
 
+/// The guest-token sub-regions (tokens.rs `GuestTokens`, docs/caraxes/doorbell-token-pool.md
+/// (g)): for each value one ioeventfd sub-region of the doorbell register `offset`, size 4,
+/// `IOEVENTFD_FLAG_DATAMATCH` with the value as datamatch, and its own eventfd, so the
+/// eventfd names the value written (vfio-user.rst, "Sub-Region IO FD info format
+/// (ioeventfd)"). The readers come back in `values` order.
+pub fn doorbell_value_sub_regions(
+    offset: u64,
+    values: &[u32],
+) -> std::io::Result<Vec<(IoEventFdSubRegion, File)>> {
+    values
+        .iter()
+        .map(|&v| {
+            let (mut sub_region, reader) = doorbell_sub_region(offset)?;
+            sub_region.flags = vfio_user::IOEVENTFD_FLAG_DATAMATCH;
+            sub_region.datamatch = u64::from(v);
+            Ok((sub_region, reader))
+        })
+        .collect()
+}
+
 /// Wait on the pool's eventfds with one epoll loop and ring the channel of every token
 /// signalled, for as long as the process runs. `readers[i]` is the eventfd of slot i.
 /// `reactor` says how the loop waits (`CARAXES_DOORBELL_POLL`, poll.rs): blocked in
@@ -203,7 +227,17 @@ pub fn spawn_token_reader(
     readers: Vec<File>,
     reactor: crate::poll::Reactor,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    spawn_token_reader_hooked(device, doorbell, readers, reactor, None, None, None)
+    spawn_token_reader_hooked(
+        device,
+        doorbell,
+        readers,
+        Vec::new(),
+        reactor,
+        None,
+        None,
+        None,
+        Routes::default(),
+    )
 }
 
 /// As [`spawn_token_reader`], with a hook the reactor runs on every iteration (the
@@ -211,17 +245,25 @@ pub fn spawn_token_reader(
 /// the tokens' (`CARAXES_MSI_REARM_IOEVENTFD=1`), `(BAR0 offset, eventfd)`; its wakeups go
 /// to [`Device::msi_rearm_ioeventfd`], never to a token. `rpc`: the command-queue head
 /// eventfd (`CARAXES_RPC_IOEVENTFD=1`) as one more reader after those, `(BAR0 offset,
-/// eventfd)`; its wakeups go to [`Device::rpc_ioeventfd`].
+/// eventfd)`; its wakeups go to [`Device::rpc_ioeventfd`]. `guest`: the guest-token
+/// eventfds (`CARAXES_DOORBELL_GUEST_TOKENS`) and their values, read right after the pool's;
+/// their wakeups go to [`Device::doorbell_guest_tokens`].
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_token_reader_hooked(
     device: Arc<Mutex<Device>>,
     doorbell: u64,
     mut readers: Vec<File>,
+    guest: Vec<(u32, File)>,
     reactor: crate::poll::Reactor,
     hook: Option<Box<dyn crate::poll::Hook>>,
     rearm: Option<(u64, File)>,
     rpc: Option<(u64, File)>,
+    routes: Routes,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
     let tokens = readers.len();
+    let values: Vec<u32> = guest.iter().map(|(v, _)| *v).collect();
+    readers.extend(guest.into_iter().map(|(_, f)| f));
+    let guest_end = readers.len();
     let mut extra = |e: Option<(u64, File)>| {
         e.map(|(offset, fd)| {
             readers.push(fd);
@@ -233,19 +275,37 @@ pub fn spawn_token_reader_hooked(
     reactor.spawn_hooked(
         readers,
         move |rings, seen, st| {
-            let mut d = lock(&device);
+            // The MSI re-arm with the interrupt page: taken by the page, never waiting for
+            // the device mutex (`Routes`).
+            let routed_rearm = match (rearm_at, routes.intr_page.as_ref()) {
+                (Some((i, _)), Some(p)) if p.exact() && rings.iter().any(|r| r.0 == i) => {
+                    p.note_routed();
+                    p.rearm();
+                    Some(i)
+                }
+                _ => None,
+            };
+            if routed_rearm.is_some() && rings.iter().all(|r| Some(r.0) == routed_rearm) {
+                return;
+            }
+            let mut d = crate::dlock::lock(&device, "doorbell/re-arm/rpc eventfds");
             st.lock_wait.record(seen.elapsed());
             crate::launch::mark(crate::launch::Step::Lock);
-            if rearm_at.is_none() && rpc_at.is_none() {
+            if rearm_at.is_none() && rpc_at.is_none() && values.is_empty() {
                 return d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host));
             }
-            for r in rings {
+            for r in rings.iter().filter(|r| Some(r.0) != routed_rearm) {
                 match (rearm_at, rpc_at) {
                     _ if r.0 < tokens => {
                         d.doorbell_tokens(doorbell, std::slice::from_ref(r), &mut |host| {
                             st.ring(seen, host)
                         })
                     }
+                    _ if r.0 < guest_end => d.doorbell_guest_tokens(
+                        doorbell,
+                        &[(values[r.0 - tokens], r.1)],
+                        &mut |host| st.ring(seen, host),
+                    ),
                     (Some((i, offset)), _) if r.0 == i => d.msi_rearm_ioeventfd(offset, r.1),
                     (_, Some((i, offset))) if r.0 == i => d.rpc_ioeventfd(offset, r.1),
                     _ => {}
@@ -256,57 +316,314 @@ pub fn spawn_token_reader_hooked(
     )
 }
 
-fn lock(device: &Mutex<Device>) -> MutexGuard<'_, Device> {
-    device.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// Read the doorbell eventfd (the token-less one) and ring the device for as long as
-/// the process runs, through the same reactor as the token pool (one eventfd).
-pub fn spawn_doorbell_reader(
-    device: Arc<Mutex<Device>>,
-    doorbell: u64,
-    eventfd: File,
-    reactor: crate::poll::Reactor,
-) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    spawn_doorbell_reader_hooked(device, doorbell, eventfd, reactor, None)
-}
-
-/// As [`spawn_doorbell_reader`], with a reactor hook (the interrupt page).
-pub fn spawn_doorbell_reader_hooked(
-    device: Arc<Mutex<Device>>,
-    doorbell: u64,
-    eventfd: File,
-    reactor: crate::poll::Reactor,
-    hook: Option<Box<dyn crate::poll::Hook>>,
-) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    reactor.spawn_hooked(
-        vec![eventfd],
-        move |rings, seen, st| {
-            let mut d = lock(&device);
-            st.lock_wait.record(seen.elapsed());
-            crate::launch::mark(crate::launch::Step::Lock);
-            for &(_, writes) in rings {
-                let host = d.doorbell_ioeventfd(doorbell, writes);
-                st.ring(seen, host);
-            }
-        },
-        hook,
-    )
+#[cfg(test)]
+fn lock(device: &Mutex<Device>) -> std::sync::MutexGuard<'_, Device> {
+    device.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// The device as the vfio-user server loop sees it when the doorbell reader thread
-/// shares it.
-pub struct SharedDevice(pub Arc<Mutex<Device>>);
+/// shares it, with the trapped accesses it serves without the device mutex (`Routes`). A
+/// trapped write of the usermode doorbell is posted (execution.md §9.9): queued in the
+/// ring gate without the device lock and answered at once, so it costs the guest one BAR0
+/// exit; the ring completer rings it under the lock (main.rs). Every other access that
+/// takes the device lock rings the posted writes first, before its own work, so none
+/// passes a doorbell the guest wrote before it (as on PCIe, where a read or write does not
+/// pass a posted write), whatever the client does with its token.
+pub struct SharedDevice {
+    device: Arc<Mutex<Device>>,
+    routes: Routes,
+    /// The usermode doorbell's BAR0 offset (`None`: no boot model, nothing is posted).
+    doorbell: Option<u64>,
+    gate: Arc<crate::ringgate::RingGate>,
+}
+
+/// The current display engine, for the paths without the device mutex (`Device::display_slot`).
+pub type DisplaySlot = Arc<std::sync::RwLock<Option<Arc<Mutex<crate::display::engine::Engine>>>>>;
+
+/// The display's status registers without the device mutex (display/core_path.rs).
+#[derive(Clone)]
+pub struct DisplayRoute {
+    pub slot: DisplaySlot,
+    pub mem: crate::guestmem::MemView,
+}
+
+impl DisplayRoute {
+    fn engine(&self) -> Option<Arc<Mutex<crate::display::engine::Engine>>> {
+        self.slot.read().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    fn mem(&self) -> Arc<GuestMemory> {
+        self.mem.read().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    /// The display clock's tick when the device mutex is taken: advance the engine
+    /// without it. Returns whether the display interrupt line is asserted.
+    pub fn tick(&self) -> bool {
+        match self.engine() {
+            Some(e) => crate::display::core_path::tick(&e, &self.mem()),
+            None => false,
+        }
+    }
+}
+
+/// Trapped BAR0 accesses the server serves without the device mutex, each on its own
+/// lock (docs/caraxes/display-own-clock.md §2.4): a device operation that holds the mutex
+/// (a mirror build, a shadow walk) must not stall the guest's interrupt service.
+#[derive(Clone, Default)]
+pub struct Routes {
+    /// The interrupt page: accesses of its two pages (the tree's stores in exact mode are
+    /// applied at once under the page's lock; page 0 is latched memory).
+    pub intr_page: Option<Arc<crate::intr_page::IntrPage>>,
+    /// BAR0 offset of the MSI re-arm (`NV_PCFG` + [`NV_XVE_CYA_2`]), taken by the page.
+    pub rearm: Option<u64>,
+    /// The display engine's status registers (`Engine::handles`: the FE interrupt status,
+    /// head state, scan position), served under the display lock only.
+    pub display: Option<DisplayRoute>,
+    /// The display page (display/fe_page.rs): a trapped store to it (a VMM that maps it
+    /// read-only) is applied under the page's own lock, as the reactor applies a store to
+    /// the mapping.
+    pub fe_page: Option<Arc<crate::display::fe_page::FePage>>,
+}
+
+impl Routes {
+    /// The display page, when the whole access lies in it.
+    fn fe_page_for(&self, region: u32, offset: u64, len: usize) -> Option<&Arc<crate::display::fe_page::FePage>> {
+        self.fe_page.as_ref().filter(|p| {
+            region == VFIO_PCI_BAR0_REGION_INDEX
+                && p.covers(offset)
+                && p.covers(offset + len.max(1) as u64 - 1)
+        })
+    }
+
+    /// Serve a trapped write without the device mutex; false when it is not routed.
+    pub fn write(&self, region: u32, offset: u64, data: &[u8]) -> bool {
+        if let Some(p) = self.fe_page_for(region, offset, data.len()) {
+            p.stats.routed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            p.write(offset, data);
+            return true;
+        }
+        if region == VFIO_PCI_BAR0_REGION_INDEX && data.len() == 4 && offset % 4 == 0 {
+            if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
+                let v = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+                if crate::display::core_path::write32(&e.1, &e.0.mem(), offset, v) {
+                    return true;
+                }
+            }
+        }
+        let Some(p) = self.intr_page.as_ref().filter(|_| region == VFIO_PCI_BAR0_REGION_INDEX) else {
+            return false;
+        };
+        // The re-arm only in exact mode: with the tagged page the trapped re-arm is also
+        // where the boot model's own pending MSI goes out (`after_write`), as before.
+        if self.rearm == Some(offset) && p.exact() {
+            p.note_routed();
+            p.rearm();
+            return true;
+        }
+        if p.covers(offset) {
+            p.note_routed();
+            p.write(offset, data);
+            return true;
+        }
+        false
+    }
+
+    /// Serve a trapped read without the device mutex; false when it is not routed.
+    pub fn read(&self, region: u32, offset: u64, data: &mut [u8]) -> bool {
+        if let Some(p) = self.fe_page_for(region, offset, data.len()) {
+            p.stats.routed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            for (i, b) in data.iter_mut().enumerate() {
+                let o = offset + i as u64;
+                *b = (p.read32(o & !3) >> ((o & 3) * 8)) as u8;
+            }
+            return true;
+        }
+        if region == VFIO_PCI_BAR0_REGION_INDEX && data.len() == 4 && offset % 4 == 0 {
+            if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
+                if let Some(v) = crate::display::core_path::read32(&e.1, &e.0.mem(), offset) {
+                    data.copy_from_slice(&v.to_le_bytes());
+                    return true;
+                }
+            }
+        }
+        let Some(p) = self.intr_page.as_ref().filter(|_| region == VFIO_PCI_BAR0_REGION_INDEX) else {
+            return false;
+        };
+        if !p.covers(offset) || !p.covers(offset + data.len().max(1) as u64 - 1) {
+            return false;
+        }
+        p.note_routed();
+        for (i, b) in data.iter_mut().enumerate() {
+            let o = offset + i as u64;
+            *b = (p.read32(o & !3) >> ((o & 3) * 8)) as u8;
+        }
+        true
+    }
+}
+
+impl SharedDevice {
+    /// The process's device with the process's ring gate, whose completer (main.rs) rings
+    /// the posted doorbells.
+    pub fn new(device: Arc<Mutex<Device>>, routes: Routes) -> Self {
+        Self::with_gate(device, routes, crate::ringgate::global())
+    }
+
+    fn with_gate(device: Arc<Mutex<Device>>, routes: Routes, gate: Arc<crate::ringgate::RingGate>) -> Self {
+        let doorbell = device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .bar0
+            .boot()
+            .map(|b| b.usermode_doorbell());
+        Self {
+            device,
+            routes,
+            doorbell,
+            gate,
+        }
+    }
+
+    /// The device lock for a trapped access or another vfio-user message: the posted
+    /// doorbells are rung first.
+    fn lock(&self, label: &'static str) -> crate::dlock::Held<'_, Device> {
+        let mut d = crate::dlock::lock(&self.device, label);
+        d.ring_posted(&self.gate, true);
+        d
+    }
+
+    /// A trapped write of the usermode doorbell, posted.
+    fn post_doorbell(&self, region: u32, offset: u64, data: &[u8]) -> bool {
+        if region != VFIO_PCI_BAR0_REGION_INDEX || Some(offset) != self.doorbell {
+            return false;
+        }
+        let Ok(token) = <[u8; 4]>::try_from(data) else {
+            return false;
+        };
+        let t0 = std::time::Instant::now();
+        self.gate.post(u32::from_le_bytes(token), t0);
+        if crate::profile::on() {
+            crate::profile::doorbell_token(u32::from_le_bytes(token));
+            crate::profile::access(region, true, offset, Some("usermode doorbell (posted)"), t0);
+        }
+        true
+    }
+}
+
+/// The device-lock label of a trapped access (dlock.rs).
+fn access_label(region: u32, write: bool) -> &'static str {
+    match (region, write) {
+        (VFIO_PCI_BAR0_REGION_INDEX, false) => "trapped BAR0 read",
+        (VFIO_PCI_BAR0_REGION_INDEX, true) => "trapped BAR0 write",
+        (1, false) => "trapped BAR1 read",
+        (1, true) => "trapped BAR1 write",
+        (3, false) => "trapped BAR3 read",
+        (3, true) => "trapped BAR3 write",
+        (_, false) => "trapped read (other region)",
+        (_, true) => "trapped write (other region)",
+    }
+}
+
+/// The device lock for a trapped access at `offset` of `region`, the posted doorbells rung
+/// first; a long hold keeps the register (dlock.rs).
+fn lock_access<'a>(
+    shared: &'a SharedDevice,
+    region: u32,
+    offset: u64,
+    write: bool,
+) -> crate::dlock::Held<'a, Device> {
+    let mut d = shared.lock(access_label(region, write));
+    d.detail(move || format!("region {region} {} {offset:#x}", if write { "W" } else { "R" }));
+    d
+}
+
+impl SharedDevice {
+    /// The state of the reads answered without the device lock (fastread.rs): registered at
+    /// the first trapped read, under the lock once.
+    fn fast_reads(&self) -> std::sync::Arc<crate::fastread::FastReads> {
+        let key = Arc::as_ptr(&self.device) as usize;
+        if let Some(f) = crate::fastread::lookup(key) {
+            return f;
+        }
+        let d = crate::dlock::lock(&self.device, "fast reads setup");
+        let f = d
+            .bar0
+            .boot()
+            .map(|b| b.fast())
+            .unwrap_or_else(|| std::sync::Arc::new(crate::fastread::FastReads::default()));
+        // The kinds the trace writes a line for keep the locked path (CARAXES_TRACE_ACCESSES
+        // may name a BAR0 range without them).
+        let at = |off: Option<u64>| {
+            off.is_some_and(|o| d.trace.records_access(VFIO_PCI_BAR0_REGION_INDEX, o))
+        };
+        let boot = d.bar0.boot();
+        let regs = boot.map(|b| b.time_registers());
+        let mut traced = 0;
+        if at(boot.map(|b| b.mmu_invalidate_register())) {
+            traced |= crate::fastread::TRACED_TRIGGER;
+        }
+        if d.trace.records_access(3, 0) {
+            traced |= crate::fastread::TRACED_FLUSH;
+        }
+        if at(regs.map(|r| r[0])) || at(regs.map(|r| r[1])) {
+            traced |= crate::fastread::TRACED_PTIMER;
+        }
+        if at(regs.map(|r| r[2])) || at(regs.map(|r| r[3])) {
+            traced |= crate::fastread::TRACED_USERMODE_TIME;
+        }
+        f.set_traced(traced);
+        drop(d);
+        crate::fastread::register(key, &f);
+        f
+    }
+}
+
+impl SharedDevice {
+    /// The profile's route of a trapped BAR0 access the routes served (profile.rs `ROUTES`),
+    /// by the order `Routes::read` and `Routes::write` try them.
+    fn route_class(&self, offset: u64) -> usize {
+        if self.routes.fe_page.as_ref().is_some_and(|p| p.covers(offset)) {
+            return 3;
+        }
+        if self.routes.rearm == Some(offset) {
+            return 2;
+        }
+        match self.routes.intr_page.as_ref() {
+            Some(p) if p.covers(offset) => usize::from(offset >= crate::intr_page::PAGE),
+            _ => 4,
+        }
+    }
+}
 
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
+        let t0 = crate::profile::on().then(std::time::Instant::now);
+        if self.routes.read(region, offset, data) {
+            if let Some(t0) = t0 {
+                crate::profile::routed(self.route_class(offset), false, t0.elapsed());
+            }
+            return Ok(());
+        }
+        // The MMU invalidate's TRIGGER and the BAR2 flush page are status reads on the card:
+        // answered from the published state, without the device lock (fastread.rs,
+        // docs/caraxes/execution.md §9.10); anything else, and those when the state does not
+        // suffice, take the lock below.
+        if region == VFIO_PCI_BAR0_REGION_INDEX || region == 3 {
+            let t0 = std::time::Instant::now();
+            if self.fast_reads().try_read(region, offset, data) {
+                if crate::profile::on() {
+                    let name = self.fast_reads().name_of(region, offset);
+                    crate::profile::access(region, false, offset, name, t0);
+                }
+                return Ok(());
+            }
+        }
         if !crate::profile::on() {
-            return lock(&self.0).region_read(region, offset, data);
+            return lock_access(self, region, offset, false).region_read(region, offset, data);
         }
         // The profile's trapped access: from the message to the answer, the lock wait
         // included (profile.rs).
         let t0 = std::time::Instant::now();
-        let mut d = lock(&self.0);
+        let mut d = lock_access(self, region, offset, false);
         let r = d.region_read(region, offset, data);
         let name = d.register_name(region, offset);
         drop(d);
@@ -315,12 +632,31 @@ impl ServerBackend for SharedDevice {
     }
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
+        if self.post_doorbell(region, offset, data) {
+            return Ok(());
+        }
+        // A display channel's PUT (its USERD page) that the routes serve without the device
+        // lock: a flip's semaphore acquire may wait for work a posted doorbell starts, so
+        // the posted doorbells are rung first (`lock` rings them), as for every other access.
+        if region == VFIO_PCI_BAR0_REGION_INDEX
+            && self.gate.has_posted()
+            && crate::display::USERD_RANGE.contains(&offset)
+        {
+            drop(self.lock("display PUT after posted doorbells"));
+        }
+        let t0 = crate::profile::on().then(std::time::Instant::now);
+        if self.routes.write(region, offset, data) {
+            if let Some(t0) = t0 {
+                crate::profile::routed(self.route_class(offset), true, t0.elapsed());
+            }
+            return Ok(());
+        }
         let timing = crate::launch::on() && region == VFIO_PCI_BAR0_REGION_INDEX;
         if !crate::profile::on() && !timing {
-            return lock(&self.0).region_write(region, offset, data);
+            return lock_access(self, region, offset, true).region_write(region, offset, data);
         }
         let t0 = std::time::Instant::now();
-        let mut d = lock(&self.0);
+        let mut d = lock_access(self, region, offset, true);
         // A trapped doorbell is a ring of the launch chain too (launch.rs `begin_trapped`).
         let ring = timing && d.is_usermode_doorbell(offset);
         if ring {
@@ -347,15 +683,15 @@ impl ServerBackend for SharedDevice {
         size: u64,
         fd: Option<File>,
     ) -> std::io::Result<()> {
-        lock(&self.0).dma_map(flags, offset, address, size, fd)
+        self.lock("dma map").dma_map(flags, offset, address, size, fd)
     }
 
     fn dma_unmap(&mut self, flags: DmaUnmapFlags, address: u64, size: u64) -> std::io::Result<()> {
-        lock(&self.0).dma_unmap(flags, address, size)
+        self.lock("dma unmap").dma_unmap(flags, address, size)
     }
 
     fn reset(&mut self) -> std::io::Result<()> {
-        lock(&self.0).reset()
+        self.lock("reset").reset()
     }
 
     fn set_irqs(
@@ -366,7 +702,7 @@ impl ServerBackend for SharedDevice {
         count: u32,
         fds: Vec<File>,
     ) -> std::io::Result<()> {
-        lock(&self.0).set_irqs(index, flags, start, count, fds)
+        self.lock("set irqs").set_irqs(index, flags, start, count, fds)
     }
 }
 
@@ -561,6 +897,7 @@ impl Device {
     pub fn new(cfg: ConfigSpace, bar0: Bar0, trace: Trace) -> Self {
         let irq_fds = (0..VFIO_PCI_NUM_IRQS).map(|_| Vec::new()).collect();
         Device {
+            cfg_reset: cfg.clone(),
             cfg,
             bar0,
             trace,
@@ -568,15 +905,19 @@ impl Device {
             mem: GuestMemory::new(),
             irq_fds,
             guest_ram: GuestRam::Plain,
-            guest_dma_gpa: std::env::var("CARAXES_GUEST_DMA_GPA").is_ok_and(|v| v == "1"),
+            guest_dma_gpa: false,
             dma_ranges: None,
             ranges: Vec::new(),
             registrar: None,
             registrar_thread: None,
             intr: None,
+            display_slot: DisplaySlot::default(),
             doorbell_wakeups: 0,
             doorbell_writes: 0,
+            guest_token_rings: 0,
+            guest_token_writes: 0,
             rearm_wakeups: 0,
+            ringing_posted: false,
             rearm_writes: 0,
             mirror_writes_unsynced: 0,
             slow_pool_polls: 0,
@@ -600,6 +941,7 @@ impl Device {
     /// the value the boot model reconstructs from the command ring
     /// (`BootModel::cmd_head_from_ring`); a write that published nothing is noted only.
     pub fn rpc_ioeventfd(&mut self, offset: u64, writes: u64) {
+        self.ring_posted_first();
         self.rpc_wakeups += 1;
         crate::profile::window("rpc eventfd: wakeups (units: guest head writes)", writes);
         for _ in 0..writes {
@@ -648,6 +990,7 @@ impl Device {
     /// poll, docs/caraxes/sottr-stage.md §11). Several writes between two wakeups are one
     /// re-arm: each would repeat the same idempotent steps.
     pub fn msi_rearm_ioeventfd(&mut self, offset: u64, writes: u64) {
+        self.ring_posted_first();
         self.rearm_wakeups += 1;
         self.rearm_writes += writes;
         crate::profile::window("msi re-arm eventfd: wakeups (units: guest writes)", writes);
@@ -656,35 +999,6 @@ impl Device {
             "msi re-arm (eventfd): {writes} guest write(s) to BAR0 {offset:#x} (NV_XVE_CYA_2) signalled ({effect:?})"
         ));
         self.after_bar0_write(!matches!(effect, WriteEffect::Mirror), offset);
-    }
-
-    /// Guest writes to the doorbell register that arrived through the ioeventfd:
-    /// `writes` of them since the last wakeup. KVM does not pass the written token on
-    /// (no datamatch), so every channel with GPFIFO entries published since its last
-    /// doorbell is rung the way its token would ring it (`Dispatcher::doorbell_pending`:
-    /// software, shadow or host mirror); a channel the guest never rang is not pending
-    /// and gets no host mirror. Returns when the first host doorbell was written, if one
-    /// was.
-    pub fn doorbell_ioeventfd(&mut self, doorbell: u64, writes: u64) -> Option<std::time::Instant> {
-        self.doorbell_wakeups += 1;
-        self.doorbell_writes += writes;
-        crate::profile::window("doorbell eventfd: wakeups (units: guest writes)", writes);
-        let mem = &self.mem;
-        let (notes, host) = match self.bar0.boot_mut() {
-            Some(boot) => {
-                boot.take_host_doorbell();
-                let n = boot.doorbell_pending(mem);
-                (n, boot.take_host_doorbell())
-            }
-            None => (vec!["no boot model, nothing rung".into()], None),
-        };
-        self.trace.event(&format!(
-            "doorbell ioeventfd: {writes} guest write(s) to BAR0 {doorbell:#x} signalled"
-        ));
-        for n in notes {
-            self.trace.event(&n);
-        }
-        host
     }
 
     /// Pool tokens whose ioeventfds fired: `(slot, guest writes counted)` each. The
@@ -698,6 +1012,7 @@ impl Device {
         rings: &[(usize, u64)],
         rung: &mut dyn FnMut(Option<std::time::Instant>),
     ) {
+        self.ring_posted_first();
         let mem = &self.mem;
         let Some(boot) = self.bar0.boot_mut() else {
             self.trace
@@ -731,6 +1046,56 @@ impl Device {
                 self.trace.event(&n);
             }
         }
+    }
+
+    /// Guest tokens whose ioeventfds fired (`CARAXES_DOORBELL_GUEST_TOKENS`): `(value, guest
+    /// writes counted)` each. The eventfd names the value, so each is rung exactly as the
+    /// trapped write of that value (boot.rs `doorbell_value`, ctrl.rs `doorbell`); writes of
+    /// one value coalesced into one wakeup ring once (a doorbell only makes the channel look
+    /// at GPPut). `rung` as for [`Self::doorbell_tokens`].
+    pub fn doorbell_guest_tokens(
+        &mut self,
+        doorbell: u64,
+        rings: &[(u32, u64)],
+        rung: &mut dyn FnMut(Option<std::time::Instant>),
+    ) {
+        for &(_, writes) in rings {
+            self.guest_token_rings += 1;
+            self.guest_token_writes += writes;
+        }
+        let mem = &self.mem;
+        let Some(boot) = self.bar0.boot_mut() else {
+            self.trace
+                .event("doorbell guest tokens: no boot model, nothing rung");
+            return;
+        };
+        let fast = crate::launch::fast();
+        let mut notes = Vec::new();
+        for &(value, writes) in rings {
+            crate::profile::window("guest tokens: eventfd rings (units: guest writes)", writes);
+            if !fast {
+                notes.push(format!(
+                    "doorbell ioeventfd: {writes} guest write(s) of token {value:#x} to BAR0 {doorbell:#x} signalled"
+                ));
+            }
+            boot.take_host_doorbell();
+            notes.extend(boot.doorbell_value(mem, value));
+            rung(boot.take_host_doorbell());
+        }
+        if fast {
+            self.trace.events(&notes);
+        } else {
+            for n in notes {
+                self.trace.event(&n);
+            }
+        }
+    }
+
+    /// Guest DMA addresses are GPAs (host execution: its shadow maps translate registered
+    /// RAM). Call before [`Device::with_guest_ram`].
+    pub fn with_guest_dma_gpa(mut self, on: bool) -> Self {
+        self.guest_dma_gpa = on;
+        self
     }
 
     /// Choose how guest RAM is handled and where the table is published. Registered guest
@@ -945,7 +1310,7 @@ impl Device {
         if let Some(aliases) = aliases {
             let n = aliases.len();
             self.mem.set_aliases(aliases);
-            self.note(&format!("dma table: guest speaks GPA (CARAXES_GUEST_DMA_GPA): {n} identity alias range(s)"));
+            self.note(&format!("dma table: guest speaks GPA (host execution): {n} identity alias range(s)"));
         }
         Ok(())
     }
@@ -958,7 +1323,7 @@ impl Device {
     /// device"). Read at every reset, checked against the device's own table
     /// (dmamap.rs `aliases_of`); a missing file means no alias, a table that fails the check
     /// is refused with an ERROR line and the aliases stay off.
-    /// `CARAXES_GUEST_DMA_GPA=1`: a guest without caraxes_dma_range (Windows) hands the device
+    /// GPA mode (host execution): a guest without caraxes_dma_range hands the device
     /// guest physical addresses, which under QEMU's vfio-user client without a vIOMMU are the
     /// DMA_MAP addresses. The guest's table is then the identity of the registered guest RAM:
     /// every GPA is an alias of its registered IOVA (checked by dmamap.rs `aliases_of`, so an
@@ -981,7 +1346,7 @@ impl Device {
             Ok(aliases) => {
                 let n = aliases.len();
                 self.mem.set_aliases(aliases);
-                self.note(&format!("dma table: guest speaks GPA (CARAXES_GUEST_DMA_GPA): {n} identity alias range(s)"));
+                self.note(&format!("dma table: guest speaks GPA (host execution): {n} identity alias range(s)"));
             }
             Err(e) => {
                 self.mem.set_aliases(Vec::new());
@@ -1155,6 +1520,10 @@ impl Device {
             self.note(&l);
         }
         if let Some(b) = self.bar0.boot_mut() {
+            // The display core's FB record windows go with the store's own (their BAR1
+            // mappings need the host RM client).
+            *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
+            b.ctrl.display.eng().pins.clear();
             b.fb.shutdown();
         }
         if let GuestRam::Register(hm) = &self.guest_ram {
@@ -1171,6 +1540,11 @@ impl Device {
 
     /// The device model's side of the soak line (soak.rs): the mirror's maps, the FB
     /// store's windows and the cached walks.
+    /// The interrupt vectors' raises and the guest's acks (intr.rs `vector_summary`).
+    pub fn vector_summary(&self) -> Option<String> {
+        self.intr.as_ref().and_then(|i| i.vector_summary())
+    }
+
     pub fn soak_counts(&self) -> crate::soak::DeviceCounts {
         let mut c = crate::soak::DeviceCounts::default();
         if let Some(b) = self.bar0.boot() {
@@ -1220,6 +1594,24 @@ impl Device {
         &self.mem
     }
 
+    /// The channels the USERD poller posted (main.rs, execution.md §9.11), rung under the
+    /// device lock after the locked checks.
+    pub fn ring_polled_userds(&mut self, gate: &crate::ringgate::RingGate) {
+        let chids = gate.take_userd();
+        if chids.is_empty() {
+            return;
+        }
+        let t0 = std::time::Instant::now();
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.ring_userd_pending(&self.mem, &chids),
+            None => return,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+        crate::dlock::work("shadow USERD", "rings of the poller".into(), t0.elapsed());
+    }
+
     pub fn poll_shadow_userds(&mut self) {
         let notes = match self.bar0.boot_mut() {
             Some(b) => b.poll_shadow_userds(&self.mem),
@@ -1242,16 +1634,148 @@ impl Device {
         }
     }
 
-    /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`,
-    /// display/fe_page.rs): advance the display engine, trace its notes.
-    pub fn display_tick(&mut self) {
+    /// A live state dump (main.rs `device-ctl`, "state"): every channel and host object,
+    /// the interrupt vectors' raises and acks. Read only; the caller prints it.
+    pub fn state_dump(&mut self) -> Vec<String> {
+        let mut out = match self.bar0.boot_mut() {
+            Some(b) => b.state_lines(&self.mem),
+            None => vec!["no boot model".into()],
+        };
+        if let Some(s) = self.intr.as_ref().and_then(|i| i.vector_summary()) {
+            out.push(s);
+        }
+        out
+    }
+
+    /// The software channels whose blocked semaphore acquire is satisfied now continue
+    /// (channel.rs `AcquireWait`), on the `ce-slices` clock of main.rs.
+    pub fn recheck_acquires(&mut self) {
         let notes = match self.bar0.boot_mut() {
-            Some(b) => b.display_tick(&self.mem),
+            Some(b) => b.recheck_acquires(&self.mem),
             None => return,
         };
         for n in notes {
             self.trace.event(&format!("boot: {n}"));
         }
+    }
+
+    /// The client closed the connection and a new one is waiting (Cloud Hypervisor's
+    /// reboot builds a new vfio-user client for the same socket). vfio-user.rst "Client
+    /// Disconnection": the old client's memory regions are unmapped and its IRQ eventfds
+    /// closed. The device state does not stay as the spec prefers: the host channels the
+    /// old guest created may still run work that reaches its RAM, so the model resets
+    /// first (its mirror frees them) and the RAM is unregistered after; the configuration
+    /// space goes back to its reset state with it, so the new client finds the device a
+    /// platform reset leaves (a vfio-pci device is reset when it is opened; Cloud
+    /// Hypervisor resets a resettable vfio-user device when it creates it).
+    ///
+    /// An error leaves the rest as it is: the caller then ends the session as before
+    /// (the full teardown), and the new client sees the connection close.
+    pub fn client_gone(&mut self) -> Result<(), String> {
+        self.trace.event(&format!(
+            "client gone: a new client is waiting; the model resets, then {} memory region(s) and the IRQ eventfds of the old client go",
+            self.dma.len()
+        ));
+        for index in 0..self.irq_fds.len() as u32 {
+            if !self.irq_fds[index as usize].is_empty() {
+                ServerBackend::set_irqs(
+                    self,
+                    index,
+                    VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
+                    0,
+                    0,
+                    Vec::new(),
+                )
+                .map_err(|e| format!("IRQ index {index}: {e}"))?;
+            }
+        }
+        self.reset_model();
+        self.cfg = self.cfg_reset.clone();
+        if self.guest_dma_gpa {
+            if let GuestRam::Register(hm) = &self.guest_ram {
+                hm.lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .thaw_gpa_mappings()
+                    .map_err(|e| format!("{e:#}"))?;
+            }
+        }
+        let maps: Vec<(u64, u64)> = self.dma.iter().map(|m| (m.address, m.size)).collect();
+        for (address, size) in maps {
+            ServerBackend::dma_unmap(self, DmaUnmapFlags::empty(), address, size)
+                .map_err(|e| format!("DMA_UNMAP {address:#x}+{size:#x}: {e}"))?;
+        }
+        self.sync_msi_enabled();
+        self.trace
+            .event("client gone: done; the device waits for the new client's messages");
+        Ok(())
+    }
+
+    /// A device reset (FLR or the client's reset): the interrupt vectors raised before it
+    /// and not yet delivered go first, then the model and the guest aliases.
+    fn reset_model(&mut self) {
+        // The display clock and the routed registers stop reaching the old engine; a tick
+        // still running on it finishes (its lock) before the reset, and the old engine's FB
+        // record windows go with the old FB store.
+        *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
+        // What the old model's FB store, mirror and display did goes with it; the exit
+        // summary would only show the fresh model's (C65: the software channel's costs
+        // before the Windows TDR were lost with the FLR).
+        let before = self.bar0.boot().map(|b| b.exec_summary()).unwrap_or_default();
+        for l in before {
+            self.trace.event(&format!("reset: before: {l}"));
+        }
+        if let Some(b) = self.bar0.boot() {
+            b.ctrl.display.eng().pins.clear();
+        }
+        // The model first (its old interrupt sources stop with it: the mirror's host event
+        // thread is joined when the old mirror drops), then what they raised goes.
+        self.bar0.reset();
+        if let Some(s) = &self.intr {
+            let dropped = s.reset_pending();
+            if dropped.iter().any(|&p| p != 0) {
+                self.trace.event(&format!(
+                    "reset: raised vectors dropped with the interrupt state, per leaf: {:x?}",
+                    dropped
+                ));
+            }
+        }
+        self.load_guest_aliases();
+        self.publish_display();
+    }
+
+    /// The display engine for the paths without the device mutex (the display clock, the
+    /// routed status registers), published now and at every reset.
+    pub fn display_slot(&mut self) -> DisplaySlot {
+        self.publish_display();
+        self.display_slot.clone()
+    }
+
+    fn publish_display(&self) {
+        let e = self
+            .bar0
+            .boot()
+            .filter(|b| b.ctrl.display.enabled)
+            .map(|b| b.ctrl.display.engine.clone());
+        *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = e;
+    }
+
+    /// The guest memory view for the paths without the device mutex (guestmem.rs).
+    pub fn mem_view(&mut self) -> crate::guestmem::MemView {
+        self.mem.view()
+    }
+
+    /// The display clock's tick (engine.rs `Ticker::set_driver`, display/fe_page.rs):
+    /// advance the display engine, trace its notes. Returns whether the display interrupt
+    /// line is asserted afterwards (the clock raises the vector only then).
+    pub fn display_tick(&mut self) -> bool {
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.display_tick(&self.mem),
+            None => return false,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+        self.bar0.boot().is_some_and(|b| b.ctrl.display.line())
     }
 
     /// The BAR2 memfd's owed flush (bar2area.rs `DeferredFlush`), for the flush clock.
@@ -1267,13 +1791,101 @@ impl Device {
         }
     }
 
-    /// The invalidate page's trigger (inv_page.rs, docs/caraxes/intr-page.md §11.3): run
-    /// the invalidate as the trapped trigger write does and trace its notes.
-    pub fn invalidate_from_page(&mut self, t: crate::inv_page::Trigger) {
+    /// A guest access that did not trap (an eventfd, a shared page's reactor) rings the
+    /// posted doorbells first, as a trapped access does, so it does not pass a doorbell the
+    /// guest wrote before it (execution.md §9.9).
+    fn ring_posted_first(&mut self) {
+        let gate = crate::ringgate::global_ref();
+        if gate.has_posted() && !self.ringing_posted {
+            self.ring_posted(gate, true);
+        }
+    }
+
+    /// Ring the doorbell writes posted in `gate` (execution.md §9.9), in the guest's order,
+    /// each exactly as its trapped write would have been handled (`region_write` on BAR0:
+    /// the trace, the ring, the steps after a BAR0 write). `by_access`: a guest access
+    /// rings them before its own work (its launch chain, if timed, stays its own), else the
+    /// completer (each ring timed as a trapped ring of the launch chain from its post).
+    pub fn ring_posted(&mut self, gate: &crate::ringgate::RingGate, by_access: bool) {
+        if !gate.has_posted() || self.ringing_posted {
+            return;
+        }
+        let rings = gate.take_posted();
+        if rings.is_empty() {
+            return;
+        }
+        let start = std::time::Instant::now();
+        self.ringing_posted = true;
+        if let Some(offset) = self.bar0.boot().map(|b| b.usermode_doorbell()) {
+            for p in &rings {
+                let t0 = std::time::Instant::now();
+                crate::profile::record(
+                    crate::profile::Key::Window("posted doorbell: posted to rung"),
+                    t0.saturating_duration_since(p.at),
+                    1,
+                    None,
+                    "",
+                );
+                if !by_access {
+                    crate::launch::begin_trapped(p.at);
+                    crate::launch::mark(crate::launch::Step::Lock);
+                }
+                let r = ServerBackend::region_write(
+                    self,
+                    VFIO_PCI_BAR0_REGION_INDEX,
+                    offset,
+                    &p.token.to_le_bytes(),
+                );
+                if !by_access {
+                    crate::launch::end();
+                }
+                // The trapped access row keeps the posting (one BAR0 exit); the ring's device
+                // time is its own row.
+                crate::profile::record(
+                    crate::profile::Key::Window("posted doorbell: rung (device time)"),
+                    t0.elapsed(),
+                    1,
+                    None,
+                    "",
+                );
+                if let Err(e) = r {
+                    self.note(&format!("posted doorbell {:#x}: {e}", p.token));
+                }
+            }
+        }
+        self.ringing_posted = false;
+        crate::dlock::work(
+            if by_access { "guest access" } else { "posted doorbells" },
+            "posted doorbell rings".into(),
+            start.elapsed(),
+        );
+        gate.note_rung(&rings, start, by_access);
+    }
+
+    /// The completer thread (main.rs, ringgate.rs): forward the held rings that are ready,
+    /// under the device lock briefly, and trace them.
+    pub fn complete_held_rings(&mut self) {
         let mem = &self.mem;
         let notes = match self.bar0.boot_mut() {
-            Some(b) => b.mmu_invalidate_from_page(mem, t.pdb, t.upper, t.value),
+            Some(b) => b.complete_held_rings(mem),
             None => return,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+    }
+
+    /// The invalidate page's trigger (inv_page.rs, docs/caraxes/intr-page.md §11.3): run
+    /// the invalidate as the trapped trigger write does and trace its notes.
+    pub fn invalidate_from_page(
+        &mut self,
+        t: crate::inv_page::Trigger,
+    ) -> Option<crate::invgate::Hold> {
+        self.ring_posted_first();
+        let mem = &self.mem;
+        let (notes, hold) = match self.bar0.boot_mut() {
+            Some(b) => b.mmu_invalidate_from_page(mem, t.pdb, t.upper, t.value),
+            None => return None,
         };
         self.trace.event(&format!(
             "invalidate page: trigger {:#x} pdb {:#x} upper {:#x} (reactor)",
@@ -1288,13 +1900,17 @@ impl Device {
         // gate's KMS readback read an empty pool page (series F, G and H). The offset is the
         // trigger word's, as for the trapped write (`BootModel::pool_merge_after`).
         let offset = self.bar0.boot().map_or(0, |b| b.mmu_invalidate_register());
-        self.after_bar0_write(true, offset);
+        // The pool finishes here, waits for the worker included, before TRIGGER can clear
+        // (at once without a hold, else when the page's completion thread saw it applied).
+        self.after_bar0_write_in(true, offset, crate::bar1pool::Pace::ALL);
+        hold
     }
 
     /// The display kick page's reactor found a `PUT` change (display/chan_page.rs,
     /// docs/caraxes/intr-page.md §12.3): run the kick as the trapped write did, then the
     /// steps after a BAR0 write. Returns the channel's `GET`.
     pub fn display_kick_from_page(&mut self, base: u64, put: u32) -> Option<u32> {
+        self.ring_posted_first();
         let mem = &self.mem;
         let (get, notes) = match self.bar0.boot_mut() {
             Some(b) => b.display_kick_from_page(mem, base, put),
@@ -1314,6 +1930,7 @@ impl Device {
     /// watchdog (`None`): scan the channels and ring the pending ones (um_page.rs,
     /// docs/caraxes/intr-page.md §12.2). Returns the channels rung.
     pub fn doorbell_from_page(&mut self, hint: Option<u32>) -> usize {
+        self.ring_posted_first();
         let mem = &self.mem;
         let Some(boot) = self.bar0.boot_mut() else {
             return 0;
@@ -1340,12 +1957,29 @@ impl Device {
                 self.doorbell_writes, self.doorbell_wakeups
             ));
         }
+        let posted = crate::ringgate::global().post_stats();
+        if posted.writes > 0 {
+            s.push_str(&posted.line());
+            s.push('\n');
+        }
+        let (userd_posts, userd_joined) = crate::ringgate::global().userd_stats();
+        if userd_posts > 0 {
+            s.push_str(&format!(
+                "shadow USERD poller (execution.md §9.11): {userd_posts} channel(s) found with entries not forwarded, without the device lock; {userd_joined} joined a queued ring\n"
+            ));
+        }
         if self.mirror_writes_unsynced > 0 || self.slow_pool_polls > 0 {
             s.push_str(&format!(
                 "bar0 config-mirror writes: {} (the MSI re-arm among them), no BAR1 pool poll after them; {} pool poll(s) held the device over {} ms (docs/caraxes/sottr-stage.md §11)\n",
                 self.mirror_writes_unsynced,
                 self.slow_pool_polls,
                 SLOW_POOL_POLL.as_millis()
+            ));
+        }
+        if self.guest_token_rings > 0 {
+            s.push_str(&format!(
+                "doorbell guest tokens: {} guest write(s) in {} eventfd wakeup(s), each rung as the trapped write of its value\n",
+                self.guest_token_writes, self.guest_token_rings
             ));
         }
         if self.rearm_wakeups > 0 {
@@ -1406,7 +2040,17 @@ impl Device {
                 s.push_str(&l);
                 s.push('\n');
             }
+            s.push_str(&b.fast().summary());
+            s.push('\n');
+            if let Some(l) = self.intr.as_ref().and_then(|i| i.vector_summary()) {
+                s.push_str(&l);
+                s.push('\n');
+            }
             if let Some(l) = b.fb.bar1_pool_summary() {
+                s.push_str(&l);
+                s.push('\n');
+            }
+            for l in crate::bar1pool::replica_lines(b) {
                 s.push_str(&l);
                 s.push('\n');
             }
@@ -1447,6 +2091,21 @@ impl ServerBackend for Device {
             VFIO_PCI_CONFIG_REGION_INDEX => self.cfg.region_read(offset as usize, data),
             VFIO_PCI_BAR0_REGION_INDEX => {
                 self.poll_rpc_ioeventfd(offset);
+                // A read of the invalidate trigger while the BAR1 pool has moves left from
+                // the invalidate (bar1-pool.md §14): the next slice; TRIGGER reads busy
+                // until the last page moved.
+                let mut polled = None;
+                if let Some(b) = self.bar0.boot_mut() {
+                    if offset == b.mmu_invalidate_register() {
+                        let t0 = std::time::Instant::now();
+                        if crate::bar1pool::continue_model(b, &self.mem, crate::bar1pool::Pace::SLICED) {
+                            polled = Some(t0.elapsed());
+                        }
+                    }
+                }
+                if let Some(held) = polled {
+                    self.after_pool_poll("trigger read", offset, held);
+                }
                 self.bar0.read(&self.cfg, &self.mem, offset, data);
                 note = self.bar0.name(offset);
                 if self.bar0.take_captured() {
@@ -1535,7 +2194,15 @@ impl ServerBackend for Device {
         };
         self.trace.access(Dir::Write, region, offset, data, note);
         if region == VFIO_PCI_BAR0_REGION_INDEX {
-            self.after_bar0_write(sync_point, offset);
+            // A trapped write of the MMU invalidate registers: the guest polls the trigger
+            // before it uses a new BAR1 mapping, so the pool's moves may run in slices
+            // behind it (docs/caraxes/bar1-pool.md §14).
+            let pace = if self.bar0.boot().is_some_and(|b| b.is_mmu_invalidate_register(offset)) {
+                crate::bar1pool::Pace::SLICED
+            } else {
+                crate::bar1pool::Pace::NO_WAIT
+            };
+            self.after_bar0_write_in(sync_point, offset, pace);
         } else {
             self.after_write();
         }
@@ -1629,8 +2296,7 @@ impl ServerBackend for Device {
     fn reset(&mut self) -> Result<(), std::io::Error> {
         self.trace
             .event("reset: device model back to its initial state");
-        self.bar0.reset();
-        self.load_guest_aliases();
+        self.reset_model();
         Ok(())
     }
 
@@ -1690,32 +2356,41 @@ impl Device {
     /// (`BootModel::pool_merge_after`, docs/caraxes/bar1-pool.md §11); a poll over
     /// [`SLOW_POOL_POLL`] is traced with its breakdown.
     fn after_bar0_write(&mut self, sync_point: bool, offset: u64) {
+        self.after_bar0_write_in(sync_point, offset, crate::bar1pool::Pace::NO_WAIT);
+    }
+
+    /// [`Self::after_bar0_write`] at the BAR1 pool's `pace`: whether it may leave moves for
+    /// the guest's reads of the invalidate trigger and how long it may wait for the shadow
+    /// worker (bar1pool.rs `poll_sliced`, bar1-pool.md §14).
+    fn after_bar0_write_in(&mut self, sync_point: bool, offset: u64, pace: crate::bar1pool::Pace) {
         if sync_point {
-            // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
-            // mapping and before it uses the mapping.
-            if let Some(b) = self.bar0.boot() {
-                b.fb.poll_bar1_passthrough();
-            }
-            // P21 design H: the same point moves pages into and out of the BAR1 pool.
+            // P21 design H: the guest flushes and invalidates through BAR0 after changing a
+            // BAR1 mapping and before it uses the mapping; the same point moves pages into
+            // and out of the BAR1 pool.
             if let Some(b) = self.bar0.boot_mut() {
                 if b.fb.bar1_pool().is_some() {
                     let merge = b.pool_merge_after(offset);
-                    let t0 = std::time::Instant::now();
-                    crate::bar1pool::poll_model(b, &self.mem, merge);
-                    let held = t0.elapsed();
-                    if held > SLOW_POOL_POLL {
-                        self.slow_pool_polls += 1;
-                        let bd = b
-                            .fb
-                            .pool_mut()
-                            .as_ref()
-                            .map(|p| p.last.to_string())
-                            .unwrap_or_default();
-                        self.trace.event(&format!(
-                            "bar1 pool: the poll after a BAR0 write at {offset:#x} held the device {} us: {bd} (sottr-stage.md §11, bar1-pool.md §11)",
-                            held.as_micros()
-                        ));
+                    // Nothing due and no merge point: the poll would only find that out
+                    // (docs/caraxes/bar1-pool.md §16; SotTR run E: 889501 polls, 87 us each).
+                    let now = std::time::Instant::now();
+                    let skip = !merge && {
+                        let mut g = b.fb.pool_mut();
+                        match g.as_mut() {
+                            Some(p) if !p.work_due(now) => {
+                                p.note_poll_skipped();
+                                true
+                            }
+                            _ => false,
+                        }
+                    };
+                    if skip {
+                        self.after_write();
+                        return;
                     }
+                    let t0 = std::time::Instant::now();
+                    crate::bar1pool::poll_model(b, &self.mem, merge, pace);
+                    crate::dlock::work("BAR0 write", "BAR1 pool poll".into(), t0.elapsed());
+                    self.after_pool_poll("write", offset, t0.elapsed());
                 }
             }
         } else {
@@ -1724,17 +2399,52 @@ impl Device {
         self.after_write();
     }
 
+    /// The churn line and the slow-poll event after a BAR1 pool poll that held the device
+    /// `held` (after a BAR0 `what` at `offset`).
+    fn after_pool_poll(&mut self, what: &str, offset: u64, held: std::time::Duration) {
+        let Some(b) = self.bar0.boot_mut() else { return };
+        // A batch still running keeps the TRIGGER reads on the locked path, which continues it.
+        b.fast().set_pool_busy(b.fb.pool_mut().as_ref().is_some_and(|p| p.batch_pending()));
+        // The guest's BAR1 mapping churn, once per second with activity
+        // (docs/caraxes/bar1-pool.md §13).
+        let churn = b.fb.pool_mut().as_mut().and_then(|p| p.take_churn());
+        if let Some(line) = churn {
+            self.trace.event(&line);
+        }
+        if held > SLOW_POOL_POLL {
+            self.slow_pool_polls += 1;
+            let bd = b
+                .fb
+                .pool_mut()
+                .as_ref()
+                .map(|p| p.last.to_string())
+                .unwrap_or_default();
+            self.trace.event(&format!(
+                "bar1 pool: the poll after a BAR0 {what} at {offset:#x} held the device {} us: {bd} (sottr-stage.md §11, bar1-pool.md §11)",
+                held.as_micros()
+            ));
+        }
+    }
+
     /// The steps after every trapped write of BAR0 or config space: the model's notes, a
     /// function-level reset, a pending MSI, the MSI enable.
+    ///
+    /// The notes go out with one flush: a boot-model write drains the host event thread's
+    /// queued lines (`IntrShared::notes`, up to about 190 in one 60 Hz window of vkmark),
+    /// and one flush per line was one write syscall per line on the guest's trap
+    /// (docs/research/vkmark-frame-2026-09-28.md, trace artefact).
     fn after_write(&mut self) {
-        for n in self.bar0.take_notes() {
-            self.trace.event(&format!("boot: {n}"));
-        }
+        let notes: Vec<String> = self
+            .bar0
+            .take_notes()
+            .into_iter()
+            .map(|n| format!("boot: {n}"))
+            .collect();
+        self.trace.events(&notes);
         if self.cfg.take_flr() {
             self.trace
                 .event("flr: function-level reset, device model back to its initial state");
-            self.bar0.reset();
-            self.load_guest_aliases();
+            self.reset_model();
         }
         if self.bar0.boot_mut().is_some_and(|b| b.take_msi()) {
             self.raise_msi();
@@ -1802,6 +2512,40 @@ mod tests {
         assert!(d.mem.covers(0, 0xa0000));
         assert!(!d.mem.covers(0x100000, 1));
         assert_eq!(d.mem.regions(), vec![(0, 0xa0000)]);
+    }
+
+    /// A new client after a disconnect (Cloud Hypervisor's reboot, vfio-user.rst "Client
+    /// Disconnection"): the old client's memory regions and IRQ eventfds are gone, the
+    /// configuration space is back at its reset state, and the new client maps again.
+    #[test]
+    fn a_new_client_finds_the_old_clients_memory_and_eventfds_gone() {
+        use std::os::fd::FromRawFd;
+        let mut d = rtx2070_device().with_guest_ram(GuestRam::Identity, None);
+        d.guest_dma_gpa = true;
+        let f = guest_ram_file();
+        let map = |d: &mut Device, at, size| d.dma_map(DmaMapFlags::READ_WRITE,
+            at, at, size, Some(f.try_clone().unwrap()));
+        map(&mut d, 0, 0xa0000).unwrap();
+        map(&mut d, 0x100000, 0x1f00000).unwrap();
+        let fd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
+        assert!(fd >= 0);
+        let ev = unsafe { File::from_raw_fd(fd) };
+        d.set_irqs(VFIO_PCI_MSI_IRQ_INDEX,
+            VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
+            0, 1, vec![ev.try_clone().unwrap()]).unwrap();
+        // The old guest enabled memory decoding and bus mastering.
+        let reset = d.cfg.dword(4);
+        d.cfg.write(4, &[0x06, 0x00]);
+        assert_ne!(d.cfg.dword(4), reset);
+        d.client_gone().unwrap();
+        assert!(d.dma.is_empty());
+        assert!(!d.mem.covers(0, 1));
+        assert!(d.mem.table().unwrap().is_empty());
+        assert!(d.irq_fds.iter().all(|f| f.is_empty()));
+        assert_eq!(d.cfg.dword(4), reset);
+        map(&mut d, 0, 0xa0000).unwrap();
+        map(&mut d, 0x100000, 0x1f00000).unwrap();
+        assert!(d.mem.covers(0x100000, 0x1f00000));
     }
 
     #[test]
@@ -1899,36 +2643,94 @@ mod tests {
             .contains("bar0 config-mirror writes: 2 (the MSI re-arm among them), no BAR1 pool poll after them"));
     }
 
-    /// The BAR1 pool's poll merges the replicas only after a flush point (bar1-pool.md
-    /// §11): not after the MMU invalidate's PDB, upper PDB and trigger (the trigger's
-    /// handler merged), the usermode doorbell or the PTIMER time; after the L2 operations,
-    /// the display, the GSP registers and anything else.
+    /// The BAR1 pool's poll after a trapped BAR0 write merges the replicas only at a display
+    /// channel's `PUT` (bar1-pool.md §16): the other engine starts merge at their own
+    /// hand-over (doorbell, GSP command queue, BAR2 bind, flush clock), and nothing else
+    /// merges: not the MMU invalidate's registers (the trigger merges the table replicas),
+    /// the doorbell, PTIMER, the GSP registers, the L2 and FB flushes, the display's
+    /// interrupt acks.
     #[test]
-    fn the_pool_poll_merges_only_after_a_flush_point() {
+    fn the_pool_poll_merges_only_at_a_display_kick() {
         let f = crate::fixture::rtx2070();
         let b = crate::boot::BootModel::new(
             f.chip,
             crate::fb::FbLayout::plain(4 << 30),
             f.identity(4 << 30),
         );
-        // The GSP command-queue head (its doorbell handler merges) and the status-queue
-        // tail (a read pointer).
         let q = b.gsp_queue_registers().expect("TU106 has the queue registers");
         assert_eq!((q.cmd_head, q.msg_tail), (0x11_0c00, 0x11_0c84));
         for off in [
             0xb8_30a0u64, 0xb8_30a4, 0xb8_30b0, 0xbb_0090, 0x9400, 0x9410, 0x11_0c00, 0x11_0c84,
+            0x7_0010, 0x7_0000, 0xb8_0f00, 0x11_0c80, 0x11_0c04, 0x61_180c, 0x61_1858, 0x70_c000,
         ] {
             assert!(!b.pool_merge_after(off), "{off:#x}");
         }
-        for off in [0x7_0010u64, 0x7_0000, 0xb8_0f00, 0x69_6000, 0x11_0c80, 0x11_0c04] {
+        for off in [0x68_0000u64, 0x69_6000, 0x6d_8000, 0x6d_ffff] {
             assert!(b.pool_merge_after(off), "{off:#x}");
         }
+        assert!(!b.pool_merge_after(0x6e_0000));
     }
 
     /// The MSI re-arm ioeventfd (intr-page.md §4): 4 bytes at `NV_PCFG` + `NV_XVE_CYA_2`
     /// without datamatch, accepted by the server beside the token pool's sub-regions; the
     /// token reactor hands its wakeups to `msi_rearm_ioeventfd` and never to a token, and a
     /// re-arm through it leaves config space as the trapped write does.
+    /// A trapped doorbell write is posted (execution.md §9.9): answered while another thread
+    /// holds the device lock, and rung as the trapped write by the next trapped access
+    /// before its own work, or by the completer. A second write of a queued token joins it.
+    #[test]
+    fn a_trapped_doorbell_is_posted_and_rung_before_the_next_access() {
+        const MIB: u64 = 1 << 20;
+        let l = crate::fb::FbLayout::reserved(32 * MIB, 256 * MIB, 0x400_0000, 0x800_0000).unwrap();
+        let f = crate::fixture::rtx2070();
+        let mut d = rtx2070_device();
+        d.bar0 = Bar0::new(f.chip, vec![0x55, 0xAA, 0x76], None).with_boot_model(
+            crate::boot::BootModel::new(f.chip, l, f.identity(256 * MIB)),
+        );
+        // A pool token counts its trapped rings (stale here: no channel holds it).
+        d.bar0.boot_mut().unwrap().ctrl.channels.tokens = Some(crate::tokens::TokenPool::new(4));
+        let rung = |d: &Arc<Mutex<Device>>| {
+            lock(d).bar0.boot_mut().unwrap().token_pool_mut().unwrap().stats.trapped_pool_rings
+        };
+        let doorbell = d.bar0.boot().unwrap().usermode_doorbell();
+        let device = Arc::new(Mutex::new(d));
+        let gate = Arc::new(crate::ringgate::RingGate::default());
+        let mut shared = SharedDevice::with_gate(device.clone(), Routes::default(), gate.clone());
+        assert_eq!(shared.doorbell, Some(doorbell));
+        let token = crate::tokens::TOKEN_BASE.to_le_bytes();
+        // The device lock is held elsewhere: the write is answered anyway.
+        let held = lock(&device);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            shared.region_write(VFIO_PCI_BAR0_REGION_INDEX, doorbell, &token).unwrap();
+            tx.send(shared).unwrap();
+        });
+        let mut shared = rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("the posted doorbell waited for the device lock");
+        assert!(gate.has_posted());
+        drop(held);
+        assert_eq!(rung(&device), 0, "not rung yet");
+        // The next trapped access rings it first.
+        let mut boot0 = [0u8; 4];
+        shared.region_read(VFIO_PCI_BAR0_REGION_INDEX, 0, &mut boot0).unwrap();
+        assert!(!gate.has_posted());
+        assert_eq!(rung(&device), 1, "rung as the trapped write");
+        let s = gate.post_stats();
+        assert_eq!((s.writes, s.by_access, s.by_completer), (1, 1, 0));
+        // Two writes of one token before the completer: one ring.
+        shared.region_write(VFIO_PCI_BAR0_REGION_INDEX, doorbell, &token).unwrap();
+        shared.region_write(VFIO_PCI_BAR0_REGION_INDEX, doorbell, &token).unwrap();
+        lock(&device).ring_posted(&gate, false);
+        assert_eq!(rung(&device), 2);
+        let s = gate.post_stats();
+        assert_eq!((s.writes, s.coalesced, s.by_access, s.by_completer), (3, 1, 1, 1));
+        // Another register's write is not posted.
+        shared.region_write(VFIO_PCI_BAR0_REGION_INDEX, 0xb8_30a0, &[0; 4]).unwrap();
+        assert!(!gate.has_posted());
+        assert_eq!(gate.post_stats().writes, 3);
+    }
+
     #[test]
     fn the_msi_rearm_ioeventfd_is_read_by_the_token_reactor() {
         use std::io::Write;
@@ -1979,10 +2781,12 @@ mod tests {
             device.clone(),
             0xbb_0090,
             token_readers,
+            Vec::new(),
             reactor,
             None,
             Some((at, rearm_reader)),
             Some((0x11_0C00, rpc_reader)),
+            Routes::default(),
         )
         .unwrap();
         let t0 = std::time::Instant::now();
@@ -1997,6 +2801,146 @@ mod tests {
         let cfg: Vec<u32> = (0..0x1000).step_by(4).map(|o| d.cfg.dword(o)).collect();
         assert_eq!(cfg, before);
         assert!(d.summary().contains("msi re-arm ioeventfd: 2 guest write(s) in 1 wakeup(s)"));
+    }
+
+    /// The guest-token sub-regions (CARAXES_DOORBELL_GUEST_TOKENS): one datamatch entry and
+    /// one eventfd per value, in the order given; the reactor hands a wakeup of one to
+    /// `doorbell_guest_tokens` with its value, beside the pool's slots.
+    /// Trapped accesses of the interrupt page and the MSI re-arm are served while the
+    /// device mutex is held elsewhere (display-own-clock.md §2.4): the tree's stores apply
+    /// (exact mode), reads come from the page, the re-arm resends the MSI of a pending
+    /// vector; other offsets and the tagged page's re-arm still go to the device.
+    #[test]
+    fn routed_intr_page_accesses_do_not_need_the_device_mutex() {
+        use std::io::Read;
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let shared = crate::intr::IntrShared::new();
+        let (msi_w, mut msi_r) = {
+            // SAFETY: a plain syscall; checked.
+            let raw = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC | libc::EFD_NONBLOCK) };
+            assert!(raw >= 0);
+            // SAFETY: a new descriptor.
+            let f = unsafe { File::from_raw_fd(raw) };
+            (f.try_clone().unwrap(), f)
+        };
+        shared.set_msi_fd(Some(msi_w));
+        shared.set_msi_enabled(true);
+        let tree = 0x00B8_1000;
+        let page = crate::intr_page::IntrPage::create(
+            16 << 20,
+            tree,
+            crate::fixture::rtx2070().chip.data().identity,
+            shared.clone(),
+            crate::intr_page::Config::default(),
+        )
+        .unwrap();
+        let (_hook, wake) = crate::intr_page::PageHook::new(page.clone()).unwrap();
+        shared.attach_page(wake);
+        let rearm = 0x88704;
+        let routes = Routes { intr_page: Some(page.clone()), rearm: Some(rearm), ..Routes::default() };
+        let held = lock(&device);
+        // Tagged page: the re-arm is not routed.
+        assert!(!routes.write(0, rearm, &0u32.to_le_bytes()));
+        // A tree store: exact mode, applied.
+        assert!(routes.write(0, tree + 0x200, &0x10u32.to_le_bytes()));
+        assert!(routes.write(0, tree + 0x608, &1u32.to_le_bytes()));
+        assert!(page.exact());
+        let mut b = [0u8; 4];
+        assert!(routes.read(0, tree + 0x400, &mut b));
+        assert_eq!(u32::from_le_bytes(b), 0x10, "LEAF_EN_CLEAR reads the enables");
+        assert!(shared.raise(4));
+        page.scan();
+        let mut c = [0u8; 8];
+        msi_r.read_exact(&mut c).unwrap();
+        // The re-arm while vector 4 is pending: routed, the MSI again.
+        assert!(routes.write(0, rearm, &0u32.to_le_bytes()));
+        msi_r.read_exact(&mut c).unwrap();
+        // Not the page's: the device.
+        assert!(!routes.write(0, 0x10_0000, &0u32.to_le_bytes()));
+        assert!(!routes.read(0, 0x10_0000, &mut b));
+        assert!(!routes.write(1, tree, &0u32.to_le_bytes()), "BAR0 only");
+        drop(held);
+        assert!(page.summary().contains("served without the device mutex"));
+    }
+
+    /// The display's status registers are served under the display lock only: a guest
+    /// read of the dispatch and a write of an enable complete while the device mutex is
+    /// held (display/core_path.rs), and the engine counts them.
+    #[test]
+    fn routed_display_registers_do_not_need_the_device_mutex() {
+        use crate::display::engine::{self, Engine, FE_RM_INTR_DISPATCH, FE_RM_INTR_EN_HEAD_TIMING};
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let e = Arc::new(Mutex::new(Engine::new(4, 8)));
+        let mut mem = GuestMemory::new();
+        let routes = Routes {
+            display: Some(DisplayRoute {
+                slot: Arc::new(std::sync::RwLock::new(Some(e.clone()))),
+                mem: mem.view(),
+            }),
+            ..Routes::default()
+        };
+        let held = lock(&device);
+        let mut b = [0u8; 4];
+        assert!(routes.read(0, FE_RM_INTR_DISPATCH, &mut b));
+        assert_eq!(u32::from_le_bytes(b), 0);
+        assert!(routes.write(0, FE_RM_INTR_EN_HEAD_TIMING, &engine::LAST_DATA.to_le_bytes()));
+        assert!(routes.read(0, FE_RM_INTR_EN_HEAD_TIMING, &mut b));
+        assert_eq!(u32::from_le_bytes(b), engine::LAST_DATA);
+        // Not an engine register, or not a whole dword: the device.
+        assert!(!routes.read(0, 0x61_0000, &mut b));
+        assert!(!routes.read(0, FE_RM_INTR_DISPATCH, &mut b[..2]));
+        drop(held);
+        let e = engine::lock(&e);
+        assert_eq!((e.routed_reads, e.routed_writes), (2, 1));
+        assert!(e.notes.iter().any(|n| n.contains("vblank (LAST_DATA) interrupt enabled")), "{:?}", e.notes);
+    }
+
+    #[test]
+    fn guest_token_eventfds_are_datamatch_entries_read_by_the_token_reactor() {
+        use std::io::Write;
+        let t = crate::tokens::GuestTokens { hot: vec![0], rest: vec![1], chids: 2 };
+        let values = t.values();
+        assert_eq!(values, vec![0x0, 0x1, 0x10000, 0x10001]);
+        let subs = doorbell_value_sub_regions(0xbb_0090, &values).unwrap();
+        let mut fds = std::collections::BTreeSet::new();
+        for ((s, _), v) in subs.iter().zip(&values) {
+            assert_eq!((s.offset, s.size, s.flags, s.datamatch), (0xbb_0090, 4, vfio_user::IOEVENTFD_FLAG_DATAMATCH, u64::from(*v)));
+            fds.insert(std::os::fd::AsRawFd::as_raw_fd(&*s.fd));
+        }
+        assert_eq!(fds.len(), values.len(), "one eventfd per value: the eventfd names the value");
+        let (pool_sub, pool_reader) = doorbell_token_sub_regions(0xbb_0090, 1).unwrap().pop().unwrap();
+        let pool_writer = File::from(pool_sub.fd.try_clone().unwrap());
+        let mut writers = Vec::new();
+        let mut guest = Vec::new();
+        for ((s, r), v) in subs.into_iter().zip(values) {
+            writers.push(File::from(s.fd.try_clone().unwrap()));
+            guest.push((v, r));
+        }
+        (&writers[2]).write_all(&3u64.to_ne_bytes()).unwrap();
+        (&pool_writer).write_all(&1u64.to_ne_bytes()).unwrap();
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let reactor = crate::poll::Reactor::new("test", crate::poll::Config::default(), None).unwrap();
+        let stats = spawn_token_reader_hooked(
+            device.clone(),
+            0xbb_0090,
+            vec![pool_reader],
+            guest,
+            reactor,
+            None,
+            None,
+            None,
+            Routes::default(),
+        )
+        .unwrap();
+        let t0 = std::time::Instant::now();
+        while lock(&device).guest_token_rings == 0 {
+            assert!(t0.elapsed() < std::time::Duration::from_secs(5), "reactor did not read");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        stats.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let d = lock(&device);
+        assert_eq!((d.guest_token_rings, d.guest_token_writes), (1, 3));
+        assert!(d.summary().contains("doorbell guest tokens: 3 guest write(s) in 1 eventfd wakeup(s)"));
     }
 
     /// The invalidate page's trigger does what the trapped trigger write does: the same

@@ -82,11 +82,13 @@ pub const GR_GFX_POOL_MANAGE: [u32; 3] = [0x2080_1220, 0x2080_1221, 0x2080_1222]
 /// creates, and unloads GSP-RM when it is refused (Y9). Acknowledged: nothing executes.
 pub const FIFO_WINDOWS_1111: u32 = 0x2080_1111;
 
-/// `NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO`: refused by design on the Linux path (no
-/// compression, D16); with `CARAXES_WIN_COMPBIT=1` the card's recorded answer (the KMD-block
-/// capture) is given instead, to test whether the Windows KMD's start needs it.
+/// `NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO`: refused without compression (D16, the chip
+/// table), answered by compression.rs with it. The card's recorded answer (the KMD-block
+/// capture) stays a test fixture only: `CARAXES_WIN_COMPBIT=1` gave it to the Windows KMD
+/// (Y20: the start stopped at the same place without it), which then allocated compressible
+/// kinds the shadow refused (C87/C88). Retired 2026-09-29; the device warns when it is set
+/// (settings.rs `REMOVED`).
 pub const FB_GET_COMPBIT_STORE_INFO: u32 = 0x0080_1306;
-pub const WIN_COMPBIT_ENV: &str = "CARAXES_WIN_COMPBIT";
 
 /// `CARAXES_WIN_ACKS=1`: three controls the Linux path refuses on purpose (isolation or
 /// host FB addresses) acknowledged for the Windows KMD, which is the kernel and would get
@@ -142,8 +144,6 @@ pub fn overrides(cmd: u32) -> bool {
     }
     (WIN_ACKS.contains(&cmd) && std::env::var(WIN_ACKS_ENV).is_ok_and(|v| v == "1"))
         || OVERRIDES.contains(&cmd)
-        || (cmd == FB_GET_COMPBIT_STORE_INFO
-            && std::env::var(WIN_COMPBIT_ENV).is_ok_and(|v| v == "1"))
 }
 
 /// Controls answered here before the dispatcher's own tables, which refuse them for the

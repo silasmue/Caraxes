@@ -93,23 +93,10 @@ const ENGCTL_TRIGGERS: u32 = 0xF;
 const ENGCTL_SET_STALLREQ: u32 = 1 << 1;
 /// STALLACK_T and STALLACK_N: status, never written.
 const ENGCTL_STALLACK_BITS: u32 = 0x600;
-/// What `ENGCTL` reads after a stall request: STALLACK_T (bit 9).
+/// What `ENGCTL` reads after a stall request: STALLACK_T (bit 9), unless the chip's
+/// boot.toml `stallack` says otherwise.
 pub const STALLACK_DEFAULT: u32 = 0x200;
-/// `CARAXES_FALCON_STALLACK=<hex>`: what `ENGCTL` reads after a stall request instead of
-/// 0x200 (the night runs try 0x0 and 0x600 if the driver's poll does not end).
-pub const STALLACK_ENV: &str = "CARAXES_FALCON_STALLACK";
 const IRQ_HALT: u32 = 1 << 4;
-
-/// `CARAXES_FALCON_STALLACK` when set: `Ok(None)` unset, `Err` for a value that is no
-/// 32-bit hex number.
-pub fn stallack_from_env() -> Result<Option<u32>, String> {
-    match std::env::var(STALLACK_ENV) {
-        Err(_) => Ok(None),
-        Ok(v) => u32::from_str_radix(v.trim().trim_start_matches("0x"), 16)
-            .map(Some)
-            .map_err(|e| format!("{STALLACK_ENV}={v:?}: {e}")),
-    }
-}
 
 /// The identity registers of a falcon as the host card reads them (boot.toml): `HWCFG`
 /// (`None`: computed from the IMEM/DMEM sizes), `HWCFG1` and the reset value of `ITFEN`.

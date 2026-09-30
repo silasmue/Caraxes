@@ -1,0 +1,6 @@
+cold copy+cmp 24 us, cold in-place 12 us, warm copy+cmp 16 us (0)
+cold copy+cmp 16 us, cold in-place 12 us, warm copy+cmp 16 us (0)
+cold copy+cmp 16 us, cold in-place 12 us, warm copy+cmp 16 us (0)
+cold copy+cmp 16 us, cold in-place 12 us, warm copy+cmp 16 us (0)
+cold copy+cmp 16 us, cold in-place 12 us, warm copy+cmp 16 us (0)
+cold copy+cmp 16 us, cold in-place 12 us, warm copy+cmp 21 us (0)
