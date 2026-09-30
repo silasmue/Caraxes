@@ -18,7 +18,10 @@ Per source:
   a time over the vfio-user socket, so this is also the socket's busy share).
 
 Usage:
-  trap-census.py DUMP [--base DUMP] [--name NAME] [--top N] [--regs N] [--json OUT] [--csv OUT]
+  trap-census.py DUMP [--base DUMP] [--name NAME] [--top N] [--regs N] [--json OUT]
+                  [--scope client:0x.. [--minus-scope client:0x..]]
+A client scope is a time window without SIGUSR2 dumps: one guest RM client's lifetime, or the
+difference of two clients that close together (the window between their opens).
 """
 import argparse
 import collections
@@ -52,9 +55,13 @@ def open_any(path):
     return open(path)
 
 
-def read_dump(path):
+def read_dump(path, scope="device"):
+    """Rows of one scope; the wall time is the dump's device time for the device scope and
+    the scope's own lifetime (from_us, to_us) for a client scope (profile.rs `Lifetime`:
+    the device rows at its free minus those at its allocation)."""
     rows = {}
     us = None
+    span = None
     with open_any(path) as f:
         for line in f:
             if line.startswith("#"):
@@ -63,12 +70,15 @@ def read_dump(path):
                     us = int(m.group(1))
                 continue
             p = line.rstrip("\n").split("\t")
-            if p[0] != "device":
+            if p[0] != scope:
                 continue
             r = dict(zip(COLS, p))
             for k in NUMS:
                 r[k] = int(r[k])
             rows[(r["kind"], r["key"])] = r
+            span = (int(r["from_us"]), int(r["to_us"]))
+    if scope != "device":
+        us = span[1] - span[0] if span else None
     return rows, us
 
 
@@ -114,7 +124,7 @@ def source(region, rw, page, reg, label):
         return "PTIMER (0x9000)"
     if page == 0xB81000:
         return "VF interrupt tree (0xb81000)"
-    if page == 0xB83000 and "INVALIDATE" in label:
+    if off in (0xB830A0, 0xB830A4, 0xB830B0):
         return "MMU invalidate (0xb830a0..b0)"
     if page == 0xB83000:
         return "VF MMU page, other"
@@ -192,6 +202,18 @@ def census(rows, wall_us):
             rk += " " + r["label"]
         regs[rk] += r["count"]
         regns[rk] += r["total_ns"]
+    # The trapped accesses the routes serve without the device mutex (profile.rs `routed`):
+    # window rows, counts and device nanoseconds; no guest-seen time.
+    for (kind, key), r in rows.items():
+        if kind != "window" or not key.startswith("routed trap: ") or not r["count"]:
+            continue
+        what = key[len("routed trap: "):]
+        ns = rows.get(("window", "routed trap ns: " + what), {}).get("count", 0)
+        a = src.setdefault(f"routed: {what[:-2]} ({what[-1]})", collections.Counter())
+        a["count"] += r["count"]
+        a["total_ns"] += ns
+        regs[f"routed {what}"] += r["count"]
+        regns[f"routed {what}"] += ns
     out = []
     tot = collections.Counter()
     for s, a in src.items():
@@ -201,7 +223,7 @@ def census(rows, wall_us):
     out.sort(key=lambda x: -x["count"])
     windows = []
     for (kind, key), r in rows.items():
-        if kind != "window" or not (r["count"] or r["units"]):
+        if kind != "window" or not (r["count"] or r["units"]) or key.startswith("routed trap"):
             continue
         windows.append({
             "window": key, "count": r["count"], "per_s": r["count"] / wall_s,
@@ -262,14 +284,23 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dump")
     ap.add_argument("--base")
+    ap.add_argument("--scope", default="device",
+                    help="a client scope (client:0x...) instead of the device: its lifetime's rows")
+    ap.add_argument("--minus-scope",
+                    help="a later client scope of the same dump that outlives --scope's end by "
+                         "little: the rows between the two scopes' starts")
     ap.add_argument("--name")
     ap.add_argument("--top", type=int, default=30)
     ap.add_argument("--regs", type=int, default=25)
     ap.add_argument("--json")
     args = ap.parse_args()
-    rows, us = read_dump(args.dump)
+    rows, us = read_dump(args.dump, args.scope)
     if us is None:
-        sys.exit(f"{args.dump}: no device time header")
+        sys.exit(f"{args.dump}: no device time header or no scope {args.scope}")
+    if args.minus_scope:
+        later, lus = read_dump(args.dump, args.minus_scope)
+        rows = minus(rows, later)
+        us -= lus
     if args.base:
         base, bus = read_dump(args.base)
         rows = minus(rows, base)

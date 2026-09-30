@@ -614,6 +614,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         profile::start(prefix.clone()).context("profile")?;
         profile::spawn_dump_thread().context("profile dump thread")?;
         profile::register_source(Box::new(profile::doorbell_token_rows));
+        profile::register_source(Box::new(profile::routed_rows));
         eprintln!(
             "vfio-user-nvgpu: profile on ({}=1): dumps to {}.<n>.tsv on SIGUSR2 and {}.exit.tsv at exit (src/profile.rs)",
             profile::PROFILE_ENV,

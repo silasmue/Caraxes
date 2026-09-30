@@ -577,9 +577,30 @@ impl SharedDevice {
     }
 }
 
+impl SharedDevice {
+    /// The profile's route of a trapped BAR0 access the routes served (profile.rs `ROUTES`),
+    /// by the order `Routes::read` and `Routes::write` try them.
+    fn route_class(&self, offset: u64) -> usize {
+        if self.routes.fe_page.as_ref().is_some_and(|p| p.covers(offset)) {
+            return 3;
+        }
+        if self.routes.rearm == Some(offset) {
+            return 2;
+        }
+        match self.routes.intr_page.as_ref() {
+            Some(p) if p.covers(offset) => usize::from(offset >= crate::intr_page::PAGE),
+            _ => 4,
+        }
+    }
+}
+
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
+        let t0 = crate::profile::on().then(std::time::Instant::now);
         if self.routes.read(region, offset, data) {
+            if let Some(t0) = t0 {
+                crate::profile::routed(self.route_class(offset), false, t0.elapsed());
+            }
             return Ok(());
         }
         // The MMU invalidate's TRIGGER and the BAR2 flush page are status reads on the card:
@@ -623,7 +644,11 @@ impl ServerBackend for SharedDevice {
         {
             drop(self.lock("display PUT after posted doorbells"));
         }
+        let t0 = crate::profile::on().then(std::time::Instant::now);
         if self.routes.write(region, offset, data) {
+            if let Some(t0) = t0 {
+                crate::profile::routed(self.route_class(offset), true, t0.elapsed());
+            }
             return Ok(());
         }
         let timing = crate::launch::on() && region == VFIO_PCI_BAR0_REGION_INDEX;

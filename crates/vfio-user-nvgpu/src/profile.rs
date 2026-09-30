@@ -599,6 +599,54 @@ pub fn dump_at_exit() {
     }
 }
 
+/// The trapped accesses the routes serve without the device mutex (device.rs `Routes`: the
+/// interrupt page's stores in exact mode, the MSI re-arm, the read-only display page, the
+/// display status registers), which the access rows do not see. Counted per route and
+/// direction with their device time, lock-free, while the profile is on.
+pub const ROUTES: [&str; 5] = [
+    "intr page 0 (PMC)",
+    "intr tree page",
+    "MSI re-arm (NV_PCFG)",
+    "display FE page",
+    "display status",
+];
+static ROUTE_N: [AtomicU64; 2 * ROUTES.len()] = [DB_ZERO; 2 * ROUTES.len()];
+static ROUTE_NS: [AtomicU64; 2 * ROUTES.len()] = [DB_ZERO; 2 * ROUTES.len()];
+
+/// Count one routed trapped access of route `route` (an index of [`ROUTES`]).
+#[inline]
+pub fn routed(route: usize, write: bool, dur: Duration) {
+    let i = route.min(ROUTES.len() - 1) * 2 + write as usize;
+    ROUTE_N[i].fetch_add(1, Ordering::Relaxed);
+    ROUTE_NS[i].fetch_add(dur.as_nanos() as u64, Ordering::Relaxed);
+}
+
+/// The window rows of [`routed`] (a [`Source`]): "routed trap: <route> R|W" counts the
+/// accesses, "routed trap ns: <route> R|W" their device time in nanoseconds.
+pub fn routed_rows() -> Vec<(&'static str, u64)> {
+    static NAMES: std::sync::OnceLock<Vec<(&'static str, &'static str)>> = std::sync::OnceLock::new();
+    let names = NAMES.get_or_init(|| {
+        (0..2 * ROUTES.len())
+            .map(|i| {
+                let (r, d) = (ROUTES[i / 2], if i % 2 == 1 { 'W' } else { 'R' });
+                (
+                    &*Box::leak(format!("routed trap: {r} {d}").into_boxed_str()),
+                    &*Box::leak(format!("routed trap ns: {r} {d}").into_boxed_str()),
+                )
+            })
+            .collect()
+    });
+    let mut rows = Vec::new();
+    for (i, (n, ns)) in names.iter().enumerate() {
+        let c = ROUTE_N[i].load(Ordering::Relaxed);
+        if c > 0 {
+            rows.push((*n, c));
+            rows.push((*ns, ROUTE_NS[i].load(Ordering::Relaxed)));
+        }
+    }
+    rows
+}
+
 /// Runlists and ChIDs of the trapped-doorbell rows ([`doorbell_token`]); a ChID at or above
 /// [`DB_CHIDS`] is counted in its runlist's overflow row.
 pub const DB_RUNLISTS: usize = 8;
@@ -748,6 +796,20 @@ mod tests {
         assert_eq!(c.max_ns, 3_000_000);
         assert_eq!(c.status, vec![(0, 2), (0x56, 1)]);
         assert_eq!(c.label, "synthesized");
+    }
+
+    #[test]
+    fn routed_traps_by_route_and_direction() {
+        routed(1, true, Duration::from_micros(3));
+        routed(1, true, Duration::from_micros(5));
+        routed(99, false, Duration::from_nanos(10));
+        let rows = routed_rows();
+        let get = |n: &str| rows.iter().find(|r| r.0 == n).map(|r| r.1);
+        assert!(get("routed trap: intr tree page W").is_some_and(|c| c >= 2), "{rows:?}");
+        assert!(get("routed trap ns: intr tree page W").is_some_and(|ns| ns >= 8000), "{rows:?}");
+        // A route index past the table is the last route.
+        assert!(get("routed trap: display status R").is_some_and(|c| c >= 1), "{rows:?}");
+        assert_eq!(get("routed trap: MSI re-arm (NV_PCFG) W"), None);
     }
 
     #[test]
