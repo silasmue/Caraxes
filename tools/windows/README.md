@@ -31,6 +31,7 @@ SYSTEM through the QEMU guest agent; stock Windows and driver components only (P
 | `dxgk-etw.ps1` | `-Action start` a DxgKrnl ETW session (all keywords) into C:\etw\dxgk.etl, `-Action stop` it and summarise the events (names by count, TDR/timeout/reset events) from tracerpt's CSV |
 | `display-mode.ps1` | the modes EnumDisplaySettings lists, a change to `-Width`x`-Height` and back (signed-in user's session) |
 | `steam-3dmark.ps1` | `-Install` Steam silently, `-Prefer` NVIDIA GPU for 3DMark, `-Collect` result scores |
+| `showcase.ps1` | the screenshots of docs/vfio/showcase.md: Device Manager, the GPU's driver tab, Task Manager's GPU page, dxdiag's display tab; elevated in the signed-in session (caraxes/runs/win-2026-09-30/showcase-hi.sh) |
 
 ## Order (stop at the first failure)
 
