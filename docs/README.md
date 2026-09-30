@@ -33,28 +33,29 @@ interpreting isolation claims.
 - Leandro VirtIO: [quickstart](virtio/quickstart.md), [architecture](virtio/architecture.md),
   [testing](virtio/testing.md), [open questions](virtio/open-questions.md); everything in
   [virtio/](virtio/README.md), measurements included.
-- Leandro VFIO: [quickstart](vfio/quickstart.md), [architecture](vfio/architecture.md),
+- Leandro VFIO: [guest support](vfio/guest-support.md), [quickstart](vfio/quickstart.md), [architecture](vfio/architecture.md),
   [known issues](vfio/known-issues.md), [decisions](vfio/decisions.md); everything in
   [vfio/](vfio/README.md). Run records: `../caraxes/runs/`, one folder per experiment and date.
 
-## Crate and module READMEs
+## Crates and guest modules
 
-| README | Component |
-|---|---|
-| [crates/vfio-user-nvgpu](../crates/vfio-user-nvgpu/) | v2: the device (no separate README; [vfio/architecture.md](vfio/architecture.md) is its source map) |
-| [crates/dp-sink](../crates/dp-sink/README.md) | v2: DisplayPort sink model |
-| [guest-module/caraxes_dma_range](../guest-module/caraxes_dma_range/README.md) | v2: the former guest DMA-range module (decision D13) |
-| [guest-module/virtio_nvrm](../guest-module/virtio_nvrm/README.md) | v1: guest RM/UVM forwarding, mappings, events and display |
-| [guest-module/nvrm_nodes](../guest-module/nvrm_nodes/README.md) | v1: guest NVIDIA proc data, optional placeholder nodes and pinning diagnostics |
-| [crates/vhost-user-nvrm](../crates/vhost-user-nvrm/README.md) | v1: per-VM host backend, sessions and resource ownership |
-| [crates/nvrm-wire](../crates/nvrm-wire/README.md) | v1: request/reply schema and generated C header |
-| [crates/nvrm-sys](../crates/nvrm-sys/README.md) | shared: generated NVIDIA bindings and layout metadata |
-| [crates/nvrm-abi](../crates/nvrm-abi/README.md) | shared: ioctl descriptors, embedded pointers, FDs, mediation layouts, the naming model |
-| [crates/nvrm-client](../crates/nvrm-client/README.md) | shared: RM ownership wrappers and diagnostic tools |
-| [crates/nvrm-trace](../crates/nvrm-trace/README.md) | shared: `LD_PRELOAD` call tracing |
-| [patches](../patches/README.md) | Cloud Hypervisor changes, validation and upstreaming |
-| [matrix](../matrix/README.md) | v1: NVIDIA userspace API coverage and recorded probes |
-| [tools/windows](../tools/windows/README.md) | v2: the Windows test pack |
+Each directory has a short README; the detail sits beside it in `reference.md`.
 
-[crates/xtask](../crates/xtask/src/main.rs) has no separate README; its ABI generation
-commands are in [virtio/abi-versions.md](virtio/abi-versions.md).
+| Crate or module | Version | Role |
+|---|---|---|
+| [vfio-user-nvgpu](../crates/vfio-user-nvgpu/README.md) | VFIO | The device: a synthetic TU106 over vfio-user, GSP emulation, shadow page tables, mirror channels |
+| [dp-sink](../crates/dp-sink/README.md) | VFIO | The DisplayPort monitor model the device's display drives |
+| [caraxes_dma_range](../guest-module/caraxes_dma_range/README.md) | VFIO | The former guest DMA-range module, no longer loaded (D13) |
+| [vhost-user-nvrm](../crates/vhost-user-nvrm/README.md) | VirtIO | The host backend: validates guest RM calls and replays them on the host driver |
+| [virtio_nvrm](../guest-module/virtio_nvrm/README.md) | VirtIO | The guest module: owns `/dev/nvidia*` and forwards the calls over vhost-user |
+| [nvrm_nodes](../guest-module/nvrm_nodes/README.md) | VirtIO | The guest's `/proc/driver/nvidia` and a pinning self-test |
+| [nvrm-wire](../crates/nvrm-wire/README.md) | VirtIO | The request and reply schema between guest module and backend |
+| [nvrm-sys](../crates/nvrm-sys/README.md) | shared | Generated NVIDIA bindings, one module per driver version |
+| [nvrm-abi](../crates/nvrm-abi/README.md) | shared | The RM ioctl ABI, the translation rules and the naming model |
+| [nvrm-client](../crates/nvrm-client/README.md) | shared | The host RM client, and diagnostic tools |
+| [nvrm-trace](../crates/nvrm-trace/README.md) | shared | An `LD_PRELOAD` tracer for the NVIDIA ioctl surface |
+| [xtask](../crates/xtask/README.md) | shared | `cargo xtask abi`: regenerates and checks the bindings |
+
+Other READMEs: [patches](../patches/README.md) (Cloud Hypervisor changes for both),
+[matrix](../matrix/README.md) (Leandro VirtIO's API coverage),
+[tools/windows](../tools/windows/README.md) (Leandro VFIO's Windows test pack).

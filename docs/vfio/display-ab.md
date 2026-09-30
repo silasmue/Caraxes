@@ -99,7 +99,7 @@ so the E0-E5 runs and the CUDA work see the device they had.
 4. **The DisplayID probe.** The library probes DisplayID 20 times in a row: a segment write to
    0x30, then a MOT write at 0x52. Each probe gets `NV_OK` with `replyType` I2C NACK. The library
    then falls back to the EDID at 0x50. No DDC ping at size 0 was sent, so the encoding trap of
-   the dp-sink README section 6 did not occur.
+   the [dp-sink reference](../../crates/dp-sink/reference.md) section 6 did not occur.
 5. **Channels.**
    - Core, 8 window, 8 window-immediate and 4 cursor channels were allocated. Each has its
      `CHANNEL_PUSHBUFFER` RPC: sysmem, 4 KiB, `valid` 1. The cursor channels have `valid` 0 (PIO).

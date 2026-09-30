@@ -80,7 +80,7 @@ LEA_TRACE_FILE=traces/run.tsv LD_PRELOAD="$PWD/target/release/libnvrm_trace.so" 
 ```
 
 - Tracing adds overhead. Disable it for timing runs.
-- Formats and interception limits: [nvrm-trace](crates/nvrm-trace/README.md).
+- Formats and interception limits: [nvrm-trace](crates/nvrm-trace/reference.md).
 
 ## Troubleshooting
 

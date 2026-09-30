@@ -1,39 +1,15 @@
 <!-- SPDX-License-Identifier: MIT -->
 # nvrm-abi
 
-- Describes RM/UVM ioctl payloads: sizes, embedded pointers, FD fields and encoding.
-- Provides device wrappers and curated types checked against generated bindings.
-- Direct-call tools use [nvrm-client](../nvrm-client/README.md) for RM ownership.
-  The forwarding backend maintains its own ownership records.
+Shared: the RM ioctl ABI and the naming model.
 
-## Source map
-
-| File | Responsibility |
-|---|---|
-| `src/lib.rs` | Ioctl encoding, wrappers and device FDs |
-| `src/xlate.rs` | Per-call translation rules |
-| `src/nvgpu.rs` | Curated ABI types and layout assertions |
-| `src/table.rs` | Descriptor stream built from translation rules |
-| `src/xfer.rs` | `NV_ESC_IOCTL_XFER_CMD` wrapping |
-| `src/share.rs` | RM object-sharing grants |
-| `src/mediate.rs` | Shared offsets/constants for rewritten controls |
-| `src/vgpu.rs` | Card-derived profile calculations |
-| `src/bin/nvrm-genhdr.rs` | Guest C header and table generator |
-
-## Editing rules
-
-- Change translation knowledge in `xlate.rs`; `table.rs` queries it instead of
-  maintaining a second list. Startup verification checks agreement.
-- The guest interprets descriptor tables, but also has NVIDIA-specific UVM,
-  display and DRM paths. Their generated constants still need version review.
-- Keep ABI size, alignment and field-offset assertions when changing curated types.
-- Regenerate the guest header after changing wire definitions or exported constants.
-
-```sh
-cargo run --bin nvrm-genhdr -- guest-module/virtio_nvrm/nvrm_wire.h
-cargo run --bin nvrm-genhdr -- --check
-tools/check.sh
-```
-
-- The software check exercises the C table interpreter against Rust-generated data.
-- Version policy and generator inputs: [driver versions](../../docs/virtio/abi-versions.md).
+- Describes RM and UVM ioctl payloads: sizes, embedded pointers, FD fields and encoding.
+  `src/xlate.rs` holds the per-call translation rules behind Leandro VirtIO's forwarding and
+  the tables its guest module reads.
+- Curated ABI types (`src/nvgpu.rs`), status names and the GPU naming model
+  (`src/naming.rs`) that both versions use for the name a guest sees.
+- `nvrm-genhdr` (`src/bin/`) generates the guest module's C header;
+  `cargo run --bin nvrm-genhdr -- --check` finds a stale one.
+- Docs: [reference](reference.md) (source map, editing rules),
+  [RM controls](../../docs/wiki/rm-controls.md),
+  [PCI config and identity](../../docs/wiki/pci-config-and-identity.md).

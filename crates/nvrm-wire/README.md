@@ -1,35 +1,14 @@
 <!-- SPDX-License-Identifier: MIT -->
 # nvrm-wire
 
-- Wire schema shared by the host backend and generated guest C header.
-- Little-endian encoding; `Req` is 160 bytes, `Rsp` is 32 bytes. Byte views use native
-  representation and require little-endian hosts and guests.
-- `MAX_PAYLOAD` is 16384 bytes. The crate supports `no_std`.
-- Host-issued tokens identify open devices; guest FD numbers are local to the guest.
-- Tokens are scoped to guest-process sessions. Explicit FD-owner fields support
-  cross-process imports within one VM; guest process IDs are untrusted metadata.
+Leandro VirtIO: the wire schema between guest module and host backend.
 
-## Source map
-
-| File | Responsibility |
-|---|---|
-| `src/lib.rs` | Requests, replies, message kinds and protocol version |
-| `src/tables.rs` | Descriptor-table records and bounds |
-
-## Compatibility
-
-- `PROTO_VERSION` is **6**.
-- Bump it when the meaning of an accepted request changes, even when struct sizes
-  stay unchanged. Versions 5 and 6 used existing padding for new routing fields.
-- Additive message kinds have historically kept the version; review unknown-kind
-  handling and feature negotiation before applying that rule to a new message.
-- Descriptor headers carry lengths, counts and a checksum. Validate them before
-  interpreting records.
-- Generate the C schema; do not edit its declarations by hand:
-
-```sh
-cargo run --bin nvrm-genhdr -- guest-module/virtio_nvrm/nvrm_wire.h
-cargo run --bin nvrm-genhdr -- --check
-```
-
-- C static assertions check layouts; the generator check detects stale headers.
+- Requests and replies between `virtio_nvrm.ko` and `vhost-user-nvrm`, and the
+  descriptor-table format the host sends to the guest.
+- Little-endian; `Req` is 160 bytes, `Rsp` 32 bytes, a payload at most 16384 bytes; `no_std`;
+  protocol version 6.
+- Files: `src/lib.rs` (messages, kinds, version), `src/tables.rs` (table records).
+- The guest's C header is generated from it:
+  `cargo run --bin nvrm-genhdr -- guest-module/virtio_nvrm/nvrm_wire.h`, checked with `--check`.
+- Docs: [reference](reference.md) (compatibility rules),
+  [architecture](../../docs/virtio/architecture.md#abi-and-protocol).
