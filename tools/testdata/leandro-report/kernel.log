@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+2026-09-30T10:00:00+02:00 fixturehost kernel: NVRM: Xid (PCI:0000:01:00): 31, pid=4999999, name=vfio-user-nvgp, channel 0x00000014, MMU Fault: ENGINE GRAPHICS GPC1 FAULT_PDE
+2026-09-30T10:00:01+02:00 fixturehost kernel: NVRM: Xid (PCI:0000:01:00): 13, pid=4999998, name=cloud-hyperviso, Graphics Exception
+2026-09-30T10:00:02+02:00 fixturehost kernel: vfio-pci 0000:01:00.0: enabling device for fixtureuser at 192.168.77.5
+2026-09-30T10:00:03+02:00 fixturehost kernel: e1000e 0000:00:1f.6 eth0: link up (not matched by the filter)

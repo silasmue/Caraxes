@@ -6,6 +6,8 @@
 /vendor/hostvenv
 /vendor/virtio-spec
 *.log
+# The report collector's fixture logs (tools/leandro-report.sh --self-test).
+!/tools/testdata/**/*.log
 /traces/
 tmp.md
 
