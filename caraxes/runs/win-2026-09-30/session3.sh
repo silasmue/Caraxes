@@ -17,7 +17,9 @@ pack() { local script=$1; shift; PACK_WAIT_S=${PW:-1200} timeout 300 python3 CH-
   timeout 30 python3 CH-build/run44.py upack $script status "$@" 2>&1 | grep -v save_cache | tail -${PT:-20}; }
 stop() { # Only this session's own run (another agent's run may be `current` after a failed start).
     [ "$(cat $K/current 2>/dev/null)" = "$TAG" ] || { echo "stop skipped: current is $(cat $K/current 2>/dev/null), not $TAG"; return; }
-    echo "stop $(date +%T)"; timeout 400 python3 CH-build/run44.py stop > "$OUT/stop.txt" 2>&1; tail -12 "$OUT/stop.txt"; }
+    echo "stop $(date +%T)"; timeout 400 python3 CH-build/run44.py stop > "$OUT/stop.txt" 2>&1; tail -12 "$OUT/stop.txt"
+    # The device's exit profile (CARAXES_PROFILE=1) goes with the run (run44 moves only the logs).
+    [ gpu-profile.exit.tsv -nt "$K/$TAG/start.json" ] && zstd -q -f gpu-profile.exit.tsv -o "$K/$TAG/gpu-profile.exit.tsv.zst"; }
 trap stop EXIT
 echo "start $TAG $(date +%T) $BIN"
 CH_BIN=/mnt/vmstore/caraxes/ch-readonly-mmap/target-0008/release/cloud-hypervisor CH_SERVER=$BIN CH_SLOT=0 \
@@ -128,6 +130,8 @@ PY
     present-status=*) timeout 60 python3 CH-build/run44.py upack present-probe.ps1 status -Seconds ${st#present-status=} -Width 800 -Height 600 2>&1 | tr -d '\000' | tail -8 ;;
     config) # The device's configuration block and the removed variables it warned about.
         grep -a "config: " gpu.log | cut -c1-300 ;;
+    clients) # The reconnects the device served (a VMM reboot builds a new vfio-user client).
+        grep -a "client [0-9]*: the previous client\|new client connected\|Connection closed" gpu.log | cut -c1-260 ;;
     sleep=*) sleep ${st#sleep=} ;;
     *) echo "unknown step $st" ;;
     esac
