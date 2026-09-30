@@ -91,7 +91,7 @@ up() {
     ! alive "$W/qemu.pid" || die "QEMU already running (pid $(cat "$W/qemu.pid"))"
     ! alive "$W/gpu.pid" || die "backend already running (pid $(cat "$W/gpu.pid"))"
     rm -f "$W/gpu.sock" "$W/qmp.sock" "$W/dma-ranges"
-    export LEA_ROOT=/mnt/vmstore/caraxes/wt-codex-stability
+    export LEA_ROOT=$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd -P)
     export CARAXES_DRIVER=615 CARAXES_GUEST_ABI=615 CARAXES_GUEST_RAM_BYTES=$((4 << 30))
     export CARAXES_GUEST_DMA_GPA=1
     export CARAXES_MIRROR_CHANNELS=1 CARAXES_MIRROR_GR_SHADOW=1 CARAXES_CE_SHADOW=1

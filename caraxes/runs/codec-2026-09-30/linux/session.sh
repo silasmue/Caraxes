@@ -4,7 +4,7 @@
 set -uo pipefail
 TAG=$1 BIN=$2; shift 2
 C=/mnt/vmstore/caraxes/runs-2026-09-30/codec
-W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh
+W=$(cd "$(dirname "$(readlink -f "$0")")/../../night-2026-09-28" && pwd -P)/desktop-b-night.sh
 L=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b
 OUT=$C/linux-$TAG; mkdir -p "$OUT"
 g() { timeout ${T:-60} "$W" ssh "$@" 2>&1 | grep -v "unable to resolve"; }

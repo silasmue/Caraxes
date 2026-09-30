@@ -12,7 +12,7 @@
 set -uo pipefail
 OUT=$1 BIN=$2
 H=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
-W=/mnt/vmstore/caraxes/wt-dmem/caraxes/runs/dmem-2026-09-29/desktop-b-dmem.sh
+W=$(cd "$(dirname "$(readlink -f "$0")")/../dmem-2026-09-29" && pwd -P)/desktop-b-dmem.sh
 G=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b-dmem
 TOOLS=$(cd "$H/../../tools" && pwd -P)
 IDLE_S=${IDLE_S:-60} BENCH_S=${BENCH_S:-30} STREAM_S=${STREAM_S:-60} CUDA_S=${CUDA_S:-40}

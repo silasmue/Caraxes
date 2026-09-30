@@ -4,7 +4,7 @@
 # Sunshine forced to encoder = nvenc.
 #   up / moonlight / down, as sottr-linux.sh; the log says "ready". NIGHT_FB_MIB=2048 for more VRAM.
 set -uo pipefail
-W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh L=/mnt/vmstore/caraxes/runs-2026-09-30/user
+W=/home/silas/git/Caraxes/caraxes/runs/night-2026-09-28/desktop-b-night.sh L=/mnt/vmstore/caraxes/runs-2026-09-30/user
 G=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b
 BIN=${BIN:-/mnt/vmstore/caraxes/vfio-user-nvgpu-dv2fix2-b6d01293}
 case ${1:-} in

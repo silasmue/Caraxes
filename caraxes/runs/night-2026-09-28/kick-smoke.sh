@@ -6,7 +6,7 @@
 # their RMSE (the picture must change and must not be black). Usage: kick-smoke.sh OUT BINARY
 set -uo pipefail
 OUT=$1 BIN=$2; N=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
-W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh
+W=$N/desktop-b-night.sh
 mkdir -p "$OUT"
 NIGHT_SERVER=$BIN timeout 400 "$W" up > "$OUT/up.txt" 2>&1 || { tail -3 "$OUT/up.txt"; exit 1; }
 timeout 240 "$W" wait 200 >> "$OUT/up.txt" 2>&1

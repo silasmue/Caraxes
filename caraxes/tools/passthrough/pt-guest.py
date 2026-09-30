@@ -17,7 +17,7 @@ the tap (192.168.107.2, the kit's key id_win, PowerShell login shell), as the Ca
   pt-guest.py dwm-restart               restart DWM (the desktop's flip chain starts again)
   pt-guest.py task SCRIPT.ps1 [ARGS..] [--user] [--wait S] [--label L]   scheduled task
   pt-guest.py bench                     smoke, d3d12-probe, cuda-probe, present-probe (native baseline)
-Env: PT_DIR (/mnt/vmstore/caraxes/r4), PT_WINTOOLS (/mnt/vmstore/caraxes/wt-win/tools/windows).
+Env: PT_DIR (/mnt/vmstore/caraxes/r4), PT_WINTOOLS (this repository's tools/windows).
 Every guest action that matters for the traces also appends a host-time line to markers.txt."""
 import calendar
 import os
@@ -33,7 +33,7 @@ KEY = KIT / 'id_win'
 IP = '192.168.107.2'
 USER = (KIT / 'guest-user').read_text().strip() if (KIT / 'guest-user').exists() else 'caraxes'
 HERE = pathlib.Path(__file__).resolve().parent
-WINTOOLS = pathlib.Path(os.environ.get('PT_WINTOOLS', '/mnt/vmstore/caraxes/wt-win/tools/windows'))
+WINTOOLS = pathlib.Path(os.environ.get('PT_WINTOOLS', str(pathlib.Path(__file__).resolve().parents[3] / 'tools/windows')))
 R4 = pathlib.Path(os.environ.get('PT_DIR', '/mnt/vmstore/caraxes/r4'))
 USER_DIR = r'C:\Users\Public\caraxes'
 SSH = ['-F', '/dev/null', '-i', str(KEY), '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',

@@ -6,7 +6,7 @@
 # each scene and the launch timing are saved for the per-frame analysis. Usage: vkmark-trace.sh OUT BINARY
 set -uo pipefail
 OUT=$1 BIN=$2
-W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh
+W=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)/desktop-b-night.sh
 T=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b/gpu-trace.log
 mkdir -p "$OUT"
 NIGHT_SERVER=$BIN CARAXES_LAUNCH_TIMING=1 timeout 400 "$W" up > "$OUT/up.txt" 2>&1 || { tail -5 "$OUT/up.txt"; exit 1; }

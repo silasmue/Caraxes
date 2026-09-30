@@ -5,7 +5,7 @@
 # Moonlight's fps and latency. Usage: stream.sh OUTDIR ENCODER SECONDS
 set -uo pipefail
 OUT=$1 ENC=$2 SECS=${3:-150}
-W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh
+W=$(cd "$(dirname "$(readlink -f "$0")")/../../night-2026-09-28" && pwd -P)/desktop-b-night.sh
 L=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b
 mkdir -p "$OUT"
 g() { timeout ${T:-40} "$W" ssh "$@" 2>&1 | grep -v "unable to resolve"; }

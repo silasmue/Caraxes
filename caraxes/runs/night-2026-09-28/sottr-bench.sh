@@ -14,7 +14,7 @@ set -uo pipefail
 OUT=$1 BIN=$2
 MAX=${SOTTR_MAX_S:-2100}
 RES=${SOTTR_RES:-1920x1080}; RW=${RES%x*}; RH=${RES#*x}
-W=/mnt/vmstore/caraxes/night-2026-09-28/desktop-b-night.sh
+W=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)/desktop-b-night.sh
 mkdir -p "$OUT/host-shots" "$OUT/guest-shots"
 log() { echo "$(date +%T) $*" | tee -a "$OUT/timeline.txt"; }
 gssh() { timeout "${T:-60}" "$W" ssh "$@" 2>&1 | grep -v "unable to resolve"; }

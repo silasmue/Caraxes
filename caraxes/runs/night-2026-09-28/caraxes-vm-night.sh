@@ -1,0 +1,663 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# Run one Caraxes guest: the synthetic GPU (vfio-user-nvgpu) plus Cloud Hypervisor
+# attaching it with --user-device. Experiment ladder: docs/caraxes/experiments.md.
+# Usage: tools/caraxes-vm.sh up|down|status|wait|ssh [command...]|input [line...]|serial|probe [label]
+#        |uvm [label] [flags]|dma|name
+# `probe` reloads nvidia.ko in the guest and saves the guest log and the device trace
+# of that window under $W/probe-<label>/. `uvm` (experiment E5a, docs/caraxes/uvm.md)
+# reloads nvidia-uvm with debug prints, runs crates/vfio-user-nvgpu/guest/uvm-register.c
+# (UVM_INITIALIZE with <flags>, default 0, then UVM_REGISTER_GPU) and saves both logs
+# under $W/uvm-<label>/; CARAXES_UVM_PARAMS adds nvidia-uvm module parameters (for
+# example uvm_disable_hmm=1). CARAXES_VBIOS selects the image served
+# through the PROM window (default: caraxes/reference/rtx2070/synth-vbios.bin when
+# present, else the PCI-visible rom.bin). CARAXES_BOOT_MODEL=1 attaches the E2 boot
+# model; CARAXES_FB_MIB sets the framebuffer size the guest is told; CARAXES_HOST_RM=1
+# lets the device open the host RM and forward the forwardable RPCs. CARAXES_SERVER
+# overrides the device binary (default target/release/vfio-user-nvgpu).
+# The card is named "Leandro VFIO RTX 2070-4G" by default; CARAXES_NAME_FORMAT=legacy gives
+# the pre-2026-09-24 "Leandro RTX 2070-4G" (nvrm_abi::naming, docs/caraxes/identity-profile.md);
+# `name` prints the guest-visible name the device presents with the current settings.
+# E5b part 1 (docs/caraxes/memory-model.md): CARAXES_RESERVE_VRAM=1 makes the device hold
+# the profile's size of host VRAM at a fixed address for its life (refused when the host
+# would keep less than 1 GiB free); CARAXES_RESERVE_SLOT=<n> places it n profile sizes
+# below the top of the host FB (P20: one slot per VM; default 0 = the top); CARAXES_DMA=register registers guest RAM with the host
+# RM and publishes the IOVA table in $W/dma-ranges (the device then needs CAP_SYS_ADMIN
+# permitted: a copy of the binary in $W gets the file capability cap_sys_admin+p through
+# `sudo -n setcap`), CARAXES_DMA=identity publishes an identity table. `dma` (also run by
+# `probe` and `uvm`) loads the guest module caraxes_dma_range with that table before
+# nvidia binds (guest-module/caraxes_dma_range/README.md); the guest keeps nvidia
+# blacklisted from autoloading so that it never binds without the table.
+# CARAXES_DISPLAY=1 presents the display engine (--display, docs/caraxes/display-ab.md).
+# CARAXES_DISPLAY_PAGE_READONLY=1 retains direct display-status reads but traps writes;
+# it requires CARAXES_DISPLAY_PAGE=1 and Cloud Hypervisor patch 0007.
+# E5b part 2 (docs/caraxes/execution.md): CARAXES_HOST_EXEC=1 executes on the physical GPU
+# (the FB is the reserved VRAM, guest channels get host mirror channels, engine non-stall
+# events become guest interrupts); it needs the three flags above. The device maps the
+# reservation through the host's shared BAR1 (256 MiB on the RTX 2070): at most
+# CARAXES_BAR1_WINDOWS (default 2) windows of CARAXES_BAR1_WINDOW_MIB (default 32) MiB
+# each, so several devices and the desktop fit (docs/caraxes/parallel.md §2).
+# Mapping package (docs/caraxes/mapping.md): CARAXES_MAP_BUDGET caps the device's live RM
+# mappings of the shadow VA spaces (default 32768; beyond it guest leaves are refused with an
+# error line, protecting the host RM); CARAXES_SHADOW_ALWAYS_RESYNC=1 walks and diffs the whole
+# guest tree at every resync (the reference); CARAXES_SHADOW_COALESCE=0 maps one leaf per RM
+# call; CARAXES_BAR_TLB=0 walks the BAR tables at every trapped access; CARAXES_CE_SHADOW=0
+# runs copy-engine channels on the guest's own (unfiltered) tables; CARAXES_LINEAR_IOVA=0 keeps
+# the independent 1 GiB chunks instead of IOVA = GPA + one offset.
+# Guest driver ABI (docs/caraxes/gsp-transport-615.md): CARAXES_GUEST_ABI=610 (the default
+# build) or 615 (message queue v2 and GMCAPI init: the binary of `cargo build --release -p
+# vfio-user-nvgpu --features v615 --target-dir target/v615`, the default SERVER then) is
+# passed to the device as --guest-abi, which refuses a binary built for another ABI (fail
+# closed); 595 is the pre-610 element experiment of docs/caraxes/guest-driver-versions.md.
+# CARAXES_GUEST_DMA_GPA=1 tests stock guest DMA addresses without caraxes_dma_range.
+# It requires registered RAM and host-managed GR/CE shadow mappings. The guest
+# helper must be absent; do not combine its IOVA translation with GPA aliases.
+# CARAXES_INPUT=fifo gives the guest a virtio-input device (docs/caraxes/display-e.md §8)
+# without patching Cloud Hypervisor: a vhost-user-input backend (CARAXES_INPUT_SERVER, default
+# vhost-user-input from PATH, else the Leandro build) serves it on $W/input.sock and Cloud
+# Hypervisor attaches it with --generic-vhost-user device_type=18 (virtio-input). The backend
+# reads `type code value` lines from the FIFO $W/input.fifo, so the host can move the guest
+# pointer (tools/caraxes-vm.sh input <line>...); CARAXES_INPUT=evdev:/dev/input/eventN forwards
+# a host device instead (never the operator's own devices without asking).
+# State lives under $CARAXES_STORE/$VM (default /mnt/vmstore/caraxes/vm0, falling
+# back to target/caraxes/$VM when the store is absent): rootfs.qcow2 (overlay on
+# LEA_BASE_IMAGE), seed.img (cloud-init), gpu.sock, gpu-trace.log, serial.log.
+# CARAXES_DRIVER=610|615 picks the guest driver (default: the repository's DRIVER_VERSION;
+# tools/lib/driver.sh): 615 takes /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2
+# as LEA_BASE_IMAGE and exports CARAXES_GUEST_ABI=615 to the device (which acts on it only
+# once the 615 GSP transport lands); any other value is refused. With CARAXES_DRIVER set, or
+# with a driver other than 610, `up` refuses an overlay not backed by that image.
+# Steam library disk (docs/caraxes/sottr-stage.md): CARAXES_GAMES_DISK=<base.qcow2> attaches a
+# second data disk after the seed (vdc in the Ubuntu guest, which mounts it by its label). By
+# default the VM gets a thin overlay $W/games.qcow2 on the base (qemu-img create -b base -F qcow2,
+# made at the first `up`, kept across up/down; delete it by hand to drop the VM's changes); the
+# base is never written. CARAXES_GAMES_DISK_RW=1 attaches the base itself for writing (to fill the
+# library), only when no running Cloud Hypervisor has the base or an overlay on it among its disks
+# and no other VM holds the writer lock. The lock is $CARAXES_STORE/locks/games-<hash>.writer
+# ("<vm> <pid> <disk>", hash = the first 16 hex digits of the sha256 of the base's real path),
+# because the base's own directory may be read-only; `down` removes it, and a lock whose pid is
+# gone is stale. An overlay start is refused while a writer holds the base (the lock, or a Cloud
+# Hypervisor with the base itself as a disk, as v1's --games-init does). `up` refuses a missing base.
+# CARAXES_TAP=none starts the VM without a network device (a boot-only check that reads the
+# serial log, docs/caraxes/costume-ladder.md §2); ssh, probe and uvm then have no guest.
+# Guest kernel: CARAXES_KERNEL and CARAXES_INITRD (default the image's vmlinuz and initrd);
+# CARAXES_INITRD=none boots without an initramfs (a kernel with its root disk drivers built
+# in, the nova guest of docs/caraxes/nova-guest.md); CARAXES_CMDLINE_EXTRA is appended to the
+# kernel command line.
+# The host tap (default caraxes0, 192.168.100.1/24) must exist and be owned by the user:
+#   sudo ip tuntap add dev caraxes0 mode tap user $USER
+#   sudo ip addr add 192.168.100.1/24 dev caraxes0 && sudo ip link set caraxes0 up
+set -euo pipefail
+
+LEA_ROOT=/home/silas/git/Caraxes
+# shellcheck source=tools/lib/driver.sh
+source "$LEA_ROOT/tools/lib/driver.sh"
+caraxes_driver_select || exit 1
+# local.env pins LEA_BASE_IMAGE to the 610 image (:=), so another driver sets it first.
+if [[ $CARAXES_DRIVER != 610 && -z ${LEA_BASE_IMAGE:-} ]]; then LEA_BASE_IMAGE=$(caraxes_driver_image ""); fi
+# shellcheck disable=SC1091
+[[ -f $LEA_ROOT/local.env ]] && source "$LEA_ROOT/local.env"
+: "${LEA_VM_DIR:=/mnt/vmstore/leandro/vm}"
+: "${LEA_CH:=/mnt/vmstore/leandro/cloud-hypervisor/bin/cloud-hypervisor}"
+: "${LEA_BASE_IMAGE:=$(caraxes_driver_image "$LEA_VM_DIR")}"
+VM=${VM:-vm0}
+if [[ -z ${CARAXES_STORE:-} ]]; then
+    if [[ -d /mnt/vmstore/caraxes ]]; then CARAXES_STORE=/mnt/vmstore/caraxes; else CARAXES_STORE=$LEA_ROOT/target/caraxes; fi
+fi
+W=$CARAXES_STORE/$VM
+IP=${CARAXES_IP:-192.168.100.20}
+TAP=${CARAXES_TAP:-caraxes0}
+MAC=${CARAXES_MAC:-02:00:00:00:00:20}
+KERNEL=${CARAXES_KERNEL:-$LEA_VM_DIR/guest-image/vmlinuz}
+INITRD=${CARAXES_INITRD:-$LEA_VM_DIR/guest-image/initrd}
+SSH_KEY=${CARAXES_SSH_KEY:-$LEA_VM_DIR/id_leandro}
+SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/release/vfio-user-nvgpu}
+if [[ ${CARAXES_GUEST_ABI:-} == 615 && -z ${CARAXES_SERVER:-} ]]; then
+    SERVER=$LEA_ROOT/target/v615/release/vfio-user-nvgpu
+fi
+# The settings the guest-visible identity follows (`up` and `name` pass the same ones).
+IDENTITY=()
+[[ -n ${CARAXES_FB_MIB:-} ]] && IDENTITY+=(--fb-mib "$CARAXES_FB_MIB")
+[[ -n ${CARAXES_NAME_FORMAT:-} ]] && IDENTITY+=(--name-format "$CARAXES_NAME_FORMAT")
+# The chip the device presents (decision D14): tu106 (the RTX 2070, default) or gb206
+# (the RTX 5060 Ti of caraxes/reference/gb206/, board data rtx5060ti; the Blackwell N gate,
+# docs/caraxes/blackwell-gate.md). REF holds the chip's config-space and ROM captures.
+case ${CARAXES_CHIP:-tu106} in
+    tu106) REF=$LEA_ROOT/caraxes/reference/rtx2070 ;;
+    gb206) REF=$LEA_ROOT/caraxes/reference/gb206/gpu-0000_01_00.0
+           IDENTITY+=(--board-data rtx5060ti) ;;
+    *) printf 'ERROR: CARAXES_CHIP must be tu106 or gb206\n' >&2; exit 1 ;;
+esac
+# The costume (docs/caraxes/costume-5060.md): CARAXES_COSTUME=rtx5060ti presents the RTX
+# 5060 Ti's PCI ids (vendor, device, revision, class, subsystem of the GB206 capture, laid
+# over the TU106 config layout by the board's ids_from, which the device resolves against
+# LEA_ROOT) and name on the TU106 (board data rtx5060ti-on-tu106); the capability chain,
+# the ROM, the VBIOS and every capability answer stay the TU106's, so the host flags stay
+# allowed. Only with CARAXES_CHIP=tu106.
+CONFIG=$REF/config-space.txt
+case ${CARAXES_COSTUME:-} in
+    '') ;;
+    rtx5060ti)
+        [[ ${CARAXES_CHIP:-tu106} == tu106 ]] || { printf 'ERROR: CARAXES_COSTUME=rtx5060ti needs CARAXES_CHIP=tu106\n' >&2; exit 1; }
+        IDENTITY+=(--board-data rtx5060ti-on-tu106) ;;
+    # The costume ladder (docs/caraxes/costume-ladder.md): a presented chip over the TU106
+    # (the board's host_chip), so the host flags stay allowed. rtx2080 (TU104), rtx3060
+    # (GA106), rtx4060ti (AD106) use the RTX 2070's config layout and ROM; h100 (GH100) and
+    # rtx5060ti-gb206 (GB206) the GB206 capture's, as their FSP boot reads no Turing VBIOS.
+    rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206)
+        [[ ${CARAXES_CHIP:-tu106} == tu106 ]] || { printf 'ERROR: CARAXES_COSTUME=%s needs CARAXES_CHIP=tu106 (the executing chip)\n' "$CARAXES_COSTUME" >&2; exit 1; }
+        IDENTITY+=(--board-data "$CARAXES_COSTUME-on-tu106")
+        if [[ $CARAXES_COSTUME == h100 || $CARAXES_COSTUME == rtx5060ti-gb206 ]]; then
+            REF=$LEA_ROOT/caraxes/reference/gb206/gpu-0000_01_00.0
+            CONFIG=$REF/config-space.txt
+        fi ;;
+    *) printf 'ERROR: CARAXES_COSTUME must be empty, rtx5060ti, rtx2080, rtx3060, rtx4060ti, h100 or rtx5060ti-gb206\n' >&2; exit 1 ;;
+esac
+# The SM-version rungs of the costume ladder: CARAXES_SM_VERSION=<major>.<minor> makes the
+# device report that SM version in every GR info answer (--sm-version); the silicon stays.
+[[ -n ${CARAXES_SM_VERSION:-} ]] && IDENTITY+=(--sm-version "$CARAXES_SM_VERSION")
+# A Blackwell identity never touches the host card (the device refuses the host flags too).
+if [[ ${CARAXES_CHIP:-tu106} != tu106 ]]; then
+    for v in CARAXES_HOST_RM CARAXES_RESERVE_VRAM CARAXES_HOST_EXEC; do
+        [[ ${!v:-0} == 1 ]] && { printf 'ERROR: %s=1 with CARAXES_CHIP=%s: pure emulation only\n' "$v" "$CARAXES_CHIP" >&2; exit 1; }
+    done
+    [[ ${CARAXES_DMA:-} == register ]] && { printf 'ERROR: CARAXES_DMA=register with CARAXES_CHIP=%s: pure emulation only\n' "$CARAXES_CHIP" >&2; exit 1; }
+fi
+# The Ampere and Ada costumes run FWSEC through the GA102-family HAL, which takes only a
+# boot-from-HS (V3) descriptor (kernel_gsp_falcon_ga102.c:204): their PROM image is
+# synth-vbios.py --desc v3 (docs/caraxes/costume-ladder.md, rung 2).
+if [[ -z ${CARAXES_VBIOS:-} && ( ${CARAXES_COSTUME:-} == rtx3060 || ${CARAXES_COSTUME:-} == rtx4060ti ) ]]; then
+    [[ -f $REF/synth-vbios-fwsec-v3.bin ]] || { printf 'ERROR: %s missing (caraxes/tools/synth-vbios.py --desc v3 %s %s)\n' "$REF/synth-vbios-fwsec-v3.bin" "$REF/rom.bin" "$REF/synth-vbios-fwsec-v3.bin" >&2; exit 1; }
+    CARAXES_VBIOS=$REF/synth-vbios-fwsec-v3.bin
+fi
+if [[ -z ${CARAXES_VBIOS:-} && -f $REF/synth-vbios.bin ]]; then CARAXES_VBIOS=$REF/synth-vbios.bin; fi
+
+error() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+# Guest shell snippet: unload the named modules in order when loaded; exit 3 with a
+# message when one refuses (nvidia_uvm holds nvidia, so it goes first).
+UNLOAD='unload() { for m in "$@"; do if lsmod | grep -q "^$m "; then sudo rmmod "$m" || { echo "ERROR: rmmod $m failed (in use?)"; lsmod | grep -E "^(nvidia|caraxes)"; exit 3; }; fi; done; }'
+alive() { [[ -f $1 ]] && kill -0 "$(cat "$1")" 2>/dev/null; }
+
+do_ssh() {
+    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o LogLevel=ERROR -o ConnectTimeout=5 "leandro@$IP" "$@"
+}
+
+up() {
+    if [[ ${CARAXES_GUEST_DMA_GPA:-0} == 1 ]]; then
+        [[ ${CARAXES_DMA:-} == register && ${CARAXES_HOST_EXEC:-0} == 1 &&
+           ${CARAXES_MIRROR_CHANNELS:-0} == 1 && ${CARAXES_MIRROR_GR_SHADOW:-0} == 1 &&
+           ${CARAXES_CE_SHADOW:-1} != 0 ]] ||
+            error "GPA guest mode requires registered RAM, host execution and GR/CE shadow mappings"
+    fi
+    [[ -x $SERVER ]] || error "$SERVER missing: cargo build --release -p vfio-user-nvgpu"
+    [[ -x $LEA_CH ]] || error "cloud-hypervisor missing at $LEA_CH"
+    local user_device="socket=$W/gpu.sock,id=gpu0"
+    case ${CARAXES_DISPLAY_PAGE_READONLY:-0} in
+        0) ;;
+        1)
+            [[ ${CARAXES_DISPLAY_PAGE:-0} == 1 && ${CARAXES_INTR_PAGE:-0} == 1 &&
+               ${CARAXES_DISPLAY:-0} == 1 ]] ||
+                error "CARAXES_DISPLAY_PAGE_READONLY=1 requires display and interrupt pages"
+            local ch_help
+            ch_help=$("$LEA_CH" --help)
+            [[ $ch_help == *x_readonly_mmap_areas* ]] ||
+                error "CARAXES_DISPLAY_PAGE_READONLY=1 requires Cloud Hypervisor patch 0007"
+            user_device+=",x_readonly_mmap_areas=[0:0x611000:0x1000]"
+            ;;
+        *) error "CARAXES_DISPLAY_PAGE_READONLY must be 0 or 1" ;;
+    esac
+    [[ -f $W/rootfs.qcow2 && -f $W/seed.img ]] || error "$W needs rootfs.qcow2 and seed.img"
+    if [[ -n $CARAXES_DRIVER_EXPLICIT || $CARAXES_DRIVER != 610 ]]; then check_base; fi
+    [[ -f $REF/rom.bin ]] || error "$REF/rom.bin missing (git-ignored capture of the card's ROM)"
+    local net=(--net tap="$TAP",mac="$MAC")
+    if [[ $TAP == none ]]; then
+        net=()
+    else
+        ip link show "$TAP" >/dev/null 2>&1 || error "tap $TAP missing; see the header of this script"
+    fi
+    alive "$W/gpu.pid" && error "server already running (pid $(cat "$W/gpu.pid"))"
+    alive "$W/ch.pid" && error "VM already running (pid $(cat "$W/ch.pid"))"
+    rm -f "$W/gpu.sock" "$W/ch.sock"
+    local games=()
+    if [[ -n ${CARAXES_GAMES_DISK:-} ]]; then
+        games_prepare || exit 1
+        games=("path=$GAMES_PATH,image_type=qcow2,backing_files=on")
+    fi
+
+    local vbios=()
+    [[ -n ${CARAXES_VBIOS:-} ]] && vbios=(--vbios "$CARAXES_VBIOS")
+    [[ ${CARAXES_BOOT_MODEL:-0} == 1 ]] && vbios+=(--boot-model)
+    vbios+=("${IDENTITY[@]}")
+    [[ ${CARAXES_HOST_RM:-0} == 1 ]] && vbios+=(--host-rm)
+    [[ ${CARAXES_RESERVE_VRAM:-0} == 1 ]] && vbios+=(--reserve-vram)
+    [[ ${CARAXES_RESERVE_VRAM:-0} == 1 && -n ${CARAXES_RESERVE_SLOT:-} ]] &&
+        vbios+=(--reserve-slot "$CARAXES_RESERVE_SLOT")
+    [[ ${CARAXES_HOST_EXEC:-0} == 1 ]] && vbios+=(--host-exec)
+    [[ ${CARAXES_DISPLAY:-0} == 1 ]] && vbios+=(--display)
+    [[ -n ${CARAXES_GUEST_ABI:-} ]] && vbios+=(--guest-abi "$CARAXES_GUEST_ABI")
+    local server=$SERVER
+    # The guest's table of an earlier boot goes too: the device reads it at every reset
+    # (device.rs `load_guest_aliases`) and must not see one this guest has not installed.
+    rm -f "$W/dma-ranges" "$W/dma-ranges.guest"
+    case ${CARAXES_DMA:-} in
+        '') ;;
+        register) vbios+=(--register-guest-ram --dma-ranges "$W/dma-ranges"); server=$(privileged_server)
+            # One IOVA offset for the whole guest (docs/caraxes/mapping.md §5): the device
+            # registers all zones at once, from the top GPA down, with hole fillers.
+            export CARAXES_GUEST_RAM_BYTES; CARAXES_GUEST_RAM_BYTES=$(mem_bytes "${CARAXES_MEM:-4G}") ;;
+        identity) vbios+=(--identity-dma-table --dma-ranges "$W/dma-ranges") ;;
+        *) error "CARAXES_DMA must be register or identity" ;;
+    esac
+    # Night 2026-09-28: CARAXES_NO_TRACE=1 runs the device without its access trace (the
+    # vkmark analysis measured the trace inside the flip path).
+    local trace=(--trace "$W/gpu-trace.log"); [[ ${CARAXES_NO_TRACE:-0} == 1 ]] && trace=()
+    LEA_ROOT=$LEA_ROOT "$server" --socket "$W/gpu.sock" "${trace[@]}" \
+        --config "$CONFIG" --rom "$REF/rom.bin" "${vbios[@]}" > "$W/gpu.log" 2>&1 &
+    echo $! > "$W/gpu.pid"
+    for _ in $(seq 50); do [[ -S $W/gpu.sock ]] && break; sleep 0.1; done
+    [[ -S $W/gpu.sock ]] || { cat "$W/gpu.log"; error "server did not create $W/gpu.sock"; }
+
+    local input=()
+    if [[ -n ${CARAXES_INPUT:-} ]]; then
+        input_up
+        input=(--generic-vhost-user "device_type=18,socket=$W/input.sock,queue_sizes=[64,64]")
+    fi
+    local initrd=(--initramfs "$INITRD")
+    [[ $INITRD == none ]] && initrd=()
+    # A guest whose RAM lies wholly below 4 GiB (Cloud Hypervisor puts the first 3 GiB there)
+    # gets no swiotlb pool from the kernel, and dma_load needs one to alias the 40-bit flush
+    # buffer (memory-model.md §2): `iommu=soft` keeps the pool without forcing any bounce
+    # (arch/x86/kernel/pci-dma.c). CARAXES_CMDLINE_EXTRA appends further arguments.
+    local cmdline='root=/dev/vda1 rw console=ttyS0 net.ifnames=0'
+    (( $(mem_bytes "${CARAXES_MEM:-4G}") <= 3 << 30 )) && cmdline+=' iommu=soft'
+    [[ -n ${CARAXES_CMDLINE_EXTRA:-} ]] && cmdline+=" $CARAXES_CMDLINE_EXTRA"
+    "$LEA_CH" --api-socket "$W/ch.sock" \
+        --cpus boot="${CARAXES_CPUS:-8}" --memory size="${CARAXES_MEM:-4G}",shared=on \
+        --kernel "$KERNEL" "${initrd[@]}" \
+        --cmdline "$cmdline" \
+        --disk path="$W/rootfs.qcow2",image_type=qcow2,backing_files=on \
+               path="$W/seed.img",readonly=on "${games[@]}" \
+        "${net[@]}" \
+        --user-device "$user_device" "${input[@]}" \
+        --serial file="$W/serial.log" --console off \
+        > "$W/ch.log" 2>&1 &
+    echo $! > "$W/ch.pid"
+    if [[ -n ${GAMES_LOCK:-} ]]; then
+        printf '%s %s %s\n' "$VM" "$(cat "$W/ch.pid")" "$GAMES_PATH" > "$GAMES_LOCK"
+    fi
+    [[ -n ${GAMES_PATH:-} ]] && echo "games disk: $GAMES_PATH${GAMES_LOCK:+ (for writing, lock $GAMES_LOCK)}"
+    if [[ -n ${CARAXES_DMA:-} ]]; then
+        # The device rewrites the table at each DMA_MAP (one per memory zone); wait until
+        # it covers all guest RAM.
+        local want got
+        want=$(mem_bytes "${CARAXES_MEM:-4G}")
+        for _ in $(seq 300); do
+            got=$(table_bytes)
+            (( got == want )) && break
+            alive "$W/gpu.pid" || { tail -n 20 "$W/gpu.log"; error "server exited"; }
+            alive "$W/ch.pid" || { tail -n 20 "$W/ch.log"; error "VM exited"; }
+            sleep 0.2
+        done
+        (( got == want )) || error "DMA table in $W/dma-ranges covers $got of $want bytes"
+        echo "dma table: $(cat "$W/dma-ranges")"
+    fi
+    echo "server pid $(cat "$W/gpu.pid"), VM pid $(cat "$W/ch.pid"); logs in $W"
+}
+
+# The overlay must sit on the selected driver's image: LEA_BASE_IMAGE carries the driver
+# version in its name and is in the overlay's backing chain (qemu-img -U takes no lock).
+check_base() {
+    [[ $(basename "$LEA_BASE_IMAGE") == *"$CARAXES_DRIVER_VERSION"* ]] ||
+        error "driver $CARAXES_DRIVER_VERSION selected, but LEA_BASE_IMAGE is $LEA_BASE_IMAGE"
+    [[ -f $LEA_BASE_IMAGE ]] || error "base image $LEA_BASE_IMAGE missing"
+    command -v qemu-img >/dev/null || error "qemu-img missing (it reads the overlay's backing chain)"
+    local base img found=0
+    base=$(readlink -f "$LEA_BASE_IMAGE")
+    while read -r img; do
+        [[ $(readlink -f "$img") == "$base" ]] && found=1
+    done < <(qemu-img info -U --backing-chain "$W/rootfs.qcow2" | sed -n 's/^image: //p')
+    ((found)) || error "$W/rootfs.qcow2 is not an overlay on $LEA_BASE_IMAGE (driver $CARAXES_DRIVER_VERSION);
+use a new state directory <dir> (VM=<name>) with this overlay:
+  qemu-img create -f qcow2 -F qcow2 -b $LEA_BASE_IMAGE <dir>/rootfs.qcow2"
+    echo "driver $CARAXES_DRIVER_VERSION: overlay on $LEA_BASE_IMAGE${CARAXES_GUEST_ABI:+, CARAXES_GUEST_ABI=$CARAXES_GUEST_ABI}"
+}
+
+# The Steam library disk (CARAXES_GAMES_DISK, see the header). games_prepare sets GAMES_PATH
+# (the file to attach) and, for CARAXES_GAMES_DISK_RW=1, GAMES_LOCK (the writer lock, taken
+# here with noclobber and rewritten with the VM's pid by `up`).
+games_lock_file() {
+    local h
+    h=$(printf '%s' "$1" | sha256sum | cut -c1-16)
+    echo "$CARAXES_STORE/locks/games-$h.writer"
+}
+
+# "<pid> <disk>" for every disk of a running Cloud Hypervisor that is the base or has it in
+# its backing chain (qemu-img -U takes no lock).
+games_users() {
+    local base=$1 pid p img
+    for pid in $(pgrep -f cloud-hypervisor); do
+        while read -r p; do
+            [[ -f $p ]] || continue
+            while read -r img; do
+                [[ $(readlink -f "$img") == "$base" ]] && { echo "$pid $p"; break; }
+            done < <(qemu-img info -U --backing-chain "$p" 2>/dev/null | sed -n 's/^image: //p')
+        done < <(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -o 'path=[^,]*' | cut -d= -f2-)
+    done
+}
+
+games_prepare() {
+    command -v qemu-img >/dev/null || { printf 'ERROR: qemu-img missing (games disk)\n' >&2; return 1; }
+    local base lock holder="" lvm="" lpid="" users direct
+    base=$(readlink -f "$CARAXES_GAMES_DISK" 2>/dev/null) || base=""
+    [[ -n $base && -f $base ]] || { printf 'ERROR: games base %s missing\n' "$CARAXES_GAMES_DISK" >&2; return 1; }
+    lock=$(games_lock_file "$base")
+    mkdir -p "${lock%/*}"
+    if [[ -f $lock ]]; then
+        read -r lvm lpid _ < "$lock" || true
+        if [[ -n $lpid ]] && kill -0 "$lpid" 2>/dev/null && [[ $lvm != "$VM" ]]; then
+            holder="$lvm (pid $lpid)"
+        else
+            rm -f "$lock"    # stale: its VM is gone, or this VM's own after an unclean stop
+        fi
+    fi
+    users=$(games_users "$base")
+    if [[ ${CARAXES_GAMES_DISK_RW:-0} == 1 ]]; then
+        [[ -z $holder ]] || { printf 'ERROR: %s holds the games base %s for writing (%s)\n' "$holder" "$base" "$lock" >&2; return 1; }
+        [[ -z $users ]] || { printf 'ERROR: the games base %s is open (pid, disk):\n%s\nStop those VMs before writing the base.\n' "$base" "$users" >&2; return 1; }
+        ( set -C; printf '%s %s %s\n' "$VM" "$$" "$base" > "$lock" ) 2>/dev/null \
+            || { printf 'ERROR: could not take the writer lock %s\n' "$lock" >&2; return 1; }
+        [[ -f $W/games.qcow2 ]] && echo "note: $W/games.qcow2 sits on this base; it is stale once the base is written (delete it)"
+        GAMES_PATH=$base GAMES_LOCK=$lock
+        return 0
+    fi
+    [[ -z $holder ]] || { printf 'ERROR: %s is writing the games base %s (%s); an overlay now would read a moving base\n' "$holder" "$base" "$lock" >&2; return 1; }
+    direct=$(awk -v b="$base" '$2 == b' <<< "$users")
+    [[ -z $direct ]] || { printf 'ERROR: a VM has the games base itself as a disk (a writer):\n%s\n' "$direct" >&2; return 1; }
+    if [[ ! -f $W/games.qcow2 ]]; then
+        qemu-img create -q -f qcow2 -F qcow2 -b "$base" "$W/games.qcow2" \
+            || { printf 'ERROR: could not create %s/games.qcow2\n' "$W" >&2; return 1; }
+        echo "games disk: new overlay $W/games.qcow2 on $base"
+    fi
+    local img found=0
+    while read -r img; do
+        [[ $(readlink -f "$img") == "$base" ]] && found=1
+    done < <(qemu-img info -U --backing-chain "$W/games.qcow2" | sed -n 's/^image: //p')
+    ((found)) || { printf 'ERROR: %s/games.qcow2 is not an overlay on %s\n' "$W" "$base" >&2; return 1; }
+    GAMES_PATH=$W/games.qcow2
+}
+
+# Bytes of a Cloud Hypervisor memory size (4G, 4096M).
+mem_bytes() {
+    local v=${1%[GgMm]}
+    case ${1: -1} in G|g) echo $(( v << 30 )) ;; M|m) echo $(( v << 20 )) ;; *) echo "$1" ;; esac
+}
+
+# Guest RAM the published table covers (the sum of its sizes).
+table_bytes() {
+    local sum=0 e
+    [[ -s $W/dma-ranges ]] || { echo 0; return; }
+    for e in $(tr ',' ' ' < "$W/dma-ranges"); do sum=$(( sum + 0x${e##*:} )); done
+    echo "$sum"
+}
+
+# D12: the device may raise CAP_SYS_ADMIN only around GET_SURFACE_PHYS_ATTR. It gets
+# the capability as a file capability, permitted but not effective, on a copy of the
+# binary in the state directory; the process runs as the user throughout and the build
+# tree keeps an unprivileged binary. Prints the copy's path.
+privileged_server() {
+    local copy=$W/vfio-user-nvgpu
+    if ! cmp -s "$SERVER" "$copy" || ! getcap "$copy" | grep -q cap_sys_admin; then
+        install -m 0755 "$SERVER" "$copy"
+        sudo -n setcap cap_sys_admin+p "$copy" >&2 || error "sudo -n setcap cap_sys_admin+p $copy failed"
+    fi
+    getcap "$copy" | grep -q 'cap_sys_admin=p' || error "$copy lacks cap_sys_admin=p"
+    echo "$copy"
+}
+
+# Install the device's DMA table in the guest (caraxes_dma_range) before nvidia binds.
+# Reloads the module only when the table changed; then nvidia is unloaded first and
+# the device gets a function-level reset, so that the next modprobe starts clean.
+dma_load() {
+    if [[ ${CARAXES_GUEST_DMA_GPA:-0} == 1 ]]; then
+        [[ -s $W/dma-ranges ]] || error "GPA guest mode has no registered RAM table"
+        do_ssh 'test ! -d /sys/module/caraxes_dma_range' ||
+            error "GPA guest mode requires caraxes_dma_range to be absent; use a fresh guest boot without the helper"
+        echo "dma: guest uses GPA; host shadow maps translate registered RAM (no guest helper)"
+        return 0
+    fi
+    [[ -s $W/dma-ranges ]] || return 0
+    local ranges pool lo hi
+    ranges=$(cat "$W/dma-ranges")
+    # With 64-bit host IOVAs (every entry at or above 2^40), the guest's sysmem flush
+    # buffer, which must sit below 2^40 and is bounced through swiotlb, needs the pool
+    # aliased low (dmamap.rs `with_alias`, docs/caraxes/memory-model.md §2).
+    if grep -qE ':[0-9a-f]{11,}:' "$W/dma-ranges"; then
+        pool=$(do_ssh "sudo journalctl -k -b | grep -o 'software IO TLB: mapped \[mem 0x[0-9a-f]*-0x[0-9a-f]*\]' | tail -n 1")
+        [[ $pool =~ 0x([0-9a-f]+)-0x([0-9a-f]+) ]] || error "no swiotlb pool in the guest's kernel log"
+        lo=${BASH_REMATCH[1]} hi=${BASH_REMATCH[2]}
+        ranges=$("$SERVER" --dma-table-alias "$W/dma-ranges" "$lo" "$(printf %x $(( 0x$hi - 0x$lo )))") \
+            || error "cannot alias the swiotlb pool $pool"
+        echo "dma table: swiotlb pool [0x$lo, 0x$hi) aliased below 2^40"
+    fi
+    # The device reads this at the reset below and translates the alias (its 2 MiB
+    # rounding holds ordinary guest pages too) to the same registered pages (memory-model.md
+    # §2, "The alias in the device"). Renamed into place, so it never reads half a table.
+    echo "$ranges" > "$W/dma-ranges.guest.tmp" && mv "$W/dma-ranges.guest.tmp" "$W/dma-ranges.guest"
+    if ! do_ssh 'test -f caraxes_dma_range/caraxes_dma_range.ko'; then
+        tar -C "$LEA_ROOT/guest-module" -cf - caraxes_dma_range | do_ssh 'rm -rf caraxes_dma_range && tar xf - && make -C caraxes_dma_range >/dev/null'
+    fi
+    do_ssh "P=/sys/module/caraxes_dma_range/parameters
+        if [ -r \$P/ranges ] && [ \"\$(cat \$P/ranges)\" = '$ranges' ]; then echo \"dma table: installed (\$(cat \$P/status))\"; exit 0; fi
+        $UNLOAD; unload nvidia_uvm nvidia caraxes_dma_range
+        sudo insmod caraxes_dma_range/caraxes_dma_range.ko ranges='$ranges' || exit 1
+        for dev in /sys/bus/pci/devices/*; do [ \"\$(cat \$dev/vendor)\" = 0x10de ] && echo 1 | sudo tee \$dev/reset >/dev/null; done
+        echo \"dma table: loaded (\$(cat \$P/status))\"; sudo dmesg | grep caraxes_dma_range | tail -n 8"
+}
+
+down() {
+    # Stop the VM first; the server then sees the socket close, prints its access
+    # summary into gpu.log and exits on its own. Kill it only if it does not.
+    if alive "$W/ch.pid"; then kill "$(cat "$W/ch.pid")" 2>/dev/null || true; fi
+    for _ in $(seq 50); do alive "$W/gpu.pid" || break; sleep 0.1; done
+    if alive "$W/gpu.pid"; then kill "$(cat "$W/gpu.pid")" 2>/dev/null || true; fi
+    if alive "$W/input.pid"; then kill "$(cat "$W/input.pid")" 2>/dev/null || true; fi
+    # This VM's games writer lock (CARAXES_GAMES_DISK_RW), whatever base it was for.
+    local l lvm
+    for l in "$CARAXES_STORE"/locks/games-*.writer; do
+        [[ -f $l ]] || continue
+        read -r lvm _ < "$l" || true
+        [[ $lvm == "$VM" ]] && rm -f "$l"
+    done
+    rm -f "$W/ch.pid" "$W/gpu.pid" "$W/input.pid"
+    echo "stopped"
+}
+
+# The virtio-input backend (CARAXES_INPUT, see the header): one vhost-user-input per VM
+# start, serving exactly one connection, like the GPU server.
+input_up() {
+    local bin=${CARAXES_INPUT_SERVER:-}
+    [[ -n $bin ]] || bin=$(command -v vhost-user-input || true)
+    [[ -n $bin ]] || bin=/mnt/vmstore/leandro/build-refactor-thesis/target/release/vhost-user-input
+    [[ -x $bin ]] || error "vhost-user-input missing (CARAXES_INPUT_SERVER)"
+    local src
+    case $CARAXES_INPUT in
+        fifo) src=(--fifo "$W/input.fifo") ;;
+        evdev:*) src=(--evdev "${CARAXES_INPUT#evdev:}") ;;
+        *) error "CARAXES_INPUT must be fifo or evdev:/dev/input/eventN" ;;
+    esac
+    alive "$W/input.pid" && kill "$(cat "$W/input.pid")" 2>/dev/null
+    rm -f "$W/input.sock"
+    "$bin" --socket "$W/input.sock" "${src[@]}" --name "caraxes-$VM-pointer" > "$W/input.log" 2>&1 &
+    echo $! > "$W/input.pid"
+    for _ in $(seq 50); do [[ -S $W/input.sock ]] && break; sleep 0.1; done
+    [[ -S $W/input.sock ]] || { cat "$W/input.log"; error "vhost-user-input did not create $W/input.sock"; }
+}
+
+# Feed `type code value` lines to the guest's virtio-input device (CARAXES_INPUT=fifo), each
+# argument one line, for example a relative move right and a left click:
+#   tools/caraxes-vm.sh input '2 0 40' '0 0 0' '1 272 1' '0 0 0' '1 272 0' '0 0 0'
+input_send() {
+    [[ -p $W/input.fifo ]] || error "no $W/input.fifo (start the VM with CARAXES_INPUT=fifo)"
+    printf '%s\n' "$@" > "$W/input.fifo"
+}
+
+status() {
+    for p in gpu ch; do
+        if alive "$W/$p.pid"; then echo "$p: running (pid $(cat "$W/$p.pid"))"; else echo "$p: not running"; fi
+    done
+    [[ -f $W/ch.log ]] && { echo "-- ch.log"; tail -n 5 "$W/ch.log"; }
+    [[ -f $W/gpu.log ]] && { echo "-- gpu.log"; tail -n 5 "$W/gpu.log"; }
+    [[ -f $W/gpu-trace.log ]] && echo "-- trace: $(wc -l < "$W/gpu-trace.log") lines"
+}
+
+wait_ssh() {
+    for _ in $(seq "${1:-90}"); do
+        alive "$W/ch.pid" || { tail -n 20 "$W/ch.log"; error "VM exited"; }
+        do_ssh -o ConnectTimeout=2 true 2>/dev/null && { echo "ssh up at $IP"; return 0; }
+        sleep 2
+    done
+    error "no ssh at $IP"
+}
+
+# Reload the guest module against the device and keep both logs of that window.
+probe() {
+    local label=${1:-$(date +%Y%m%d-%H%M%S)} out
+    out=$W/probe-$label
+    mkdir -p "$out"
+    alive "$W/gpu.pid" || error "server not running"
+    wc -l < "$W/gpu-trace.log" > "$out/trace-start"
+    dma_load > "$out/dma.txt" 2>&1 || { cat "$out/dma.txt"; error "DMA table not installed"; }
+    # A function-level reset puts the device model back to its initial state, so
+    # every probe starts from the same point (the driver itself asks for a reset
+    # after a failed boot).
+    # nvidia_uvm (loaded by nvidia-smi or a CUDA program) holds nvidia: unload both, and
+    # stop when either refuses, instead of probing the old driver instance.
+    do_ssh "$UNLOAD"'; unload nvidia_uvm nvidia; for dev in /sys/bus/pci/devices/*; do [ "$(cat $dev/vendor)" = 0x10de ] && echo 1 | sudo tee $dev/reset >/dev/null; done; sudo dmesg -C; sudo modprobe nvidia; rc=$?; sleep 2; sudo dmesg | grep -v "NVRM: VM:"; echo "modprobe rc=$rc"; ls -la /dev/nvidia* 2>/dev/null; true' \
+        > "$out/guest-dmesg.txt" 2>&1 || { grep ERROR "$out/guest-dmesg.txt"; error "probe $label: the guest driver could not be unloaded"; }
+    tail -n +"$(( $(cat "$out/trace-start") + 1 ))" "$W/gpu-trace.log" > "$out/device-trace.txt"
+    echo "probe $label: $(wc -l < "$out/device-trace.txt") device accesses, guest log in $out/guest-dmesg.txt"
+    grep -E "RmInitAdapter|kgsp|Xid|modprobe rc" "$out/guest-dmesg.txt" | tail -n 8
+}
+
+# Register the GPU with nvidia-uvm from a small client and keep both logs of that window.
+uvm() {
+    local label=${1:-$(date +%Y%m%d-%H%M%S)} flags=${2:-0} out start
+    out=$W/uvm-$label
+    mkdir -p "$out"
+    alive "$W/gpu.pid" || error "server not running"
+    start=$(wc -l < "$W/gpu-trace.log")
+    dma_load > "$out/dma.txt" 2>&1 || { cat "$out/dma.txt"; error "DMA table not installed"; }
+    do_ssh 'cat > uvm-register.c' < "$LEA_ROOT/crates/vfio-user-nvgpu/guest/uvm-register.c"
+    # The guest image has no nvidia-modprobe, so the device nodes are made here; the
+    # client holds /dev/nvidia0 open itself (nv_gpu_ops.c:7671-7674).
+    do_ssh "cc -O2 -o uvm-register uvm-register.c && sudo dmesg -C
+        sudo rmmod nvidia-uvm 2>/dev/null; sudo modprobe nvidia-uvm uvm_debug_prints=1 ${CARAXES_UVM_PARAMS:-}
+        [ -e /dev/nvidiactl ] || sudo mknod -m 666 /dev/nvidiactl c 195 255
+        [ -e /dev/nvidia0 ] || sudo mknod -m 666 /dev/nvidia0 c 195 0
+        sudo rm -f /dev/nvidia-uvm; sudo mknod -m 666 /dev/nvidia-uvm c \$(grep nvidia-uvm /proc/devices | cut -d' ' -f1) 0
+        timeout 120 ./uvm-register --flags $flags; echo \"uvm-register rc=\$?\"
+        sudo dmesg | grep -vE 'NVRM: (VM:|ioctl)'" > "$out/guest.txt" 2>&1 || true
+    tail -n +"$(( start + 1 ))" "$W/gpu-trace.log" > "$out/device-trace.txt"
+    echo "uvm $label: $(grep -c 'pushbuffer va' "$out/device-trace.txt") pushes executed, logs in $out"
+    grep -E "UVM_|rc=|nvidia-uvm:" "$out/guest.txt" | head -n 12
+}
+
+# Guest-side test material (docs/caraxes/testing.md). Leandro-Test is read, never written.
+LEA_TEST=${CARAXES_LEANDRO_TEST:-$(cd "$LEA_ROOT/.." && pwd -P)/Leandro-Test}
+GUEST_TESTS=${CARAXES_GUEST_TESTS:-/home/leandro/caraxes-tests}
+# The CUDA driver-API header ships in the baked image's torch venv (nvidia/cu13); libcuda
+# is the selected driver's userspace in $CARAXES_GUEST_LIBDIR (610.57.04: /opt/nvrm/lib;
+# tools/lib/driver.sh). The image has no CUDA toolkit and no nvcc.
+GUEST_VENV=${CARAXES_GUEST_VENV:-/home/leandro/gpu/venv}
+# The probes that build without Vulkan, EGL or OpenCL headers (probe/Makefile targets).
+GUEST_PROBES=(nvprobe managedprobe hostregprobe oomprobe vrampress rmdirect ctrlping ioctlping)
+
+# Copy probe/, the guest scripts and the matrix library of Leandro-Test into the guest,
+# keeping Leandro-Test's own layout under $GUEST_TESTS/leandro-test so its scripts find
+# each other unmodified; add the Caraxes guest runner; build the C probes in the guest;
+# record what the guest has. Idempotent (rsync, make).
+sync_tests() {
+    [[ -f $LEA_TEST/probe/Makefile ]] || error "no Leandro-Test checkout at $LEA_TEST (CARAXES_LEANDRO_TEST)"
+    command -v rsync >/dev/null || error "rsync missing on the host"
+    do_ssh true || error "guest $IP not reachable (tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait)"
+    do_ssh 'command -v rsync >/dev/null' || error "rsync missing in the guest"
+    local rsh="ssh -i $SSH_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+    local py f targets
+    targets=$(printf 'bin/%s ' "${GUEST_PROBES[@]}")
+    local -a filt=(--include=/probe/ --include=/probe/Makefile --include=/probe/README.md
+        --include='/probe/c/***' --include='/probe/kernels/***' --include='/probe/matrix/***'
+        --include='/probe/suites/***' --include=/probe/run/ --include=/probe/run/matrix-guest.sh
+        --include=/probe/python/)
+    # GPU workloads only; the decoders (traceread, guestdiff, answerdiff, ...) run on the host.
+    for py in convburn convoom drmfd framecopy mmsweep mtprobe pinwin rlprobe streamprobe torchprobe vramcap; do
+        filt+=("--include=/probe/python/$py.py")
+    done
+    filt+=(--include=/scripts/ --include='/scripts/guest/***' --include=/scripts/lib/)
+    for f in config common matrix; do filt+=("--include=/scripts/lib/$f.sh"); done
+    filt+=(--include=/README.md --include=/LICENSE --exclude='__pycache__' --exclude='*')
+    # Leandro-Test has no lib/ and no DRIVER_VERSION; both are added below and kept by
+    # rsync --delete because excluded paths are left alone on the receiving side.
+    do_ssh "mkdir -p $GUEST_TESTS/leandro-test $GUEST_TESTS/caraxes $GUEST_TESTS/out && ln -sfn leandro-test/probe $GUEST_TESTS/probe"
+    rsync -a --delete -e "$rsh" "${filt[@]}" "$LEA_TEST/" "leandro@$IP:$GUEST_TESTS/leandro-test/"
+    # The matrix payload reads DRIVER_VERSION from its own root (probe/run/matrix-guest.sh):
+    # the selected driver's version (tools/lib/driver.sh), DRIVER_VERSION's by default.
+    printf '%s\n' "$CARAXES_DRIVER_VERSION" | do_ssh "cat > $GUEST_TESTS/leandro-test/DRIVER_VERSION"
+    rsync -a -e "$rsh" "$LEA_ROOT/tools/caraxes-guest-tests.sh" "leandro@$IP:$GUEST_TESTS/caraxes/run-tests.sh"
+    # Where the guest runner finds this driver's nvidia-smi and libraries.
+    printf '# SPDX-License-Identifier: MIT\nCARAXES_GUEST_LIBDIR=%s\nCARAXES_GUEST_SMI=%s\n' \
+        "$CARAXES_GUEST_LIBDIR" "$CARAXES_GUEST_SMI" | do_ssh "cat > $GUEST_TESTS/caraxes/driver.env"
+    # The v1 tracer, where probe/run/matrix-guest.sh looks for it; the gates re-run a
+    # failed test under it. Host-built (it needs GLIBC 2.34, the guest has 2.39).
+    local tracer=$LEA_ROOT/target/release/libnvrm_trace.so
+    if [[ -f $tracer ]]; then
+        do_ssh "mkdir -p $GUEST_TESTS/leandro-test/lib"
+        rsync -a -e "$rsh" "$tracer" "leandro@$IP:$GUEST_TESTS/leandro-test/lib/libnvrm_trace.so"
+    else
+        echo "note: $tracer missing (cargo build --release -p nvrm-trace); failed tests get no RM trace"
+    fi
+    local lt_rev
+    lt_rev=$(GIT_OPTIONAL_LOCKS=0 git -C "$LEA_TEST" describe --always --dirty --abbrev=12 2>/dev/null || echo unknown)
+    # Build in the guest: its glibc and its libcuda, not the host's (v1 lea_guest_cc).
+    do_ssh "set -e; cd $GUEST_TESTS
+        cuda=\$(dirname \$(dirname \$(ls $GUEST_VENV/lib/python3*/site-packages/nvidia/cu*/include/cuda.h | head -1)))
+        make -s -C leandro-test/probe CUDA_HOME=\$cuda LEANDRO=/nonexistent \
+            CUDA_LDLIBS='-L$CARAXES_GUEST_LIBDIR -lcuda' $targets > out/build.log 2>&1 \
+            || { tail -20 out/build.log; exit 1; }
+        {
+            echo \"# SPDX-License-Identifier: MIT\"
+            echo \"# caraxes-tests sync, \$(date -Iseconds)\"
+            echo \"leandro-test $lt_rev (from $LEA_TEST)\"
+            echo \"caraxes $(git -C "$LEA_ROOT" describe --always --dirty --abbrev=12 2>/dev/null)\"
+            echo \"kernel \$(uname -r); \$(. /etc/os-release; echo \$PRETTY_NAME)\"
+            echo \"nvidia.ko \$(sed -n 's/.*Kernel Module for x86_64 *\([0-9.]*\).*/\1/p' /proc/driver/nvidia/version 2>/dev/null)\"
+            echo \"libcuda \$(readlink $CARAXES_GUEST_LIBDIR/libcuda.so.1)\"
+            echo \"cuda.h \$cuda/include/cuda.h CUDA_VERSION \$(sed -n 's/^#define CUDA_VERSION //p' \$cuda/include/cuda.h)\"
+            echo \"gcc \$(gcc -dumpfullversion); python \$(python3 -V | cut -d' ' -f2)\"
+            echo \"venv $GUEST_VENV: \$($GUEST_VENV/bin/pip list 2>/dev/null | awk '/^(torch|numpy|triton|cupy|cudf|cuml|nvidia-cuda-runtime|nvidia-cudnn)/{printf \"%s=%s \", \$1, \$2}')\"
+            for t in nvcc ffmpeg strace cuda-gdb vulkaninfo clinfo glxinfo; do
+                printf '%s %s\n' \$t \"\$(command -v \$t || echo missing)\"
+            done
+            echo \"built: ${GUEST_PROBES[*]}\"
+        } > SYNC.txt
+        cat SYNC.txt"
+    echo "synced into $IP:$GUEST_TESTS"
+}
+
+case ${1:-} in
+    up) up ;;
+    sync-tests) sync_tests ;;
+    probe) probe "${2:-}" ;;
+    uvm) uvm "${2:-}" "${3:-}" ;;
+    dma) dma_load ;;
+    down) down ;;
+    status) status ;;
+    wait) wait_ssh "${2:-90}" ;;
+    ssh) shift; do_ssh "$@" ;;
+    input) shift; input_send "$@" ;;
+    serial) tail -n "${2:-40}" "$W/serial.log" ;;
+    name) [[ -x $SERVER ]] || error "$SERVER missing: cargo build --release -p vfio-user-nvgpu"
+          "$SERVER" --print-name "${IDENTITY[@]}" ;;
+    *) sed -n '5,/^set -euo/p' "$0" | sed '$d'; exit 1 ;;
+esac
