@@ -5,7 +5,7 @@ The working record of VFIO Leandro (Leandro v2, code name Caraxes), started
 2026-09-23: what was found in source, what was measured on the host, the decisions
 taken, the experiment ladder and the status log. The entry points are the
 [repository README](../../README.md), the overview of both architectures in
-[LEANDRO.md](../LEANDRO.md), the [wiki](../wiki/README.md) and the
+[leandro.md](../leandro.md), the [wiki](../wiki/README.md) and the
 [research notes](../research/README.md); this directory holds the long form behind them.
 
 ## Goal
@@ -42,7 +42,7 @@ Short measured trials established the following:
   performance, long-term stability, hostile-tenant isolation or supported-alpha status.
 - Windows currently reaches Code 43 diagnostics. Windows rendering has not passed.
 
-Commands and limits are in [quickstart.md](../caraxes/quickstart.md). Measurements and exact
+Commands and limits are in [quickstart.md](../vfio/quickstart.md). Measurements and exact
 test conditions are in
 [wayland-multiguest-2026-09-27.md](../research/wayland-multiguest-2026-09-27.md).
 
@@ -50,92 +50,92 @@ test conditions are in
 
 | File | Contents |
 |---|---|
-| [../LEANDRO.md](../LEANDRO.md) | The overview of VirtIO Leandro (v1) and VFIO Leandro (v2): the problem, the two architectures side by side, the driver as a virtual GPU sees it, the GSP and its emulation, PCI and BARs and memory, submission and interrupts, execution, display, identity, performance, verification, and the ranked weaknesses with their mitigation paths |
+| [../leandro.md](../leandro.md) | The overview of VirtIO Leandro (v1) and VFIO Leandro (v2): the problem, the two architectures side by side, the driver as a virtual GPU sees it, the GSP and its emulation, PCI and BARs and memory, submission and interrupts, execution, display, identity, performance, verification, and the ranked weaknesses with their mitigation paths |
 | [../wiki/](../wiki/README.md) | One page per concept LEANDRO.md names (29 pages and an index: the RM, the GSP, the BARs, the memory model, submission, execution, display, video engines, identity, performance, verification, captured cards, contributing a capture, glossary), driver references by path and function, links to the research notes and to this directory |
 | [../research/](../research/README.md) | The research knowledge base: one short note per topic (driver structure, GSP surface, transport, RPCs/events/classes, ABI baseline, identity and costume, feature families, memory model, windows and traps, isolation and Xids, performance, methods, Blackwell and Hopper), bullets with evidence, 615.71.09 only; this directory stays the detailed working record |
-| [quickstart.md](../caraxes/quickstart.md) | Build, prepare the guest, run and verify the current state (user documentation) |
-| [architecture.md](../caraxes/architecture.md) | Components, data paths, what is version-bound, differences from Leandro v1, the milestone ladder (user documentation) |
+| [quickstart.md](../vfio/quickstart.md) | Build, prepare the guest, run and verify the current state (user documentation) |
+| [architecture.md](../vfio/architecture.md) | Components, data paths, what is version-bound, differences from Leandro v1, the milestone ladder (user documentation) |
 | [environment.md](caraxes-environment-2026-09-23.md) | Host, driver, tooling, vendor checkouts and the reference dumps of the real card |
-| [driver-modes.md](../caraxes/driver-modes.md) | How the stock driver picks its runtime variant; why the vGPU-VF shortcut is dead on Turing; why GSP-client is the only path |
-| [init-map.md](../caraxes/init-map.md) | The concrete path from PCI enumeration to the first meaningful GSP RPC, with file:line anchors |
-| [gsp-boot-turing.md](../caraxes/gsp-boot-turing.md) | Every register the driver touches to boot GSP-RM on TU106, in order, with expected values (source survey) |
-| [gsp-boot-blackwell.md](../caraxes/gsp-boot-blackwell.md) | The same for GB206 with a 610.57.04 guest: the FSP Chain-of-Trust boot (FSP boot-complete scratch, NVDM/MCTP messages over the FSP EMEM queue, the COT payload and GSP_FMC_BOOT_PARAMS, the WPR layout ACR fills, target-mask and lockdown release), every register in order with the GB206 HAL and header, and what `src/chip/boot_fsp.rs` answers (source survey) |
+| [driver-modes.md](../vfio/driver-modes.md) | How the stock driver picks its runtime variant; why the vGPU-VF shortcut is dead on Turing; why GSP-client is the only path |
+| [init-map.md](../vfio/init-map.md) | The concrete path from PCI enumeration to the first meaningful GSP RPC, with file:line anchors |
+| [gsp-boot-turing.md](../vfio/gsp-boot-turing.md) | Every register the driver touches to boot GSP-RM on TU106, in order, with expected values (source survey) |
+| [gsp-boot-blackwell.md](../vfio/gsp-boot-blackwell.md) | The same for GB206 with a 610.57.04 guest: the FSP Chain-of-Trust boot (FSP boot-complete scratch, NVDM/MCTP messages over the FSP EMEM queue, the COT payload and GSP_FMC_BOOT_PARAMS, the WPR layout ACR fills, target-mask and lockdown release), every register in order with the GB206 HAL and header, and what `src/chip/boot_fsp.rs` answers (source survey) |
 | [gsp-rpc-protocol.md](caraxes-gsp-rpc-protocol-610.md) | Message-queue memory layout, checksums, sequence rules, RPC headers, init handshake, alloc/control serialization (source survey) |
-| [kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md) | What the kernel RM touches directly besides GSP boot: config mirror, BAR2/PRAMIN, interrupt tree, TLB invalidate, timer, MSI, self-tests (source survey) |
-| [registers-turing.md](../caraxes/registers-turing.md) | Consolidated BAR0 register map the emulator must answer, by phase |
-| [leandro-reuse.md](../caraxes/leandro-reuse.md) | What in crates/vhost-user-nvrm and nvrm-abi is reusable for a GSP-RPC front end, and what breaks (source survey) |
-| [vfio-user.md](../caraxes/vfio-user.md) | Protocol facts that matter, Cloud Hypervisor and QEMU client behaviour, rust-vmm server API, memory-sharing requirement |
-| [identity-profile.md](../caraxes/identity-profile.md) | How "Leandro VFIO RTX 2070-4G" is presented from Leandro's existing VRAM profile policy, and which v1 rewrites it replaces |
-| [vbios-synthesis.md](../caraxes/vbios-synthesis.md) | What the kernel RM needs from the VBIOS and the layout of the synthetic image `caraxes/tools/synth-vbios.py` builds (subagent report) |
-| [other-architectures.md](../caraxes/other-architectures.md) | GSP boot path and RPC API on Ampere, Ada, Hopper, Blackwell; VF front end; API stability (subagent survey, parked idea P2) |
-| [lab-blackwell.md](../caraxes/lab-blackwell.md) | Operator checklist for the Blackwell lab capture (`caraxes/tools/lab-capture.sh`): prerequisites, commands, what needs sudo, what to bring back to `caraxes/reference/<chip>/`, what not to do, the part-2 ABI check per driver version, and what each captured item feeds in the Blackwell identity work |
-| [fb-model.md](../caraxes/fb-model.md) | The framebuffer model for milestone 1: PRAMIN and BAR2 paths, the GMMU walk for BAR3, FB layout from the WPR meta, region table, options for later (subagent report) |
+| [kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md) | What the kernel RM touches directly besides GSP boot: config mirror, BAR2/PRAMIN, interrupt tree, TLB invalidate, timer, MSI, self-tests (source survey) |
+| [registers-turing.md](../vfio/registers-turing.md) | Consolidated BAR0 register map the emulator must answer, by phase |
+| [leandro-reuse.md](../vfio/leandro-reuse.md) | What in crates/vhost-user-nvrm and nvrm-abi is reusable for a GSP-RPC front end, and what breaks (source survey) |
+| [vfio-user.md](../vfio/vfio-user.md) | Protocol facts that matter, Cloud Hypervisor and QEMU client behaviour, rust-vmm server API, memory-sharing requirement |
+| [identity-profile.md](../vfio/identity-profile.md) | How "Leandro VFIO RTX 2070-4G" is presented from Leandro's existing VRAM profile policy, and which v1 rewrites it replaces |
+| [vbios-synthesis.md](../vfio/vbios-synthesis.md) | What the kernel RM needs from the VBIOS and the layout of the synthetic image `caraxes/tools/synth-vbios.py` builds (subagent report) |
+| [other-architectures.md](../vfio/other-architectures.md) | GSP boot path and RPC API on Ampere, Ada, Hopper, Blackwell; VF front end; API stability (subagent survey, parked idea P2) |
+| [lab-blackwell.md](../vfio/lab-blackwell.md) | Operator checklist for the Blackwell lab capture (`caraxes/tools/lab-capture.sh`): prerequisites, commands, what needs sudo, what to bring back to `caraxes/reference/<chip>/`, what not to do, the part-2 ABI check per driver version, and what each captured item feeds in the Blackwell identity work |
+| [fb-model.md](../vfio/fb-model.md) | The framebuffer model for milestone 1: PRAMIN and BAR2 paths, the GMMU walk for BAR3, FB layout from the WPR meta, region table, options for later (subagent report) |
 | [gsp-abi-610.md](caraxes-gsp-abi-610.md) | Compiled sizes and offsets of the GSP message-queue and RPC structures for 610.57.04 (`caraxes/tools/gsp-abi-sizes.sh`), what the kernel reads from `GspStaticConfigInfo`, the receive-side checks (subagent report) |
 | [phase5-rpcs.md](caraxes-phase5-rpcs-610.md) | Ordered inventory of the 98 RPCs after `GET_GSP_STATIC_INFO` up to `RmInitAdapter succeeded!`, plus `nvidia-smi`, with an answer source per RPC and the five hardest (subagent report) |
-| [passthrough-procedure.md](../caraxes/passthrough-procedure.md) | The prepared procedure for R1/R3 (SSH/tmux, unbind, vfio-pci, QEMU trace, recovery, watchdog), with the verified host preconditions and blockers (subagent report) |
-| [fifo-device-info.md](../caraxes/fifo-device-info.md) | The FIFO device-info table for TU106: field semantics, engine descriptors, host-derived and synthesized values (subagent report) |
-| [cuda-path.md](../caraxes/cuda-path.md) | Design for CUDA on the stock driver: what nvidia-uvm needs, the first context's RM objects, the execution model (identity-mapped VRAM plus host-created channels), the guest-DMA versus host-IOVA problem, the E5 ladder (subagent report) |
-| [host-facts.md](../caraxes/host-facts.md) | Read-only host facts H1-H8 and the VRAM reservation experiment: IOMMU domain DMA-FQ, BAR1 256 MiB fixed, fixed-address contiguous VRAM up to 5 GiB without privileges, the reservation rule (subagent report) |
-| [uvm.md](../caraxes/uvm.md) | What nvidia-uvm sends at registration, the channel and copy-engine emulation, the HMM condition, what blocks E5b (subagent report) |
-| [sysmem-iova.md](../caraxes/sysmem-iova.md) | Measured: one host OS descriptor of guest RAM gets one contiguous IOVA range; the guest-side `dma_range_map` module as the temporary aid (D13); what needs the operator's word (subagent report) |
+| [passthrough-procedure.md](../vfio/passthrough-procedure.md) | The prepared procedure for R1/R3 (SSH/tmux, unbind, vfio-pci, QEMU trace, recovery, watchdog), with the verified host preconditions and blockers (subagent report) |
+| [fifo-device-info.md](../vfio/fifo-device-info.md) | The FIFO device-info table for TU106: field semantics, engine descriptors, host-derived and synthesized values (subagent report) |
+| [cuda-path.md](../vfio/cuda-path.md) | Design for CUDA on the stock driver: what nvidia-uvm needs, the first context's RM objects, the execution model (identity-mapped VRAM plus host-created channels), the guest-DMA versus host-IOVA problem, the E5 ladder (subagent report) |
+| [host-facts.md](../vfio/host-facts.md) | Read-only host facts H1-H8 and the VRAM reservation experiment: IOMMU domain DMA-FQ, BAR1 256 MiB fixed, fixed-address contiguous VRAM up to 5 GiB without privileges, the reservation rule (subagent report) |
+| [uvm.md](../vfio/uvm.md) | What nvidia-uvm sends at registration, the channel and copy-engine emulation, the HMM condition, what blocks E5b (subagent report) |
+| [sysmem-iova.md](../vfio/sysmem-iova.md) | Measured: one host OS descriptor of guest RAM gets one contiguous IOVA range; the guest-side `dma_range_map` module as the temporary aid (D13); what needs the operator's word (subagent report) |
 | [../../guest-module/caraxes_dma_range/README.md](../../guest-module/caraxes_dma_range/README.md) | The temporary guest aid (D13): parameters, validation rules, driver-core interplay, load order, what the device must produce and translate back, kernel-version notes (subagent report) |
 | [../../patches/ACPI-DMA.md](../../patches/ACPI-DMA.md) | The ACPI `_DMA` route to replace the guest module (P8): mechanism, Cloud Hypervisor patch 0004 with its AML bytes, the x86 Linux draft, the DMA_MAP-before-DSDT ordering problem and its fix, test plan, upstreaming notes (subagent report) |
-| [memory-model.md](../caraxes/memory-model.md) | E5b part 1: guest FB addresses inside a fixed host VRAM reservation, guest RAM registered as host OS descriptors, the IOVA table for `caraxes_dma_range`, the device-side translation, privilege and teardown; §7 the shadow's host RM calls (gather descriptors for scattered sysmem, whole-region frees, the region free list, the fail-closed argument, measurements) |
-| [host-exec.md](../caraxes/host-exec.md) | E5b core: the standalone host-execution primitive ([caraxes/tools/host-exec.rs](../../caraxes/tools/host-exec.rs)) that binds a host channel to a page directory the client built in reserved VRAM and proves the physical GPU walks it (semaphore release and a CE VRAM->sysmem copy verified); the part-2 device wiring spec per guest event; measured status codes and refusals (subagent report) |
-| [execution.md](../caraxes/execution.md) | E5b part 2: execution on the physical GPU in the device. The VRAM-backed `FbStore` (option C) with BAR1 windows and the write-combine flush finding; the mirror objects (VA spaces incl. the replayed shared-management form, TSGs, channels, CE objects, doorbell, non-stall events, TLB invalidates); teardown; the two execution walls (the CE first-launch stall, the GR context on a host channel) with the measured contained Xids; the P7 progress-gated interrupt design (subagent report) |
-| [dma-routes.md](../caraxes/dma-routes.md) | Guest DMA addressing: the matrix of every route (module, ACPI `_DMA`, shadow page tables, host-side tricks) against what each one patches; why the host side cannot match; the shadowing design that needs no guest change (operator's question 2026-09-23) |
-| [host-gr.md](../caraxes/host-gr.md) | Analysis (not measured) for the execution walls: PBENTRY cause (stale write-combined BAR1 data, confirmed on vm2), the CE-write-into-reservation stall as compressible PTE kind over COMPR-NONE backing, the server-reserved PDE mechanism for a host-built GR context, the guest's exact kernel bytes and QMD for a replay; the supervised test matrix (subagent report) |
-| [exec-formats.md](../caraxes/exec-formats.md) | Formats behind the execution walls, from the public Turing manuals, RM and nouveau: every PBDMA INTR_0 cause (the recorded a2 Xid 32 is DEVICE, the UVM SW method, not PBENTRY) and the mirror doorbell checklist; GMMU v2 entry layouts, dual-PDE precedence and 20 divergences of the `fb.rs` walker; the RM flush/invalidate sequence after BAR writes; server-reserved PDEs, who maps the GR context buffers in GSP-client mode, and why a host-built context on a replayed VA space cannot be reached through the guest root (subagent report) |
+| [memory-model.md](../vfio/memory-model.md) | E5b part 1: guest FB addresses inside a fixed host VRAM reservation, guest RAM registered as host OS descriptors, the IOVA table for `caraxes_dma_range`, the device-side translation, privilege and teardown; §7 the shadow's host RM calls (gather descriptors for scattered sysmem, whole-region frees, the region free list, the fail-closed argument, measurements) |
+| [host-exec.md](../vfio/host-exec.md) | E5b core: the standalone host-execution primitive ([caraxes/tools/host-exec.rs](../../caraxes/tools/host-exec.rs)) that binds a host channel to a page directory the client built in reserved VRAM and proves the physical GPU walks it (semaphore release and a CE VRAM->sysmem copy verified); the part-2 device wiring spec per guest event; measured status codes and refusals (subagent report) |
+| [execution.md](../vfio/execution.md) | E5b part 2: execution on the physical GPU in the device. The VRAM-backed `FbStore` (option C) with BAR1 windows and the write-combine flush finding; the mirror objects (VA spaces incl. the replayed shared-management form, TSGs, channels, CE objects, doorbell, non-stall events, TLB invalidates); teardown; the two execution walls (the CE first-launch stall, the GR context on a host channel) with the measured contained Xids; the P7 progress-gated interrupt design (subagent report) |
+| [dma-routes.md](../vfio/dma-routes.md) | Guest DMA addressing: the matrix of every route (module, ACPI `_DMA`, shadow page tables, host-side tricks) against what each one patches; why the host side cannot match; the shadowing design that needs no guest change (operator's question 2026-09-23) |
+| [host-gr.md](../vfio/host-gr.md) | Analysis (not measured) for the execution walls: PBENTRY cause (stale write-combined BAR1 data, confirmed on vm2), the CE-write-into-reservation stall as compressible PTE kind over COMPR-NONE backing, the server-reserved PDE mechanism for a host-built GR context, the guest's exact kernel bytes and QMD for a replay; the supervised test matrix (subagent report) |
+| [exec-formats.md](../vfio/exec-formats.md) | Formats behind the execution walls, from the public Turing manuals, RM and nouveau: every PBDMA INTR_0 cause (the recorded a2 Xid 32 is DEVICE, the UVM SW method, not PBENTRY) and the mirror doorbell checklist; GMMU v2 entry layouts, dual-PDE precedence and 20 divergences of the `fb.rs` walker; the RM flush/invalidate sequence after BAR writes; server-reserved PDEs, who maps the GR context buffers in GSP-client mode, and why a host-built context on a replayed VA space cannot be reached through the guest root (subagent report) |
 | [briefing-display-nova.md](caraxes-briefing-display-nova-2026-09-23.md) | The operator's side assignment of 2026-09-23 evening: DisplayPort sink, NVIDIA display adapter, Nova-core compatibility and present backend as four packages with gates D0-D6 and N0-N4 (operator's document, condensed verbatim) |
-| [nova.md](../caraxes/nova.md) | Package C of the side assignment: nova-core (Linux v7.2 `8d3ae59288f1`, firmware 570.144 from linux-firmware `20260916`) against the device. What the TU106 probe reads and waits for, 15 differences (VBIOS signature and app id, r570 element framing, the CPU sequencer, static-info layout, unload, re-probe), the r570.144-to-610 ABI diff with the size of a `ver/v570.rs`, the guest recipe, gates N0-N4 and 5-7.5 agent-days (subagent report) |
+| [nova.md](../vfio/nova.md) | Package C of the side assignment: nova-core (Linux v7.2 `8d3ae59288f1`, firmware 570.144 from linux-firmware `20260916`) against the device. What the TU106 probe reads and waits for, 15 differences (VBIOS signature and app id, r570 element framing, the CPU sequencer, static-info layout, unload, re-probe), the r570.144-to-610 ABI diff with the size of a `ver/v570.rs`, the guest recipe, gates N0-N4 and 5-7.5 agent-days (subagent report) |
 | [briefing-naming.md](caraxes-briefing-naming-2026-09-23.md) | The operator's naming/configuration refactor brief (platform, transport, personality, profile, backend; `Leandro <Transport> <Personality>-<Profile>`; backend never guest-visible; v1's 4Q and 1333MiB profiles kept) and the coordinator's plan for it |
-| [versatility.md](../caraxes/versatility.md) | The three axes after the D14 refactor (chip, board, driver version), where each fact lives, what stays hard-coded, how to add a chip or a driver version (subagent report) |
-| [nvml.md](../caraxes/nvml.md) | The controls `nvidia-smi` and `nvidia-smi -q` send, forwarded or synthesized, the `nvml` gate, the proposed minimal set |
+| [versatility.md](../vfio/versatility.md) | The three axes after the D14 refactor (chip, board, driver version), where each fact lives, what stays hard-coded, how to add a chip or a driver version (subagent report) |
+| [nvml.md](../vfio/nvml.md) | The controls `nvidia-smi` and `nvidia-smi -q` send, forwarded or synthesized, the `nvml` gate, the proposed minimal set |
 | [roadmap.md](caraxes-roadmap-2026-09-27.md) | Done, in progress, next and later, as of 2026-09-24 |
-| [testing.md](../caraxes/testing.md) | The Leandro v1 gates against the device: what `tools/caraxes-vm.sh sync-tests` copies from ../Leandro-Test into the guest, the `cuda`, `gpu`, `vdisplay` and `display` gates of `tools/caraxes-gate.sh`, the v1 verdict rules, the per-test results and the CUDA-path target list |
-| [cuda-lookahead.md](../caraxes/cuda-lookahead.md) | Checklist for the CUDA gate: every RPC, control and allocation the CUDA path sends to the device, per phase (cuInit to teardown), classified A-E (answered, forward, forward with translation, synthesize, needs execution) with trace and source evidence; the bookkeeping gaps in `channel.rs`; the minimal sets for cuInit/cuCtxCreate, for cuMemAlloc/cuMemcpy on the software copy engine, and for the kernel launch (subagent report) |
-| [display-path.md](../caraxes/display-path.md) | What the `vdisplay`/`display` gates need, what a display engine in the device would have to serve on Turing (C57x classes, RPCs, BAR0 pages, instance memory, notifiers), the GRID displayless HAL and its catches, the candidate routes with effort and risk, and the first experiments D0/D1 (subagent report) |
-| [display-connector.md](../caraxes/display-connector.md) | Route E cut to one emulated DVI-D single-link TMDS connector and one head, Wayland-first: the NV0073/RPC answers and EDID, how vblank and flip completion reach the guest on Turing (AWAKEN and `LAST_DATA`, NV9010, no DRM vblank), the device timer that paces flips, why v1 ran unthrottled under Wayland, scanout and de-tiling cost, phases A-D at 9-14 agent-days (operator's question 2026-09-23) |
-| [display-scaling.md](../caraxes/display-scaling.md) | Second display study: the connectors compared for an emulated link (DVI-D, HDMI, DP SST/MST, eDP, virtual), the guest-side limits vs the device-answered ones (IMP, caps page, DPCD), 4K144 arithmetic (DP HBR3 x4 plus DSC), multi-head (4 heads, 8 windows), NVENC and VRAM as the real limits, vGPU comparison, product view, phases E-H to 4 x 4K144 at 17-27 agent-days total (operator's question 2026-09-23) |
+| [testing.md](../vfio/testing.md) | The Leandro v1 gates against the device: what `tools/caraxes-vm.sh sync-tests` copies from ../Leandro-Test into the guest, the `cuda`, `gpu`, `vdisplay` and `display` gates of `tools/caraxes-gate.sh`, the v1 verdict rules, the per-test results and the CUDA-path target list |
+| [cuda-lookahead.md](../vfio/cuda-lookahead.md) | Checklist for the CUDA gate: every RPC, control and allocation the CUDA path sends to the device, per phase (cuInit to teardown), classified A-E (answered, forward, forward with translation, synthesize, needs execution) with trace and source evidence; the bookkeeping gaps in `channel.rs`; the minimal sets for cuInit/cuCtxCreate, for cuMemAlloc/cuMemcpy on the software copy engine, and for the kernel launch (subagent report) |
+| [display-path.md](../vfio/display-path.md) | What the `vdisplay`/`display` gates need, what a display engine in the device would have to serve on Turing (C57x classes, RPCs, BAR0 pages, instance memory, notifiers), the GRID displayless HAL and its catches, the candidate routes with effort and risk, and the first experiments D0/D1 (subagent report) |
+| [display-connector.md](../vfio/display-connector.md) | Route E cut to one emulated DVI-D single-link TMDS connector and one head, Wayland-first: the NV0073/RPC answers and EDID, how vblank and flip completion reach the guest on Turing (AWAKEN and `LAST_DATA`, NV9010, no DRM vblank), the device timer that paces flips, why v1 ran unthrottled under Wayland, scanout and de-tiling cost, phases A-D at 9-14 agent-days (operator's question 2026-09-23) |
+| [display-scaling.md](../vfio/display-scaling.md) | Second display study: the connectors compared for an emulated link (DVI-D, HDMI, DP SST/MST, eDP, virtual), the guest-side limits vs the device-answered ones (IMP, caps page, DPCD), 4K144 arithmetic (DP HBR3 x4 plus DSC), multi-head (4 heads, 8 windows), NVENC and VRAM as the real limits, vGPU comparison, product view, phases E-H to 4 x 4K144 at 17-27 agent-days total (operator's question 2026-09-23) |
 | [display-d0.md](caraxes-display-d0-2026-09-23.md) | D0 run on vm0: nvidia-modeset loads headless with zero display RPCs (confirmed on the whole trace, not just the run's own window); nvidia-drm fails to build against the guest kernel's DRM headers; Xorg untested, no NVIDIA X driver in the guest image; what D1 needs first |
-| [display-adapter.md](../caraxes/display-adapter.md) | Side package B: where DP AUX and every NV0073/NV5070/NVC370/NVC372 control on the DP connector, EDID, link, head and modeset paths terminates (local, GSP_RM_CONTROL, local plus internal control; none by MMIO), with ids, struct sizes and consumed reply fields; the SST EDID lifecycle and per-displayId state; class list and HAL selection; channel allocation, BAR0 pages, C57D/C57E method basics and the minimal decoder; the ordered phase A/B checklist to the first EDID read; gates D0-D6 per phase; the three riskiest ABI details |
-| [display-e.md](../caraxes/display-e.md) | Display phase E on vm0 (2026-09-24): the stock NVIDIA EGL/GL/Vulkan stack rendering on the physical GPU through the shadow GR path, Weston and GNOME on it, the display gate 11/11 with host execution; series E (e1-e31, reconstructed from its evidence) and series F: the classic demos (Weston glmark2 1804, vkcube 44 FPS), the per-frame trap table (Weston 157, Mutter about 670 traps per frame, mostly interrupt servicing; the doorbell ioeventfd removes the 3 doorbell traps and does not move Mutter), the stream stage (Sunshine kms + x264, Moonlight 25.9 FPS), the virtio-input pointer (`CARAXES_INPUT=fifo`), what the NVENC mirror would change |
-| [display-615.md](../caraxes/display-615.md) | The 615.71.09 guest's display path on vm0-615 (2026-09-24/25): the overlay with the host's 615 GL/EGL/Vulkan userspace and a rebuilt nvidia-drm.ko (the image's DKMS module needs drm_display_helper.ko, which the image lacks), the 615 display layouts in `ver/v615/display.rs`, the display gate 11/11, the per-frame trap tables against series C (Mutter 138.92 against 139.86, Weston 29.25 against 31.08), Q1's 615 half (DP_SET_WAR_FLAGS at plug and unplug, HDCP_CTRL at unplug, nothing unanswered) |
-| [display-ab.md](../caraxes/display-ab.md) | Display phases A and B on vm0 (D15): the display in the GSP role (`--display`; `src/display/`, `chips/tu106/display.toml`, the board's `[display]` connector, the `crates/dp-sink` sink behind an NV0073 AUX adapter); gate D3 passed (`card0-DP-1` connected, EDID byte-identical and edid-decode clean, 1080p60/720p60/1080p50, the over-budget 8K120 VIC pruned, no modeset); every display RPC/control in order with its answer and label (D2); the recorded AUX capture replaced the hand-written transcript; what phase C needs (core notifier, window completion, four modeset-path controls) |
+| [display-adapter.md](../vfio/display-adapter.md) | Side package B: where DP AUX and every NV0073/NV5070/NVC370/NVC372 control on the DP connector, EDID, link, head and modeset paths terminates (local, GSP_RM_CONTROL, local plus internal control; none by MMIO), with ids, struct sizes and consumed reply fields; the SST EDID lifecycle and per-displayId state; class list and HAL selection; channel allocation, BAR0 pages, C57D/C57E method basics and the minimal decoder; the ordered phase A/B checklist to the first EDID read; gates D0-D6 per phase; the three riskiest ABI details |
+| [display-e.md](../vfio/display-e.md) | Display phase E on vm0 (2026-09-24): the stock NVIDIA EGL/GL/Vulkan stack rendering on the physical GPU through the shadow GR path, Weston and GNOME on it, the display gate 11/11 with host execution; series E (e1-e31, reconstructed from its evidence) and series F: the classic demos (Weston glmark2 1804, vkcube 44 FPS), the per-frame trap table (Weston 157, Mutter about 670 traps per frame, mostly interrupt servicing; the doorbell ioeventfd removes the 3 doorbell traps and does not move Mutter), the stream stage (Sunshine kms + x264, Moonlight 25.9 FPS), the virtio-input pointer (`CARAXES_INPUT=fifo`), what the NVENC mirror would change |
+| [display-615.md](../vfio/display-615.md) | The 615.71.09 guest's display path on vm0-615 (2026-09-24/25): the overlay with the host's 615 GL/EGL/Vulkan userspace and a rebuilt nvidia-drm.ko (the image's DKMS module needs drm_display_helper.ko, which the image lacks), the 615 display layouts in `ver/v615/display.rs`, the display gate 11/11, the per-frame trap tables against series C (Mutter 138.92 against 139.86, Weston 29.25 against 31.08), Q1's 615 half (DP_SET_WAR_FLAGS at plug and unplug, HDCP_CTRL at unplug, nothing unanswered) |
+| [display-ab.md](../vfio/display-ab.md) | Display phases A and B on vm0 (D15): the display in the GSP role (`--display`; `src/display/`, `chips/tu106/display.toml`, the board's `[display]` connector, the `crates/dp-sink` sink behind an NV0073 AUX adapter); gate D3 passed (`card0-DP-1` connected, EDID byte-identical and edid-decode clean, 1080p60/720p60/1080p50, the over-budget 8K120 VIC pruned, no modeset); every display RPC/control in order with its answer and label (D2); the recorded AUX capture replaced the hand-written transcript; what phase C needs (core notifier, window completion, four modeset-path controls) |
 | [experiments.md](caraxes-experiments-2026-09-29.md) | The experiment ladder, starting with the smallest one, each with a falsifiable expectation |
 | [kickoff.md](caraxes-kickoff-2026-09-23.md) | The brief for the implementation sessions: rules, reading order, E0 step by step, run recipe, parked ideas |
-| [parallel.md](../caraxes/parallel.md) | P20, the parallelism proof: two reserving VMs in fixed slots run the cuda gate concurrently beside the desktop; isolation by construction and by pattern test, the host's scrub on free proven for the reservation, fail-closed teardown, the D11 refusal of a third VM; the BAR1 leak and deadlock found and fixed, and two open sysmem-path findings (mapping scale, the chunk-crossing hole) |
-| [mapping.md](../caraxes/mapping.md) | The mapping package (2026-09-24): incremental shadow walk with write-through table copies, coalesced RM maps with a per-device budget, resync on a worker thread with a doorbell barrier, IOVA = GPA + one offset and CE channels on the filtered shadow (the two P20 §8 fixes), the BAR aperture TLB, the doorbell and context-creation accounting (96k trapped BAR2 writes per cuCtxCreate), the CeUtils experiment (§9: the guest driver does not load without `RmDisableGlobalCeUtils=1`, keep the key) |
-| [nova-vgpu-upstream.md](../caraxes/nova-vgpu-upstream.md) | The upstream nova-core vGPU manager series (v2, 32 patches, 2026-09-14) read patch by patch against the device: plugin ABI and RPC discipline, VRAM/channel allocation, CeUtils scrubbing and fail-closed teardown, VMMU segment, FIFO engine table, VF routing, migration, logging; ranked actionable differences and a cross-check of the GSP message queues (subagent report, P19) |
-| [blackwell-gb206.md](../caraxes/blackwell-gb206.md) | The Blackwell lab capture (RTX 5060 Ti, GB206, driver 615.71.09, korngold, 2026-09-24, filed under `caraxes/reference/gb206/`) read item by item against TU106; the D14 work list for a GB206 identity with five draft chip tables under `chips/gb206/`; the 610.57.04 driver supports GB206 (gsp_ga10x firmware, boots GSP through FSP, no ROM parsing); 615.71.09 redesigns the CPU-GSP transport (queue v2 in registers, MCTP-framed elements, one GMCAPI init instead of the four init RPCs) and changes seven control structs; the 615 gsp-abi-sizes record; a nine-step N-gate plan of 27 to 39 days that stops at "driver up" without a Blackwell card here (subagent report) |
-| [guest-driver-versions.md](../caraxes/guest-driver-versions.md) | Other guest driver versions against the 610.57.04 device (2026-09-24, vm3): Ubuntu's recommended 595.91.07 stops at the first queue element (pre-610 element header) and comes up with three `CARAXES_GUEST_ABI=595` switches; 610.43.02 works as is; 615.71.09 stops at the status-queue link, with the captured GMCAPI_CMD_GSP_INIT; size table, version detection, D14 estimate (subagent report) |
-| [bar1-passthrough.md](../caraxes/bar1-passthrough.md) | P21: what the guest does with BAR1 (4-byte GPFIFO and GPPut writes at one traced layout, tables through BAR2), Cloud Hypervisor v53's sparse-area mechanics, the NVIDIA mmap rule and why an RM mapping fd is unsafe, the dma-buf export as the region descriptor, rejected candidates, target design H (private pool, guest pages remapped), prototype G behind `CARAXES_BAR1_PASSTHROUGH=1` with its checks, measurement plan and results (subagent report) |
-| [host-resources.md](../caraxes/host-resources.md) | The host VRAM floor (`CARAXES_HOST_VRAM_FLOOR_MIB`, default 768, fail closed, one gate for every host allocation and map), no retry storms on NO_MEMORY (no split, one attempt, back-off), the leak audit table (allocation, owner, freed when, counter) with five leaks fixed, and the soak line with `caraxes/tools/soak-watch.sh` (2026-09-25) |
-| [bar1-pool.md](../caraxes/bar1-pool.md) | P21 design H behind `CARAXES_BAR1_PASSTHROUGH=pool` (`CARAXES_BAR1_POOL_MIB`, default 64): a private pool below the carve-out, taken out of the guest's usable FB, backs guest BAR1 `[0, pool)` as one dma-buf sparse area; every page the guest maps there lives at its pool page in every device translation (FB store, shadow leaves, host USERD; `FakeFb::remap`), copied in at map and back at unmap; pages the GPU maps move only behind the idle-and-preempt barrier with a shadow re-sync, USERD pages and failed barriers are refused and retried (fail closed); isolation argument, measurement plan against the 1 MiB area (copy, rl, ppo, short-auto, P21 checks), unit tests (subagent report, not yet run on a VM) |
-| [ctx-create.md](../caraxes/ctx-create.md) | cuCtxCreate on vm3 (2026-09-25): where the time goes (the guest's setup, the 20 host channel builds, the tail; phases by trap class, builds by phase, the host RM calls), the §9 hold only for plans that add or change mappings (bar1-pool.md §9.1), the shadow built ahead of the first channel (`CARAXES_SHADOW_PREFETCH`), what was examined and not built and why, the numbers against the shared host's load |
-| [bar2-memfd.md](../caraxes/bar2-memfd.md) | D18's BAR2 line behind `CARAXES_BAR2_MEMFD=1`: region 3 as a sealed memfd with sparse areas around the trapped flush page; FB pages mapped through BAR2 live in the memfd (`FakeFb::backing`), synced at the RM's flush reads, MMU invalidates, BAR2 binds and GSP doorbells by a snapshot compare that writes back only the changed bytes and marks the shadow's walk-cache pages dirty; why soft-dirty, userfaultfd write-protect and mprotect on the device's mapping cannot see guest writes (KVM dirty logging would, with a VMM change); what stays trapped, the hazards, fail-closed setup, tests, measurement plan; measured 2026-09-25: 0 trapped BAR2 writes, cuCtxCreate 0.53 s, hangs together with the BAR1 pool (subagent report) |
-| [display-pacing.md](../caraxes/display-pacing.md) | Why GNOME flipped at 15-35 Hz on the 60 Hz display clock (2026-09-26): per-frame timeline from the invhold traces (tick exact, flips latch at the first tick, latch to next kick 20-54 ms), cause: about 23 trapped BAR2 flush reads per frame in the compositor commit path, each a full memfd sync (0.2-0.5 ms); fix: flush reads defer their sync to the next hand-over (invalidate, RPC or channel doorbell, 1 ms flush clock), `CARAXES_BAR2_MEMFD_DEFER_FLUSH`; the Sunshine side; what the GPU run must show |
-| [gsp-transport-615.md](../caraxes/gsp-transport-615.md) | The CPU-GSP transport of driver 615.71.09 from source (NV_ABI_STABLE): message queue v2 with the pointers in NV_PGSP_QUEUE_HEAD/TAIL(0) and MSGQ_HEAD/TAIL(0), the 24-byte MCTP-framed element without checksum or sequence number and what replaces them, GMCAPI and GMCAPI_CMD_GSP_INIT with its NVKV request and response key by key, the 615 boot arguments, what stays as in 610, the seven changed control structs and the reused id 0x20800A36, how the device tells the version, a 610 against 615 table for every structure the device touches, the device's v2 transport (`msgq::v2`, `gmcapi`, `ver::v615`, `CARAXES_GUEST_ABI=615`) and its tests, with the generated 615 gsp-abi-sizes tables (subagent report) |
+| [parallel.md](../vfio/parallel.md) | P20, the parallelism proof: two reserving VMs in fixed slots run the cuda gate concurrently beside the desktop; isolation by construction and by pattern test, the host's scrub on free proven for the reservation, fail-closed teardown, the D11 refusal of a third VM; the BAR1 leak and deadlock found and fixed, and two open sysmem-path findings (mapping scale, the chunk-crossing hole) |
+| [mapping.md](../vfio/mapping.md) | The mapping package (2026-09-24): incremental shadow walk with write-through table copies, coalesced RM maps with a per-device budget, resync on a worker thread with a doorbell barrier, IOVA = GPA + one offset and CE channels on the filtered shadow (the two P20 §8 fixes), the BAR aperture TLB, the doorbell and context-creation accounting (96k trapped BAR2 writes per cuCtxCreate), the CeUtils experiment (§9: the guest driver does not load without `RmDisableGlobalCeUtils=1`, keep the key) |
+| [nova-vgpu-upstream.md](../vfio/nova-vgpu-upstream.md) | The upstream nova-core vGPU manager series (v2, 32 patches, 2026-09-14) read patch by patch against the device: plugin ABI and RPC discipline, VRAM/channel allocation, CeUtils scrubbing and fail-closed teardown, VMMU segment, FIFO engine table, VF routing, migration, logging; ranked actionable differences and a cross-check of the GSP message queues (subagent report, P19) |
+| [blackwell-gb206.md](../vfio/blackwell-gb206.md) | The Blackwell lab capture (RTX 5060 Ti, GB206, driver 615.71.09, korngold, 2026-09-24, filed under `caraxes/reference/gb206/`) read item by item against TU106; the D14 work list for a GB206 identity with five draft chip tables under `chips/gb206/`; the 610.57.04 driver supports GB206 (gsp_ga10x firmware, boots GSP through FSP, no ROM parsing); 615.71.09 redesigns the CPU-GSP transport (queue v2 in registers, MCTP-framed elements, one GMCAPI init instead of the four init RPCs) and changes seven control structs; the 615 gsp-abi-sizes record; a nine-step N-gate plan of 27 to 39 days that stops at "driver up" without a Blackwell card here (subagent report) |
+| [guest-driver-versions.md](../vfio/guest-driver-versions.md) | Other guest driver versions against the 610.57.04 device (2026-09-24, vm3): Ubuntu's recommended 595.91.07 stops at the first queue element (pre-610 element header) and comes up with three `CARAXES_GUEST_ABI=595` switches; 610.43.02 works as is; 615.71.09 stops at the status-queue link, with the captured GMCAPI_CMD_GSP_INIT; size table, version detection, D14 estimate (subagent report) |
+| [bar1-passthrough.md](../vfio/bar1-passthrough.md) | P21: what the guest does with BAR1 (4-byte GPFIFO and GPPut writes at one traced layout, tables through BAR2), Cloud Hypervisor v53's sparse-area mechanics, the NVIDIA mmap rule and why an RM mapping fd is unsafe, the dma-buf export as the region descriptor, rejected candidates, target design H (private pool, guest pages remapped), prototype G behind `CARAXES_BAR1_PASSTHROUGH=1` with its checks, measurement plan and results (subagent report) |
+| [host-resources.md](../vfio/host-resources.md) | The host VRAM floor (`CARAXES_HOST_VRAM_FLOOR_MIB`, default 768, fail closed, one gate for every host allocation and map), no retry storms on NO_MEMORY (no split, one attempt, back-off), the leak audit table (allocation, owner, freed when, counter) with five leaks fixed, and the soak line with `caraxes/tools/soak-watch.sh` (2026-09-25) |
+| [bar1-pool.md](../vfio/bar1-pool.md) | P21 design H behind `CARAXES_BAR1_PASSTHROUGH=pool` (`CARAXES_BAR1_POOL_MIB`, default 64): a private pool below the carve-out, taken out of the guest's usable FB, backs guest BAR1 `[0, pool)` as one dma-buf sparse area; every page the guest maps there lives at its pool page in every device translation (FB store, shadow leaves, host USERD; `FakeFb::remap`), copied in at map and back at unmap; pages the GPU maps move only behind the idle-and-preempt barrier with a shadow re-sync, USERD pages and failed barriers are refused and retried (fail closed); isolation argument, measurement plan against the 1 MiB area (copy, rl, ppo, short-auto, P21 checks), unit tests (subagent report, not yet run on a VM) |
+| [ctx-create.md](../vfio/ctx-create.md) | cuCtxCreate on vm3 (2026-09-25): where the time goes (the guest's setup, the 20 host channel builds, the tail; phases by trap class, builds by phase, the host RM calls), the §9 hold only for plans that add or change mappings (bar1-pool.md §9.1), the shadow built ahead of the first channel (`CARAXES_SHADOW_PREFETCH`), what was examined and not built and why, the numbers against the shared host's load |
+| [bar2-memfd.md](../vfio/bar2-memfd.md) | D18's BAR2 line behind `CARAXES_BAR2_MEMFD=1`: region 3 as a sealed memfd with sparse areas around the trapped flush page; FB pages mapped through BAR2 live in the memfd (`FakeFb::backing`), synced at the RM's flush reads, MMU invalidates, BAR2 binds and GSP doorbells by a snapshot compare that writes back only the changed bytes and marks the shadow's walk-cache pages dirty; why soft-dirty, userfaultfd write-protect and mprotect on the device's mapping cannot see guest writes (KVM dirty logging would, with a VMM change); what stays trapped, the hazards, fail-closed setup, tests, measurement plan; measured 2026-09-25: 0 trapped BAR2 writes, cuCtxCreate 0.53 s, hangs together with the BAR1 pool (subagent report) |
+| [display-pacing.md](../vfio/display-pacing.md) | Why GNOME flipped at 15-35 Hz on the 60 Hz display clock (2026-09-26): per-frame timeline from the invhold traces (tick exact, flips latch at the first tick, latch to next kick 20-54 ms), cause: about 23 trapped BAR2 flush reads per frame in the compositor commit path, each a full memfd sync (0.2-0.5 ms); fix: flush reads defer their sync to the next hand-over (invalidate, RPC or channel doorbell, 1 ms flush clock), `CARAXES_BAR2_MEMFD_DEFER_FLUSH`; the Sunshine side; what the GPU run must show |
+| [gsp-transport-615.md](../vfio/gsp-transport-615.md) | The CPU-GSP transport of driver 615.71.09 from source (NV_ABI_STABLE): message queue v2 with the pointers in NV_PGSP_QUEUE_HEAD/TAIL(0) and MSGQ_HEAD/TAIL(0), the 24-byte MCTP-framed element without checksum or sequence number and what replaces them, GMCAPI and GMCAPI_CMD_GSP_INIT with its NVKV request and response key by key, the 615 boot arguments, what stays as in 610, the seven changed control structs and the reused id 0x20800A36, how the device tells the version, a 610 against 615 table for every structure the device touches, the device's v2 transport (`msgq::v2`, `gmcapi`, `ver::v615`, `CARAXES_GUEST_ABI=615`) and its tests, with the generated 615 gsp-abi-sizes tables (subagent report) |
 | [repo-split.md](caraxes-repo-split-2026-09-24.md) | The plan for separating v1 (Leandro) from Caraxes after the operator's 615 decision: inventory of every path and crate (v1-only, Caraxes-only, shared, with a corrections table for paths the fork no longer has), the port-back commits Leandro must receive (the rewritten vhost-user series, the P17 naming model, one nvrm-abi hunk), the shared-crate options with the recommendation B (shared crates stay in Leandro, Caraxes pins a Leandro commit as a git dependency), the step order that keeps both repositories building, the 615 switch placed in it, and eleven silent-failure risks with a command checklist (subagent report) |
-| [blackwell-gate.md](../caraxes/blackwell-gate.md) | The Blackwell N gate in pure emulation: the GB206 identity (`--board-data rtx5060ti`, `CARAXES_CHIP=gb206`), stages N0 (device) to N4 (first channel allocation), the predicted walls, preconditions and the exact vm3 launcher command; defined 2026-09-24, N0 to N4 passed on vm1 the same day (its section 4, experiments.md b4 to b8) and again on vm7 after the rig fix of 2026-09-25 (its section 5) |
-| [costume-5060.md](../caraxes/costume-5060.md) | The 5060 costume (`--board-data rtx5060ti-on-tu106`, `CARAXES_COSTUME=rtx5060ti`): the RTX 5060 Ti's PCI ids, BAR0 size and name on the TU106, whose boot registers, config layout, GSP boot, GMMU, classes, VBIOS and compute capability 7.5 stay true; the costume-or-truth table, every place in the 610 RM where the costume could be caught (the fixed XVE link offsets did catch the whole GB206 config space), and the vm1 check: nvml and cuda gates as on the 2070 identity, short kernel and rlprobe |
-| [costume-ladder.md](../caraxes/costume-ladder.md) | The costume ladder (`CARAXES_COSTUME=rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206`, `CARAXES_SM_VERSION`): chips presented over the executing TU106 as overlays on its (or GB206's) tables (`src/chip/derived.rs`, `chips/{tu104,ga106,ad106,gh100}`), ladder boards with `host_chip` and a class map for the mirror; per rung what is lied, what stays true, the first failure with its source line and the verdict; the pure-emulation baseline wall; the lesson which layers the identity can lie on |
-| [limits-mig-ecc-vgpu.md](../caraxes/limits-mig-ecc-vgpu.md) | The limits runs of 2026-09-25: ECC, MIG and vGPU modelled from the kernel source (`src/families/`, the GH100 rung and the new GA100 rung `chips/ga100`, `CARAXES_COSTUME=a100`) and driven by nvidia-smi in pure emulation; per command works / caught by X / breaks at Y with the source line; what each model needs for real execution; what stays impossible on this rig |
+| [blackwell-gate.md](../vfio/blackwell-gate.md) | The Blackwell N gate in pure emulation: the GB206 identity (`--board-data rtx5060ti`, `CARAXES_CHIP=gb206`), stages N0 (device) to N4 (first channel allocation), the predicted walls, preconditions and the exact vm3 launcher command; defined 2026-09-24, N0 to N4 passed on vm1 the same day (its section 4, experiments.md b4 to b8) and again on vm7 after the rig fix of 2026-09-25 (its section 5) |
+| [costume-5060.md](../vfio/costume-5060.md) | The 5060 costume (`--board-data rtx5060ti-on-tu106`, `CARAXES_COSTUME=rtx5060ti`): the RTX 5060 Ti's PCI ids, BAR0 size and name on the TU106, whose boot registers, config layout, GSP boot, GMMU, classes, VBIOS and compute capability 7.5 stay true; the costume-or-truth table, every place in the 610 RM where the costume could be caught (the fixed XVE link offsets did catch the whole GB206 config space), and the vm1 check: nvml and cuda gates as on the 2070 identity, short kernel and rlprobe |
+| [costume-ladder.md](../vfio/costume-ladder.md) | The costume ladder (`CARAXES_COSTUME=rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206`, `CARAXES_SM_VERSION`): chips presented over the executing TU106 as overlays on its (or GB206's) tables (`src/chip/derived.rs`, `chips/{tu104,ga106,ad106,gh100}`), ladder boards with `host_chip` and a class map for the mirror; per rung what is lied, what stays true, the first failure with its source line and the verdict; the pure-emulation baseline wall; the lesson which layers the identity can lie on |
+| [limits-mig-ecc-vgpu.md](../vfio/limits-mig-ecc-vgpu.md) | The limits runs of 2026-09-25: ECC, MIG and vGPU modelled from the kernel source (`src/families/`, the GH100 rung and the new GA100 rung `chips/ga100`, `CARAXES_COSTUME=a100`) and driven by nvidia-smi in pure emulation; per command works / caught by X / breaks at Y with the source line; what each model needs for real execution; what stays impossible on this rig |
 | [cutover-615.md](caraxes-cutover-615-2026-09-24.md) | The checklist for the host driver upgrade 610.57.04 to 615.71.09 (2026-09-24): the device's run-time host-ABI selection (`hostabi.rs`, `CARAXES_HOST_ABI`, the log line to look for), then in order the 610 closing benchmark and frozen binaries, the operator's upgrade checks, the 610 guest on the 615 host (nvml, cuda, display gates), the 615 guest once `ver/v615` lands (`CARAXES_DRIVER=615`), v1's wait for L615, rollback, open points |
-| [v1-615-image.md](../caraxes/v1-615-image.md) | The Leandro v1 guest image for 615.71.09 (`guest-v1-2026-09-24-615.71.09.qcow2`, made from the first v1 615 run's overlay without booting): what differs from the Caraxes 615 base image (guest nvidia modules blacklisted, `nvidia-modprobe` diverted, `nvidia-persistenced` masked, `/opt/nvrm` on the 615 system libraries), why not nix offline, `bench-v1vm.sh` taking v1's material from Leandro (`LEA_V1_ROOT`, `LEA_V1_BIN`, `NVRM`, driver selection, dry run), `LEA_MANAGED_COMPAT=1` as in the gpu gate, `v1-gates.sh`, the boot command |
-| [video-engines.md](../caraxes/video-engines.md) | NVENC and NVDEC through the mirror: protocol and layout, dated failure analysis, passing single-guest probes, and the 2026-09-27 two-guest Wayland concurrency checks; figure `figures/video-engine-mirror.svg` |
-| [sottr-stage.md](../caraxes/sottr-stage.md) | The SotTR stage (2026-09-24, roadmap item 2): vm4 as the game VM (3 GiB profile at slot 0, tap `caraxes3`, display configuration C, main 3cb33af device), the v1 Steam library as a thin overlay (`CARAXES_GAMES_DISK`, writer lock in the Caraxes store), the guest preparation of a fresh 610 overlay, Steam library registration and autostart, Sunshine kms, automatic Moonlight pairing and window, what is recorded and how it compares with v1's sottr-4q; plumbing test in pure emulation |
-| [gsp-surface.md](../caraxes/gsp-surface.md) | P23, the GSP surface of 610.57.04 from source: 829 of 1377 exported controls reach GSP, the device handles 171 with D9 provenance, the 658 unhandled sorted into five categories (pure chip data, host-forwardable, guest-state derived, needs modelling, never expected on TU106) with a recipe and estimate each, the 20 RPC functions and 41 events a GSP client uses, the top ten a Linux CUDA or display client hits next, what Windows and nova-core share; produced by `caraxes/tools/gsp-surface.py` (subagent report, 2026-09-24) |
-| [gsp-plan/](../caraxes/gsp-plan/README.md) | P23 implementation plans for the GSP surface on 615.71.09, one document per part of gsp-surface.md (index in gsp-plan/README.md): RPC functions (14 of 232 used by a 615 GSP client on TU106, 7 answered, `ALLOC_MEMORY` sent at every boot and refused), events (45, the device raises only POST_EVENT for hotplug), classes reaching GSP (143 on the wire, 48 on TU106), the boot exchange with teardown, suspend/resume and what `NV_ABI_STABLE` covers; category B (70 host-forwardable controls: 30 real forwards, 11 device-owned, 12 guest-object, 13 refused, 4 never sent) and C (31 guest-state controls plus 12 from B); category D (308 controls needing a device model, grouped by subsystem with estimate and rank: no CUDA or Wayland workload has reached D beyond `HDCP_CTRL` on unplug and one cuda-gdb control; 126 belong to A, C or E; roadmap R0 rule table, R1 display, R2 CUDA error paths, R3 games, R4 suspend, R5 tools); per item recipe, truth source, isolation and open questions (subagent reports, 2026-09-24) |
-| [gsp-abi-615.md](../caraxes/gsp-abi-615.md), [gsp-abi-615-tables.md](../caraxes/gsp-abi-615-tables.md), `caraxes/abi/` | D20, the GSP ABI baseline 615.71.09: what NVIDIA tags `NV_ABI_STABLE` (12 structs, 5 enums, file and line) and what the tree calls an opt-in unstable interface (the RM RPC layer, the internal handles, unpromoted NVKV keys); the snapshot `caraxes/abi/gsp-615.71.09/` (controls, RPCs, events, classes, boot types, layouts, constants, enums, bit ranges as TSV, MANIFEST) and `gsp-610.57.04/`, made by `caraxes/tools/gsp-abi.py`; the counts (844 routed controls, 777 answered, 67 unhandled, as counted from the snapshot's `controls.tsv`, which is the source for these numbers; 232 RPC functions, 14 sent by a 615 client, all answered; 45 events; 149 GSP-bound classes); the 610-to-615 delta as the worked example (every change the plans found is reproduced; what the diff cannot see and why); the workflow for the next driver and the `tools/check.sh` drift step; the tables file is the generated human-readable form of the snapshot |
-| [doorbell-poll.md](../caraxes/doorbell-poll.md) | The doorbell reactor (`CARAXES_DOORBELL_POLL=off\|spin\|hybrid`, `_POLL_CPU`, `_POLL_IDLE_US`): one thread polls the token pool's eventfds instead of sleeping in `epoll_wait`, pinned to an automatically chosen core; the vm1 measurement of blocking, spin unpinned, spin pinned and hybrid (short kernel 0.026 to 0.014 ms, rlprobe stage 4 2.7 to 2.1 s, hybrid at 3 % of a core), host tuning recommendations for the reactor core, and what P24 would change |
-| [workload-gate.md](../caraxes/workload-gate.md) | The workload gate (2026-09-24, prepared; first run 2026-09-25 on the 615 guest at 1 GiB, §7): real workloads beside the micro rows, native against v2 (v1 on a 610 host only): PPO CartPole at 420 s, llama.cpp pp512/tg128 with and without CUDA graphs (host-built llama-bench for sm_75, Llama 3.2 1B Q4_K_M), a GPT-style training loop, ResNet-18 training; the one-command runner `caraxes/runs/workload-2026-09-24/run.sh`, how to read the ratios, the table to fill |
-| [intr-page.md](../caraxes/intr-page.md) | The interrupt page (`CARAXES_INTR_PAGE=1`, `_SLEEP_MS`, `_RETRIGGER_MS`): BAR0 page 0 and the VF CPU interrupt tree page offered as sparse mmap areas of region 0 from a memfd, the reactor applying the guest's acks and enable writes by polling (tag bits and sentinels so every store is visible, a retrigger watchdog for what stays ambiguous); per-frame register census of series F (437 of 662 Mutter traps are these two pages), the expected 662 to about 225, what stays trapped |
-| [alloc-path.md](../caraxes/alloc-path.md) | Where cuMemAlloc/cuMemFree time goes (830/903 us, 6.7 ms for 64 MiB): no memory RPC reaches the device, the cost is the guest RM's trapped traffic (24 traps per mapping change: 18 RM-lock interrupt-enable writes, 5 MMU invalidate, 1 flush; plus BAR2 PTE writes), the device's host calls sit in the worker; the four steps (existing intr page + BAR2 memfd, lazy shadow plans, invalidate and flush page as memory, region-object free list) with expected cost and isolation argument; `CARAXES_ALLOC_LAZY=1` built (`lazy.rs`), `caraxes/tools/rpc-cost.py`, `BENCH_CU_PHASE_GAP_MS`, measurement plan (subagent report) |
-| [optimization-backlog.md](../caraxes/optimization-backlog.md) | Trap census of 2026-09-25 (vm3, main 1ea2529): every CUDA driver-API operation alone (`caraxes/tools/census-cu.c` with BAR0 scratch markers, `census-table.py`), traps by BAR, page and register, RPC and host RM work, guest against native, with no window, with interrupt page + BAR1 pool + token pool, and with the BAR2 memfd; findings (memfd plus pool hangs the first cuCtxCreate, memfd alone takes cuCtxCreate 4.1 s to 0.87 s, submissions and copies trap 0 times with the windows, 140-160 MSI re-arm traps per second, non-trap stalls); the ranked backlog with mechanism, saving, risk and estimate; the ReBAR note; the order for the next three days |
-| [coverage-map.md](../caraxes/coverage-map.md) | The coverage map of 2026-09-25 (vm2, 610 guest): the device's profile (`CARAXES_PROFILE=1`, src/profile.rs: traps by BAR/page/register, controls, allocs, RPCs, events, host RM calls and window hits per device and per guest client, dumped on SIGUSR2 and at exit, 84 ns per trapped access) and `caraxes/tools/profile-rank.py`; 29 workload windows beyond the gates (nvidia-smi loops, graphs, streams, texture/surface, torch cuBLAS/cuDNN/attention, two processes, OOM, kill -9, illegal address, NVRTC, Vulkan, idle) with LLVM function coverage; the union by provenance and the untested surface; the guest control sweep (`caraxes/tools/ctlsweep.c`); ten ranked candidates outside the benchmarks; the recipe for the next workload |
-| [gsp-transport-classes.md](../caraxes/gsp-transport-classes.md) | The GSP controls of 615.71.09 by transport class (2026-09-25): per routed control the caller kind, frequency from the profiles and 615 device logs, sizes, embedded pointers/handles/addresses, answer source, side effects, a verdict ZT-PAGE/ZT-QUEUE/HOST/TRAP/REFUSE with a reason code and an isolation note (`caraxes/abi/gsp-615.71.09/transport.tsv` from `caraxes/tools/gsp-transport.py`); one 615 RPC is four trapped accesses (108 us median) against 3 us of device work; controls are lifecycle traffic (0 per frame); the answer page is not worth a driver change, but static GSS-legacy answers can be cached by a stock guest through the reply's `rmctrlFlags`; the polled queue needs page 0x110000 as a read-only area plus write ioeventfds (about 130 us per RPC); what cannot be optimised (490 REFUSE, 32 TRAP) |
-| [alloc-path.md](../caraxes/alloc-path.md) | Where cuMemAlloc/cuMemFree time goes (830/903 us, 6.7 ms for 64 MiB): no memory RPC reaches the device, the cost is the guest RM's trapped traffic (24 traps per mapping change: 18 RM-lock interrupt-enable writes, 5 MMU invalidate, 1 flush; plus BAR2 PTE writes), the device's host calls sit in the worker; the four steps (existing intr page + BAR2 memfd, lazy shadow plans, invalidate and flush page as memory, region-object free list) with expected cost and isolation argument; `CARAXES_ALLOC_LAZY=1` built (`lazy.rs`), `caraxes/tools/rpc-cost.py`, `BENCH_CU_PHASE_GAP_MS`, measurement plan; measured 2026-09-25 (§7): 45.5 to 4.3 traps, cuMemAlloc 1 MiB 972 to 175 us (subagent report) |
+| [v1-615-image.md](../vfio/v1-615-image.md) | The Leandro v1 guest image for 615.71.09 (`guest-v1-2026-09-24-615.71.09.qcow2`, made from the first v1 615 run's overlay without booting): what differs from the Caraxes 615 base image (guest nvidia modules blacklisted, `nvidia-modprobe` diverted, `nvidia-persistenced` masked, `/opt/nvrm` on the 615 system libraries), why not nix offline, `bench-v1vm.sh` taking v1's material from Leandro (`LEA_V1_ROOT`, `LEA_V1_BIN`, `NVRM`, driver selection, dry run), `LEA_MANAGED_COMPAT=1` as in the gpu gate, `v1-gates.sh`, the boot command |
+| [video-engines.md](../vfio/video-engines.md) | NVENC and NVDEC through the mirror: protocol and layout, dated failure analysis, passing single-guest probes, and the 2026-09-27 two-guest Wayland concurrency checks; figure `figures/video-engine-mirror.svg` |
+| [sottr-stage.md](../vfio/sottr-stage.md) | The SotTR stage (2026-09-24, roadmap item 2): vm4 as the game VM (3 GiB profile at slot 0, tap `caraxes3`, display configuration C, main 3cb33af device), the v1 Steam library as a thin overlay (`CARAXES_GAMES_DISK`, writer lock in the Caraxes store), the guest preparation of a fresh 610 overlay, Steam library registration and autostart, Sunshine kms, automatic Moonlight pairing and window, what is recorded and how it compares with v1's sottr-4q; plumbing test in pure emulation |
+| [gsp-surface.md](../vfio/gsp-surface.md) | P23, the GSP surface of 610.57.04 from source: 829 of 1377 exported controls reach GSP, the device handles 171 with D9 provenance, the 658 unhandled sorted into five categories (pure chip data, host-forwardable, guest-state derived, needs modelling, never expected on TU106) with a recipe and estimate each, the 20 RPC functions and 41 events a GSP client uses, the top ten a Linux CUDA or display client hits next, what Windows and nova-core share; produced by `caraxes/tools/gsp-surface.py` (subagent report, 2026-09-24) |
+| [gsp-plan/](../vfio/gsp-plan/README.md) | P23 implementation plans for the GSP surface on 615.71.09, one document per part of gsp-surface.md (index in gsp-plan/README.md): RPC functions (14 of 232 used by a 615 GSP client on TU106, 7 answered, `ALLOC_MEMORY` sent at every boot and refused), events (45, the device raises only POST_EVENT for hotplug), classes reaching GSP (143 on the wire, 48 on TU106), the boot exchange with teardown, suspend/resume and what `NV_ABI_STABLE` covers; category B (70 host-forwardable controls: 30 real forwards, 11 device-owned, 12 guest-object, 13 refused, 4 never sent) and C (31 guest-state controls plus 12 from B); category D (308 controls needing a device model, grouped by subsystem with estimate and rank: no CUDA or Wayland workload has reached D beyond `HDCP_CTRL` on unplug and one cuda-gdb control; 126 belong to A, C or E; roadmap R0 rule table, R1 display, R2 CUDA error paths, R3 games, R4 suspend, R5 tools); per item recipe, truth source, isolation and open questions (subagent reports, 2026-09-24) |
+| [gsp-abi-615.md](../vfio/gsp-abi-615.md), [gsp-abi-615-tables.md](../vfio/gsp-abi-615-tables.md), `caraxes/abi/` | D20, the GSP ABI baseline 615.71.09: what NVIDIA tags `NV_ABI_STABLE` (12 structs, 5 enums, file and line) and what the tree calls an opt-in unstable interface (the RM RPC layer, the internal handles, unpromoted NVKV keys); the snapshot `caraxes/abi/gsp-615.71.09/` (controls, RPCs, events, classes, boot types, layouts, constants, enums, bit ranges as TSV, MANIFEST) and `gsp-610.57.04/`, made by `caraxes/tools/gsp-abi.py`; the counts (844 routed controls, 777 answered, 67 unhandled, as counted from the snapshot's `controls.tsv`, which is the source for these numbers; 232 RPC functions, 14 sent by a 615 client, all answered; 45 events; 149 GSP-bound classes); the 610-to-615 delta as the worked example (every change the plans found is reproduced; what the diff cannot see and why); the workflow for the next driver and the `tools/check.sh` drift step; the tables file is the generated human-readable form of the snapshot |
+| [doorbell-poll.md](../vfio/doorbell-poll.md) | The doorbell reactor (`CARAXES_DOORBELL_POLL=off\|spin\|hybrid`, `_POLL_CPU`, `_POLL_IDLE_US`): one thread polls the token pool's eventfds instead of sleeping in `epoll_wait`, pinned to an automatically chosen core; the vm1 measurement of blocking, spin unpinned, spin pinned and hybrid (short kernel 0.026 to 0.014 ms, rlprobe stage 4 2.7 to 2.1 s, hybrid at 3 % of a core), host tuning recommendations for the reactor core, and what P24 would change |
+| [workload-gate.md](../vfio/workload-gate.md) | The workload gate (2026-09-24, prepared; first run 2026-09-25 on the 615 guest at 1 GiB, §7): real workloads beside the micro rows, native against v2 (v1 on a 610 host only): PPO CartPole at 420 s, llama.cpp pp512/tg128 with and without CUDA graphs (host-built llama-bench for sm_75, Llama 3.2 1B Q4_K_M), a GPT-style training loop, ResNet-18 training; the one-command runner `caraxes/runs/workload-2026-09-24/run.sh`, how to read the ratios, the table to fill |
+| [intr-page.md](../vfio/intr-page.md) | The interrupt page (`CARAXES_INTR_PAGE=1`, `_SLEEP_MS`, `_RETRIGGER_MS`): BAR0 page 0 and the VF CPU interrupt tree page offered as sparse mmap areas of region 0 from a memfd, the reactor applying the guest's acks and enable writes by polling (tag bits and sentinels so every store is visible, a retrigger watchdog for what stays ambiguous); per-frame register census of series F (437 of 662 Mutter traps are these two pages), the expected 662 to about 225, what stays trapped |
+| [alloc-path.md](../vfio/alloc-path.md) | Where cuMemAlloc/cuMemFree time goes (830/903 us, 6.7 ms for 64 MiB): no memory RPC reaches the device, the cost is the guest RM's trapped traffic (24 traps per mapping change: 18 RM-lock interrupt-enable writes, 5 MMU invalidate, 1 flush; plus BAR2 PTE writes), the device's host calls sit in the worker; the four steps (existing intr page + BAR2 memfd, lazy shadow plans, invalidate and flush page as memory, region-object free list) with expected cost and isolation argument; `CARAXES_ALLOC_LAZY=1` built (`lazy.rs`), `caraxes/tools/rpc-cost.py`, `BENCH_CU_PHASE_GAP_MS`, measurement plan (subagent report) |
+| [optimization-backlog.md](../vfio/optimization-backlog.md) | Trap census of 2026-09-25 (vm3, main 1ea2529): every CUDA driver-API operation alone (`caraxes/tools/census-cu.c` with BAR0 scratch markers, `census-table.py`), traps by BAR, page and register, RPC and host RM work, guest against native, with no window, with interrupt page + BAR1 pool + token pool, and with the BAR2 memfd; findings (memfd plus pool hangs the first cuCtxCreate, memfd alone takes cuCtxCreate 4.1 s to 0.87 s, submissions and copies trap 0 times with the windows, 140-160 MSI re-arm traps per second, non-trap stalls); the ranked backlog with mechanism, saving, risk and estimate; the ReBAR note; the order for the next three days |
+| [coverage-map.md](../vfio/coverage-map.md) | The coverage map of 2026-09-25 (vm2, 610 guest): the device's profile (`CARAXES_PROFILE=1`, src/profile.rs: traps by BAR/page/register, controls, allocs, RPCs, events, host RM calls and window hits per device and per guest client, dumped on SIGUSR2 and at exit, 84 ns per trapped access) and `caraxes/tools/profile-rank.py`; 29 workload windows beyond the gates (nvidia-smi loops, graphs, streams, texture/surface, torch cuBLAS/cuDNN/attention, two processes, OOM, kill -9, illegal address, NVRTC, Vulkan, idle) with LLVM function coverage; the union by provenance and the untested surface; the guest control sweep (`caraxes/tools/ctlsweep.c`); ten ranked candidates outside the benchmarks; the recipe for the next workload |
+| [gsp-transport-classes.md](../vfio/gsp-transport-classes.md) | The GSP controls of 615.71.09 by transport class (2026-09-25): per routed control the caller kind, frequency from the profiles and 615 device logs, sizes, embedded pointers/handles/addresses, answer source, side effects, a verdict ZT-PAGE/ZT-QUEUE/HOST/TRAP/REFUSE with a reason code and an isolation note (`caraxes/abi/gsp-615.71.09/transport.tsv` from `caraxes/tools/gsp-transport.py`); one 615 RPC is four trapped accesses (108 us median) against 3 us of device work; controls are lifecycle traffic (0 per frame); the answer page is not worth a driver change, but static GSS-legacy answers can be cached by a stock guest through the reply's `rmctrlFlags`; the polled queue needs page 0x110000 as a read-only area plus write ioeventfds (about 130 us per RPC); what cannot be optimised (490 REFUSE, 32 TRAP) |
+| [alloc-path.md](../vfio/alloc-path.md) | Where cuMemAlloc/cuMemFree time goes (830/903 us, 6.7 ms for 64 MiB): no memory RPC reaches the device, the cost is the guest RM's trapped traffic (24 traps per mapping change: 18 RM-lock interrupt-enable writes, 5 MMU invalidate, 1 flush; plus BAR2 PTE writes), the device's host calls sit in the worker; the four steps (existing intr page + BAR2 memfd, lazy shadow plans, invalidate and flush page as memory, region-object free list) with expected cost and isolation argument; `CARAXES_ALLOC_LAZY=1` built (`lazy.rs`), `caraxes/tools/rpc-cost.py`, `BENCH_CU_PHASE_GAP_MS`, measurement plan; measured 2026-09-25 (§7): 45.5 to 4.3 traps, cuMemAlloc 1 MiB 972 to 175 us (subagent report) |
 | [open-questions.md](caraxes-open-questions-2026-09-23.md) | Unresolved questions, numbered |
 
 Reference dumps of the physical RTX 2070 live in `caraxes/reference/rtx2070/`
@@ -155,12 +155,12 @@ The device crate is `crates/vfio-user-nvgpu`; the launcher is `tools/caraxes-vm.
    and scratch-register HAL entries are stubs for TU10X and `PDB_PROP_GPU_VGPU_OFFLOAD_CAPABLE`
    is false below AD10X, so `initRpcInfrastructure_VGPU` fails and GPU construction aborts.
    The monolithic (non-GSP) variant does not exist in the open tree for Turing.
-   Evidence: [driver-modes.md](../caraxes/driver-modes.md).
+   Evidence: [driver-modes.md](../vfio/driver-modes.md).
 3. **GSP-client mode means the guest expects to boot firmware it cannot run here.**
    The CPU side loads FWSEC (from the VBIOS) into the GSP falcon, Booter into the SEC2
    falcon, and waits for halts, WPR2 registers, scratch values and a message-queue
    header. None of the firmware has to execute: the device only has to produce the
-   CPU-visible side effects. The full ordered list is in [gsp-boot-turing.md](../caraxes/gsp-boot-turing.md);
+   CPU-visible side effects. The full ordered list is in [gsp-boot-turing.md](../vfio/gsp-boot-turing.md);
    the emulator needs 2 falcon register-block state machines (GSP at 0x110000, SEC2 at
    0x840000), a PROM window at 0x300000 serving a VBIOS image, and ~10 status registers.
 4. **After boot, the transport is a plain shared-memory ring in guest RAM** (command
@@ -179,11 +179,11 @@ The device crate is `crates/vfio-user-nvgpu`; the launcher is `tools/caraxes-vm.
    (`rpc_gsp_rm_alloc/control`), a small set of controls arrive FINN-serialized, and the
    guest's kernel RM issues internal (`*_CTRL_CMD_INTERNAL_*`) controls that an
    unprivileged host RM client cannot forward. A shim and a policy for internal controls
-   are required. Details: [leandro-reuse.md](../caraxes/leandro-reuse.md).
+   are required. Details: [leandro-reuse.md](../vfio/leandro-reuse.md).
 7. **Guest RAM must be fd-backed (memfd, share=on) for QEMU to pass DMA regions as
    file descriptors.** The rust-vmm `vfio_user::Server` does not implement
    server-initiated `DMA_READ/WRITE`, so the emulated GSP reads the queues by mmap.
-   Details: [vfio-user.md](../caraxes/vfio-user.md).
+   Details: [vfio-user.md](../vfio/vfio-user.md).
 
 8. **The kernel RM reads PCI config space through a BAR0 mirror at 0x88000** and
    keeps the MSI/MSI-X enable bits there in sync with the real capability; it never
@@ -193,14 +193,14 @@ The device crate is `crates/vfio-user-nvgpu`; the launcher is `tools/caraxes-vm.
    watchdog channel plus a copy-engine self-test that the module parameters
    `RmRcWatchdog=0` and `RmDisableGlobalCeUtils=1` disable. Milestone 1 therefore needs
    a fake FB with a GMMU page-table walker for BAR2, but no real GPU work.
-   Details: [kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md).
+   Details: [kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md).
 
 9. **Identity comes from the profile policy Leandro already has.** `vram.rs` decides
    `fb_length`/`size`/`reservation` from `LEA_VGPU_TYPE` and friends, `vgpu.rs` derives the
    catalogue (`RTX2070-4Q`), and `guest_card_name` produces `Leandro RTX 2070-4G`. Under
    GSP the guest's name, FB size and UUID controls are kernel-served from
    `GspStaticConfigInfo`, which the device fills, so the presentation needs no reply
-   rewriting. Details: [identity-profile.md](../caraxes/identity-profile.md).
+   rewriting. Details: [identity-profile.md](../vfio/identity-profile.md).
 
 ## Decisions
 
@@ -216,15 +216,15 @@ The device crate is `crates/vfio-user-nvgpu`; the launcher is `tools/caraxes-vm.
 | D10 | One device process: `vfio-user-nvgpu` talks to the host RM itself (through `/dev/nvidiactl` as an unprivileged client, using Leandro's crates as libraries: `nvrm-client`, `nvrm-abi`, `nvrm-sys`, the `vhost_user_nvrm` library). The vhost-user `virtio-nvrm` device and its guest module are not part of a Caraxes VM; if any step needs the running `vhost-user-nvrm` process, that is temporary and marked as such | The operator wants a single synthetic device, not a Leandro client on the side; the reusable value of v1 is its RM translation and policy code, not its transport | taken 2026-09-23 (operator) |
 | D11 | For real execution the device reserves a fixed-address, contiguous range of the card's VRAM for the VM (fb-model option C), sized to the profile; odd sizes (2.5, 3, 5 GiB) are tested; the reservation is refused when the host would be left without enough free VRAM (the host desktop must never run out) | Guest FB addresses equal real VRAM addresses; the guest keeps a fixed share, like a vGPU profile | taken 2026-09-23 (operator) |
 | D12 | The device may run as a privileged host RM client (Leandro's `LEA_ADMIN_PRIV` policy) for the admin-only controls real execution needs (`DMA_SET_PAGE_DIRECTORY`, `GPU_PROMOTE_CTX`, `GET_SURFACE_PHYS_ATTR`) | No other way to point a host channel at the guest's page tables | taken 2026-09-23 (operator) |
-| D13 | Guest DMA addresses are made equal to host IOVAs through a temporary guest-side aid, documented with a removal plan ([cuda-path.md](../caraxes/cuda-path.md) §3, S1); the only guest-side patch in the plan | Without it the physical GPU would read host memory at guest addresses | taken 2026-09-23 (operator) |
+| D13 | Guest DMA addresses are made equal to host IOVAs through a temporary guest-side aid, documented with a removal plan ([cuda-path.md](../vfio/cuda-path.md) §3, S1); the only guest-side patch in the plan | Without it the physical GPU would read host memory at guest addresses | taken 2026-09-23 (operator) |
 | D14 | Implement for this card (TU106, 610.57.04) but structure everything so it can serve other driver versions and other silicon later: driver-version-bound pieces (RPC and control structures, control ids, static-info layout) generated per vendored driver version behind feature flags like `crates/nvrm-sys`; silicon-bound pieces (boot model, register map, engine and FIFO tables, interrupt table, identity) behind a chip trait with data tables per chip, TU106 being the first implementation; nothing version- or chip-specific hard-coded in the generic paths | The operator wants the Turing device to be the first of several, and a Blackwell lab machine is in reach | taken 2026-09-23 (operator) |
-| D15 | The emulated display connector is DisplayPort SST (one per head, no MST, no HDCP, DSC offered), per [display-scaling.md](../caraxes/display-scaling.md); the connector-agnostic phase A and the timer-gated flip cadence of [display-connector.md](../caraxes/display-connector.md) stay, phase B is done directly with DP (EDID over AUX, DPCD model, link-training answers) instead of a DVI-D detour. Heads are synthetic: the device declares the head, window and SOR counts and the connector table itself, independent of the physical card, up to the guest driver's own cap for the emulated display IP (4 heads on Turing's v04.00). | The operator wants DP for its headroom (4K144 with DSC, 10 bpc, VRR) and guest-visible heads decoupled from the silicon; nothing scans out physically, so the physical head count is irrelevant | taken 2026-09-23 (operator) |
+| D15 | The emulated display connector is DisplayPort SST (one per head, no MST, no HDCP, DSC offered), per [display-scaling.md](../vfio/display-scaling.md); the connector-agnostic phase A and the timer-gated flip cadence of [display-connector.md](../vfio/display-connector.md) stay, phase B is done directly with DP (EDID over AUX, DPCD model, link-training answers) instead of a DVI-D detour. Heads are synthetic: the device declares the head, window and SOR counts and the connector table itself, independent of the physical card, up to the guest driver's own cap for the emulated display IP (4 heads on Turing's v04.00). | The operator wants DP for its headroom (4K144 with DSC, 10 bpc, VRR) and guest-visible heads decoupled from the silicon; nothing scans out physically, so the physical head count is irrelevant | taken 2026-09-23 (operator) |
 | D16 | **No guest comptag line ever reaches the host.** Layers: (1) policy in the guest's view: every FB/memsys/caps answer says no compression (region `supportCompressed=0`, `disable_compbit_backing`, zero comptag lines), so the stock guest never chooses compressible kinds; (2) enforcement in the device: a PTE write filter on the VRAM store that tracks page-table pages from the roots the guest registers and forces every vidmem PTE to an uncompressed kind with COMPTAGLINE 0, plus refusal of compression attributes in mirrored allocations; (3) audit: a sweep of the tracked page-table pages after each gate run asserting no compressible kind and no comptag line; the reservation itself is never allocated with `NVOS32_ATTR_COMPR`. Physical execution of guest work is allowed only under (1) verified by trace until (2) exists, then under (2). Recovery from a violation is a host reboot (comptag store reset). Host-side switch: none found in the open kernel RM (compression policy lives in GSP firmware). | The guest's COMPTAGLINE field indexes the host's global comptag store that the desktop's own compressed surfaces use; a stray write would corrupt host state outside our channels (found 2026-09-23 evening) | taken 2026-09-23 (operator: "wie machen wir das sicher, das ist wichtig") |
 | D16b | **Real compression per VM slice, behind `CARAXES_COMPRESSION=slice` (default off: D16 stays).** The reservation is allocated compressed (`COMPR_DISABLE_PLC_ANY`: kind 0x09, physically based comptags) and refused unless the read-back grant is 1:1, kind 0x09, coverage lines/format 1/1/1, covered from its first page and counted as a ZBC surface (attr2 `PREFER_ZBC`, so the host keeps the VM's ZBC entries); the shadow passes the guest's compressible kind as the override, and the host RM writes COMPTAGLINE = 1 + SPA[35:16] of the slice's own pages. Invariants: (a) compressible kinds map only on covered, 64 KiB-aligned slice pages of 64 KiB or more, else downgraded to the uncompressed twin, 0x0F refused; host PTEs are sampled with `DMA_GET_PTE_INFO` and a violation stops compressible maps (the control is test-only on the host RM: refused 0x7E on the RTX 2070, so (a) rests on the construction there); (b) shadow-only execution (GR and CE shadow, no raw GR, no token-less ioeventfd), checked at start and in the mirror, every raw path refused; (c) no guest COMPTAGLINE is read or passed; (d) the host grants compression only with scrub-on-free, whose scrubber writes through a kind-0x09 alias, and the device zeroes the slice through its own kind-0x09 BAR1 windows after the allocation and before the free. Code: compslice.rs, hostmem.rs `reserve`, shadow.rs, mirror.rs; probe `examples/comp-slice-probe.rs` (caraxes/runs/comp-slice-probe-2026-09-28); research: [compression-isolation-2026-09-28.md](../research/compression-isolation-2026-09-28.md). | D16 left SotTR's depth buffer uncompressed (S8Z24), and the Vulkan driver's 2D fill of it raised Xid 13 "2D KIND Violation". In 1:1 mode a comptag line belongs to its physical page, so isolation follows from the slice, as in NVIDIA's legacy vGPU and MIG | taken 2026-09-28 (user: "nein wir machen es direkt richtig": real compression, each VM slice with its own comptag range, as close to the real card as possible, isolation guaranteed) |
-| D17 | **Route 4, shadow page tables in the device, is the DMA route, and the guest stays bare metal.** The guest runs the stock driver in its native configuration: page tables in VRAM, where the RM and UVM place them by default (`kern_gmmu.c` PDE/PTE aperture `ADDR_FBMEM`; `uvm_mmu.c` default `UVM_APERTURE_VID` with a sysmem fallback). The only configuration deviation is disabling that fallback (`uvm_page_table_location=vid` and the matching `RmInstLoc` fields, Q32); never vGPU-style driver behaviour (no SR-IOV or paravirtual code paths in the guest). The device keeps the translated tables in place in the VRAM reservation and the untranslated guest view in host RAM, so shadowing costs no VRAM beyond the guest's own tables (8 bytes per PTE: 2 MiB per GiB mapped at 4 KiB pages, 128 KiB at 64 KiB, 4 KiB at 2 MiB; single-digit MiB per context). A host-RAM shadow (the driver's `sys` location, refreshed at each TLB invalidate) is the fallback for tables the guest still places in sysmem, not the design. Built in two stages after CUDA runs: (1) a validating PTE filter (vidmem inside the reservation, sysmem inside the guest's registered IOVA ranges, no compression; the same component as D16 layer 2), guest module kept; (2) the translating filter with invalidate hooks and the UVM pushbuffer scanner, after which the guest module and the `_DMA` patches are dropped. Routes 2 and 3 of [dma-routes.md](../caraxes/dma-routes.md) stay evidence, not targets. | The only route that is both vanilla (stock Cloud Hypervisor, stock guest kernel) and isolated (the device controls every address the GPU uses). The VRAM question is settled: tables in VRAM are the native default and NVIDIA's own SR-IOV-heavy vGPU asserts it. Bare-metal behaviour in the guest is the point: with it Caraxes is better than vGPU, not a copy of it. | taken 2026-09-23 (operator: stay as close to bare metal as possible, not to the vGPU driver; with that we are better than vGPU) |
+| D17 | **Route 4, shadow page tables in the device, is the DMA route, and the guest stays bare metal.** The guest runs the stock driver in its native configuration: page tables in VRAM, where the RM and UVM place them by default (`kern_gmmu.c` PDE/PTE aperture `ADDR_FBMEM`; `uvm_mmu.c` default `UVM_APERTURE_VID` with a sysmem fallback). The only configuration deviation is disabling that fallback (`uvm_page_table_location=vid` and the matching `RmInstLoc` fields, Q32); never vGPU-style driver behaviour (no SR-IOV or paravirtual code paths in the guest). The device keeps the translated tables in place in the VRAM reservation and the untranslated guest view in host RAM, so shadowing costs no VRAM beyond the guest's own tables (8 bytes per PTE: 2 MiB per GiB mapped at 4 KiB pages, 128 KiB at 64 KiB, 4 KiB at 2 MiB; single-digit MiB per context). A host-RAM shadow (the driver's `sys` location, refreshed at each TLB invalidate) is the fallback for tables the guest still places in sysmem, not the design. Built in two stages after CUDA runs: (1) a validating PTE filter (vidmem inside the reservation, sysmem inside the guest's registered IOVA ranges, no compression; the same component as D16 layer 2), guest module kept; (2) the translating filter with invalidate hooks and the UVM pushbuffer scanner, after which the guest module and the `_DMA` patches are dropped. Routes 2 and 3 of [dma-routes.md](../vfio/dma-routes.md) stay evidence, not targets. | The only route that is both vanilla (stock Cloud Hypervisor, stock guest kernel) and isolated (the device controls every address the GPU uses). The VRAM question is settled: tables in VRAM are the native default and NVIDIA's own SR-IOV-heavy vGPU asserts it. Bare-metal behaviour in the guest is the point: with it Caraxes is better than vGPU, not a copy of it. | taken 2026-09-23 (operator: stay as close to bare metal as possible, not to the vGPU driver; with that we are better than vGPU) |
 | D18 | **Target memory model: VRAM slice + sparse sysmem registration + validated shadow tables.** The physical GPU may reach only this VM's VRAM reservation and guest-RAM pages the device has explicitly registered; guest GPU page tables are shadowed and validated, and the guest writes guest physical addresses (GPA), the device translates (GPA is never equal to the GPU's DMA address). Registration becomes sparse and demand-driven: when a validated guest entry first points into a 2 MiB guest-RAM region, the device pins and registers that region (a cached, refcounted mapping object: guest GPA, length, host VA, host RM handle, GPU DMA address, permissions), reuses it across submissions, and releases it with hysteresis when the last entry disappears; the same path serves UVM (GPU fault forwarded to the guest, guest decides residency, device registers the range, updates the shadow, invalidates, replays). Today's registration of the whole guest RAM in 1 GiB chunks (D13) stays as the alpha bootstrap and is not refactored while it risks the working CUDA path; order: the mapping package (write-through shadow, coalesced maps, budgets), then all channels on the filtered shadow and IOVA = GPA + offset (P20 section 8), then sparse registration, after which the guest DMA module and the `_DMA` patches are dropped (the vanilla gate of D17). | The security boundary is the same in both models (this VM's RAM and slice); sparse registration adds defence in depth (a filter bug exposes only registered pages), removes the 4 GiB of pinned host memory per VM, removes the chunk-crossing class of bugs by construction, and makes the guest module unnecessary. Operator's direction of 2026-09-24. | taken 2026-09-24 (operator) |
-| D19 | **Baseline driver 615.71.09 before the GSP-surface work (operator, 2026-09-24)**: from 615 on NVIDIA tags the GSP transport and boot structures `NV_ABI_STABLE` (nvtypes.h: a marker for static checkers to verify no changes across releases; carriers: `msgqTxHeader`, `GSP_MSG_QUEUE_ELEMENT`, `GMCAPI_HEADER`, the `GSP_FMC_*` and `GSP_RM_*` boot parameters), so the transport layer the device emulates is meant to stay fixed from there. Order: (1) the device speaks the 615 transport (queue v2 with register-held pointers, MCTP-framed elements, one `GMCAPI_CMD_GSP_INIT` with NVKV data instead of the four init RPCs; `ver/v615` from the generated `nvrm-sys` v615; behind a version switch, 610 unchanged), verified with a 615 guest in pure emulation; (2) the guest images move to 615.71.09 (v2 and, because it forwards ioctls verbatim, v1); (3) the operator upgrades the host driver to 615.71.09 in a window with every VM down, then the host-side client moves to `nvrm-sys` v615; (4) only then P23, the GSP-surface work, on the 615 inventory. What "stable" covers: the transport, boot and init layer; the control parameter layouts still differ per version (seven structs and one reused id between 610 and 615, [blackwell-gb206.md](../caraxes/blackwell-gb206.md) §3) and stay with D14's generated modules. | 2026-09-24, operator's decision |
-| D20 | **615.71.09 is the recorded GSP ABI baseline; later driver versions are handled as diffed deltas against `caraxes/abi/`.** The baseline is a generated, diffable snapshot of the 615.71.09 tree (`caraxes/abi/gsp-615.71.09/`: every control with its params size, layout hash, routing, privilege, category and the device's answer; every RPC function, event and class; the `NV_ABI_STABLE` and boot types with sizes, field offsets and version constants; the GMCAPI keys and stable enumerators; the control flag-word bit ranges), made by `caraxes/tools/gsp-abi.py snapshot`; a new driver is snapshotted and diffed against it (`gsp-abi.py diff`), and its per-version tables, `hostabi.rs` row and gates follow from the delta ([gsp-abi-615.md](../caraxes/gsp-abi-615.md) §6). A change in the stable layer (an `NV_ABI_STABLE` struct, the queue element framing, the boot arguments, the GMCAPI header or a promoted key) is a baseline break that needs a decision, not a routine delta. `tools/check.sh` fails when the snapshot drifts from the 615 tree or the tables document from the snapshot. | 615 is where NVIDIA starts tagging the transport and boot layer stable (D19); from here the boundary should change only incrementally, like a stable ABI with hardware additions, and a recorded, machine-readable baseline makes each increment a reviewed diff instead of a trace-driven discovery | taken 2026-09-25 (operator) |
+| D19 | **Baseline driver 615.71.09 before the GSP-surface work (operator, 2026-09-24)**: from 615 on NVIDIA tags the GSP transport and boot structures `NV_ABI_STABLE` (nvtypes.h: a marker for static checkers to verify no changes across releases; carriers: `msgqTxHeader`, `GSP_MSG_QUEUE_ELEMENT`, `GMCAPI_HEADER`, the `GSP_FMC_*` and `GSP_RM_*` boot parameters), so the transport layer the device emulates is meant to stay fixed from there. Order: (1) the device speaks the 615 transport (queue v2 with register-held pointers, MCTP-framed elements, one `GMCAPI_CMD_GSP_INIT` with NVKV data instead of the four init RPCs; `ver/v615` from the generated `nvrm-sys` v615; behind a version switch, 610 unchanged), verified with a 615 guest in pure emulation; (2) the guest images move to 615.71.09 (v2 and, because it forwards ioctls verbatim, v1); (3) the operator upgrades the host driver to 615.71.09 in a window with every VM down, then the host-side client moves to `nvrm-sys` v615; (4) only then P23, the GSP-surface work, on the 615 inventory. What "stable" covers: the transport, boot and init layer; the control parameter layouts still differ per version (seven structs and one reused id between 610 and 615, [blackwell-gb206.md](../vfio/blackwell-gb206.md) §3) and stay with D14's generated modules. | 2026-09-24, operator's decision |
+| D20 | **615.71.09 is the recorded GSP ABI baseline; later driver versions are handled as diffed deltas against `caraxes/abi/`.** The baseline is a generated, diffable snapshot of the 615.71.09 tree (`caraxes/abi/gsp-615.71.09/`: every control with its params size, layout hash, routing, privilege, category and the device's answer; every RPC function, event and class; the `NV_ABI_STABLE` and boot types with sizes, field offsets and version constants; the GMCAPI keys and stable enumerators; the control flag-word bit ranges), made by `caraxes/tools/gsp-abi.py snapshot`; a new driver is snapshotted and diffed against it (`gsp-abi.py diff`), and its per-version tables, `hostabi.rs` row and gates follow from the delta ([gsp-abi-615.md](../vfio/gsp-abi-615.md) §6). A change in the stable layer (an `NV_ABI_STABLE` struct, the queue element framing, the boot arguments, the GMCAPI header or a promoted key) is a baseline break that needs a decision, not a routine delta. `tools/check.sh` fails when the snapshot drifts from the 615 tree or the tables document from the snapshot. | 615 is where NVIDIA starts tagging the transport and boot layer stable (D19); from here the boundary should change only incrementally, like a stable ABI with hardware additions, and a recorded, machine-readable baseline makes each increment a reviewed diff instead of a trace-driven discovery | taken 2026-09-25 (operator) |
 | D5 | First experiment is a logging-only device (PCI identity, BARs, ROM, boot IDs), not a GSP model | Establishes the toolchain and gives the first observed failure for free | taken 2026-09-23 (go-ahead given) |
 | D7 | Device crate is `crates/vfio-user-nvgpu` (binary `vfio-user-nvgpu`), depending on `vfio_user` 0.1.6 from crates.io | Follows the `vhost-user-nvrm` naming; the git-ignored `vendor/vfio` checkout is for reading, a path dependency would break clean checkouts | taken 2026-09-23 |
 
@@ -244,7 +244,7 @@ crate (`gsp-abi-610.md` §e). Every new implementation brief cites D14.
 
 | # | Idea | Recorded |
 |---|---|---|
-| P1 | After the GSP-RPC front end works, pack the calls crossing the device boundary into a vendor-neutral protocol so a backend on another vendor's GPU (AMD) could serve an NVIDIA guest in principle. Not before milestone 1, and only after a written design. See [kickoff.md](caraxes-kickoff-2026-09-23.md) §7 and the v1 proposal [VIRTIO-UAPI.md](../VIRTIO-UAPI.md). | 2026-09-23, operator's request |
+| P1 | After the GSP-RPC front end works, pack the calls crossing the device boundary into a vendor-neutral protocol so a backend on another vendor's GPU (AMD) could serve an NVIDIA guest in principle. Not before milestone 1, and only after a written design. See [kickoff.md](caraxes-kickoff-2026-09-23.md) §7 and the v1 proposal [virtio-uapi.md](../virtio/virtio-uapi.md). | 2026-09-23, operator's request |
 
 The operator's hypothesis for P1 is that the vocabulary shrinks layer by layer (CUDA
 400–500 entry points, about 120 ioctl shapes in v1, hopefully fewer at the GSP boundary,
@@ -267,7 +267,7 @@ mapping, UVM faults), which supports the operator's suspicion. P1 stays parked.
 
 | P3 | Slice the GPU spatially (by SMs) instead of in time as NVIDIA's vGPU does, and virtualize the device for real behind the synthetic front end. Future work after milestone 1; the GR partitioning and SM-mask controls in the RM are the place to look. | 2026-09-23, operator's request |
 
-| P4 | Test the six synthesized `nvidia-smi` answers against the host's own answers in the `nvml` gate, then extend both the gate and `nvml.rs` to more `nvidia-smi` sub-commands. See [nvml.md](../caraxes/nvml.md), "Future". | 2026-09-23, operator's request |
+| P4 | Test the six synthesized `nvidia-smi` answers against the host's own answers in the `nvml` gate, then extend both the gate and `nvml.rs` to more `nvidia-smi` sub-commands. See [nvml.md](../vfio/nvml.md), "Future". | 2026-09-23, operator's request |
 
 | P5 | Research what real GRID vGPU and MIG vGPU devices expose to a guest (capabilities, static info, control answers) and use that to cut the information the device hands over (the D9 minimal set), driven by a configuration file or a similar mechanism rather than code changes. Note only, nothing to implement now. | 2026-09-23, operator's request |
 
@@ -278,29 +278,29 @@ mapping, UVM faults), which supports the operator's suspicion. P1 stays parked.
 | P8 | The proper removal of the guest DMA-range module: a Cloud Hypervisor patch that emits the ACPI `_DMA` method for its PCI host bridge (written from the ACPI specification), paired with an upstreamable x86 Linux change that honours `_DMA` the way arm64 does. The vIOMMU route is dropped: the guest allocates its I/O addresses and the host driver allocates the IOVAs, so neither side can line them up without the same table. **Status 2026-09-23:** written as `patches/0004-acpi-dma-host-bridge.patch` (`--pci-segment ...,dma_ranges=[cpu:dma:size,...]`, emits a static `_DMA` Name with `_TRA = cpu − dma`, unit test on the exact AML bytes, applies and builds on v53.0 alone and after 0001-0003) plus the x86 Linux draft `patches/linux/0001-x86-acpi-honour-dma-ranges.patch` (compiles on Ubuntu 6.8.0-136 and v6.8, not booted); design and test plan in [../../patches/ACPI-DMA.md](../../patches/ACPI-DMA.md). Not VM-tested. Blocker found: the DSDT is built from the static config but the IOVAs exist only after `DMA_MAP`, so the route needs the pre-registration flow (guest RAM as a file the device registers before Cloud Hypervisor starts, ACPI-DMA.md §5). Sign-offs are the operator's. **Operator's constraint (2026-09-23 16:00):** in the end everything must work on a vanilla guest; a Cloud Hypervisor patch may be acceptable, an upstream kernel change is "hard hard hard", so the `_DMA` route is the weakest of the three; the vm3 test finishes as evidence only. Candidate that needs neither a guest change nor a hypervisor patch: **shadow page tables in the device**, the way NVIDIA's pre-SR-IOV vGPU host plugin works on Turing: the guest writes its GMMU tables with guest physical addresses, the device (which owns the FB backing and sees BAR2/PRAMIN writes and the CE pushbuffers that write page-table entries) rewrites sysmem entries to host IOVAs before they reach real VRAM, or mirrors mappings through host RM map calls, which would also give the host-validated isolation of P7. To be worked out after CUDA runs. | 2026-09-23, operator's preference |
 | P9 | Guest driver version independent of the host: once divergence works (Q29), the guest installs its distribution's stock NVIDIA packages with no in-guest build; the device carries the RPC ABI module for the guest's version. | 2026-09-23, operator's request |
 | P10 | One tracer for both layers ("Leandro tracer"; the operator finds `nv-x`-style names awful): today `crates/nvrm-trace` taps the RM API above the RM (`LD_PRELOAD` on any process, host or guest) and the device logs the GSP RPC stream under the RM in its own format. Unify: one decoder library on `nvrm-abi` used by both taps, one log format with timestamps so a guest ioctl and the RPCs it caused line up, and a third tap for the device's mirror calls to the host RM. Useful for the CUDA path and for the version-divergence work (Q29). | 2026-09-23, operator's suggestion |
-| P11 | Nested Caraxes: a Caraxes guest runs Caraxes itself and serves a synthetic GPU to a nested VM, backed by the synthetic GPU it sees; CUDA and display working there is the end-goal proof that the virtualization layer is complete (the device must only need what it provides). Prerequisites: the CUDA path (E5), the display path ([display-path.md](../caraxes/display-path.md)), nested virtualization in the guest kernel, and the host RM client role played by the inner device against the outer device's guest driver. | 2026-09-23, operator's end goal (for later) |
-| P12 | Display: the operator's word 2026-09-23: the GRID displayless route is known to work from v1 and is the practical path ([display-path.md](../caraxes/display-path.md) route C2, experiment D1 with a `GRID_BUILD=1` guest module as the temporary aid; D0 headless first). The future target is route E: the device, in its GSP role, inserts a display by emulating a connector (DVI/DP-style head with a synthesized EDID) so the stock driver sees an ordinary monitor and no build flag is needed. Operator 17:20: explore what emulating a display through the GSP role means with the simplest connector, DVI-D (single-link TMDS, no HDCP, no DP AUX; HDMI/DP are complex protocols), with the refresh rate produced by the device's own timers (vblank cadence), which would also fix the Wayland refresh-rate issue of Leandro v1. **Wayland is the goal** (operator 17:50: X at most a stepping stone): a Wayland compositor on the guest's nvidia-drm KMS with stable vblank and page-flip cadence is the display milestone. After CUDA. | 2026-09-23, operator's direction |
+| P11 | Nested Caraxes: a Caraxes guest runs Caraxes itself and serves a synthetic GPU to a nested VM, backed by the synthetic GPU it sees; CUDA and display working there is the end-goal proof that the virtualization layer is complete (the device must only need what it provides). Prerequisites: the CUDA path (E5), the display path ([display-path.md](../vfio/display-path.md)), nested virtualization in the guest kernel, and the host RM client role played by the inner device against the outer device's guest driver. | 2026-09-23, operator's end goal (for later) |
+| P12 | Display: the operator's word 2026-09-23: the GRID displayless route is known to work from v1 and is the practical path ([display-path.md](../vfio/display-path.md) route C2, experiment D1 with a `GRID_BUILD=1` guest module as the temporary aid; D0 headless first). The future target is route E: the device, in its GSP role, inserts a display by emulating a connector (DVI/DP-style head with a synthesized EDID) so the stock driver sees an ordinary monitor and no build flag is needed. Operator 17:20: explore what emulating a display through the GSP role means with the simplest connector, DVI-D (single-link TMDS, no HDCP, no DP AUX; HDMI/DP are complex protocols), with the refresh rate produced by the device's own timers (vblank cadence), which would also fix the Wayland refresh-rate issue of Leandro v1. **Wayland is the goal** (operator 17:50: X at most a stepping stone): a Wayland compositor on the guest's nvidia-drm KMS with stable vblank and page-flip cadence is the display milestone. After CUDA. | 2026-09-23, operator's direction |
 | P13 | Two paths long-term: keep v1 (`vhost-user-nvrm`, API forwarding through a guest module) and v2 (`vfio-user-nvgpu`, synthetic device, stock guest) in one workspace on the shared crates (`nvrm-sys`, `nvrm-abi`, `nvrm-client`, `nvrm-trace`), one `tools/check.sh`, one gate suite with a path dimension so both run the same tests on the same guest image, per-path docs under `docs/` and `docs/caraxes/` with one component index, driver-version bumps through the generated ABI on both sides. When Caraxes is done: benchmark both against native (RM-call latency, H2D/D2H/D2D bandwidth, kernel-launch latency, torch throughput, VRAM churn, startup time, device-process CPU) and decide which path is the product and which the reference. | 2026-09-23, operator's request |
-| P14 | Display scaling study (second study, [display-scaling.md](../caraxes/display-scaling.md)): which emulated connector is easiest and gives the most headroom (DVI-D vs HDMI vs DisplayPort vs NVIDIA's virtual heads), what 4K 144 Hz per head takes on TU106 (link and pixel-clock arithmetic, IMP, DSC, NVENC capture limits, VRAM display reserve), multiple heads, and what "display" must mean for the target audience: homelabs and small businesses that cannot afford vGPU, plus the operator's curiosity. Implementation to be discussed after the study. | 2026-09-23, operator's request |
+| P14 | Display scaling study (second study, [display-scaling.md](../vfio/display-scaling.md)): which emulated connector is easiest and gives the most headroom (DVI-D vs HDMI vs DisplayPort vs NVIDIA's virtual heads), what 4K 144 Hz per head takes on TU106 (link and pixel-clock arithmetic, IMP, DSC, NVENC capture limits, VRAM display reserve), multiple heads, and what "display" must mean for the target audience: homelabs and small businesses that cannot afford vGPU, plus the operator's curiosity. Implementation to be discussed after the study. | 2026-09-23, operator's request |
 | P16 | Side assignment ([briefing-display-nova.md](caraxes-briefing-display-nova-2026-09-23.md)), lower priority than the test suite, run in parallel where it touches neither the device crate nor the VMs: A a transport-neutral DP sink library with unit tests (EDID, DPCD, AUX and I2C-over-AUX, link training state machine), B an inventory of the display control dispatch in the guest driver (local vs GSP RPC vs MMIO per NV0073/NV5070 control, the EDID ping-pong, the class list), C a Nova-core compatibility study and probe plan (pinned kernel commit, TU106 boot expectations, r570.144 GSP ABI vs our 610 ABI, gates N0-N4), D the present backend (later, needs the display model). Started 2026-09-23 20:40 as three research/library packages. | 2026-09-23, operator's side assignment |
-| P17 | Naming/configuration refactor ([briefing-naming.md](caraxes-briefing-naming-2026-09-23.md)): one module generates the guest-visible name from `{transport, personality, profile}`, backend stays internal, both devices use it, v1's `4Q` and `1333MiB` profiles survive, compatibility parsing for existing configs, tests for generation and parsing. Opus in a worktree with incremental commits, merged on landing; starts after the E5b part 2 hand-back and a checkpoint commit of the working tree. **Status: merged into main as d45bf4f (2026-09-23); default switched 2026-09-24** to `Leandro <Transport> <Personality>-<Profile>` (`Leandro VFIO RTX 2070-4G`, `Leandro VirtIO RTX 2070-4G`), legacy `Leandro RTX 2070-4G` opt-in via `LEA_GPU_NAME_FORMAT=legacy` / `--name-format legacy` / `CARAXES_NAME_FORMAT=legacy`, `../Leandro-Test` gates accept both (plan in [briefing-naming.md](caraxes-briefing-naming-2026-09-23.md), model in [identity-profile.md](../caraxes/identity-profile.md)). | 2026-09-23, operator's brief |
+| P17 | Naming/configuration refactor ([briefing-naming.md](caraxes-briefing-naming-2026-09-23.md)): one module generates the guest-visible name from `{transport, personality, profile}`, backend stays internal, both devices use it, v1's `4Q` and `1333MiB` profiles survive, compatibility parsing for existing configs, tests for generation and parsing. Opus in a worktree with incremental commits, merged on landing; starts after the E5b part 2 hand-back and a checkpoint commit of the working tree. **Status: merged into main as d45bf4f (2026-09-23); default switched 2026-09-24** to `Leandro <Transport> <Personality>-<Profile>` (`Leandro VFIO RTX 2070-4G`, `Leandro VirtIO RTX 2070-4G`), legacy `Leandro RTX 2070-4G` opt-in via `LEA_GPU_NAME_FORMAT=legacy` / `--name-format legacy` / `CARAXES_NAME_FORMAT=legacy`, `../Leandro-Test` gates accept both (plan in [briefing-naming.md](caraxes-briefing-naming-2026-09-23.md), model in [identity-profile.md](../vfio/identity-profile.md)). | 2026-09-23, operator's brief |
 | P18 | SR-IOV middleman on Ada and later (operator, 2026-09-23 22:15): on silicon whose host driver exposes SR-IOV virtual functions (the vGPU-capable data-center and workstation parts from Ampere on; GeForce has none), Caraxes should consume a VF on the host through VFIO and present its own synthetic device to the VM: the guest owns its page tables with hardware isolation (VF GMMU), and the device keeps the identity, profile, display model and the GSP role, the part NVIDIA's vGPU manager plugin plays today, without the guest running in vGPU mode. The D17 shadow route remains the path for cards without SR-IOV (Turing GeForce). Design seam to keep: the execution backend behind the channel/memory model is one of {shadow tables on the PF, VF passthrough}, selectable per host card (D14 chip data; the naming model's backend field). Open checks: whether the guest driver can be kept in bare-metal mode on a VF (the VF's PCI identity and the missing display/privileged engines are what make the stock driver switch to `IS_VIRTUAL`), and what the open host modules need for VF creation without the GRID package. | 2026-09-23, operator's direction |
-| P20 | Parallelism proof (operator, 2026-09-24): after the sequential benchmark, two Caraxes VMs run the cuda gate concurrently on the one RTX 2070 with the desktop on it. Needs: (1) a reservation placement policy, per-VM slots stacked downward from the top of the host FB, size from the profile, the D11 refusal rule kept (today the reservation is one fixed range, so a second reserving device gets NV_ERR_NO_MEMORY, found by the benchmark agent); (2) isolation evidence, not only function: each device's filter refuses the other VM's addresses and logs it, the comptag audit is clean for both, every Xid stays with its own pid, the host desktop is unaffected, and a pattern written into VM A's VRAM is not readable from VM B; (3) scrubbing of the reservation at teardown and a fail-closed teardown ([nova-vgpu-upstream.md](../caraxes/nova-vgpu-upstream.md) items 1 and 2); (4) a third VM as the refusal case. | 2026-09-24, operator's order |
+| P20 | Parallelism proof (operator, 2026-09-24): after the sequential benchmark, two Caraxes VMs run the cuda gate concurrently on the one RTX 2070 with the desktop on it. Needs: (1) a reservation placement policy, per-VM slots stacked downward from the top of the host FB, size from the profile, the D11 refusal rule kept (today the reservation is one fixed range, so a second reserving device gets NV_ERR_NO_MEMORY, found by the benchmark agent); (2) isolation evidence, not only function: each device's filter refuses the other VM's addresses and logs it, the comptag audit is clean for both, every Xid stays with its own pid, the host desktop is unaffected, and a pattern written into VM A's VRAM is not readable from VM B; (3) scrubbing of the reservation at teardown and a fail-closed teardown ([nova-vgpu-upstream.md](../vfio/nova-vgpu-upstream.md) items 1 and 2); (4) a third VM as the refusal case. | 2026-09-24, operator's order |
 | P21 | **BAR1 window passthrough (operator's order, 2026-09-24: "das Fenster brauchen wir")**: after the doorbell page, the guest's BAR1 windows onto its VRAM reservation are handed to the VMM as vfio-user sparse-mmap areas backed by the host RM's own BAR1 mappings, so guest CPU access to VRAM runs at native BAR speed instead of one socket message per access (today 0.4 MB/s). Constraints: the guest reprograms its BAR1 page tables, so the mapped areas must follow those changes; the host card has only 256 MiB of BAR1 shared with the desktop, so the per-device window budget of P20 stays and the mapping is windowed, never the whole reservation; the device loses visibility of BAR1 writes, which is acceptable because page tables go through BAR2, PRAMIN and the copy engine, not BAR1 (verify per D17 stage 1 before switching). Priority: right after the doorbell passthrough of the mapping package. | 2026-09-24, operator |
 | P22 | Parked: a sysmem-backed VRAM profile. The guest's whole framebuffer lives in its own RAM, the shadow translates vidmem entries into sysmem entries, BAR1 becomes a direct mapping of that RAM, no reservation and no slot limit, no comptag question. Costs PCIe bandwidth (13 GB/s instead of 448 GB/s on TU106), so a profile for many light desktops, never the default. Operator, 2026-09-24: not now, first the window; the whole memory model may be secured better later. | 2026-09-24, parked |
-| P23 | **Complete GSP surface (operator, 2026-09-24)**: emulate as many device answers as possible from source, so that another client of the same RM core (the Windows driver of the same generation, later nova-core) runs without trace-driven bring-up. [gsp-surface.md](../caraxes/gsp-surface.md) is the inventory and work list: of 829 controls that reach GSP the device answers 171; the rest splits into 62 pure chip data (one table-driven handler plus one capture per chip), 71 host-forwardable (a forward rule with a D9 deny list), 30 guest-state derived (registry and mirror), 306 needing device modelling (mostly display and profiler/debugger) and 189 never expected on TU106 (one NOT_SUPPORTED rule per feature family); roughly 40 to 60 agent-days, of which A plus E remove about 250 items in about 5. Missing RPC functions today: ALLOC_MEMORY, UNLOADING_GUEST_DRIVER, DUMP_PROTOBUF_COMPONENT, ECC_NOTIFIER_WRITE_ACK; the device never sends the RC_TRIGGERED, MMU_FAULT_QUEUED and OS_ERROR_LOG events. Open: whether the Windows 610 driver boots a TU106 with GSP-RM at all. | 2026-09-24, operator's direction After E and A (2026-09-24, [gsp-surface.md](../caraxes/gsp-surface.md) "After E and A"): the device answers 373 of the routed controls on 610 and 383 on 615; category E is refused per chip as feature families (`[features]` in `chips/*/chip.toml`, `src/chipctl.rs`), A comes from `chips/tu106/controls.toml` (8 filled, 52 listed with their source), the ids and field offsets are generated (`caraxes/tools/gsp-tables.py`, `ctrl-layouts.py`). Unhandled: A 52, B 70, C 29 (31 on 615), D 305 (308), E 0. The plans for B, C, D and the RPC surface are being written under `docs/caraxes/gsp-plan/`. Current (2026-09-25, the source is the ABI snapshot `caraxes/abi/gsp-615.71.09/controls.tsv`, [gsp-abi-615.md](../caraxes/gsp-abi-615.md) section 4): of 844 routed controls on 615 the device answers 777 and 67 are unhandled (A 50, C 1, D 16); on 610 763 of 829, 66 unhandled. |
+| P23 | **Complete GSP surface (operator, 2026-09-24)**: emulate as many device answers as possible from source, so that another client of the same RM core (the Windows driver of the same generation, later nova-core) runs without trace-driven bring-up. [gsp-surface.md](../vfio/gsp-surface.md) is the inventory and work list: of 829 controls that reach GSP the device answers 171; the rest splits into 62 pure chip data (one table-driven handler plus one capture per chip), 71 host-forwardable (a forward rule with a D9 deny list), 30 guest-state derived (registry and mirror), 306 needing device modelling (mostly display and profiler/debugger) and 189 never expected on TU106 (one NOT_SUPPORTED rule per feature family); roughly 40 to 60 agent-days, of which A plus E remove about 250 items in about 5. Missing RPC functions today: ALLOC_MEMORY, UNLOADING_GUEST_DRIVER, DUMP_PROTOBUF_COMPONENT, ECC_NOTIFIER_WRITE_ACK; the device never sends the RC_TRIGGERED, MMU_FAULT_QUEUED and OS_ERROR_LOG events. Open: whether the Windows 610 driver boots a TU106 with GSP-RM at all. | 2026-09-24, operator's direction After E and A (2026-09-24, [gsp-surface.md](../vfio/gsp-surface.md) "After E and A"): the device answers 373 of the routed controls on 610 and 383 on 615; category E is refused per chip as feature families (`[features]` in `chips/*/chip.toml`, `src/chipctl.rs`), A comes from `chips/tu106/controls.toml` (8 filled, 52 listed with their source), the ids and field offsets are generated (`caraxes/tools/gsp-tables.py`, `ctrl-layouts.py`). Unhandled: A 52, B 70, C 29 (31 on 615), D 305 (308), E 0. The plans for B, C, D and the RPC surface are being written under `docs/caraxes/gsp-plan/`. Current (2026-09-25, the source is the ABI snapshot `caraxes/abi/gsp-615.71.09/controls.tsv`, [gsp-abi-615.md](../vfio/gsp-abi-615.md) section 4): of 844 routed controls on 615 the device answers 777 and 67 are unhandled (A 50, C 1, D 16); on 610 763 of 829, 66 unhandled. |
 | P24 | **Poll-mode GSP (operator, 2026-09-24)**: at the end, run the emulated GSP like an SPDK poller: one dedicated host core serves 5-10 devices by polling instead of trapping, so that every guest-to-device signal is a memory write the guest never exits for: the GSP command queue write pointer (already in shared guest RAM), USERD GPPut of every mirrored channel (USERD in guest sysmem via the RM's instance-location keys, or the host channel's USERD placed in the guest's own page through the channel-alloc USERD parameters), and the usermode doorbell page presented to the guest as a memfd-backed sparse-mmap area of BAR0 that the poller watches (a memfd, unlike an RM mapping, may sit at any region offset). The poller rings the physical doorbell within a poll period, so a submission costs no KVM exit and no socket round trip; with batching across devices this can land below the native launch overhead for submission-heavy workloads (RL loops, small kernels), at the price of one spinning core. Prerequisites: the mapping package (write-through shadow at invalidate time, so the doorbell path carries no consistency work), the USERD-in-sysmem configuration, P21 for BAR1. No Cloud Hypervisor change needed for the doorbell in this form. | 2026-09-24, operator's idea |
 | P15 | Synthetic heads on any chip: since scanout never touches the physical display engine, the device can present N heads and connectors on any host card, including display-less data-center parts, as long as the emulated chip identity has a display HAL in the guest driver and its SM architecture matches the physical silicon (CUDA binaries are built for the identity's SM). Open check Q33: whether the guest driver's chip configuration allows a display for display-less identities such as GA100/GH100 when the fuse and static info claim one, or whether such hosts need a sibling identity with the same SM version. | 2026-09-23, operator's question |
-| P19 | Learn from the upstream NVIDIA vGPU manager (nova-core, "[PATCH v2 00/32] Introduce NVIDIA vGPU manager") without copying its SR-IOV architecture: [nova-vgpu-upstream.md](../caraxes/nova-vgpu-upstream.md) ranks what transfers (reservation scrubbing and fail-closed teardown, progress-gated interrupts, queue fences and wedge handling, wrap-safe semaphore waits) and what is VF-only; it is also the host stack a P18 middleman would sit on. | 2026-09-23, operator's brief |
+| P19 | Learn from the upstream NVIDIA vGPU manager (nova-core, "[PATCH v2 00/32] Introduce NVIDIA vGPU manager") without copying its SR-IOV architecture: [nova-vgpu-upstream.md](../vfio/nova-vgpu-upstream.md) ranks what transfers (reservation scrubbing and fail-closed teardown, progress-gated interrupts, queue fences and wedge handling, wrap-safe semaphore waits) and what is VF-only; it is also the host stack a P18 middleman would sit on. | 2026-09-23, operator's brief |
 
 ## Status
 
 **Standing goal (operator, 2026-09-23 16:40):** every gate of the Leandro v1 test suite passes on
-Caraxes (`tools/caraxes-gate.sh cuda|gpu|vdisplay|display`, [testing.md](../caraxes/testing.md)); implementation
+Caraxes (`tools/caraxes-gate.sh cuda|gpu|vdisplay|display`, [testing.md](../vfio/testing.md)); implementation
 choices and cleanup come after that. Order: E5b part 2 (kernel launch through mirror channels) →
 E5d (the whole cuda and gpu gates: managed memory needs replayable faults from the host, encode
 needs NVENC through a mirror channel plus ffmpeg in the guest, torch and robustness stages) →
-display gates via the DisplayPort route (D15, [display-connector.md](../caraxes/display-connector.md)).
+display gates via the DisplayPort route (D15, [display-connector.md](../vfio/display-connector.md)).
 Operator 2026-09-23 21:00: proceed like the original Leandro project: its helper tools (ioctlping,
 ctrlping, rmdirect, oomprobe, vrampress, the probes) are all runnable; every VM has the test
 material mounted and compiled at startup (`up` runs `sync-tests`); then the torch and RL tests in
@@ -317,7 +317,7 @@ the VM; then display, expected to be much easier than in v1.
   the image, prints `VBIOS version 90.06.3D.00.76`, and the driver times out in the GFW boot
   wait (`RmInitAdapter failed! (0x62:0x65:2119)`). Evidence in `caraxes/runs/e1-2026-09-23/`.
   Passthrough captures stay deferred until a prepared procedure exists; that procedure is
-  now written ([passthrough-procedure.md](../caraxes/passthrough-procedure.md)) and found three
+  now written ([passthrough-procedure.md](../vfio/passthrough-procedure.md)) and found three
   blockers to fix first: `sshd` is inactive on the host, there is no display manager
   (Hyprland is started by hand on tty1), and the framebuffer console holds the card.
 - 2026-09-23: **E2 done, expectation met** (`--boot-model`): the full FWSEC, Booter,
@@ -342,32 +342,32 @@ the VM; then display, expected to be much easier than in v1.
   `caraxes/runs/e4-2026-09-23/milestone1-*`.
 - 2026-09-23: **nvidia-smi complete, `nvml` gate passes** (`tools/caraxes-gate.sh nvml`):
   temperature, power, clocks, utilization and PCIe values are forwarded from the host card
-  (`src/nvml.rs`, [nvml.md](../caraxes/nvml.md)), identity stays device-owned.
-- 2026-09-23: [cuda-path.md](../caraxes/cuda-path.md) landed. E5a (UVM registration on the host-RAM
+  (`src/nvml.rs`, [nvml.md](../vfio/nvml.md)), identity stays device-owned.
+- 2026-09-23: [cuda-path.md](../vfio/cuda-path.md) landed. E5a (UVM registration on the host-RAM
   framebuffer, no physical GPU) started. E5b and later need operator decisions: a
   fixed-address VRAM reservation on the host, a privileged host RM client in the device,
   and guest DMA addresses equal to host IOVAs (a temporary guest aid at first).
-- 2026-09-23: decisions D11-D13 taken; [host-facts.md](../caraxes/host-facts.md) landed: the IOMMU
+- 2026-09-23: decisions D11-D13 taken; [host-facts.md](../vfio/host-facts.md) landed: the IOMMU
   domain is translated (DMA-FQ, so the guest-DMA fix S1 applies), fixed-address contiguous
   VRAM allocations of 2.5, 3 and 5 GiB succeed as an unprivileged client at the top of the
   host FB region, no Xid, no host effect; reservation rule: top of the region, 2 MiB aligned,
   refuse unless size + 1 GiB is free, no floating fallback.
 - 2026-09-23: the four parallel packages landed: [gsp-abi-610.md](caraxes-gsp-abi-610.md)
-  (compiled sizes; Q4 answered), [fb-model.md](../caraxes/fb-model.md) (BAR2/PRAMIN model and FB
+  (compiled sizes; Q4 answered), [fb-model.md](../vfio/fb-model.md) (BAR2/PRAMIN model and FB
   layout), [phase5-rpcs.md](caraxes-phase5-rpcs-610.md) (E4 inventory), and
-  [passthrough-procedure.md](../caraxes/passthrough-procedure.md) (three host blockers).
+  [passthrough-procedure.md](../vfio/passthrough-procedure.md) (three host blockers).
 - 2026-09-23: survey of the other architectures and of GSP API stability landed in
-  [other-architectures.md](../caraxes/other-architectures.md): the RPC vocabulary and structs are one
+  [other-architectures.md](../vfio/other-architectures.md): the RPC vocabulary and structs are one
   driver-version-wide ABI shared by all chips; only the boot register sequence is
   per-architecture; Ampere GA10x would be the least-work second identity; the VF path
   needs a booted GSP-RM behind it and is a dead end for an emulator.
 - 2026-09-23: **E5a done**: `nvidia-uvm` registers the GPU (`UVM_REGISTER_GPU` returns
   NV_OK) with the device executing UVM's seven init pushes on the fake framebuffer
-  (`channel.rs`, `uvm.rs`, [uvm.md](../caraxes/uvm.md)); condition in the guest: `uvm_disable_hmm=1`
+  (`channel.rs`, `uvm.rs`, [uvm.md](../vfio/uvm.md)); condition in the guest: `uvm_disable_hmm=1`
   or `UVM_INITIALIZE` flags 1, because the Cloud Hypervisor 64-bit PCI window leaves no
   free physical range for HMM device memory. A latent E4 bug (allocation parameters echoed
   as zeros) was fixed on the way. Next: the D14 refactor, then E5b.
-- 2026-09-23: [sysmem-iova.md](../caraxes/sysmem-iova.md) landed: registering a memfd buffer with the
+- 2026-09-23: [sysmem-iova.md](../vfio/sysmem-iova.md) landed: registering a memfd buffer with the
   host RM as an OS descriptor yields exactly one contiguous IOVA range (256 MiB at
   0xa0000000, 1 GiB at 0x40000000, reproducible; top-down allocator, bases not constant).
   Recommended E5b mechanism: register guest RAM in 1 GiB chunks, read each base with the
@@ -380,7 +380,7 @@ the VM; then display, expected to be much easier than in v1.
   `chips/tu106/*.toml` (chip data, register map, FIFO table, interrupt table, boot registers),
   `boards/rtx2070.toml`, `src/ver/v610.rs` behind the `v610` feature. Behaviour unchanged:
   same boot event sequence, nvml gate and UVM check pass, 38 unit tests, checks green
-  ([versatility.md](../caraxes/versatility.md)). Next: E5b part 1 (memory model with the reservation,
+  ([versatility.md](../vfio/versatility.md)). Next: E5b part 1 (memory model with the reservation,
   the registered guest RAM and the DMA table) and the test-suite integration.
 - 2026-09-23: **guest DMA-range module done** (`guest-module/caraxes_dma_range/`, D13 aid):
   installs `dev->dma_range_map` on the synthetic GPU from `ranges=gpa:iova:size,...` (hex,
@@ -402,7 +402,7 @@ the VM; then display, expected to be much easier than in v1.
   reading guide (398 lines: each mechanism with kernel source pointers, five experiments for
   vm1, the pitfalls; it pins down the `check_ram_in_range_map` infinite loop in v6.8: the match
   pointer is declared outside the loop and never reset). Test harness landed
-  ([testing.md](../caraxes/testing.md)): nvml 11/11, cuda 0/12, all at cuInit on control 0x2080182a.
+  ([testing.md](../vfio/testing.md)): nvml 11/11, cuda 0/12, all at cuInit on control 0x2080182a.
 - 2026-09-23: **N2 done** in worktree branch `worktree-agent-a45f20dcd340b4776` (4 commits on
   `e2f1aec`): patches 0001-0003 rewritten against QEMU's vhost-user.rst (2026-09-11) and VIRTIO
   1.4: SHMEM is bit 22 not 21 (vhost 0.16 had it wrong, both ends shared the bug), shmid-indexed
@@ -413,7 +413,7 @@ the VM; then display, expected to be much easier than in v1.
   and 0004 applies after it. No compatibility mode: both ends must change together. Merge into
   the main tree deferred until E5b part 1 hands back (the branch bumps workspace deps); the
   v1 VM double-check (patches/README.md "Manual VM check") runs from the worktree first.
-- 2026-09-23: **E5b part 1 done on vm2** ([memory-model.md](../caraxes/memory-model.md)): 4 GiB host VRAM
+- 2026-09-23: **E5b part 1 done on vm2** ([memory-model.md](../vfio/memory-model.md)): 4 GiB host VRAM
   reserved at `[0xe9000000, 0x1e9000000)`, guest FB address = host VRAM address, guest RAM
   registered in 1 GiB chunks with a real non-identity IOVA table through the guest module,
   `RmInitAdapter succeeded!`, nvml 11/11, `uvm verify 1` through the translation, clean
@@ -422,7 +422,7 @@ the VM; then display, expected to be much easier than in v1.
   cuInit still 100 (two more unanswered controls, libcuda 610.43.03 vs module 610.57.04 in
   the guest image to check). E5c agent now iterating on vm2.
 - 2026-09-23: **E5b part 2 (execution on the physical GPU) built and partly verified**
-  ([execution.md](../caraxes/execution.md), `caraxes/runs/e5b2-2026-09-23/`): the framebuffer is backed by
+  ([execution.md](../vfio/execution.md), `caraxes/runs/e5b2-2026-09-23/`): the framebuffer is backed by
   the reserved VRAM through BAR1 windows (nvml, `uvm verify 1`, cuda-init/context/core/hostreg
   all pass on real VRAM, no Xid); the full mirror-object wiring works (per guest VA space a host
   externally-owned or shared-management `FERMI_VASPACE_A` with `DMA_SET_PAGE_DIRECTORY`, per TSG
@@ -436,19 +436,19 @@ the VM; then display, expected to be much easier than in v1.
   3) and the GR context on a host channel (c1 faults with a contained Xid 38, c2 unestablished),
   so the kernel launch has not landed and GR/UVM channels run in software on the VRAM store
   meanwhile. Every Xid was contained to the device process; the host desktop was unaffected.
-- 2026-09-23: display research done ([display-path.md](../caraxes/display-path.md)): no NVIDIA display
+- 2026-09-23: display research done ([display-path.md](../vfio/display-path.md)): no NVIDIA display
   engine emulation exists anywhere; a real one is 15-25 agent-days at high risk; v1 never had
   a device display (its guest module faked GRID displayless); cheap experiments D0 (headless
   nvidia-drm, no change) and D1 (needs a `GRID_BUILD=1` guest module: operator's decision).
-- 2026-09-23: [dma-routes.md](../caraxes/dma-routes.md) answers the operator's "no patches" question:
+- 2026-09-23: [dma-routes.md](../vfio/dma-routes.md) answers the operator's "no patches" question:
   shadow page tables in the device are the only vanilla route; recommended after CUDA runs.
-- 2026-09-23: [cuda-lookahead.md](../caraxes/cuda-lookahead.md) done from the tracked 610.57.04 native
+- 2026-09-23: [cuda-lookahead.md](../vfio/cuda-lookahead.md) done from the tracked 610.57.04 native
   traces: the CUDA path phase by phase with every RPC/control classified; set 1 (cuInit +
   cuCtxCreate without execution: 12 items incl. row 41 from host GR masks, DUP_OBJECT VA-space
   alias, context-share lookup, compute-class stub), set 2 (cuMemAlloc/cuMemcpy on the software
   CE: non-stall vectors for GR0/CE2-4), set 3 (kernel launch = part 2). Corrects cuda-path.md:
   GPFIFO and USERD live in one 2 MiB vidmem block written through BAR1.
-- 2026-09-23: P16 package B done ([display-adapter.md](../caraxes/display-adapter.md)): AUX terminates at
+- 2026-09-23: P16 package B done ([display-adapter.md](../vfio/display-adapter.md)): AUX terminates at
   the device (DP_AUXCH_CTRL is PRIVILEGED+ROUTE_TO_PHYSICAL, forwarded raw); for one SST DP
   connector the device answers 36+4 NV0073, 3 NV5070, 4 NVC370, 2 NVC372 controls, nothing by
   MMIO; corrections to the earlier notes (GET_HEAD_ROUTING_MAP must echo the mask, NVC573 is
@@ -463,7 +463,7 @@ the VM; then display, expected to be much easier than in v1.
   `edid-decode` and an independent test parser, HPD events, transcript replay; 52 tests, fmt and
   clippy clean; moves into `crates/` after the part-2 hand-back. Eleven spec ambiguities listed
   in its README §8.
-- 2026-09-23: [nova.md](../caraxes/nova.md) done (P16 package C): only Linux v7.2 nova-core loads stock
+- 2026-09-23: [nova.md](../vfio/nova.md) done (P16 package C): only Linux v7.2 nova-core loads stock
   firmware (r570.144 files in linux-firmware 20260916; v7.3/drm-rust-next want `.tlv` files that
   do not exist); today's device cannot talk to nova at all: synthetic VBIOS signature/app id
   (0xBB77/0x05 vs 0x4E56/0x85), 48-byte r570 message header vs 16-byte 610 header, the CPU
@@ -471,7 +471,7 @@ the VM; then display, expected to be much easier than in v1.
   falcon-start counting on re-probe, queue re-linking; 15 items to work, 14 compatible; a
   `ver/v570.rs` overlay is 150-200 lines; runtime version selection from the firmware's
   `.fwversion` section; total 5-7.5 agent-days; gates N0-N4 with evidence.
-- 2026-09-23: [display-scaling.md](../caraxes/display-scaling.md) done (P14): recommended connector for
+- 2026-09-23: [display-scaling.md](../vfio/display-scaling.md) done (P14): recommended connector for
   headroom is DisplayPort SST (one per head, no MST/HDCP, DSC offered), +3-5 agent-days over DVI-D
   for a DPCD model, an AUX engine serving the EDID, and link-training answers; DVI-D stays for
   first light. 4K144 (1306 MHz, 31.4 Gbit/s at 8 bpc) exceeds HBR3 x4 and needs DSC, like a
@@ -479,7 +479,7 @@ the VM; then display, expected to be much easier than in v1.
   are outside the display: NVENC ~214-233 4K frames/s on Turing (scaled, not measured), VRAM
   display reserve 161 MiB per 4K head, a 144 Hz timer needing p99 jitter under 0.5 ms. Four
   heads, eight windows, four SORs. Total to four DP heads at 4K144: 17-27 agent-days.
-- 2026-09-23: [display-connector.md](../caraxes/display-connector.md) done (Wayland-first): on Turing with
+- 2026-09-23: [display-connector.md](../vfio/display-connector.md) done (Wayland-first): on Turing with
   610.57.04 a compositor's timing comes only from page-flip completion (nvidia-drm `vblank=0`
   default; the vblank callback needs an Ampere+ HAL entry), so a device timer gating flip
   completion plus the head's vblank interrupt is the whole cadence mechanism; v1 ran Wayland at
@@ -496,7 +496,7 @@ the VM; then display, expected to be much easier than in v1.
   likely fix, v1 guests had it), and the guest image has no NVIDIA X driver (`nvidia_drv.so`,
   `libglxserver_nvidia.so`), which needs the operator's OK to stage from the host's 610.57.04
   files as v1's harness did. Guest restored to baseline.
-- 2026-09-23: **display phases A and B done, gate D3 passed** ([display-ab.md](../caraxes/display-ab.md)): with
+- 2026-09-23: **display phases A and B done, gate D3 passed** ([display-ab.md](../vfio/display-ab.md)): with
   `--display` the fuse reads 0, `RmInitAdapter succeeded!` with KernelDisplay, and the stock
   `nvidia-modeset` + `nvidia-drm modeset=1 fbdev=0` show one connected `card0-DP-1` with the
   device's EDID (byte-identical, edid-decode PASS) and modes 1080p60/59.94/50, 720p60/59.94,
@@ -514,7 +514,7 @@ the VM; then display, expected to be much easier than in v1.
   mappings kills the VM (KVM_RUN EFAULT) because CH now drops mappings on reset as the spec
   requires; fix later in the guest module (zap mappings on device removal) or CH (non-faulting
   backing). Merge into main scheduled for the gap after the E5c hand-back.
-- 2026-09-23: **v1 test material in the guest; `cuda` and `gpu` gates run** ([testing.md](../caraxes/testing.md)):
+- 2026-09-23: **v1 test material in the guest; `cuda` and `gpu` gates run** ([testing.md](../vfio/testing.md)):
   `tools/caraxes-vm.sh sync-tests` copies the guest-side parts of ../Leandro-Test into
   `~/caraxes-tests` and builds the probes there; `tools/caraxes-gate.sh cuda|gpu|vdisplay|display`
   report in v1's verdict format. On vm0: nvml passes; cuda fails (0 of 12 scored tests), every
@@ -536,7 +536,7 @@ the VM; then display, expected to be much easier than in v1.
 
   The guest module stays until T3 passes.
 - 2026-09-23: **E5b core proven: the physical GPU walks a guest-built VRAM page table**
-  ([host-exec.md](../caraxes/host-exec.md); tool [caraxes/tools/host-exec.rs](../../caraxes/tools/host-exec.rs)
+  ([host-exec.md](../vfio/host-exec.md); tool [caraxes/tools/host-exec.rs](../../caraxes/tools/host-exec.rs)
   + [caraxes/tools/host-exec.sh](../../caraxes/tools/host-exec.sh); evidence
   `caraxes/runs/host-exec-2026-09-23/`). As an unprivileged RM client (CAP_SYS_ADMIN scoped to
   three controls, D12), staged A-F:
@@ -576,7 +576,7 @@ the VM; then display, expected to be much easier than in v1.
   stays `Leandro RTX 2070-4G` for the v1 gates, the transport word (`Leandro VFIO RTX 2070-4G`)
   is opt-in through `LEA_GPU_NAME_FORMAT`, `--name-format` or `CARAXES_NAME_FORMAT`; the
   Caraxes gate asks the device for the expected name (`tools/caraxes-vm.sh name`).
-- 2026-09-24: **display phases C and D done** ([display-cd.md](../caraxes/display-cd.md)): the device
+- 2026-09-24: **display phases C and D done** ([display-cd.md](../vfio/display-cd.md)): the device
   latches flips on a per-head `CLOCK_MONOTONIC` clock (core/window method decoder, RAMHT and
   context DMAs, notifiers, semaphores, AWAKEN as nvidia-drm models it, `LAST_DATA` vblank,
   `RG_DPCA`/LOADV, `FE_CORE_HEAD_STATE`, a real `IS_MODE_POSSIBLE`); 120 flips at 60.00 Hz,
@@ -586,7 +586,7 @@ the VM; then display, expected to be much easier than in v1.
   `vdisplay` and `display` gates pass (GPU-execution stages not run: no host execution on vm0;
   the compositor stage missed 60 +- 0.5 Hz by 0.01 Hz once under host load). Open: GPU-rendered compositors (host-exec), BAR1
   direct mapping (CPU access to scanout buffers runs at 0.4 MB/s), cursor, Moonlight reception.
-- 2026-09-24: **Mapping package closed** ([mapping.md](../caraxes/mapping.md), parallel.md §8.3 and §8.4,
+- 2026-09-24: **Mapping package closed** ([mapping.md](../vfio/mapping.md), parallel.md §8.3 and §8.4,
   `caraxes/runs/mapping-2026-09-24/`). The CeUtils experiment went red: without
   `RmDisableGlobalCeUtils=1` the guest RM's CeUtils channel (bare, no TSG, no VA space handle)
   runs on neither path, and `RmInitAdapter` fails in `memmgrTestCeUtils`. 0 Xid. The key stays
@@ -596,7 +596,7 @@ the VM; then display, expected to be much easier than in v1.
   async_streams passed on vm1 (556k leaves in 24k maps) with host `nvidia-smi` at most
   0.087 s. p20-check PASS, the pattern test was clean in both directions, 0 Xid, and the
   injected teardown failure failed closed.
-- 2026-09-24: **P20, the parallelism proof** ([parallel.md](../caraxes/parallel.md), evidence in
+- 2026-09-24: **P20, the parallelism proof** ([parallel.md](../vfio/parallel.md), evidence in
   `caraxes/runs/parallel-2026-09-24/`). vm1 on slot 0 and vm2 on slot 1 (2 GiB each) run
   concurrently beside the desktop.
   - The nvml gate passes 11/11 on both, and the scored cuda gate passes on both at once with the
@@ -614,13 +614,13 @@ the VM; then display, expected to be much easier than in v1.
     device and stalled the host RM for minutes at teardown (the desktop's electron GPU process
     restarted); and a guest buffer crossing a 1 GiB GPA chunk makes CE page tables point past the
     VM's registered guest RAM, which the host IOMMU blocked (parallel.md §8).
-- 2026-09-24: **Blackwell capture filed and read** ([blackwell-gb206.md](../caraxes/blackwell-gb206.md),
+- 2026-09-24: **Blackwell capture filed and read** ([blackwell-gb206.md](../vfio/blackwell-gb206.md),
   `caraxes/reference/gb206/`): the operator's lab run on an RTX 5060 Ti with driver 615.71.09
   came back complete; 610.57.04 already supports GB206 and boots its GSP through FSP, so a
   first Blackwell identity needs new names and an FSP model, not a new ABI version; 615.71.09
   is a new GSP transport altogether. Open with the operator: MSI-X and the BAR1 size of the
   synthetic GB206, a second capture, the guest driver version for Blackwell.
-- 2026-09-24: **Doorbell reactor measured** ([doorbell-poll.md](../caraxes/doorbell-poll.md), benchmark.md,
+- 2026-09-24: **Doorbell reactor measured** ([doorbell-poll.md](../vfio/doorbell-poll.md), benchmark.md,
   `caraxes/runs/doorbell-poll-2026-09-24/`): `CARAXES_DOORBELL_POLL=spin|hybrid` polls the pool's
   eventfds on a pinned core instead of waking a blocked thread. On vm1 with P21 and 64 tokens,
   in the clean second pass:
@@ -638,7 +638,7 @@ the VM; then display, expected to be much easier than in v1.
   morning 0.257), rlprobe stage 4 2.10 s against native 1.20 and v1 1.50 (this morning 20 s),
   launch 30M-cycle 1.06x, cuCtxCreate 3.8 s (19x, the BAR2 page-table writes), allocations 23x,
   copies below 16 MiB at half of native, 0 Xid. The last table before the host moves to 615.
-- 2026-09-24: **Zero-trap submission measured** ([doorbell-token-pool.md](../caraxes/doorbell-token-pool.md),
+- 2026-09-24: **Zero-trap submission measured** ([doorbell-token-pool.md](../vfio/doorbell-token-pool.md),
   benchmark.md, `caraxes/runs/doorbell-tokens-gpu-2026-09-24/`): the P21 area plus the datamatch
   token pool (64 tokens, one eventfd each, handed to a channel at its first trapped ring through
   the notifier entry) on Cloud Hypervisor 0001-0006: 120 trapped doorbells in a run of 284612
@@ -646,7 +646,7 @@ the VM; then display, expected to be much easier than in v1.
   rlprobe stage 4 11.2 s to 3.0 s (native 1.3 s, v1 3.4 s), transfers 257 to 970 per second,
   0 Xid. In pure emulation before that: 253 datamatch ioeventfds registered, nvprobe 2 with 20
   channels each trapping exactly once.
-- 2026-09-24: **P21 BAR1 passthrough, prototype on the GPU path** ([bar1-passthrough.md](../caraxes/bar1-passthrough.md),
+- 2026-09-24: **P21 BAR1 passthrough, prototype on the GPU path** ([bar1-passthrough.md](../vfio/bar1-passthrough.md),
   benchmark.md, `caraxes/runs/p21-bar1-2026-09-24/`): guest BAR1's first MiB as one sparse
   mmap area of region 1 backed by an NVIDIA dma-buf of the reservation piece the traces showed,
   spec-conformant, mapped once by Cloud Hypervisor v53; BAR1 reads inside the area 47.9 us to
@@ -669,7 +669,7 @@ the VM; then display, expected to be much easier than in v1.
   through one regex helper (`lea_mediated_name_re`, operator's permission of 2026-09-24).
   The Caraxes GID is still seeded from the legacy name, so the guest UUID is unchanged.
 - 2026-09-25: **The pure-emulation regressions of 2026-09-24 were the rig**
-  ([blackwell-gate.md](../caraxes/blackwell-gate.md) section 5, evidence
+  ([blackwell-gate.md](../vfio/blackwell-gate.md) section 5, evidence
   `caraxes/runs/emu-regress-2026-09-25/`): the ladder's vm6 lacked the guest module options of
   quickstart.md section 2 (`RmDisableGlobalCeUtils=1;RMDisableScrubOnFree=1;RmRcWatchdog=0`), so
   the TU106 met the global CeUtils self-test (memmgrMemSet timeout, mem_mgr.c:445) and the GB206
@@ -680,7 +680,7 @@ the VM; then display, expected to be much easier than in v1.
   six costume-ladder rungs boot in pure emulation. The device now reads the 610 guest's
   SET_REGISTRY table and warns about a missing key; `tools/emu-boot-check.sh` (check.sh step
   `emu-boot`, `CARAXES_CHECK_EMU_BOOT=1`) boots the TU106 in pure emulation without a GPU.
-- 2026-09-25: **The costume ladder** ([costume-ladder.md](../caraxes/costume-ladder.md), evidence
+- 2026-09-25: **The costume ladder** ([costume-ladder.md](../vfio/costume-ladder.md), evidence
   `caraxes/runs/costume-ladder-2026-09-24/`): TU104 over the TU106 works on the GPU (nvml gate
   but power-number, cuda gate 10 of 12 (the gate script's count: the declared-unsupported cuda-gdb row is among the 12; documents that count only the 11 scored rows write the same result as 10 of 11, testing.md section 3, cuda) scored, 0 Xid). GA106 and AD106 take the Ampere/Ada HAL
   from BOOT_42 and were caught first by the VBIOS (the GA102 HAL runs FWSEC only from a V3
@@ -702,8 +702,8 @@ the VM; then display, expected to be much easier than in v1.
   Correction (2026-09-25): both pure-emulation walls were the rig, not the device, since the
   ladder's vm6 lacked the guest module options of quickstart.md section 2; with them the TU106
   reaches nvidia-smi, the GB206 passes N0 to N4 and all six rungs boot
-  ([blackwell-gate.md](../caraxes/blackwell-gate.md) section 5).
-- 2026-09-24: **The 5060 costume on the GPU** ([costume-5060.md](../caraxes/costume-5060.md), evidence
+  ([blackwell-gate.md](../vfio/blackwell-gate.md) section 5).
+- 2026-09-24: **The 5060 costume on the GPU** ([costume-5060.md](../vfio/costume-5060.md), evidence
   `caraxes/runs/costume-2026-09-24/`): vm1 with the 1 GiB profile presents `10de:2d04` rev a1,
   subsystem 1043:8a08, BAR0 64 MiB and the name "Leandro VFIO RTX 5060 Ti-1G" (/proc Model
   "NVIDIA GeForce RTX 5060 Ti" from the guest's name table) on the TU106 with host execution;
@@ -712,8 +712,8 @@ the VM; then display, expected to be much easier than in v1.
   identity); 0 Xid. The first run with the whole GB206 config space was caught by the Turing
   RM's fixed XVE link offsets (link width "25x"); the costume now takes only the ids
   (`ids_from`) and keeps the TU106 layout.
-- 2026-09-24: **Blackwell N gate passed in pure emulation** ([blackwell-gate.md](../caraxes/blackwell-gate.md),
-  [gsp-boot-blackwell.md](../caraxes/gsp-boot-blackwell.md), experiments.md rows b0-b8, evidence in
+- 2026-09-24: **Blackwell N gate passed in pure emulation** ([blackwell-gate.md](../vfio/blackwell-gate.md),
+  [gsp-boot-blackwell.md](../vfio/gsp-boot-blackwell.md), experiments.md rows b0-b8, evidence in
   `caraxes/runs/blackwell-2026-09-24/`): the device presents the RTX 5060 Ti of the lab capture
   (`--board-data rtx5060ti`, `CARAXES_CHIP=gb206`; MSI-X unlinked, BAR1 256 MiB, PBI mailbox
   and DSN bytes redacted) and emulates the FSP Chain-of-Trust boot (`src/chip/boot_fsp.rs`),
@@ -722,7 +722,7 @@ the VM; then display, expected to be much easier than in v1.
   vm1 reached RmInitAdapter, `nvidia-smi -q` ("Leandro VFIO RTX 5060 Ti-4G", 4096 MiB, VBIOS
   98.06.1F.40.4A) and UVM's first BLACKWELL_CHANNEL_GPFIFO_B allocation; no host GPU was
   touched. Next: the CA6F/CAB5 method subsets (the first push hangs), full KGR static info.
-- 2026-09-24: **Display phase E: a GPU-rendered Wayland desktop** ([display-e.md](../caraxes/display-e.md),
+- 2026-09-24: **Display phase E: a GPU-rendered Wayland desktop** ([display-e.md](../vfio/display-e.md),
   experiments.md "Display phase E", evidence `caraxes/runs/display-e-2026-09-24/` and
   `caraxes/runs/display-f-2026-09-24/`). The stock NVIDIA EGL/GL/Vulkan stack renders on the
   RTX 2070 through the shadow GR path (bare CE channels mirrored, size-0 context buffers
@@ -738,13 +738,13 @@ the VM; then display, expected to be much easier than in v1.
   latency avg 101 ms, 0 % network drops, 9.8 Mbit/s, 2.09 guest cores. Pointer:
   `CARAXES_INPUT=fifo` adds virtio-input through `--generic-vhost-user` without a hypervisor
   patch. 1 Xid 31 (device pid) at one GNOME start, open (display-e.md §9).
-- 2026-09-24: **Display front-end page measured on vm0** ([intr-page.md](../caraxes/intr-page.md) §10.6,
+- 2026-09-24: **Display front-end page measured on vm0** ([intr-page.md](../vfio/intr-page.md) §10.6,
   `caraxes/runs/display-page-2026-09-24/`). With the interrupt page and the display page
   (`CARAXES_DISPLAY_PAGE=1`) Mutter goes from 230 to 140 trapped accesses per frame at 59.9 Hz
   and Weston from 106 to 31 at 57.4 Hz; five GNOME starts per series, 7615 awaken markers all
   acked through the page, `inconsistencies: none`, 0 host Xid. Weston's remaining eleven traps
   per frame and its wider frame spread are the next look.
-- 2026-09-24: **GSP surface, categories E and A** ([gsp-surface.md](../caraxes/gsp-surface.md) "After E and
+- 2026-09-24: **GSP surface, categories E and A** ([gsp-surface.md](../vfio/gsp-surface.md) "After E and
   A", merge e0ce42f). Routed controls answered: 176 to 373 on the 610 ABI, 175 to 383 on 615. The
   189 (200) controls of category E are refused with NOT_SUPPORTED as feature families a chip
   declares absent (`chips/tu106/chip.toml` `[features]`, `src/chipctl.rs`); 8 of category A are
@@ -764,7 +764,7 @@ the VM; then display, expected to be much easier than in v1.
   nvml pass, cuda 10 of 12 scored pass (cuda-managed 801 as on 610, cuda-gdb unsupported), the
   610 guest had 9; 0 Xid. Open: the bench series still fails with cuInit 803 through
   `LD_LIBRARY_PATH=/opt/nvrm/lib`, a harness setting.
-- 2026-09-24: **SotTR stage prepared** ([sottr-stage.md](../caraxes/sottr-stage.md), scripts and plumbing
+- 2026-09-24: **SotTR stage prepared** ([sottr-stage.md](../vfio/sottr-stage.md), scripts and plumbing
   evidence in `caraxes/runs/sottr-2026-09-24/`). `tools/caraxes-vm.sh` attaches a Steam library
   disk (`CARAXES_GAMES_DISK`: a thin overlay per VM; `CARAXES_GAMES_DISK_RW=1`: the base under a
   writer lock in `/mnt/vmstore/caraxes/locks/`). vm4 (3 GiB, slot 0, `caraxes3`, 8 GiB, 8 vCPUs)
@@ -779,9 +779,9 @@ the VM; then display, expected to be much easier than in v1.
   offsets are generated per driver version from the SDK headers. One correction is already known:
   `CE_GET_LCE_SHIM_INFO` sits in the `internal_uncalled` family, but the 615 user space calls it
   during cuInit (cutover-615.md, run 4); it moves out with the 615 cuInit work.
-- 2026-09-24: **GSP surface, categories B and C** ([gsp-surface.md](../caraxes/gsp-surface.md) "After B
-  and C", [gsp-plan/b-host-forwardable.md](../caraxes/gsp-plan/b-host-forwardable.md) §8,
-  [gsp-plan/c-guest-state.md](../caraxes/gsp-plan/c-guest-state.md) §8). Routed controls answered: 373 to
+- 2026-09-24: **GSP surface, categories B and C** ([gsp-surface.md](../vfio/gsp-surface.md) "After B
+  and C", [gsp-plan/b-host-forwardable.md](../vfio/gsp-plan/b-host-forwardable.md) §8,
+  [gsp-plan/c-guest-state.md](../vfio/gsp-plan/c-guest-state.md) §8). Routed controls answered: 373 to
   462 on the 610 ABI, 383 to 473 on 615.
   - **The isolation fix first.** `FB_GET_OFFLINED_PAGES` and `FB_GET_REMAPPED_ROWS` handed the
     guest host FB pages; they now pass on only pages inside the VM's reservation (rows: none).
@@ -802,7 +802,7 @@ the VM; then display, expected to be much easier than in v1.
     device failed closed. In pure emulation, the nvml and cuda rows were unchanged before and
     after.
 - 2026-09-24: **GSP plan implemented, RPCs, events, classes, boot exchange**
-  ([gsp-plan/](../caraxes/gsp-plan/README.md), a "Status" section per document; runs in
+  ([gsp-plan/](../vfio/gsp-plan/README.md), a "Status" section per document; runs in
   `caraxes/runs/gsp-rpc-2026-09-24/`). `ALLOC_MEMORY` is answered from a registry of the
   guest's pages, so the 615 operational-event import completes (0x90CD, 0x90D0 and their
   controls answered); the six conditional RPCs and `UNLOADING_GUEST_DRIVER` get the plan's
@@ -819,7 +819,7 @@ the VM; then display, expected to be much easier than in v1.
   610 guest had 9; 0 Xid. The bench series' cuInit 803 was a harness setting, closed in the
   next entry.
 - 2026-09-24: **First 615 benchmark series; bench-run.sh picks the guest libcuda by driver**
-  ([benchmark.md](../caraxes/benchmark.md) "First 615 series", [cutover-615.md](caraxes-cutover-615-2026-09-24.md) "Closed:
+  ([benchmark.md](../vfio/benchmark.md) "First 615 series", [cutover-615.md](caraxes-cutover-615-2026-09-24.md) "Closed:
   the bench series", records `caraxes/runs/bench-615-2026-09-24/`). The 615 base image keeps the
   610.57.04 userspace in `/opt/nvrm/lib` with its linker entry disabled; the gate's probes find
   the 615 libcuda through the linker cache, bench-run.sh forced `/opt/nvrm/lib` and got cuInit
@@ -830,7 +830,7 @@ the VM; then display, expected to be much easier than in v1.
   4349 against 4144 ms, PPO 6226 against 6718 steps/s); the gap to the closing series is the
   missing P21 area. 0 Xid. Next: the like-for-like with the area and the spin reactor.
 - 2026-09-24: **GSP surface, category D rule table and display models** (gsp-plan R0 and R1,
-  [gsp-plan/d-device-model.md](../caraxes/gsp-plan/d-device-model.md) §10, [gsp-surface.md](../caraxes/gsp-surface.md)
+  [gsp-plan/d-device-model.md](../vfio/gsp-plan/d-device-model.md) §10, [gsp-surface.md](../vfio/gsp-surface.md)
   "After D"). `src/dmodel.rs` gives the D controls the plan's labelled answer from a table
   generated per driver version out of `d-controls.tsv` (`caraxes/tools/gsp-dtable.py`): on 615,
   101 REFUSE, 37 DENY and 14 ACK answered, the display rows through the display's board table;
@@ -847,7 +847,7 @@ the VM; then display, expected to be much easier than in v1.
   sends `SET_ZBC_COLOR_CLEAR` three times (ZBC model, R3). No host Xid on the device's pid (one
   Xid 31 on vm1's device in the same hour).
 - 2026-09-24: **The Xid 31 in cuda-hostreg was the swiotlb alias, fixed**
-  ([memory-model.md](../caraxes/memory-model.md) §2 "The alias in the device", records in
+  ([memory-model.md](../vfio/memory-model.md) §2 "The alias in the device", records in
   `caraxes/runs/xid31-hostreg-2026-09-24/`).
   - **Case.** vm1's cuda gate with main 7621cfb failed cuda-hostreg (719), with one Xid 31 on
     the device pid 508533: `CE2 ... FAULT_PTE` at a GPU VA inside the pinned buffer.
@@ -868,8 +868,8 @@ the VM; then display, expected to be much easier than in v1.
     - After, device pid 1151433: hostreg-margin 20 of 20, hostregprobe 20 of 20, full cuda
       gate 10 of 11 (only the known cuda-managed 801), 0 host Xid.
 - 2026-09-24: **GSP surface, category D round 2: R2, the open MODEL rows, the ZBC table**
-  ([gsp-plan/d-device-model.md](../caraxes/gsp-plan/d-device-model.md) §10 "Round 2",
-  [gsp-surface.md](../caraxes/gsp-surface.md) "After round 2 of D", records
+  ([gsp-plan/d-device-model.md](../vfio/gsp-plan/d-device-model.md) §10 "Round 2",
+  [gsp-surface.md](../vfio/gsp-surface.md) "After round 2 of D", records
   `caraxes/runs/gsp-round2-d-2026-09-24/`). R2 in `src/rc.rs` and a per-VM `DState`:
   `FIFO_DISABLE_CHANNELS` only on the guest's own channels (mirrors by their own channel and
   TSG objects, never a runlist action), `GPU_REPORT_NON_REPLAYABLE_FAULT` and the RC watchdog
@@ -889,7 +889,7 @@ the VM; then display, expected to be much easier than in v1.
   device's pid (two Xid 31 of another VM's device during the 615 before run). What the guest
   watchdog needs before `RmRcWatchdog=0` can go: 2D-class NOTIFY in the software executor, the
   BAR1 USERD path (Q7).
-- 2026-09-25: **The GSP ABI baseline is recorded (D20)** ([gsp-abi-615.md](../caraxes/gsp-abi-615.md),
+- 2026-09-25: **The GSP ABI baseline is recorded (D20)** ([gsp-abi-615.md](../vfio/gsp-abi-615.md),
   `caraxes/abi/`). `caraxes/tools/gsp-abi.py snapshot` writes the 615.71.09 surface as TSV
   (1397 controls, 844 routed, 734 answered by the device: host-forwarded 69, synthesized 79,
   guest-derived 40, echo 67, refused 479; 232 RPC functions, the 14 a 615 client sends all
@@ -904,9 +904,9 @@ the VM; then display, expected to be much easier than in v1.
   the channel and TSG `internalFlags`, the register-held queue pointers. `gsp-surface.py` now
   reads the RPC arms of `gsprpc.rs`, `gspmem.rs` and `events.rs` (19 functions and 4 events
   handled, not 11 and 2) and takes the 615 client's sends for a 615 tree. The tables are
-  [gsp-abi-615-tables.md](../caraxes/gsp-abi-615-tables.md); `tools/check.sh` step `gsp-abi` fails when the
+  [gsp-abi-615-tables.md](../vfio/gsp-abi-615-tables.md); `tools/check.sh` step `gsp-abi` fails when the
   snapshot drifts from the 615 tree or the tables from the snapshot (passes here: 0 changes).
-- 2026-09-25: **The 615 guest's display path** ([display-615.md](../caraxes/display-615.md),
+- 2026-09-25: **The 615 guest's display path** ([display-615.md](../vfio/display-615.md),
   `caraxes/runs/display-615-2026-09-24/`). vm0-615 is an overlay on the 615 base image with vm0's
   seed. Its GL, EGL and Vulkan userspace at 615.71.09 is copied from the host's nvidia-utils,
   because the image has no libnvidia-gl-615. Its nvidia-drm.ko is rebuilt from the image's DKMS
@@ -920,9 +920,9 @@ the VM; then display, expected to be much easier than in v1.
   explicit (GET_ACTIVE 20 bytes, staleSorIndex) and records the WAR per connector, with tests.
   Found: the 615 GL driver asks GET_ZBC_CLEAR_TABLE_ENTRY 45 times per context (unanswered, A).
   0 host Xid on the device's pid.
-- 2026-09-25: **GSP plan round 2, category C** ([gsp-plan/c-guest-state.md](../caraxes/gsp-plan/c-guest-state.md)
-  §8 "Round 2", [gsp-plan/b-host-forwardable.md](../caraxes/gsp-plan/b-host-forwardable.md) §8,
-  [gsp-surface.md](../caraxes/gsp-surface.md) "After the GSP plan round 2"; runs
+- 2026-09-25: **GSP plan round 2, category C** ([gsp-plan/c-guest-state.md](../vfio/gsp-plan/c-guest-state.md)
+  §8 "Round 2", [gsp-plan/b-host-forwardable.md](../vfio/gsp-plan/b-host-forwardable.md) §8,
+  [gsp-surface.md](../vfio/gsp-surface.md) "After the GSP plan round 2"; runs
   `caraxes/runs/gsp-round2-c-2026-09-24/`). Routed controls answered: 720 to 746 on the 610
   ABI, 734 to 760 on 615.
   - **The 17 C rows of the D plan** are rows of `PUBLIC_C`: 9 done, 8 partial (the three
@@ -949,7 +949,7 @@ the VM; then display, expected to be much easier than in v1.
     rlprobe and convburn pass, the nvprobe-based tests print nothing on vm5's 610 image both
     times. No Xid on the device's pid (two Xid 31 in one window belonged to another run's
     device).
-- 2026-09-25: **Trap census and optimisation backlog** ([optimization-backlog.md](../caraxes/optimization-backlog.md),
+- 2026-09-25: **Trap census and optimisation backlog** ([optimization-backlog.md](../vfio/optimization-backlog.md),
   records `caraxes/runs/trap-census-2026-09-25/`). Every CUDA operation alone on vm3 (main
   1ea2529, 610 guest, 1 GiB slot 5) with the device trace and marker writes, in four
   configurations plus native. With the interrupt page, BAR1 pool (32 MiB) and token pool, a
@@ -966,7 +966,7 @@ the VM; then display, expected to be much easier than in v1.
   creation, the invalidate and flush page as memory with a cheaper sync, the MSI re-arm as an
   ioeventfd, and progress-gated interrupt forwarding. 0 host Xid.
 - 2026-09-25: **Backlog items 1 and 4: the BAR2 memfd works beside the BAR1 pool, and the MSI
-  re-arm no longer traps** ([bar2-memfd.md](../caraxes/bar2-memfd.md) §8, [intr-page.md](../caraxes/intr-page.md) §4;
+  re-arm no longer traps** ([bar2-memfd.md](../vfio/bar2-memfd.md) §8, [intr-page.md](../vfio/intr-page.md) §4;
   records `caraxes/runs/opt-memfd-pool-2026-09-25/`, `caraxes/runs/opt-msi-ioeventfd-2026-09-25/`).
   - **Why memfd plus pool hung.** The pool follows the guest's BAR1 tables through trapped writes.
     With the memfd the guest RM writes them through BAR2, and the sync's report
@@ -991,7 +991,7 @@ the VM; then display, expected to be much easier than in v1.
   - **Recommended configuration.** Memfd, pool, token pool, interrupt page and the re-arm switch
     (bench-run.sh header).
 - 2026-09-25: **The shadow's host RM calls at context creation, backlog item 2**
-  ([memory-model.md](../caraxes/memory-model.md) §7, records `caraxes/runs/opt-shadow-maps-2026-09-25/`).
+  ([memory-model.md](../vfio/memory-model.md) §7, records `caraxes/runs/opt-shadow-maps-2026-09-25/`).
   - **Setup.** vm0, 1 GiB at slot 0, 610 guest, BAR2 memfd without the BAR1 pool, census probe.
   - **Cause.** Five context creations in a row showed it: the guest's sysmem pages come back
     scattered. That cost about 15000 one-page map calls per context (29 us each) and as many
@@ -1014,9 +1014,9 @@ the VM; then display, expected to be much easier than in v1.
     filter resolved; nothing is pinned beyond D13. The switches are `CARAXES_SHADOW_GATHER`,
     `_BULK_FREE` and `_REGION_POOL` (0 turns each off).
   - **Gates.** cuda 11 of 12 (cuda-managed) in every part, 0 host Xid.
-- 2026-09-25: **The C table and the D models reconciled** ([gsp-plan/c-guest-state.md](../caraxes/gsp-plan/c-guest-state.md)
-  §8 "Reconciliation", [gsp-plan/d-device-model.md](../caraxes/gsp-plan/d-device-model.md) §10,
-  [gsp-surface.md](../caraxes/gsp-surface.md) "After the reconciliation"; runs
+- 2026-09-25: **The C table and the D models reconciled** ([gsp-plan/c-guest-state.md](../vfio/gsp-plan/c-guest-state.md)
+  §8 "Reconciliation", [gsp-plan/d-device-model.md](../vfio/gsp-plan/d-device-model.md) §10,
+  [gsp-surface.md](../vfio/gsp-surface.md) "After the reconciliation"; runs
   `caraxes/runs/gsp-round2-reconcile-2026-09-25/`). The two round-2 merges answered five controls
   twice, the C table's partial rows first: `FIFO_DISABLE_CHANNELS`,
   `GPU_REPORT_NON_REPLAYABLE_FAULT`, `INTERNAL_RC_WATCHDOG_TIMEOUT`,
@@ -1030,9 +1030,9 @@ the VM; then display, expected to be much easier than in v1.
   but cuda-managed; 610 on vm3 nvml power N/A as always, cuda the same as 615; the journal
   round trip (`CARAXES_RC_SELFTEST`, caraxes/tools/rc-journal-probe.sh) and the goe-probe (11
   records) pass. No host Xid.
-- 2026-09-25: **Night series on vm2** ([benchmark.md](../caraxes/benchmark.md) "Night series",
-  [bar2-memfd.md](../caraxes/bar2-memfd.md) §8, [alloc-path.md](../caraxes/alloc-path.md) §7,
-  [workload-gate.md](../caraxes/workload-gate.md) §7; records in `caraxes/runs/{bar2-memfd,alloc-path,bench-615,workload}-2026-09-24/night/`).
+- 2026-09-25: **Night series on vm2** ([benchmark.md](../vfio/benchmark.md) "Night series",
+  [bar2-memfd.md](../vfio/bar2-memfd.md) §8, [alloc-path.md](../vfio/alloc-path.md) §7,
+  [workload-gate.md](../vfio/workload-gate.md) §7; records in `caraxes/runs/{bar2-memfd,alloc-path,bench-615,workload}-2026-09-24/night/`).
   vm2 at 1 GiB slot 3, main 57693d8 frozen, host 615.71.09.
   - **BAR2 memfd measured.** Trapped BAR2 writes per context creation 96269 to 0; cuCtxCreate
     3.5-3.9 s to 0.53 s (2.7x native), cuCtxDestroy to 0.15 s. With the BAR1 pool every context
@@ -1049,7 +1049,7 @@ the VM; then display, expected to be much easier than in v1.
     (0.85 and 0.92 per sample); one Xid 31 (GPC FAULT_PDE) on vm2's device in transformer rep 2.
   - Harness: `bench-run.sh` retries a restart the D11 headroom rule refused; the workload runner
     takes `WORKLOAD_ENV`. Other host Xids of the night (two Xid 31 at 23:32) were vm1's device.
-- 2026-09-25: **Morning matrix on main fbe4dfb** ([benchmark.md](../caraxes/benchmark.md) "Morning matrix
+- 2026-09-25: **Morning matrix on main fbe4dfb** ([benchmark.md](../vfio/benchmark.md) "Morning matrix
   (2026-09-25, main fbe4dfb)", records `caraxes/runs/matrix-2026-09-25/`). The frozen fbe4dfb
   builds with all three optimisations together (BAR2 memfd beside the BAR1 pool, batched shadow
   maps, MSI re-arm ioeventfd) plus the lazy plans, host 615.71.09.
@@ -1070,7 +1070,7 @@ the VM; then display, expected to be much easier than in v1.
     intermittent (the reruns with and without the pool passed); the faulting gate run's pool
     summary is the only one with refused barriers. No Xid on the 610 guest.
   - Harness: `bench-run.sh` keeps each rep's device log before a restart (`V2_LOG_KEEP`).
-- 2026-09-25: **The morning matrix's Xid 31: cause found and fixed** ([bar1-pool.md](../caraxes/bar1-pool.md)
+- 2026-09-25: **The morning matrix's Xid 31: cause found and fixed** ([bar1-pool.md](../vfio/bar1-pool.md)
   §9, records `caraxes/runs/xid31-pool-2026-09-25/`). A mirrored channel's USERD lives in the
   BAR1 pool (libcuda maps it into BAR1 before it creates the channel), so the guest's GPPut store
   reaches the host channel without a trap; a loaded host channel runs the new work before the
@@ -1086,7 +1086,7 @@ the VM; then display, expected to be much easier than in v1.
   801), 0 Xid. Cost (the rule off then on, vm5-615): cuMemAlloc 1 MiB 175 to 200 us, 64 MiB 511 to
   2277 us, cuMemFree 64 MiB 791 to 2402 us, cuCtxCreate 395 to 486 ms, launches unchanged; holding
   only plans that map something new would recover the frees (not built).
-- 2026-09-25: **Coverage map and the profile** ([coverage-map.md](../caraxes/coverage-map.md), records
+- 2026-09-25: **Coverage map and the profile** ([coverage-map.md](../vfio/coverage-map.md), records
   `caraxes/runs/coverage-2026-09-25/`).
   - **The profile.** `CARAXES_PROFILE=1` aggregates, per device and per guest client:
     - trapped accesses, with device and guest-seen time;
@@ -1117,7 +1117,7 @@ the VM; then display, expected to be much easier than in v1.
   - **Findings.** `cuMemAllocAsync` is refused (801). An illegal address reaches the guest as
     LAUNCH_FAILED (719), with no RC event and host Xid 31 on the device's pid.
 - 2026-09-25: **Coverage follow-up: the sweep getters and the forward cache**
-  ([coverage-map.md](../caraxes/coverage-map.md) "Status", [gsp-surface.md](../caraxes/gsp-surface.md) "After the
+  ([coverage-map.md](../vfio/coverage-map.md) "Status", [gsp-surface.md](../vfio/gsp-surface.md) "After the
   sweep getters of the coverage map", records `caraxes/runs/coverage-followup-2026-09-25/`).
   - **The 21 unanswered sweep getters are answered.**
     - 7 are plain host forwards (`FORWARD`): the latency buffer, IP version, scheduler caps,
@@ -1140,7 +1140,7 @@ the VM; then display, expected to be much easier than in v1.
     0 host Xid.
   - The first start was refused at the BAR1 pool mmap: the host BAR1 was full with the other
     VMs. `run.sh` retries it.
-- 2026-09-25: **SotTR on the 615 guest with the distribution's driver** ([sottr-stage.md](../caraxes/sottr-stage.md)
+- 2026-09-25: **SotTR on the 615 guest with the distribution's driver** ([sottr-stage.md](../vfio/sottr-stage.md)
   section 8, records `caraxes/runs/sottr-2026-09-24/session-615-20260925-112443/`).
   - vm4-615: an overlay on the 615 image, `apt` installs `nvidia-driver-open` 615.71.09 with
     GL, EGL, Vulkan, encode and decode from NVIDIA's CUDA repository, and
@@ -1155,7 +1155,7 @@ the VM; then display, expected to be much easier than in v1.
     vm2's device (NVENC0).
   - Weekend goal: the guest driver must not matter ([roadmap.md](caraxes-roadmap-2026-09-27.md) item 2); what the
     device still needs from the guest is sottr-stage.md section 8.1 (the three registry keys).
-- 2026-09-25: **NVENC and NVDEC through the mirror, in progress** ([video-engines.md](../caraxes/video-engines.md),
+- 2026-09-25: **NVENC and NVDEC through the mirror, in progress** ([video-engines.md](../vfio/video-engines.md),
   records `caraxes/runs/nvenc-2026-09-25/`, probe `caraxes/tools/nvenc-probe.c`).
   - Native probe: 300 frames of 1080p H.264 at 160.7 fps, 2.9 ms median latency, decode
     PSNR at least 63.4 dB.
@@ -1167,7 +1167,7 @@ the VM; then display, expected to be much easier than in v1.
     - VA reservation storm: host RM NO_MEMORY, the desktop froze, host reboot at 11:44.
     - Doorbell-hold deadlock: the guest waits for its first push.
   - No guest frame has been encoded yet; the next probe waits for a host BAR1 budget.
-- 2026-09-25: **Limits runs: ECC, MIG and vGPU** ([limits-mig-ecc-vgpu.md](../caraxes/limits-mig-ecc-vgpu.md),
+- 2026-09-25: **Limits runs: ECC, MIG and vGPU** ([limits-mig-ecc-vgpu.md](../vfio/limits-mig-ecc-vgpu.md),
   evidence `caraxes/runs/limits-2026-09-25/`). All runs are pure emulation on vm8 (`CARAXES_TAP=none`).
   - **ECC** (`src/families/ecc.rs`, GH100 rung). Everything works:
     - `nvidia-smi -q -d ECC`, the ECC query fields, `-q -d ROW_REMAPPER`,
@@ -1188,7 +1188,7 @@ the VM; then display, expected to be much easier than in v1.
     the devinit scratch bit), the TU106-as-VF run and the TU106 emu-boot check. The operator
     stopped VM boots for host memory.
 - 2026-09-25: **The desktop with the recommended configuration and the next windows**
-  ([intr-page.md](../caraxes/intr-page.md) §11, records `caraxes/runs/display-page-2026-09-25/`).
+  ([intr-page.md](../vfio/intr-page.md) §11, records `caraxes/runs/display-page-2026-09-25/`).
   - **Setup.** vm0, 610 guest, 2 GiB at slot 0, the recommended configuration of the morning
     matrix; per series Mutter, vkcube and glmark2 under Mutter (no browser: the image's
     `firefox` is the snap stub) and Weston, `trap-table.py --pages --regs`.
@@ -1207,7 +1207,7 @@ the VM; then display, expected to be much easier than in v1.
     overdue flush debts (8801bfe).
   - **Xid.** 0 on vm0's device in every series; the only Xid lines of the session were vm2's
     (pid 3245134, Xid 109, series F).
-- 2026-09-25 afternoon: **The remaining per-frame traps as memory** ([intr-page.md](../caraxes/intr-page.md)
+- 2026-09-25 afternoon: **The remaining per-frame traps as memory** ([intr-page.md](../vfio/intr-page.md)
   §12, records `caraxes/runs/display-page-2026-09-25/` P1).
   - **Flush page as memory** (`CARAXES_BAR2_FLUSH_PAGE=memory`): no BAR2 page traps; the BAR2
     memfd syncs at the invalidate, the GSP doorbell, every trapped write and doorbell, and by
@@ -1225,7 +1225,7 @@ the VM; then display, expected to be much easier than in v1.
     flush page as memory (on dev's `DeferredFlush`), the vblank spin. Not merged: the branch's
     flush deferral `CARAXES_BAR2_FLUSH_DEFER_US` (dev's `CARAXES_BAR2_MEMFD_DEFER_FLUSH` does
     this) and its BAR1 floor (dev had the same). Notes in intr-page.md §11.2, §11.3, §12.1, §12.4.
-- 2026-09-25: **Context creation** ([ctx-create.md](../caraxes/ctx-create.md), records
+- 2026-09-25: **Context creation** ([ctx-create.md](../vfio/ctx-create.md), records
   `caraxes/runs/opt-ctxcreate-2026-09-25/`, vm3, 610 guest).
   - **The split.** cuCtxCreate is the guest's setup to its first doorbell, the 20 host channel
     builds and the tail of libcuda's allocations. In `before` the medians are 179, 76 and 70 ms.

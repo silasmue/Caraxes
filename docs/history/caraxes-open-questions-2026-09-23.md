@@ -11,7 +11,7 @@ Numbered; keep numbers stable. Each names the experiment or source that resolves
    (x86 + EFI, 127 KiB). The FWSEC extension image the driver needs is beyond the PCI
    "last image" flag and only reachable through the PROM window. R1.
 3. **Real `NV_PMC_BOOT_42`, `HWCFG` IMEM size, and the other status-register values.**
-   Predictions are in [registers-turing.md](../caraxes/registers-turing.md); R3 gives ground truth.
+   Predictions are in [registers-turing.md](../vfio/registers-turing.md); R3 gives ground truth.
 4. **Sizes of `GspStaticConfigInfo` and `GspSystemInfo`.** The CPU copies
    `sizeof(GspStaticConfigInfo)` from the reply regardless of the reply length and
    requires both to fit in one message (≤ 65488 bytes). Compile the vendored headers
@@ -95,7 +95,7 @@ on our device, so a different TU106 board's image is acceptable for E1/E2, with 
 mismatch recorded). Third path, chosen on 2026-09-23 because passthrough is not possible
 while the agent session runs on the desktop (decision D8): synthesize the missing third
 image so that the driver's parsers accept it; specification in
-[vbios-synthesis.md](../caraxes/vbios-synthesis.md), generator `caraxes/tools/synth-vbios.py`.
+[vbios-synthesis.md](../vfio/vbios-synthesis.md), generator `caraxes/tools/synth-vbios.py`.
 23. **Aligning device-side RPC logs with the userspace tracer.** From E3 on, the device
    logs `GSP_RM_ALLOC`/`GSP_RM_CONTROL` RPCs; `crates/nvrm-trace` (LD_PRELOAD) logs the
    guest's ioctls with the same class/control vocabulary (`log.rs` decode over the
@@ -112,13 +112,13 @@ image so that the driver's parsers accept it; specification in
    to the driver version. Consequence for the emulator: the version-bound parts of the GSP
    side should be generated from the vendored headers per driver version, the way
    `crates/nvrm-sys` does for the ioctl ABI. Survey requested 2026-09-23; result to land in
-   [other-architectures.md](../caraxes/other-architectures.md).
+   [other-architectures.md](../vfio/other-architectures.md).
 
 Update to Q2 (E1, 2026-09-23): the synthetic image passes the parse (`VBIOS version
 90.06.3D.00.76` printed, driver proceeds to the GFW wait). Still open: whether the real
 extension image differs in ways that matter later (listed under "Open" in
-[vbios-synthesis.md](../caraxes/vbios-synthesis.md)); a real capture stays desirable for fidelity.
-Update to Q24 (2026-09-23): answered in [other-architectures.md](../caraxes/other-architectures.md) §6.
+[vbios-synthesis.md](../vfio/vbios-synthesis.md)); a real capture stays desirable for fidelity.
+Update to Q24 (2026-09-23): answered in [other-architectures.md](../vfio/other-architectures.md) §6.
 The RPC vocabulary, structs and per-message versions are fixed per driver release and shared
 by all architectures; the firmware must match the driver version string exactly
 (`kernel_gsp.c:5719-5774`). Consequence for the emulator: generate the RPC structs per
@@ -168,13 +168,13 @@ Update to Q26 (E3, 2026-09-23): settled; the queues answer within the first atte
 31. **The 40-bit flush-buffer alias.** The guest needs a DMA address below 2^40 for its
    flush buffer and fails `RmInitAdapter` (0x22:0x59:894) otherwise; after the host's switch
    to 64-bit IOVAs every chunk lies near 2^47, so the launcher aliases the guest's swiotlb pool
-   at IOVA 0xf000000000 in the guest table only ([memory-model.md](../caraxes/memory-model.md)). The
+   at IOVA 0xf000000000 in the guest table only ([memory-model.md](../vfio/memory-model.md)). The
    physical GPU never uses the guest's flush buffer (the host RM programs its own), but up to
    2 MiB of ordinary guest RAM shares the alias. Resolve: confirm no GPU access ever carries an
    alias address (an IOMMU fault on the host would show it), and find the clean fix (register
    the first chunk before the 64-bit switch after a host reboot, or a host-side IOVA below
    2^40 for that one page).
-32. **Instance-memory location keys.** Route 4 of [dma-routes.md](../caraxes/dma-routes.md) wants page
+32. **Instance-memory location keys.** Route 4 of [dma-routes.md](../vfio/dma-routes.md) wants page
    tables and instance memory in VRAM so the device sees every write. Verify in
    `vendor/open-gpu-kernel-modules` the exact registry keys (`RmInstLoc*` family) and which of
    them the GSP-client kernel RM honours, plus `uvm_page_table_location=vid` for UVM.

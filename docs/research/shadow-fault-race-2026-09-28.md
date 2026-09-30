@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Shadow fault race: nvidia-uvm's MEM_OP invalidates (2026-09-28)
 
-Scope: the host Xid 31 of Linux guest desktop-b at 21:20:24 (PyTorch ResNet-18, `CARAXES_COMPRESSION=slice`, FB 4096 MiB, slot 0), its cause, the fix on branch `shadowrace-2026-09-28`, and the F3 fault-record lookup. `T` = `/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b/gpu-trace.log` (line numbers; times in µs since the device start, 1790621954.632 s Unix by the wall times of the ran-ahead lines, e.g. `T:268742`). Background: [bar1-pool.md §9](../caraxes/bar1-pool.md), [execution.md §8](../caraxes/execution.md).
+Scope: the host Xid 31 of Linux guest desktop-b at 21:20:24 (PyTorch ResNet-18, `CARAXES_COMPRESSION=slice`, FB 4096 MiB, slot 0), its cause, the fix on branch `shadowrace-2026-09-28`, and the F3 fault-record lookup. `T` = `/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b/gpu-trace.log` (line numbers; times in µs since the device start, 1790621954.632 s Unix by the wall times of the ran-ahead lines, e.g. `T:268742`). Background: [bar1-pool.md §9](../vfio/bar1-pool.md), [execution.md §8](../vfio/execution.md).
 
 ## Facts
 

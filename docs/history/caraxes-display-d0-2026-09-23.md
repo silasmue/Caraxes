@@ -5,7 +5,7 @@ Run 2026-09-23 on vm0, against the already-running device (`e2f1aec` plus the un
 `crates/vfio-user-nvgpu`, boot model on, FB 4096 MiB, host-rm on; vm0 was not restarted).
 Evidence: [../../caraxes/runs/display-d0-2026-09-23/](../../caraxes/runs/display-d0-2026-09-23).
 Changed nothing in the device or in this tree's code; guest-only, per
-[display-path.md](../caraxes/display-path.md) section 6 and [kickoff.md](caraxes-kickoff-2026-09-23.md).
+[display-path.md](../vfio/display-path.md) section 6 and [kickoff.md](caraxes-kickoff-2026-09-23.md).
 
 ## What was run
 
@@ -99,7 +99,7 @@ history today, which is the strongest form of "none" this method can produce.
 
 ## What D1 needs
 
-D1 (GRID displayless, [display-path.md](../caraxes/display-path.md) section 6.3) needs a
+D1 (GRID displayless, [display-path.md](../vfio/display-path.md) section 6.3) needs a
 `GRID_BUILD=1` guest `nvidia.ko` and does not depend on `nvidia-drm` or Xorg the same way --
 it changes what `NV04_DISPLAY_COMMON` resolves to (`NVA083_GRID_DISPLAYLESS` instead of
 `NO_HARDWARE`) and is checked through `nvidia-smi`/DRM connector state, not necessarily

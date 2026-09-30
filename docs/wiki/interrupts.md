@@ -100,13 +100,13 @@ page: a Linux guest stores to it as memory (tagged mode), a Windows guest's stor
 
 - Queue 1 carries RM events (`KIND_EVENT_FIRED`) from the backend's nested epoll; semaphore
   waiters use a separate polling thread; a blocking wait falls back to a 100 ms poll
-  ([ARCHITECTURE.md](../ARCHITECTURE.md)).
+  ([architecture.md](../virtio/architecture.md)).
 
 ## Depth
 
-- [caraxes/intr-page.md](../caraxes/intr-page.md): the per-register census, both modes, the
+- [caraxes/intr-page.md](../vfio/intr-page.md): the per-register census, both modes, the
   ambiguity list, the display page.
-- [caraxes/kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md) §C Intr.
+- [caraxes/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md) §C Intr.
 - [research: windows-and-traps](../research/windows-and-traps.md),
   [research: trap-census-2026-09-30](../research/trap-census-2026-09-30.md): the traps per
   frame, per operation and per workload.

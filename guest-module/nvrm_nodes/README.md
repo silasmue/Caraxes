@@ -7,7 +7,7 @@
 - Optional placeholder nodes use NVIDIA majors 195/235 and return `ENODEV`.
 - Exposes VA2GPA for the provisioning tool's memory-pinning self-test.
   Production forwarding uses virtio_nvrm's own pinning path.
-- Coexistence rationale: [OPEN-QUESTIONS.md](../../docs/OPEN-QUESTIONS.md), item 2.
+- Coexistence rationale: [open-questions.md](../../docs/virtio/open-questions.md), item 2.
 
 ## Files
 

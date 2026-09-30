@@ -71,11 +71,11 @@ Scope: where a frame's time goes when a 615 guest encodes and decodes (`caraxes/
 
 ### Host power state (the likely cause)
 
-- **Native path:** `cuCtxCreate` sends `PERF_BOOST` {BOOST_TO_MAX \| CUDA_YES, duration INFINITE}. The host kernel passes it to GSP as `INTERNAL_PERF_BOOST_SET_2X` [docs/caraxes/cuda-lookahead.md C2; K/gpu/perf/kern_perf_boost.c:100-122].
+- **Native path:** `cuCtxCreate` sends `PERF_BOOST` {BOOST_TO_MAX \| CUDA_YES, duration INFINITE}. The host kernel passes it to GSP as `INTERNAL_PERF_BOOST_SET_2X` [docs/vfio/cuda-lookahead.md C2; K/gpu/perf/kern_perf_boost.c:100-122].
 - **Guest path:** the same request reaches the device as 0x20800a9a, at context create and destroy. The device acknowledges it and boosts nothing [T:147089192, 154961065; D/cuda.rs:29-33, 76-84].
 - **Who may send it:** `PERF_BOOST` is NON_PRIVILEGED and ROUTE_TO_VGPU_HOST (flags 0x10318) [G/g_subdevice_nvoc.c:11198-11204]. So an unprivileged host client may send it, and NVIDIA vGPU routes a guest's boost to its host. There is also a MULTIMEDIA flag [SDK/ctrl/ctrl2080/ctrl2080perf.h:80-99].
 - **Observed card state:**
-  - during guest copy benchmarks the card sat at P8 with PCIe gen 1 in 270 of 302 samples (P0 in 25) [caraxes/runs/opt-memfd-pool-2026-09-25/link-on-3.csv; docs/caraxes/bar2-memfd.md, copies];
+  - during guest copy benchmarks the card sat at P8 with PCIe gen 1 in 270 of 302 samples (P0 in 25) [caraxes/runs/opt-memfd-pool-2026-09-25/link-on-3.csv; docs/vfio/bar2-memfd.md, copies];
   - before tonight's native block it read 315 MHz [native/gpu-before.txt].
 - **Inferred, not measured during a video run:**
   - the engine slowdown is uniform (NVENC, NVDEC and the GR copy round);

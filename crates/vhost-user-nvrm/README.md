@@ -50,9 +50,9 @@
   v1 gates in `../Leandro-Test` accept either.
 - Known request layouts are validated before resource acquisition. The host refuses
   34 untranslated/attribution controls, seven capability-FD classes, serialized RM
-  layouts, unknown frontend envelopes and UVM tools. See [the policy](../../docs/SECURITY.md#refused-operations).
+  layouts, unknown frontend envelopes and UVM tools. See [the policy](../../docs/virtio/security.md#refused-operations).
 - Private-client guards and PID-scoped grants do not establish ownership of every
-  guest-supplied native source handle. [Security limits](../../docs/SECURITY.md) also
+  guest-supplied native source handle. [Security limits](../../docs/virtio/security.md) also
   cover backing aliases, guest-page reuse and unsupported live device unbind.
 
 ## Run and test

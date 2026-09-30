@@ -2,8 +2,8 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # The shadow's host RM calls, 2026-09-25 (vm0)
 
-Backlog item 2 of [docs/caraxes/optimization-backlog.md](../../../docs/caraxes/optimization-backlog.md).
-Design, fail-closed argument and results: [docs/caraxes/memory-model.md](../../../docs/caraxes/memory-model.md) §7.
+Backlog item 2 of [docs/vfio/optimization-backlog.md](../../../docs/vfio/optimization-backlog.md).
+Design, fail-closed argument and results: [docs/vfio/memory-model.md](../../../docs/vfio/memory-model.md) §7.
 
 **Environment.** vm0 only, 1 GiB at reservation slot 0, 610 guest. `run.sh` sources
 `caraxes/runs/intr-page-2026-09-24/env.sh` and changes it:

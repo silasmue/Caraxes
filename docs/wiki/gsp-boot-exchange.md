@@ -31,7 +31,7 @@ differences on Blackwell and Hopper.
   fails the whole init with `NV_ERR_INVALID_ARGUMENT`; an unknown key is ignored.
 - Nothing in the VBIOS executes; the captured ROM holds two PCI images, and the device
   appends a constructed third one that passes every parser check (decision D8,
-  [caraxes/vbios-synthesis.md](../caraxes/vbios-synthesis.md)).
+  [caraxes/vbios-synthesis.md](../vfio/vbios-synthesis.md)).
 
 ## Teardown, suspend, reload
 
@@ -56,7 +56,7 @@ differences on Blackwell and Hopper.
 - The CPU sends `GSP_SET_SYSTEM_INFO` and `SET_REGISTRY`; GSP-RM answers with the
   `GSP_RUN_CPU_SEQUENCER` event, then `GSP_INIT_DONE`; the CPU asks `GET_GSP_STATIC_INFO`
   (at least 1656 bytes) and sends `UNLOADING_GUEST_DRIVER` at unload. The device sends
-  nothing else unsolicited ([caraxes/nova-guest.md](../caraxes/nova-guest.md) §2.1).
+  nothing else unsolicited ([caraxes/nova-guest.md](../vfio/nova-guest.md) §2.1).
 - nouveau queues its first RPCs and rings before the mailboxes carry the libos arguments,
   then only polls. The device links the queues at Booter Load when commands are queued, as
   GSP-RM does at its init ([research: open-render](../research/open-render-2026-09-29.md)).
@@ -79,7 +79,7 @@ differences on Blackwell and Hopper.
 ## Depth
 
 - [research/gsp-transport.md](../research/gsp-transport.md): the cited 615 lines.
-- [caraxes/gsp-plan/boot-exchange.md](../caraxes/gsp-plan/boot-exchange.md): every step, the
+- [caraxes/gsp-plan/boot-exchange.md](../vfio/gsp-plan/boot-exchange.md): every step, the
   device's status per step, GC6 and RTD3.
-- [caraxes/gsp-boot-turing.md](../caraxes/gsp-boot-turing.md), [caraxes/gsp-boot-blackwell.md](../caraxes/gsp-boot-blackwell.md):
+- [caraxes/gsp-boot-turing.md](../vfio/gsp-boot-turing.md), [caraxes/gsp-boot-blackwell.md](../vfio/gsp-boot-blackwell.md):
   every register in order.

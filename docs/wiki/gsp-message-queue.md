@@ -68,7 +68,7 @@ the command queue on each trapped pointer write and fills the status queue itsel
 - The kernel spins for the reply (`kgspRecvPoll`), reads `MSGQ_HEAD`, writes `MSGQ_TAIL`
   and reads the falcon's `DEBUGINFO` (0x110094) as a health check: four trapped accesses per
   RPC, 108 us median from the head write to the fourth, against 3 us of device work
-  (2026-09-25, [caraxes/gsp-transport-classes.md](../caraxes/gsp-transport-classes.md)).
+  (2026-09-25, [caraxes/gsp-transport-classes.md](../vfio/gsp-transport-classes.md)).
 
 ## GMCAPI
 
@@ -85,7 +85,7 @@ the command queue on each trapped pointer write and fills the status queue itsel
 - `CARAXES_RPC_IOEVENTFD=1` registers `QUEUE_HEAD` as a KVM ioeventfd without datamatch; the
   token pool's reactor reads its count (`Device::rpc_ioeventfd`). The value is lost, the count
   is exact: the CPU writes the register once per element, and `msgqTxCreate`'s 0 is the only
-  other write ([caraxes/gsp-transport-615.md](../caraxes/gsp-transport-615.md) §11.2).
+  other write ([caraxes/gsp-transport-615.md](../vfio/gsp-transport-615.md) §11.2).
 - Per counted write the device checks the element at its own read pointer: "MCTP" and a
   sequence after the last one mean an element, which the trapped path then serves with every
   framing check; "SEEN", 0 or an old sequence mean none.
@@ -98,6 +98,6 @@ the command queue on each trapped pointer write and fills the status queue itsel
 ## Depth
 
 - [research/gsp-transport.md](../research/gsp-transport.md): the cited lines.
-- [caraxes/gsp-transport-615.md](../caraxes/gsp-transport-615.md): the transport key by key,
+- [caraxes/gsp-transport-615.md](../vfio/gsp-transport-615.md): the transport key by key,
   610 against 615, the device's `msgq::v2` and `gmcapi` modules.
 - [history/caraxes-gsp-rpc-protocol-610.md](../history/caraxes-gsp-rpc-protocol-610.md): the 610 layout.

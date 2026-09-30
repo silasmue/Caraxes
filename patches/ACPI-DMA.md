@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-<!-- Written 2026-09-23 for backlog item N1 (docs/caraxes/README.md, parked idea P8). Citations:
+<!-- Written 2026-09-23 for backlog item N1 (docs/vfio/README.md, parked idea P8). Citations:
      ACPI = ACPI 6.5 (uefi.org/specs/ACPI/6.5, read through the Wayback Machine because uefi.org
      answered 403); "6.8" = the guest kernel, Ubuntu tag Ubuntu-6.8.0-136.136 (the files cited are
      identical to upstream v6.8 except kernel/dma/direct.c, which carries a stable fix); "6.12" =
@@ -23,7 +23,7 @@ guest then gives the host IOVA: guest physical address + the offset of that rang
 
 ## 1. The problem
 
-The facts come from [sysmem-iova.md](../docs/caraxes/sysmem-iova.md):
+The facts come from [sysmem-iova.md](../docs/vfio/sysmem-iova.md):
 
 - The guest has no vIOMMU, so it writes guest physical addresses (GPAs) into GPU page tables.
 - The physical GPU sits in a translated host IOMMU domain (DMA-FQ), so it can reach only the IOVAs
@@ -495,8 +495,8 @@ These steps need the operator (VM use and host GPU, §8). Record the results in
 5. **Not run:** no VM boot, no guest kernel boot, no GPU contact.
 6. **Not edited (the task allowed new files only):**
    - `patches/README.md` should gain a row for 0004;
-   - `docs/caraxes/README.md` should mark N1 and P8 as having patches;
-   - `docs/caraxes/sysmem-iova.md` §3(a) and §5 should link here.
+   - `docs/vfio/README.md` should mark N1 and P8 as having patches;
+   - `docs/vfio/sysmem-iova.md` §3(a) and §5 should link here.
 
 ## Results (2026-09-23)
 

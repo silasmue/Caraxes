@@ -51,6 +51,6 @@ instead of by workload.
 
 ## Depth
 
-- [caraxes/gsp-transport-classes.md](../caraxes/gsp-transport-classes.md): the method, the
+- [caraxes/gsp-transport-classes.md](../vfio/gsp-transport-classes.md): the method, the
   per-window counts, the top controls per class, the ranked list and the open questions.
 - [performance-shape](performance-shape.md): where the transport sits among the other costs.

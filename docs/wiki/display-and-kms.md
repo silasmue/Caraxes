@@ -35,7 +35,7 @@ hardware. The flip, vblank, reset and reserve mechanics are on
 - GNOME on Wayland with Sunshine `capture=kms` and NVENC passed a client-frame check on
   2026-09-19; two Shadow of the Tomb Raider guests at 720p completed concurrently on one card.
   The vblank configuration changes throttling (open question 27).
-- [DISPLAY.md](../DISPLAY.md), [WAYLAND.md](../WAYLAND.md).
+- [display.md](../virtio/display.md), [wayland.md](../virtio/wayland.md).
 
 ## VFIO Leandro
 
@@ -62,7 +62,7 @@ Step numbers and run names (C87, P41) refer to
 
 | Measure | Value | Record |
 |---|---|---|
-| display gate, 615 guest | 11 of 11 | [caraxes/display-615.md](../caraxes/display-615.md) |
+| display gate, 615 guest | 11 of 11 | [caraxes/display-615.md](../vfio/display-615.md) |
 | Weston GL, presented / callbacks | 60.00 Hz / 59.79 Hz | same |
 | Mutter, presented / callbacks | 59.40 Hz / 58.62 Hz | same |
 | trapped accesses per frame, Weston / Mutter | 29.25 / 138.92 | same |
@@ -96,10 +96,10 @@ Step numbers and run names (C87, P41) refer to
 
 - [display-flips-and-reserve.md](display-flips-and-reserve.md): the notifier model, the
   latch, the vblank costs, modeset and FLR, the NVKMS reserve.
-- [caraxes/display-ab.md](../caraxes/display-ab.md): connector, EDID, link training (D2, D3).
-- [caraxes/display-cd.md](../caraxes/display-cd.md), [caraxes/display-e.md](../caraxes/display-e.md),
-  [caraxes/display-615.md](../caraxes/display-615.md): modeset, flips, the GPU-rendered desktop,
+- [caraxes/display-ab.md](../vfio/display-ab.md): connector, EDID, link training (D2, D3).
+- [caraxes/display-cd.md](../vfio/display-cd.md), [caraxes/display-e.md](../vfio/display-e.md),
+  [caraxes/display-615.md](../vfio/display-615.md): modeset, flips, the GPU-rendered desktop,
   the per-frame trap tables.
-- [caraxes/display-connector.md](../caraxes/display-connector.md), [caraxes/display-scaling.md](../caraxes/display-scaling.md),
-  [caraxes/display-adapter.md](../caraxes/display-adapter.md): the studies behind D15.
-- [caraxes/display-own-clock.md](../caraxes/display-own-clock.md): the engine's own lock.
+- [caraxes/display-connector.md](../vfio/display-connector.md), [caraxes/display-scaling.md](../vfio/display-scaling.md),
+  [caraxes/display-adapter.md](../vfio/display-adapter.md): the studies behind D15.
+- [caraxes/display-own-clock.md](../vfio/display-own-clock.md): the engine's own lock.

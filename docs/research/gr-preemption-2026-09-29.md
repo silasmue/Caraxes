@@ -18,7 +18,7 @@ Scope: the host Xid 109 CTX SWITCH TIMEOUT of the SotTR 720p run on Linux B (`ca
 - The RC hit the game's GR TSG only: guest chids 65 and 66, engine 1 [R/guest-monitor.txt:172-173]. One host RC event, exceptType 0x6d = 109 [L:166, L:388]. Chid 65 had 154 GPFIFO entries not fetched (GPGet 18234, GPPut 18388) [L:167].
 - The device issued no preempt then: the pool's 8 TSG preempts were at start-up, every barrier after the RC was refused [L:101-113, L:167 ff., L:392].
 - No Xid 31 and no IOMMU fault on the host. The shadow VAS has no ENABLE_FAULTING, so a GPU fault RCs (Xid 31) instead of stalling GR [shadow.rs:1086-1101].
-- Earlier Xid 109s were CUDA contexts: kill -9 with a kernel running (one host preempt of 3.2 s), and vm2 in series F (Weston stalled 4.3 s) [docs/caraxes/coverage-map.md:43-44, 55-56; docs/caraxes/intr-page.md:895-896].
+- Earlier Xid 109s were CUDA contexts: kill -9 with a kernel running (one host preempt of 3.2 s), and vm2 in series F (Weston stalled 4.3 s) [docs/vfio/coverage-map.md:43-44, 55-56; docs/vfio/intr-page.md:895-896].
 
 ### What a native Linux client asks for
 
@@ -39,7 +39,7 @@ Scope: the host Xid 109 CTX SWITCH TIMEOUT of the SotTR 720p run on Linux B (`ca
 3. At the first doorbell the mirror builds the host TSG, a channel with flags bit 7 only (no SKIP_CTXBUFFER_ALLOC) and the guest's engine objects with the guest's parameters, on its unprivileged host client [mirror.rs:159, 2383-2388, 2511, 2549-2551]. The host kernel RM allocates the context; GSP-RM chooses its modes.
 4. Nothing changes the modes afterwards. `bind_owned_gfxp`, `bind_owned_compute` and `confirm_gfx_wfi` have no caller on dev [mirror.rs:2845, 2986, 3124; `git grep`: only mirror.rs:2975]. Only the Windows diagnostic patch calls them [W/P36-build/diagnostic.patch:54-86].
 5. GET_CTXSW_MODES of a mirrored channel is forwarded to its host channel [public.rs:606-624]; the Linux driver does not ask. `deferred_context_modes` runs only with `CARAXES_SHADOW_CHANNEL_DIAG=1` and the deferred context, never on Linux [ctrl.rs:1618-1654; mirror.rs:2815-2840].
-6. TSG SET_TIMESLICE and PREEMPT go to the host TSG once it exists [ctrl.rs:232-238, 1826-1837]; FIFO_CONFIG_CTXSW_TIMEOUT is refused [docs/caraxes/gsp-abi-615-tables.md:432].
+6. TSG SET_TIMESLICE and PREEMPT go to the host TSG once it exists [ctrl.rs:232-238, 1826-1837]; FIFO_CONFIG_CTXSW_TIMEOUT is refused [docs/vfio/gsp-abi-615-tables.md:432].
 
 ### The host context's modes
 
@@ -67,7 +67,7 @@ Step 0, read-only diagnostic (about 60 lines, no behaviour change):
 - Optional (about 80 lines): at a host RC of a GR channel, log the class and method of the push at host GPGet-1 (draw or dispatch, indirect or not) and the last ran-ahead time of its root.
 
 Step 1, compute parity (about 150-200 lines):
-- Record the guest's SET per guest TSG (CUDA names the TSG [docs/caraxes/cuda-lookahead.md:250]).
+- Record the guest's SET per guest TSG (CUDA names the TSG [docs/vfio/cuda-lookahead.md:250]).
 - Apply it at the host TSG's build, before the first schedule: the pointer-free BIND {CILP_SET, cilp}, checked by GET (`bind_owned_compute` without the deferred-context precondition; multi-channel TSGs as in e705186b). A SET to a built TSG idles it first, as `bind_owned_compute` does.
 - Return the host status; no CILP-to-CTA downgrade (P22 decision). GFXP bits of a SET go to step 2, never pointer-free (P14: SET1 is accepted without buffers; where GSP-RM keeps that state is unknown).
 
@@ -215,7 +215,7 @@ The COMPUTE_PREEMPT buffer (0x900000) for CILP:
   - the BIND has no slot for it [ctrl2080gr.h:861-870];
   - NVIDIA's vGPU guest allocates only 0x0b-0x0f, for GFXP [src/nvidia/src/kernel/vgpu/rpc.c:3662-3666].
 - GSP-RM's own heap is fixed at boot and sized at 48 KiB per channel [src/nvidia/inc/kernel/gpu/gsp/gsp_fw_heap.h:41, 71]; 9 MiB per CILP context would exhaust it within a few contexts.
-- 0x900000 = 36 SMs x 256 KiB, the TU106 register file. Inference, not in the open code: CILP saves into the context's local memory, which the guest UMD allocates in the VM's slice (C28, 58 MiB, "probably local memory" [docs/caraxes/cuda-lookahead.md:252]).
+- 0x900000 = 36 SMs x 256 KiB, the TU106 register file. Inference, not in the open code: CILP saves into the context's local memory, which the guest UMD allocates in the VM's slice (C28, 58 MiB, "probably local memory" [docs/vfio/cuda-lookahead.md:252]).
 - Verdict: CILP most likely adds no host vidmem outside the reservation (0.7). Not measured. The host GR context itself (main, patch, PM) is host vidmem outside the slice today, CILP or not.
 - Measure in the CUDA series: soak `vram_used_mib` with a CUDA context alive, this build against dev.
 

@@ -8,13 +8,13 @@ Scope: the 28 feature families of 615.71.09 that TU106 lacks, which chips have t
 
 ### The mechanism
 
-- The 28 families hold 302 controls: 200 in the 12 families of category E and 102 in the 16 families of the D rows moved to E [docs/caraxes/gsp-plan/e-families.md intro].
-- `chips/<chip>/chip.toml` `[features]` names every family of the version `absent` or `present`, and an unknown name refuses the chip file [docs/caraxes/gsp-surface.md "After E and A"].
-- The controls of an absent family answer `NV_ERR_NOT_SUPPORTED`, request echoed, label `refused (feature absent on this chip)`, and never reach the host [docs/caraxes/gsp-surface.md "After E and A"].
-- A present family without a model falls through every handler to the dispatcher's "unanswered" `NV_ERR_NOT_SUPPORTED` [docs/caraxes/gsp-plan/e-families.md §4].
-- TU106 names all 28 families absent; GB206 names `frl`, `dp2x`, `display_later`, `ampere_later`, `row_remap` and `blackwell` present [docs/caraxes/gsp-surface.md "After D"; docs/caraxes/gsp-plan/d-device-model.md §7].
-- Of the 302 controls, 199 have a call site in the 615 kernel; the other 103 are user-space only or uncalled [docs/caraxes/gsp-plan/e-families.md Summary].
-- The tree decides "which chip has it" by the per-chip child lists, the NVOC property HALs and the nvkms display HAL table, and some features by the board (links, ECC, sync connector, notebook ACPI) [docs/caraxes/gsp-plan/e-families.md §1, §2].
+- The 28 families hold 302 controls: 200 in the 12 families of category E and 102 in the 16 families of the D rows moved to E [docs/vfio/gsp-plan/e-families.md intro].
+- `chips/<chip>/chip.toml` `[features]` names every family of the version `absent` or `present`, and an unknown name refuses the chip file [docs/vfio/gsp-surface.md "After E and A"].
+- The controls of an absent family answer `NV_ERR_NOT_SUPPORTED`, request echoed, label `refused (feature absent on this chip)`, and never reach the host [docs/vfio/gsp-surface.md "After E and A"].
+- A present family without a model falls through every handler to the dispatcher's "unanswered" `NV_ERR_NOT_SUPPORTED` [docs/vfio/gsp-plan/e-families.md §4].
+- TU106 names all 28 families absent; GB206 names `frl`, `dp2x`, `display_later`, `ampere_later`, `row_remap` and `blackwell` present [docs/vfio/gsp-surface.md "After D"; docs/vfio/gsp-plan/d-device-model.md §7].
+- Of the 302 controls, 199 have a call site in the 615 kernel; the other 103 are user-space only or uncalled [docs/vfio/gsp-plan/e-families.md Summary].
+- The tree decides "which chip has it" by the per-chip child lists, the NVOC property HALs and the nvkms display HAL table, and some features by the board (links, ECC, sync connector, notebook ACPI) [docs/vfio/gsp-plan/e-families.md §1, §2].
 
 ### The families
 
@@ -49,32 +49,32 @@ Scope: the 28 feature families of 615.71.09 that TU106 lacks, which chips have t
 | 27 | `windows_only` | 5 | Windows-only notifications, debugger contexts | Windows clients | refused; 2 ACK | absent | none |
 | 28 | `legacy_uncalled` | 18 | verification-only, superseded, uncalled | none | refused; 1 ACK | absent | none |
 
-[docs/caraxes/gsp-plan/e-families.md Summary table, §2, §3.1-3.28; docs/caraxes/gsp-surface.md "After E and A", "After D"; ACK rows: docs/caraxes/gsp-plan/d-controls.tsv column answer, docs/caraxes/gsp-plan/d-device-model.md §6.6]
+[docs/vfio/gsp-plan/e-families.md Summary table, §2, §3.1-3.28; docs/vfio/gsp-surface.md "After E and A", "After D"; ACK rows: docs/vfio/gsp-plan/d-controls.tsv column answer, docs/vfio/gsp-plan/d-device-model.md §6.6]
 
-- "refused" is `NV_ERR_NOT_SUPPORTED` with the request echoed; "ACK" is NV_OK with the request echoed; "present, unanswered" is the dispatcher's `NV_ERR_NOT_SUPPORTED` [docs/caraxes/gsp-surface.md "After E and A"; docs/caraxes/gsp-plan/d-device-model.md §2; docs/caraxes/gsp-plan/e-families.md §4].
-- The three `notebook_power` ACKs are `SET_POWERSTATE`, `SET_AUX_POWER_STATE` and `UNSET_DYNAMIC_BOOST_LIMIT` [docs/caraxes/gsp-plan/d-device-model.md §6.6].
-- The `legacy_uncalled` ACK is `INTERNAL_MEMSYS_SET_ZBC_REFERENCED`, which the kernel sends on Turing [docs/caraxes/gsp-plan/e-families.md §3.26-3.28].
-- The two `windows_only` ACKs are `NV0073_CTRL_CMD_SYSTEM_NOTIFY_DRR_MSCG_WAR` and `NV5070_CTRL_CMD_SET_MEMPOOL_WAR_FOR_BLIT_TEARING` [docs/caraxes/gsp-plan/d-controls.tsv].
-- `NVENC_SW_SESSION_STATS` is kept in the `empty_ok` list because the real card answers it NV_OK with 12 zero bytes [docs/caraxes/gsp-surface.md "After E and A"].
+- "refused" is `NV_ERR_NOT_SUPPORTED` with the request echoed; "ACK" is NV_OK with the request echoed; "present, unanswered" is the dispatcher's `NV_ERR_NOT_SUPPORTED` [docs/vfio/gsp-surface.md "After E and A"; docs/vfio/gsp-plan/d-device-model.md §2; docs/vfio/gsp-plan/e-families.md §4].
+- The three `notebook_power` ACKs are `SET_POWERSTATE`, `SET_AUX_POWER_STATE` and `UNSET_DYNAMIC_BOOST_LIMIT` [docs/vfio/gsp-plan/d-device-model.md §6.6].
+- The `legacy_uncalled` ACK is `INTERNAL_MEMSYS_SET_ZBC_REFERENCED`, which the kernel sends on Turing [docs/vfio/gsp-plan/e-families.md §3.26-3.28].
+- The two `windows_only` ACKs are `NV0073_CTRL_CMD_SYSTEM_NOTIFY_DRR_MSCG_WAR` and `NV5070_CTRL_CMD_SET_MEMPOOL_WAR_FOR_BLIT_TEARING` [docs/vfio/gsp-plan/d-controls.tsv].
+- `NVENC_SW_SESSION_STATS` is kept in the `empty_ok` list because the real card answers it NV_OK with 12 zero bytes [docs/vfio/gsp-surface.md "After E and A"].
 
 ### Where the chips stand
 
 - MIG is HAL-supported on GA100, GH100, GB100, GB102, GB10B, GB110, GB112, GB202, GB203, GR100 and GR102, not on GB205 to GB207 [615 tree: src/nvidia/generated/g_gpu_nvoc.c:335].
-- NVLink is HAL-enabled from TU102 on except TU106, TU116 and TU117, and whether links exist is decided by the board's IOCTRL entries [615 tree: src/nvidia/generated/g_kernel_nvlink_nvoc.c:243; docs/caraxes/gsp-plan/e-families.md Summary].
-- The CC-capable HAL covers GH100, the GB10x and GB202 to GB207, and CC turns on only when a scratch register says so [615 tree: src/nvidia/generated/g_gpu_nvoc.c:536; docs/caraxes/gsp-plan/e-families.md §2].
+- NVLink is HAL-enabled from TU102 on except TU106, TU116 and TU117, and whether links exist is decided by the board's IOCTRL entries [615 tree: src/nvidia/generated/g_kernel_nvlink_nvoc.c:243; docs/vfio/gsp-plan/e-families.md Summary].
+- The CC-capable HAL covers GH100, the GB10x and GB202 to GB207, and CC turns on only when a scratch register says so [615 tree: src/nvidia/generated/g_gpu_nvoc.c:536; docs/vfio/gsp-plan/e-families.md §2].
 - Turing's display HAL C5 has no HDMI FRL, the C6 HAL has it [615 tree: src/nvidia-modeset/src/nvkms-evo3.c:7945, :8030].
-- GA100, GH100 and GB100 have no display head, so the display families never reach them [docs/caraxes/gsp-plan/e-families.md §2].
-- The TU106 child list has no ConfidentialCompute, Spdm, KernelCcu or KernelFsp object [docs/caraxes/gsp-plan/e-families.md §2].
+- GA100, GH100 and GB100 have no display head, so the display families never reach them [docs/vfio/gsp-plan/e-families.md §2].
+- The TU106 child list has no ConfidentialCompute, Spdm, KernelCcu or KernelFsp object [docs/vfio/gsp-plan/e-families.md §2].
 
 ### Sent at boot anyway
 
 - The GB20x child list has ConfidentialCompute and KernelCcu [615 tree: src/nvidia/src/kernel/gpu/arch/blackwell/kern_gpu_gb202.c:87, :93].
-- The ConfidentialCompute engine sends `INTERNAL_CONF_COMPUTE_GET_STATIC_INFO` 0x20800AF3 at state init and post-load on every chip whose child list has the engine, GA100 to GB20x [615 tree: src/nvidia/src/kernel/gpu/conf_compute/conf_compute.c:486, :591; docs/caraxes/gsp-plan/e-families.md §3.9].
+- The ConfidentialCompute engine sends `INTERNAL_CONF_COMPUTE_GET_STATIC_INFO` 0x20800AF3 at state init and post-load on every chip whose child list has the engine, GA100 to GB20x [615 tree: src/nvidia/src/kernel/gpu/conf_compute/conf_compute.c:486, :591; docs/vfio/gsp-plan/e-families.md §3.9].
 - `kccuStateLoad` sends `INTERNAL_CCU_GET_SAMPLE_INFO` 0x20800AB2 on GB100 and GB20x, and `INTERNAL_CCU_UNMAP` 0x20800AB4 runs on unload [615 tree: src/nvidia/src/kernel/gpu/ccu/kernel_ccu.c:410-450; src/nvidia/src/kernel/gpu/ccu/arch/blackwell/kernel_ccu_gb100.c:43-58].
-- The synthetic GB206 runs show these `cc` and `ccu` controls answered `NV_ERR_NOT_SUPPORTED`, and the gate passes anyway [run: caraxes/runs/blackwell-2026-09-24/n2c/device-events.txt; docs/caraxes/gsp-plan/e-families.md Summary].
-- On the GH100 costume the guest asserts twice on the refused CC static info and logs a failed CCU memdesc map, and continues to the TU106 baseline wall [docs/caraxes/costume-ladder.md §3.3].
+- The synthetic GB206 runs show these `cc` and `ccu` controls answered `NV_ERR_NOT_SUPPORTED`, and the gate passes anyway [run: caraxes/runs/blackwell-2026-09-24/n2c/device-events.txt; docs/vfio/gsp-plan/e-families.md Summary].
+- On the GH100 costume the guest asserts twice on the refused CC static info and logs a failed CCU memdesc map, and continues to the TU106 baseline wall [docs/vfio/costume-ladder.md §3.3].
 - The honest CC-off answer from source is NV_OK with `bIsBar1Trusted` and `bIsPcieTrusted` false [615 tree: src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080internal.h:3654-3657].
-- `ccuSampleSize` is a GSP-RM number the kernel only multiplies into the buffer size, and no native trace can see it because the control is INTERNAL [docs/caraxes/gsp-plan/e-families.md §3.11].
+- `ccuSampleSize` is a GSP-RM number the kernel only multiplies into the buffer size, and no native trace can see it because the control is INTERNAL [docs/vfio/gsp-plan/e-families.md §3.11].
 
 ### Truth sources by tier
 
@@ -84,7 +84,7 @@ Scope: the 28 feature families of 615.71.09 that TU106 lacks, which chips have t
 | answerable from kernel logic alone | `nvlink` tier 0, `hshub`, `fabric` single GPU, `cc` static info, `ccu`, `display_later`, `ampere_later`, `ga10x_pcie_ro`, `hopper_platform`, `row_remap` |
 | need a capture or trace as truth or check | `mig` with `mig_partitioning`, `dp2x`, `frl`, `ecc`, `c2c`, `blackwell`, `nvlink` tier 1 with `nvlink_sli` |
 
-[docs/caraxes/gsp-plan/e-families.md Summary, §5]
+[docs/vfio/gsp-plan/e-families.md Summary, §5]
 
 ## Consequence for Caraxes
 
@@ -95,8 +95,8 @@ Scope: the 28 feature families of 615.71.09 that TU106 lacks, which chips have t
 
 ## Open
 
-- The value of `ccuSampleSize` for GB20x and GH100 is unmeasured [docs/caraxes/gsp-plan/e-families.md §3.11].
-- The MIG profile tables need a capture of a MIG-capable part with MIG on [docs/caraxes/gsp-plan/e-families.md §3.8].
-- Which chips report DP 2.0 in `DP_GET_CAPS` is a GSP-RM answer that needs a capture [docs/caraxes/gsp-plan/e-families.md §3.14].
-- The HSHUB count per chip needs a capture to confirm the source-derived design [docs/caraxes/gsp-plan/e-families.md §3.3].
-- NVLink tier 1, `nvlink_sli` and fabric memory need an HGX capture with two or more GPUs [docs/caraxes/gsp-plan/e-families.md §6].
+- The value of `ccuSampleSize` for GB20x and GH100 is unmeasured [docs/vfio/gsp-plan/e-families.md §3.11].
+- The MIG profile tables need a capture of a MIG-capable part with MIG on [docs/vfio/gsp-plan/e-families.md §3.8].
+- Which chips report DP 2.0 in `DP_GET_CAPS` is a GSP-RM answer that needs a capture [docs/vfio/gsp-plan/e-families.md §3.14].
+- The HSHUB count per chip needs a capture to confirm the source-derived design [docs/vfio/gsp-plan/e-families.md §3.3].
+- NVLink tier 1, `nvlink_sli` and fabric memory need an HGX capture with two or more GPUs [docs/vfio/gsp-plan/e-families.md §6].

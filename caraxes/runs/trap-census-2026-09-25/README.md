@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Trap census, 2026-09-25 (vm3)
 
-The runs behind [docs/caraxes/optimization-backlog.md](../../../docs/caraxes/optimization-backlog.md).
+The runs behind [docs/vfio/optimization-backlog.md](../../../docs/vfio/optimization-backlog.md).
 The device is `/mnt/vmstore/caraxes/vfio-user-nvgpu-main-1ea2529`, the newest main binary at the
 start. The environment is `run.sh`'s: vm3, 610 guest, 1 GiB at slot 5, host RM and execution.
 

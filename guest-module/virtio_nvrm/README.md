@@ -8,7 +8,7 @@
 - The host sends ioctl layouts through `GET_TABLES`. NVIDIA constants also
   enter through the generated `nvrm_wire.h`.
 - `nvrm_nodes.ko`, loaded with `create_nodes=0`, supplies `/proc/driver/nvidia`.
-- Architecture: [ARCHITECTURE.md](../../docs/ARCHITECTURE.md).
+- Architecture: [architecture.md](../../docs/virtio/architecture.md).
 
 ## Source map
 
@@ -50,7 +50,7 @@ nix build .#guest-modules
 - The Nix package builds against 6.12 LTS. Newer kernel API changes are
   listed in [guest-modules.nix](../../nix/packages/guest-modules.nix).
 - Kernel compilation and userspace tests do not validate GPU operation.
-  Run the applicable [hardware gates](../../docs/TESTING.md) after behavior changes.
+  Run the applicable [hardware gates](../../docs/virtio/testing.md) after behavior changes.
 - The guest needs no Rust compiler. Regenerate the checked-in header on the host:
 
 ```sh

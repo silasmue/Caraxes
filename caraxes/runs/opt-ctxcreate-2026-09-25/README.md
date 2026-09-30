@@ -2,8 +2,8 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # cuCtxCreate, 2026-09-25 (vm3, 610 guest)
 
-Design, analysis and numbers: [docs/caraxes/ctx-create.md](../../../docs/caraxes/ctx-create.md);
-the hold refinement: [docs/caraxes/bar1-pool.md](../../../docs/caraxes/bar1-pool.md) §9.1.
+Design, analysis and numbers: [docs/vfio/ctx-create.md](../../../docs/vfio/ctx-create.md);
+the hold refinement: [docs/vfio/bar1-pool.md](../../../docs/vfio/bar1-pool.md) §9.1.
 
 **Environment.** vm3 only (1 GiB at reservation slot 5, tap caraxes3), the gate610 environment
 of `caraxes/runs/gsp-rpc-2026-09-24/run.sh` plus the recommended configuration, as

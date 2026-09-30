@@ -55,7 +55,7 @@ has works on Linux and Windows, and NVDEC's output is bit-exact.
 - Doorbells: the video libraries ring their own guest token and never read the pool token
   ([research: video-path](../research/video-path-2026-09-28.md)); the automatic guest-token
   ioeventfds include NVENC's runlist 7 on TU106
-  ([caraxes/doorbell-token-pool.md](../caraxes/doorbell-token-pool.md) (g)).
+  ([caraxes/doorbell-token-pool.md](../vfio/doorbell-token-pool.md) (g)).
 - Two designs failed and were removed:
   - Reserving free VA to steer the host's context: an RM allocation storm that froze the host.
   - Holding the first doorbell until the object: a deadlock, because the guest waits for
@@ -102,7 +102,7 @@ all 1800 frames against the host's software decode
 
 ## Depth
 
-- [caraxes/video-engines.md](../caraxes/video-engines.md): what the guest sends, the layout,
+- [caraxes/video-engines.md](../vfio/video-engines.md): what the guest sends, the layout,
   the failure modes.
 - [research/video-path-2026-09-28.md](../research/video-path-2026-09-28.md): one frame's time.
 - [display-and-kms.md](display-and-kms.md): capture and streaming.

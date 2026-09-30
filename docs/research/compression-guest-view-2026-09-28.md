@@ -56,7 +56,7 @@ Scope: what a 615 guest decides compression by, and what the device answers with
 ## Consequence for Caraxes
 
 - A Linux guest must drop `RMDisableScrubOnFree=1` under the slice; the device warns when it sees the key [boot.rs `guest_key_warnings`].
-- The scrubber then runs a kernel CE channel in virtual mode over a kind-0x09 alias of the heap; the device must execute it. The channel names its own VA space [K/gpu/mem_mgr/channel_utils.c:83-89], which removes item 1 of docs/caraxes/mapping.md §9; item 2, a path for a bare kernel CE channel, remains.
+- The scrubber then runs a kernel CE channel in virtual mode over a kind-0x09 alias of the heap; the device must execute it. The channel names its own VA space [K/gpu/mem_mgr/channel_utils.c:83-89], which removes item 1 of docs/vfio/mapping.md §9; item 2, a path for a bare kernel CE channel, remains.
 - Workstream A: the grant "reservation allocated compressible" goes to `FbLayout::with_compression` (TODO in main.rs); the shadow takes kinds 0x08-0x0E on slice pages, and the host RM writes the lines.
 - Workstream C: ZBC kinds are the compressible kinds, so the guest now sends `SET_ZBC_*` and `SET_ZBC_REFERENCED` (today ACKed).
 - A costume presenting another chip gets no compression: its HAL expects another policy (`[compression] chip`).

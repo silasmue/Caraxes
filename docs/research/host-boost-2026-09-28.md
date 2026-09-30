@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Host clock boost (2026-09-28)
 
-Scope: why the host card ran a VM's work at P8; what `NV2080_CTRL_CMD_PERF_BOOST` does in the RM; the device's activity-driven boost on branch `hostboost-2026-09-28` (`crates/vfio-user-nvgpu/src/hostboost.rs`). The user authorised this one host write on 2026-09-28 (about 22:45); every other clock, power or register control stays off limits. Background: video-path-2026-09-28.md, fix 1 (main checkout, not yet committed); [cuda-lookahead.md](../caraxes/cuda-lookahead.md) C2, which had called this "possible, not recommended".
+Scope: why the host card ran a VM's work at P8; what `NV2080_CTRL_CMD_PERF_BOOST` does in the RM; the device's activity-driven boost on branch `hostboost-2026-09-28` (`crates/vfio-user-nvgpu/src/hostboost.rs`). The user authorised this one host write on 2026-09-28 (about 22:45); every other clock, power or register control stays off limits. Background: video-path-2026-09-28.md, fix 1 (main checkout, not yet committed); [cuda-lookahead.md](../vfio/cuda-lookahead.md) C2, which had called this "possible, not recommended".
 
 ## Facts
 

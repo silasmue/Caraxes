@@ -70,7 +70,7 @@ guests are untested in both; every isolation run used the stock driver.
   validates request sizes, pointer spans, descriptor metadata and memory ranges, resolves
   tokens to backend-owned FDs, charges a pin budget and blocks 34 controls and the
   capability-FD classes.
-- Remaining risks named in [SECURITY.md](../SECURITY.md): foreign RM handles through DUP and
+- Remaining risks named in [security.md](../virtio/security.md): foreign RM handles through DUP and
   UVM imports, unannotated pointer fields, backing-page release without a reference ledger,
   no partition of the card. Hostile-guest containment is not established.
 
@@ -78,6 +78,6 @@ guests are untested in both; every isolation run used the stock driver.
 
 - [research/isolation-and-xids.md](../research/isolation-and-xids.md): the rules with their
   lines and every Xid with cause and fix.
-- [caraxes/parallel.md](../caraxes/parallel.md): the parallelism proof (slots, pattern test,
+- [caraxes/parallel.md](../vfio/parallel.md): the parallelism proof (slots, pattern test,
   scrub, fail-closed teardown, the refused third VM).
-- [caraxes/memory-model.md](../caraxes/memory-model.md) §3, §7.4: privilege and the fail-closed argument.
+- [caraxes/memory-model.md](../vfio/memory-model.md) §3, §7.4: privilege and the fail-closed argument.

@@ -82,7 +82,7 @@ sha256 per file):
 ## The drift check
 
 - `tools/check.sh` step `gsp-abi` renders the snapshot against
-  `docs/caraxes/gsp-abi-615-tables.md` and runs `diff --strict` against a found 615 tree
+  `docs/vfio/gsp-abi-615-tables.md` and runs `diff --strict` against a found 615 tree
   (`CARAXES_OGKM_615`, the Leandro checkout beside the repository, or a NAS path); without a
   tree the drift half is skipped with a note. On 2026-09-25: 0 driver-side and 0 device-side
   changes.
@@ -90,7 +90,7 @@ sha256 per file):
 ## Depth
 
 - [research/abi-baseline.md](../research/abi-baseline.md): the cited lines and the delta table.
-- [caraxes/gsp-abi-615.md](../caraxes/gsp-abi-615.md): the baseline document;
-  [caraxes/gsp-abi-615-tables.md](../caraxes/gsp-abi-615-tables.md): the rendered snapshot.
-- [caraxes/guest-driver-versions.md](../caraxes/guest-driver-versions.md): 595, 610 and 615
+- [caraxes/gsp-abi-615.md](../vfio/gsp-abi-615.md): the baseline document;
+  [caraxes/gsp-abi-615-tables.md](../vfio/gsp-abi-615-tables.md): the rendered snapshot.
+- [caraxes/guest-driver-versions.md](../vfio/guest-driver-versions.md): 595, 610 and 615
   guests against a 610 device.

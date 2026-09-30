@@ -17,7 +17,7 @@ hands the bottom of guest BAR1 to the guest as plain memory: the BAR1 pool.
 - Vulkan host-visible device-local memory, the framebuffer console and display imports are
   the other Linux users; CUDA's steady state has no BAR1 access beyond submission.
 - The Windows KMD maps and unmaps 64 KiB CPU-visible allocations hundreds of times per second
-  and maps some of its page tables through BAR1 ([caraxes/bar1-pool.md](../caraxes/bar1-pool.md) §13).
+  and maps some of its page tables through BAR1 ([caraxes/bar1-pool.md](../vfio/bar1-pool.md) §13).
 
 ## The host side
 
@@ -28,7 +28,7 @@ hands the bottom of guest BAR1 to the guest as plain memory: the BAR1 pool.
   ([research: performance-facts](../research/performance-facts.md)).
 - The device's own writes through a window are write-combined: it flushes (`sfence` and a
   read-back) before every host doorbell and TLB invalidate, or the PBDMA fetches stale VRAM
-  ([caraxes/execution.md](../caraxes/execution.md) §2).
+  ([caraxes/execution.md](../vfio/execution.md) §2).
 - At start the device reads the host's free BAR1 (`nvidia-smi`, read-only) and refuses a pool
   that, with its windows, would leave less than `CARAXES_HOST_BAR1_FLOOR_MIB` (96 MiB unless
   set; the Linux wrappers set 64, an open A/B). Beside a Windows VM with its pool, a second VM's pool
@@ -83,8 +83,8 @@ usable FB. Code: `crates/vfio-user-nvgpu/src/bar1pool.rs`, `fb.rs` `FakeFb::rema
 
 ## Depth
 
-- [caraxes/bar1-pool.md](../caraxes/bar1-pool.md): the design, the barrier, the lazy move back,
+- [caraxes/bar1-pool.md](../vfio/bar1-pool.md): the design, the barrier, the lazy move back,
   the merge points, the measurements.
-- [caraxes/bar1-passthrough.md](../caraxes/bar1-passthrough.md): the traced guest layout, the
+- [caraxes/bar1-passthrough.md](../vfio/bar1-passthrough.md): the traced guest layout, the
   sparse-area mechanics, the NVIDIA mmap rule.
-- [caraxes/optimization-backlog.md](../caraxes/optimization-backlog.md) §5: ReBAR.
+- [caraxes/optimization-backlog.md](../vfio/optimization-backlog.md) §5: ReBAR.

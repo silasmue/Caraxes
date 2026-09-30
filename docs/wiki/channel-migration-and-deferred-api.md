@@ -50,7 +50,7 @@ channel's own stream through the host RM's 0x5080 object, or in the software exe
   ([research: windows-findings](../research/windows-findings.md), P29b, P30).
 - The preparation runs on the shadow worker. The deferred method stays pending, the
   management channel is held and replayed by the slice clock until the build is committed
-  ([caraxes/execution.md](../caraxes/execution.md) §9.12). Before, 57 preparations of
+  ([caraxes/execution.md](../vfio/execution.md) §9.12). Before, 57 preparations of
   390 to 432 ms each held the device lock for about 23 s (C83).
 - A video channel's 0x5080 object stays an inert host object (1dc497c5, P29b).
 

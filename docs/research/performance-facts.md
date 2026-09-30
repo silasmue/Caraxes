@@ -6,7 +6,7 @@ Scope: ratios of Caraxes to native on the RTX 2070 (host 615.71.09) per operatio
 
 ## Facts
 
-- Native is the closing series' host column (quiet host, n=5) unless a table says otherwise, and a ratio is Caraxes median / native median, so above 1 is slower for times and below 1 is slower for rates [docs/caraxes/benchmark.md §2, §Closing series on driver 610.57.04; run: caraxes/runs/closing-610-2026-09-24/summary.md].
+- Native is the closing series' host column (quiet host, n=5) unless a table says otherwise, and a ratio is Caraxes median / native median, so above 1 is slower for times and below 1 is slower for rates [docs/vfio/benchmark.md §2, §Closing series on driver 610.57.04; run: caraxes/runs/closing-610-2026-09-24/summary.md].
 - "Windows on" is the recommended CUDA configuration: `CARAXES_INTR_PAGE=1`, `CARAXES_BAR1_PASSTHROUGH=pool`, `CARAXES_DOORBELL_TOKENS=64`, `CARAXES_DOORBELL_POLL=hybrid`, `CARAXES_BAR2_MEMFD=1`, `CARAXES_MSI_REARM_IOEVENTFD=1` [caraxes/tools/bench-run.sh:37-41].
 
 ### Per operation: night series part 3 and morning matrix
@@ -28,12 +28,12 @@ Caption: 615 guest, 1 GiB profile, restart per rep. Night = vm2, frozen 57693d8,
 | cuMemAlloc 64 MiB, us | 78.3 | 4919 | 63 | 614 | 7.8 |
 | PPO 60 s, steps/s | 107663, 112259 | 64423, 51178 | 0.54 | 75070, 72706 | 0.67 |
 
-[docs/caraxes/benchmark.md §Night series Part 3, §Morning matrix Benchmarks; run: caraxes/runs/bench-615-2026-09-24/night/comparison.md; run: caraxes/runs/matrix-2026-09-25/series-615]
+[docs/vfio/benchmark.md §Night series Part 3, §Morning matrix Benchmarks; run: caraxes/runs/bench-615-2026-09-24/night/comparison.md; run: caraxes/runs/matrix-2026-09-25/series-615]
 
-- Long kernels run at native speed: the 30M-cycle launch takes 17.3 ms against 16.3 ms (1.06) [docs/caraxes/benchmark.md §Night series Part 3].
-- The matrix copy rows are bimodal per device instance: the 615 guest's h2d stayed at 6.1 GB/s in all three reps while its d2d 16 MiB reached 171 GB/s in rep 3 [docs/caraxes/benchmark.md §Morning matrix Benchmarks; run: caraxes/runs/matrix-2026-09-25/series-615].
-- The pinned 1 and 16 MiB copies switch between about 6.5 and 12.9 GB/s with the card's PCIe link state (gen 1 or 2 at P8 or P5, gen 3 at P0) [docs/caraxes/optimization-backlog.md §4 Status, item 1; run: caraxes/runs/opt-memfd-pool-2026-09-25].
-- The Xid 31 fail-closed rule added after the matrix costs cuMemAlloc 1 MiB 175 to 200 us, 64 MiB 511 to 2277 us, cuMemFree 64 MiB 791 to 2402 us and cuCtxCreate 395 to 486 ms on vm5-615, launches unchanged [docs/caraxes/README.md §Status 2026-09-25 "The morning matrix's Xid 31"; run: caraxes/runs/xid31-pool-2026-09-25].
+- Long kernels run at native speed: the 30M-cycle launch takes 17.3 ms against 16.3 ms (1.06) [docs/vfio/benchmark.md §Night series Part 3].
+- The matrix copy rows are bimodal per device instance: the 615 guest's h2d stayed at 6.1 GB/s in all three reps while its d2d 16 MiB reached 171 GB/s in rep 3 [docs/vfio/benchmark.md §Morning matrix Benchmarks; run: caraxes/runs/matrix-2026-09-25/series-615].
+- The pinned 1 and 16 MiB copies switch between about 6.5 and 12.9 GB/s with the card's PCIe link state (gen 1 or 2 at P8 or P5, gen 3 at P0) [docs/vfio/optimization-backlog.md §4 Status, item 1; run: caraxes/runs/opt-memfd-pool-2026-09-25].
+- The Xid 31 fail-closed rule added after the matrix costs cuMemAlloc 1 MiB 175 to 200 us, 64 MiB 511 to 2277 us, cuMemFree 64 MiB 791 to 2402 us and cuCtxCreate 395 to 486 ms on vm5-615, launches unchanged [docs/vfio/README.md §Status 2026-09-25 "The morning matrix's Xid 31"; run: caraxes/runs/xid31-pool-2026-09-25].
 
 ### Per operation: the census
 
@@ -50,9 +50,9 @@ Caption: 610 guest, vm3, 1 GiB slot 5, other VMs up (load 7 to 9). `off` = froze
 | cuMemAllocHost 1 MiB | 807 | 33 | 8.2 | 2.2 | 7.5 | 2.5 |
 | cuMemHostRegister 1 MiB | 1049 | 137 | 15.2 | 6.1 | 15.0 | 7.3 |
 
-[docs/caraxes/optimization-backlog.md §1, §2; docs/caraxes/benchmark.md §Morning matrix Census; run: caraxes/runs/trap-census-2026-09-25/summary.md; run: caraxes/runs/matrix-2026-09-25/census-610/census-table.md]
+[docs/vfio/optimization-backlog.md §1, §2; docs/vfio/benchmark.md §Morning matrix Census; run: caraxes/runs/trap-census-2026-09-25/summary.md; run: caraxes/runs/matrix-2026-09-25/census-610/census-table.md]
 
-- With the windows on, a submission, a copy, an event and a synchronise trap 0 times net of background, and PPO submits 28000 times per second with no trap per submission [docs/caraxes/optimization-backlog.md Summary 1, §3.5; run: caraxes/runs/trap-census-2026-09-25/workload-rates.md].
+- With the windows on, a submission, a copy, an event and a synchronise trap 0 times net of background, and PPO submits 28000 times per second with no trap per submission [docs/vfio/optimization-backlog.md Summary 1, §3.5; run: caraxes/runs/trap-census-2026-09-25/workload-rates.md].
 
 ### Per workload: the workload gate
 
@@ -70,9 +70,9 @@ Caption: 615 guest, v2 against native only (v1 dropped on the 615 host), 3 reps.
 | transformer, tokens/s | 103760 (batch 32) | 87831 (batch 8) | 0.85, not like for like | 104754 (batch 32) | 1.01 |
 | ResNet-18, images/s | 506 (batch 32) | 465 (batch 16) | 0.92, not like for like | 526 (batch 32, n=2) | 1.04 |
 
-[docs/caraxes/workload-gate.md §5, §7; docs/caraxes/benchmark.md §Morning matrix Workload gate; run: caraxes/runs/workload-2026-09-24/night/gate/summary.md; run: caraxes/runs/matrix-2026-09-25/workload-615/summary.md]
+[docs/vfio/workload-gate.md §5, §7; docs/vfio/benchmark.md §Morning matrix Workload gate; run: caraxes/runs/workload-2026-09-24/night/gate/summary.md; run: caraxes/runs/matrix-2026-09-25/workload-615/summary.md]
 
-- PPO is bound by the device's per-ring work: 407 s of device CPU in a 424 s run in the matrix and 411 s of 427 s in the night [docs/caraxes/benchmark.md §Morning matrix Workload gate; run: caraxes/runs/matrix-2026-09-25/workload-615/v2/ppo-full-1.txt; docs/caraxes/workload-gate.md §5, §7].
+- PPO is bound by the device's per-ring work: 407 s of device CPU in a 424 s run in the matrix and 411 s of 427 s in the night [docs/vfio/benchmark.md §Morning matrix Workload gate; run: caraxes/runs/matrix-2026-09-25/workload-615/v2/ppo-full-1.txt; docs/vfio/workload-gate.md §5, §7].
 
 ### Display frame rates
 
@@ -87,23 +87,23 @@ Caption: 615 rows = vm0-615, 2 GiB slot 0, host execution, token pool, hybrid re
 
 [run: caraxes/runs/display-615-2026-09-24/s4-series/trap-compare.txt; run: caraxes/runs/matrix-2026-09-25/display-615; run: caraxes/runs/display-f-2026-09-24]
 
-- No Caraxes SotTR frame rate exists; the stage ran only its plumbing test in pure emulation [docs/caraxes/sottr-stage.md §6, §7].
+- No Caraxes SotTR frame rate exists; the stage ran only its plumbing test in pure emulation [docs/vfio/sottr-stage.md §6, §7].
 
 ### Where the remaining time goes
 
-- cuCtxCreate after the batched shadow maps is the GPU's first work on each of its 20 channels, not host RM calls (13171 to 228 host calls per creation) [docs/caraxes/optimization-backlog.md §4 Status of item 2; run: caraxes/runs/opt-shadow-maps-2026-09-25].
-- An allocation keeps the MMU invalidate (page 0xb83000) and the BAR2 flush read (0xfea000), and with the memfd each flush read carries a sync of 126 us mean, which makes the free path the larger gap [docs/caraxes/optimization-backlog.md §2.1, §3.2; docs/caraxes/benchmark.md §What closes the gaps].
-- Every CUDA process pays about 0.55 s of device time no benchmark row names: 1024 BAR1 pool page moves (363 ms median) and 834 BAR2 memfd syncs (180 ms) [docs/caraxes/coverage-map.md Summary, §4 items 1-2; run: caraxes/runs/coverage-2026-09-25/combined-coverage-map.md].
-- Host TSG preempts, mostly from the pool's warm-move barrier, cost 3.9 s in 1112 calls over the map, and one preempt at a kill -9 took 3.2 s with host Xid 109 [docs/caraxes/coverage-map.md §4 item 3; run: caraxes/runs/coverage-2026-09-25/map].
-- D2D 16 MiB (3.85 against 0.25 ms), H2D 16 MiB pinned (1.9 to 5.2 against 1.3 ms) and a launch after 30 ms idle (680 against 155-177 us) have no trap in their window [docs/caraxes/optimization-backlog.md §3.4].
-- 610 delta: the 610 guest matches the 615 guest within run spread on the same device configuration (first 615 series, night part 3, matrix), the census and display-e ran the 610 guest, and only 615 guest devices showed the GPC FAULT_PDE Xid 31 in the matrix [docs/caraxes/benchmark.md §First 615 series, §Night series Part 3, §Morning matrix; run: caraxes/runs/bench-615-2026-09-24/comparison.md].
+- cuCtxCreate after the batched shadow maps is the GPU's first work on each of its 20 channels, not host RM calls (13171 to 228 host calls per creation) [docs/vfio/optimization-backlog.md §4 Status of item 2; run: caraxes/runs/opt-shadow-maps-2026-09-25].
+- An allocation keeps the MMU invalidate (page 0xb83000) and the BAR2 flush read (0xfea000), and with the memfd each flush read carries a sync of 126 us mean, which makes the free path the larger gap [docs/vfio/optimization-backlog.md §2.1, §3.2; docs/vfio/benchmark.md §What closes the gaps].
+- Every CUDA process pays about 0.55 s of device time no benchmark row names: 1024 BAR1 pool page moves (363 ms median) and 834 BAR2 memfd syncs (180 ms) [docs/vfio/coverage-map.md Summary, §4 items 1-2; run: caraxes/runs/coverage-2026-09-25/combined-coverage-map.md].
+- Host TSG preempts, mostly from the pool's warm-move barrier, cost 3.9 s in 1112 calls over the map, and one preempt at a kill -9 took 3.2 s with host Xid 109 [docs/vfio/coverage-map.md §4 item 3; run: caraxes/runs/coverage-2026-09-25/map].
+- D2D 16 MiB (3.85 against 0.25 ms), H2D 16 MiB pinned (1.9 to 5.2 against 1.3 ms) and a launch after 30 ms idle (680 against 155-177 us) have no trap in their window [docs/vfio/optimization-backlog.md §3.4].
+- 610 delta: the 610 guest matches the 615 guest within run spread on the same device configuration (first 615 series, night part 3, matrix), the census and display-e ran the 610 guest, and only 615 guest devices showed the GPC FAULT_PDE Xid 31 in the matrix [docs/vfio/benchmark.md §First 615 series, §Night series Part 3, §Morning matrix; run: caraxes/runs/bench-615-2026-09-24/comparison.md].
 
 ### ReBAR
 
-- TU106's BAR1 is 256 MiB, and its resizable-BAR capability offers only 64, 128 and 256 MiB [docs/caraxes/optimization-backlog.md §5].
-- The pool plus the device's own BAR1 windows must stay under 192 MiB beside the desktop, so the census and the matrix ran the pool at 32 MiB [docs/caraxes/optimization-backlog.md §1, §5].
-- The device reaches the rest of the reservation through two 32 MiB BAR1 windows at 1.6 us per uncached read and 2.5 ms per window miss [docs/caraxes/optimization-backlog.md §5; docs/caraxes/benchmark.md §Doorbell over KVM ioeventfd].
-- With BAR1 covering VRAM the pool could cover all of guest BAR1 and the device could map the whole reservation once, but zero-copy pool moves still need a VMM patch that re-points one 4 KiB page of the area mapping [docs/caraxes/optimization-backlog.md §5].
+- TU106's BAR1 is 256 MiB, and its resizable-BAR capability offers only 64, 128 and 256 MiB [docs/vfio/optimization-backlog.md §5].
+- The pool plus the device's own BAR1 windows must stay under 192 MiB beside the desktop, so the census and the matrix ran the pool at 32 MiB [docs/vfio/optimization-backlog.md §1, §5].
+- The device reaches the rest of the reservation through two 32 MiB BAR1 windows at 1.6 us per uncached read and 2.5 ms per window miss [docs/vfio/optimization-backlog.md §5; docs/vfio/benchmark.md §Doorbell over KVM ioeventfd].
+- With BAR1 covering VRAM the pool could cover all of guest BAR1 and the device could map the whole reservation once, but zero-copy pool moves still need a VMM patch that re-points one 4 KiB page of the area mapping [docs/vfio/optimization-backlog.md §5].
 
 ## Consequence for Caraxes
 
@@ -113,7 +113,7 @@ Caption: 615 rows = vm0-615, 2 GiB slot 0, host execution, token pool, hybrid re
 
 ## Open
 
-- Holding only plans that map something new would recover the Xid 31 rule's cost on frees and is not built [docs/caraxes/README.md §Status 2026-09-25].
-- The non-trap stalls (D2D and H2D 16 MiB, launch after idle) need a device-side timeline of host doorbell, GPGet and notifier [docs/caraxes/optimization-backlog.md §4 item 10].
-- Invalidate and flush page as memory, progress-gated interrupt forwarding and poll-mode GSP are not built [docs/caraxes/optimization-backlog.md §4 items 3, 5, 6].
-- SotTR has no trap table and no frame rate, and its guest BAR1 use outside the pool is unknown [docs/caraxes/optimization-backlog.md §4 item 9; docs/caraxes/sottr-stage.md §8].
+- Holding only plans that map something new would recover the Xid 31 rule's cost on frees and is not built [docs/vfio/README.md §Status 2026-09-25].
+- The non-trap stalls (D2D and H2D 16 MiB, launch after idle) need a device-side timeline of host doorbell, GPGet and notifier [docs/vfio/optimization-backlog.md §4 item 10].
+- Invalidate and flush page as memory, progress-gated interrupt forwarding and poll-mode GSP are not built [docs/vfio/optimization-backlog.md §4 items 3, 5, 6].
+- SotTR has no trap table and no frame rate, and its guest BAR1 use outside the pool is unknown [docs/vfio/optimization-backlog.md §4 item 9; docs/vfio/sottr-stage.md §8].

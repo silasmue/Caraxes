@@ -3,7 +3,7 @@
 
 Apply patches 0001-0003, in order (0004 and 0005 are optional and independent: each applies before or after the others; 0006 needs 0005), to the tag in [CH_VERSION](../CH_VERSION),
 currently `v53.0`. `tools/build.sh ch` fetches, patches and builds it. The
-[manual setup](../docs/VM-PREPARATION.md#build-and-patch-cloud-hypervisor)
+[manual setup](../docs/virtio/vm-preparation.md#build-and-patch-cloud-hypervisor)
 shows the equivalent commands. The patches are `git format-patch` output, so
 `git apply` and `git am` both accept them.
 
@@ -18,7 +18,7 @@ virtio-nvrm is one user, the Caraxes device another.
 | [0002](0002-generic-vhost-user-device-features.patch) | Offer the device-specific feature bits | `virtio-devices/src/vhost_user/generic_vhost_user.rs` |
 | [0003](0003-generic-vhost-user-refused-request.patch) | Keep serving the backend channel after a refused request | `virtio-devices/src/vhost_user/mod.rs` |
 | [0005](0005-vfio-user-region-io-fds.patch) | vfio-user region I/O fds: request `VFIO_USER_DEVICE_GET_REGION_IO_FDS` for each BAR and register the server's ioeventfd sub-regions with KVM (exact length and datamatch), moved with the BAR, removed with the device; a server that refuses keeps every BAR trapped. Builds against [../vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md) beside the tree ([Patch 0005](#patch-0005-vfio-user-region-io-fds)); tested in [../caraxes/runs/patch0005-2026-09-24](../caraxes/runs/patch0005-2026-09-24) | `Cargo.toml`, `Cargo.lock`, `hypervisor/src/vm.rs`, `hypervisor/src/kvm/mod.rs`, `pci/src/vfio.rs`, `pci/src/vfio_user.rs` |
-| [0006](0006-vfio-user-region-io-fds-summary.patch) | One INFO line per region for its ioeventfds (registered of offered, descriptors received, datamatch range) and a test of a reply with 253 datamatch sub-regions at one offset, one descriptor each; with the vendored crate's client now announcing `max_msg_fds` 253 ([../vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md), crate patch 0002) a server can tell the values written to one register apart ([Patch 0006](#patch-0006-datamatch-sub-regions-at-one-offset), [../docs/caraxes/doorbell-token-pool.md](../docs/caraxes/doorbell-token-pool.md)); tested in [../caraxes/runs/doorbell-tokens-2026-09-24](../caraxes/runs/doorbell-tokens-2026-09-24). To be folded into 0005 before upstreaming | `pci/src/vfio_user.rs` |
+| [0006](0006-vfio-user-region-io-fds-summary.patch) | One INFO line per region for its ioeventfds (registered of offered, descriptors received, datamatch range) and a test of a reply with 253 datamatch sub-regions at one offset, one descriptor each; with the vendored crate's client now announcing `max_msg_fds` 253 ([../vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md), crate patch 0002) a server can tell the values written to one register apart ([Patch 0006](#patch-0006-datamatch-sub-regions-at-one-offset), [../docs/vfio/doorbell-token-pool.md](../docs/vfio/doorbell-token-pool.md)); tested in [../caraxes/runs/doorbell-tokens-2026-09-24](../caraxes/runs/doorbell-tokens-2026-09-24). To be folded into 0005 before upstreaming | `pci/src/vfio_user.rs` |
 | [0004](0004-acpi-dma-host-bridge.patch) | Emit an ACPI `_DMA` object on a PCI segment's host bridge from `--pci-segment pci_segment=<id>,dma_ranges=[<cpu>:<dma>:<size>,...]`; nothing changes without the option ([ACPI-DMA.md](ACPI-DMA.md)); Caraxes only, tested in [../caraxes/runs/acpi-dma-2026-09-23](../caraxes/runs/acpi-dma-2026-09-23) | `vmm/src/api/openapi/cloud-hypervisor.yaml`, `vmm/src/config.rs`, `vmm/src/device_manager.rs`, `vmm/src/pci_segment.rs`, `vmm/src/vm_config.rs` |
 | [0007](0007-vfio-user-readonly-mmap-areas.patch) | Read-only vfio-user mmap areas: `--user-device ...,x_readonly_mmap_areas=[<region>:<offset>:<size>,...]` maps those parts of a region's sparse areas as read-only KVM slots, so reads stay direct and writes trap to the region protocol; areas are validated against the sparse areas | `pci/src/vfio.rs`, `pci/src/vfio_user.rs`, `vmm/src/config.rs`, `vmm/src/device_manager.rs`, `vmm/src/vm_config.rs` |
 | [0008](0008-vfio-user-readonly-mmap-bar-move.patch) | Keep read-only mmap areas read-only across BAR moves: `move_bar` re-created every slot writable, and EDK2 moves every BAR at boot, so a Windows guest's writes to a read-only area landed in the mapping (C62, 2026-09-29). To be folded into 0007 before upstreaming | `pci/src/vfio_user.rs` |
@@ -41,7 +41,7 @@ fetched from `https://gitlab.com/qemu-project/qemu/-/raw/1276e6c85dcc/docs/inter
 
 The vfio-user specification was fetched as a single file with the QEMU v11.1.1
 client sources into the git-ignored `vendor/qemu-vfio-user`
-([docs/caraxes/environment.md](../docs/history/caraxes-environment-2026-09-23.md)); the tag's commit
+([docs/vfio/environment.md](../docs/history/caraxes-environment-2026-09-23.md)); the tag's commit
 id was not recorded with it, the tag and the sha256 above identify the text. It is
 the current home of the specification: `vendor/libvfio-user` (nutanix/libvfio-user
 at `803924493a7c`, 2026-09-08) no longer carries `docs/vfio-user.rst`. libvfio-user
@@ -529,7 +529,7 @@ A server may offer several ioeventfd sub-regions at one offset that differ only 
 datamatch, each with its own eventfd. KVM then signals the eventfd of the value the
 guest wrote, and the server knows the value without a `VFIO_USER_REGION_WRITE`. The
 Caraxes doorbell token pool uses this: one sub-region per device-chosen work-submit
-token ([../docs/caraxes/doorbell-token-pool.md](../docs/caraxes/doorbell-token-pool.md)).
+token ([../docs/vfio/doorbell-token-pool.md](../docs/vfio/doorbell-token-pool.md)).
 
 What the specification allows, with vfio-user.rst lines:
 
@@ -595,7 +595,7 @@ v53.0-6-g88e92aded`, no warnings.
 
 Functional check in vm1, pure emulation: see
 [../caraxes/runs/doorbell-tokens-2026-09-24](../caraxes/runs/doorbell-tokens-2026-09-24)
-(`commands.txt`) and [../docs/caraxes/doorbell-token-pool.md](../docs/caraxes/doorbell-token-pool.md), "Verification".
+(`commands.txt`) and [../docs/vfio/doorbell-token-pool.md](../docs/vfio/doorbell-token-pool.md), "Verification".
 
 ## How Leandro uses the series
 
@@ -679,7 +679,7 @@ over the handed-over backend channel with `REPLY_ACK`.
 ### Manual VM check
 
 Run on 2026-09-23, see [Verification (2026-09-23)](#verification-2026-09-23). After building both
-ends, follow [QUICKSTART.md](../docs/QUICKSTART.md) sections 1 and 2 with the
+ends, follow [quickstart.md](../docs/virtio/quickstart.md) sections 1 and 2 with the
 new binaries, then:
 
 1. Hypervisor: start one VM with `-v` added to the `"$CH"` command line. The

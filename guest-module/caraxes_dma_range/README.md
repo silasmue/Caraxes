@@ -21,11 +21,11 @@
 - The guest has no vIOMMU, so without the map the addresses it gives the GPU are
   guest physical addresses. The physical GPU sits in a translated host IOMMU
   domain and reaches only the IOVAs the host driver mapped. The measurement and
-  the options are in [sysmem-iova.md](../../docs/caraxes/sysmem-iova.md) §1-3.
+  the options are in [sysmem-iova.md](../../docs/vfio/sysmem-iova.md) §1-3.
 - The device registers guest RAM with the host RM in 1 GiB chunks. Each chunk
   gets one contiguous IOVA range. This module makes the guest use those IOVAs
   (sysmem-iova.md §4, option (b)).
-- This is **decision D13** in [docs/caraxes/decisions.md](../../docs/caraxes/decisions.md):
+- This is **decision D13** in [docs/vfio/decisions.md](../../docs/vfio/decisions.md):
   a temporary guest aid with a removal plan, and the only guest-side patch in
   the plan.
 - **Removal** (sysmem-iova.md §5). Delete the module, its modprobe.d lines and

@@ -37,7 +37,7 @@ comes.
   registers; those are GSP-RM's. UVM writes the replayable fault buffer's `GET`.
 - The interrupt self-test at boot triggers a vector through `LEAF_TRIGGER`.
 - The kernel RM's own timeouts use the OS timer in GSP-client mode, not PTIMER
-  ([caraxes/kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md)).
+  ([caraxes/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md)).
 
 ## In the device
 
@@ -61,8 +61,8 @@ comes.
 
 ## Depth
 
-- [caraxes/registers-turing.md](../caraxes/registers-turing.md): the consolidated map by phase.
-- [caraxes/kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md): what the kernel RM
+- [caraxes/registers-turing.md](../vfio/registers-turing.md): the consolidated map by phase.
+- [caraxes/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md): what the kernel RM
   touches per engine.
 - [research: trap-census-2026-09-30](../research/trap-census-2026-09-30.md): what still traps
   per workload, by register.

@@ -69,7 +69,7 @@ device binary does this for four guest drivers
 ## Depth
 
 - [research/gsp-surface.md](../research/gsp-surface.md): the surface in numbers.
-- [caraxes/gsp-surface.md](../caraxes/gsp-surface.md), [caraxes/gsp-plan/README.md](../caraxes/gsp-plan/README.md):
+- [caraxes/gsp-surface.md](../vfio/gsp-surface.md), [caraxes/gsp-plan/README.md](../vfio/gsp-plan/README.md):
   the inventory and the plans.
-- [caraxes/other-architectures.md](../caraxes/other-architectures.md): the boot path on
+- [caraxes/other-architectures.md](../vfio/other-architectures.md): the boot path on
   Ampere, Ada, Hopper and Blackwell.

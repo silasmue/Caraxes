@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Shadow of the Tomb Raider on Caraxes: the operator's run
 
-The stage is described in [docs/caraxes/sottr-stage.md](../../../docs/caraxes/sottr-stage.md).
+The stage is described in [docs/vfio/sottr-stage.md](../../../docs/vfio/sottr-stage.md).
 This folder holds the scripts and, per run, one `session-<time>/` folder with the evidence.
 
 ## Before you start

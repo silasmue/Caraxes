@@ -4,7 +4,7 @@
 - Committed bindgen output and layout metadata for configured NVIDIA driver versions.
 - Consumers use the committed sources; normal builds need neither libclang nor
   vendored headers.
-- Version policy and hardware evidence: [driver versions](../../docs/abi-versions.md).
+- Version policy and hardware evidence: [driver versions](../../docs/virtio/abi-versions.md).
 
 ## Source map
 

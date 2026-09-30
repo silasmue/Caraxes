@@ -14,7 +14,7 @@ guest's behalf.
 - Each descriptor is one `NV01_MEMORY_SYSTEM_OS_DESCRIPTOR` over a host virtual range, pinned
   with `FOLL_LONGTERM` (`kernel-open/nvidia/os-mlock.c`) and mapped for the device with one
   `dma_map_sg` call, which gives one contiguous IOVA range aligned to the descriptor's
-  power-of-two size, allocated top-down ([caraxes/sysmem-iova.md](../caraxes/sysmem-iova.md)).
+  power-of-two size, allocated top-down ([caraxes/sysmem-iova.md](../vfio/sysmem-iova.md)).
 - A descriptor is at most 4 GiB minus 4 KiB. The first one that does not fit below 4 GiB
   switches the host GPU to 64-bit IOVAs until the host reboots; chunks then lie near 2^47.
 - The RM holds the pages by page array, so the window the descriptor was made over can be
@@ -73,10 +73,10 @@ guest's behalf.
 - Why not the alternatives: an ACPI `_DMA` method needs a Cloud Hypervisor patch and an
   x86 Linux change ([patches/ACPI-DMA.md](../../patches/ACPI-DMA.md)); a vIOMMU cannot line
   up two allocators; host-side tricks cannot see the guest's tables
-  ([caraxes/dma-routes.md](../caraxes/dma-routes.md)).
+  ([caraxes/dma-routes.md](../vfio/dma-routes.md)).
 
 ## Depth
 
 - [research: memory-model](../research/memory-model.md): the cited lines and the rules.
-- [caraxes/memory-model.md](../caraxes/memory-model.md) §2, [caraxes/sysmem-iova.md](../caraxes/sysmem-iova.md),
+- [caraxes/memory-model.md](../vfio/memory-model.md) §2, [caraxes/sysmem-iova.md](../vfio/sysmem-iova.md),
   [guest-module/caraxes_dma_range/README.md](../../guest-module/caraxes_dma_range/README.md).

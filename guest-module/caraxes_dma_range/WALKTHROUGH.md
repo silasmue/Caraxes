@@ -13,7 +13,7 @@ under `/usr/lib/modules/7.2.4-arch1-2/build/include/` (read directly, exact), an
 guest's `6.8.0-136-generic` is an Ubuntu build and may shift a line or two). Where
 neither was available, file and function only.
 
-**Why this module exists** (read first: `docs/caraxes/sysmem-iova.md` §5, removal
+**Why this module exists** (read first: `docs/vfio/sysmem-iova.md` §5, removal
 plan, and §3(b)/§4, design and rationale; short version in this directory's
 `README.md` and atop `caraxes_dma_range.c`): the Caraxes guest has no vIOMMU, so every
 DMA address the guest kernel hands the passthrough-shaped NVIDIA GPU is a guest

@@ -22,7 +22,7 @@ Abbreviations:
 - **What NVKMS asks for.** SCANOUT is NV01_MEMORY_LOCAL_USER, TYPE_PRIMARY, PHYSICALITY_CONTIGUOUS, ATTR2_ISO, with forced 4 KiB alignment [T src/nvidia-modeset/kapi/src/nvkms-kapi.c:823-845; nvkms-types.h:92].
   - An explicit CONTIGUOUS request is never retried as non-contiguous [T src/nvidia/src/kernel/mem_mgr/video_mem.c:320-338].
   - Its default page size is 2 MiB whenever the size is at least 2 MiB [T src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c:1781-1786]. So a 1080p buffer takes five adjacent free 2 MiB frames.
-- **One refusal is fatal.** It wedges the compositor for good, even when memory is free again seconds later [v1 docs/history/OPEN-QUESTIONS-2026-09-18.md, "THE FREEZE LATCHES"].
+- **One refusal is fatal.** It wedges the compositor for good, even when memory is free again seconds later [v1 docs/history/open-questions-2026-09-18.md, "THE FREEZE LATCHES"].
 
 ### v1's display balloon (Q1)
 
@@ -40,7 +40,7 @@ Abbreviations:
 - **Automatic size.** `display_reserve_mib=-1` with the display on gives 5·S plus four 256x256x4 cursors, rounded up to MiB [nvrm_vram.c:57-97].
   - S = align(4W, 64) × align(H, 128), rounded to 64 KiB, as libnvidia-allocator sizes it.
   - The factor 5 comes from the measured peak above idle, 4.67·S.
-- **Result.** Without the balloon, 7 of 9 SotTR runs froze at 2816 MiB. With it, two 3 GiB guests had 0 NVKMS failures [v1 commit 71b0de6; v1 docs/measurements/sottr-4q/README.md].
+- **Result.** Without the balloon, 7 of 9 SotTR runs froze at 2816 MiB. With it, two 3 GiB guests had 0 NVKMS failures [v1 commit 71b0de6; v1 docs/virtio/measurements/sottr-4q/README.md].
 - **Tried and dropped in v1.** "Telling userspace a smaller card did not help" [v1 commit 71b0de6]. The game fills the room it can get until it is refused.
 
 ### Sizes and budget in a 615 guest (Q2)

@@ -36,4 +36,4 @@ tools/check.sh
 ```
 
 - The software check exercises the C table interpreter against Rust-generated data.
-- Version policy and generator inputs: [driver versions](../../docs/abi-versions.md).
+- Version policy and generator inputs: [driver versions](../../docs/virtio/abi-versions.md).

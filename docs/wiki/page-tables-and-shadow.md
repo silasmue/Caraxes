@@ -59,7 +59,7 @@ route (decision D17) and the isolation boundary (decisions D16 and D18).
 - A register invalidate plans the roots it names and arms a gate; `TRIGGER` reads busy until
   the worker applied those plans, and the device lock is free between reads. After 1 s a read
   waits to the end, so the guest's 4 s timeout never lets it pass early
-  ([caraxes/execution.md](../caraxes/execution.md) §8).
+  ([caraxes/execution.md](../vfio/execution.md) §8).
 - A software `MEM_OP` TLB invalidate that names a shadow root stops its push right after the
   method until the worker applied the plans; UVM's semaphore release comes after
   ([research: shadow-fault-race-2026-09-28](../research/shadow-fault-race-2026-09-28.md)).
@@ -101,8 +101,8 @@ and 64 MiB rows are from the 2026-09-29 base binary).
 ## Depth
 
 - [research: memory-model](../research/memory-model.md): the rules with their lines.
-- [caraxes/mapping.md](../caraxes/mapping.md): the walk cache, coalescing, the worker.
-- [caraxes/memory-model.md](../caraxes/memory-model.md) §7: gathers, region pools, the
+- [caraxes/mapping.md](../vfio/mapping.md): the walk cache, coalescing, the worker.
+- [caraxes/memory-model.md](../vfio/memory-model.md) §7: gathers, region pools, the
   fail-closed argument.
-- [caraxes/exec-formats.md](../caraxes/exec-formats.md): the GMMU v2 entry layouts and the
+- [caraxes/exec-formats.md](../vfio/exec-formats.md): the GMMU v2 entry layouts and the
   RM's flush and invalidate sequence.

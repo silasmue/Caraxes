@@ -83,7 +83,7 @@ driver itself orders its writes. Trap rates are on [traps-and-fast-paths](traps-
 
 ## Depth
 
-- [caraxes/bar2-memfd.md](../caraxes/bar2-memfd.md): the design, the sync rules, hazards, tests.
-- [caraxes/fb-model.md](../caraxes/fb-model.md): PRAMIN, the BAR2 walk and the FB layout.
-- [caraxes/kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md) §C KernelBus.
-- [caraxes/mapping.md](../caraxes/mapping.md) §3: the BAR2 accounting of a context creation.
+- [caraxes/bar2-memfd.md](../vfio/bar2-memfd.md): the design, the sync rules, hazards, tests.
+- [caraxes/fb-model.md](../vfio/fb-model.md): PRAMIN, the BAR2 walk and the FB layout.
+- [caraxes/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md) §C KernelBus.
+- [caraxes/mapping.md](../vfio/mapping.md) §3: the BAR2 accounting of a context creation.

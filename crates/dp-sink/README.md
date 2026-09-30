@@ -3,7 +3,7 @@
 # dp-sink: a transport-neutral DisplayPort SST sink
 
 Package A of the display side assignment ([briefing](../../docs/history/caraxes-briefing-display-nova-2026-09-23.md),
-P16 in [docs/caraxes/README.md](../../docs/history/caraxes-record-2026-09-28.md)). This crate models the monitor
+P16 in [docs/vfio/README.md](../../docs/history/caraxes-record-2026-09-28.md)). This crate models the monitor
 end of an emulated DisplayPort connector: the DPCD register file, the link-training state
 machine, the AUX engine with I2C-over-AUX, the EDID and hot-plug detect. It knows nothing about
 NVIDIA, vfio-user or GSP. The NVIDIA control adapter (package B) and the display model will sit
@@ -11,7 +11,7 @@ on top of it (decision D15: DisplayPort SST, one connector per head).
 
 Status 2026-09-23: written and unit-tested (gate D1, "Sink-Unit-Tests"). Moved from
 `caraxes/dp-sink` to `crates/dp-sink` as a workspace member (still `std` only) for display
-phase B ([docs/caraxes/display-ab.md](../../docs/caraxes/display-ab.md)). There it sits behind
+phase B ([docs/vfio/display-ab.md](../../docs/vfio/display-ab.md)). There it sits behind
 the device's NV0073 AUX adapter (`crates/vfio-user-nvgpu/src/display/aux.rs`) and answered the
 stock 610.57.04 guest's DP library: detection, DisplayID probe, EDID read, HBR3 x4 training
 through `DP_CTRL`. The golden transcript is now that guest's recorded capture.

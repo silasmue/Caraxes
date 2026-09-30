@@ -2,8 +2,8 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # MSI re-arm through an ioeventfd, 2026-09-25 (vm3)
 
-Backlog item 4 of [docs/caraxes/optimization-backlog.md](../../../docs/caraxes/optimization-backlog.md).
-The mechanism and the numbers are in [docs/caraxes/intr-page.md](../../../docs/caraxes/intr-page.md) §4.
+Backlog item 4 of [docs/vfio/optimization-backlog.md](../../../docs/vfio/optimization-backlog.md).
+The mechanism and the numbers are in [docs/vfio/intr-page.md](../../../docs/vfio/intr-page.md) §4.
 
 The device is `/mnt/vmstore/caraxes/vfio-user-nvgpu-opt1-0c2cb79`, main d466e9d plus bb52a46 (the
 memfd with the pool) and 0c2cb79 (`CARAXES_MSI_REARM_IOEVENTFD`). The runs use the script

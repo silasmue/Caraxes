@@ -13,7 +13,7 @@ that differs from the executing chip; the ladder measured how far it can go.
 - `Leandro <Transport> <Personality>-<Profile>`: `Leandro VFIO RTX 2070-4G` from v2,
   `Leandro VirtIO RTX 2070-4G` from v1; the legacy form `Leandro RTX 2070-4G` is an opt-in.
   One module builds it (`nvrm_abi::naming`, `crates/nvrm-abi/src/naming.rs`); the backend
-  never appears in the name ([NAMING.md](../NAMING.md)).
+  never appears in the name ([naming.md](../naming.md)).
 - The profile is the guest framebuffer size, from a plain size or v1's vGPU-style catalogue
   (`RTX2070-4Q` resolves through the card's VMMU segment size to a whole-segment size). The
   device takes `--profile` or `--fb-mib`, else `LEA_VRAM_PROFILE_MIB`, default 4096 MiB
@@ -104,6 +104,6 @@ that differs from the executing chip; the ladder measured how far it can go.
 ## Depth
 
 - [research/identity-and-costume.md](../research/identity-and-costume.md): the cited lines and runs.
-- [caraxes/identity-profile.md](../caraxes/identity-profile.md): the profile policy and the naming model.
-- [caraxes/costume-5060.md](../caraxes/costume-5060.md), [caraxes/costume-ladder.md](../caraxes/costume-ladder.md),
-  [caraxes/versatility.md](../caraxes/versatility.md): the ladder and the three axes.
+- [caraxes/identity-profile.md](../vfio/identity-profile.md): the profile policy and the naming model.
+- [caraxes/costume-5060.md](../vfio/costume-5060.md), [caraxes/costume-ladder.md](../vfio/costume-ladder.md),
+  [caraxes/versatility.md](../vfio/versatility.md): the ladder and the three axes.

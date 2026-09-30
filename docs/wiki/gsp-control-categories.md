@@ -52,14 +52,14 @@ argument and the truth source of every answer, and every answer carries a proven
 - In Caraxes runs no CUDA or Wayland workload has reached a D control; the one D control
   seen is `NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL` on a DisplayPort unplug. The real card's 610
   user-space traces show one more, `NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG` from cuda-gdb
-  ([caraxes/gsp-plan/d-device-model.md](../caraxes/gsp-plan/d-device-model.md)).
+  ([caraxes/gsp-plan/d-device-model.md](../vfio/gsp-plan/d-device-model.md)).
 - The 12 display MODEL rows and the 4 open A rows are the remaining D gaps.
 
 ## Depth
 
 - [research/gsp-surface.md](../research/gsp-surface.md): the counts and their evidence.
-- [caraxes/gsp-surface.md](../caraxes/gsp-surface.md): the inventory and its rounds.
-- [caraxes/gsp-plan/b-host-forwardable.md](../caraxes/gsp-plan/b-host-forwardable.md),
-  [c-guest-state.md](../caraxes/gsp-plan/c-guest-state.md),
-  [d-device-model.md](../caraxes/gsp-plan/d-device-model.md),
-  [e-families.md](../caraxes/gsp-plan/e-families.md): the per-category plans.
+- [caraxes/gsp-surface.md](../vfio/gsp-surface.md): the inventory and its rounds.
+- [caraxes/gsp-plan/b-host-forwardable.md](../vfio/gsp-plan/b-host-forwardable.md),
+  [c-guest-state.md](../vfio/gsp-plan/c-guest-state.md),
+  [d-device-model.md](../vfio/gsp-plan/d-device-model.md),
+  [e-families.md](../vfio/gsp-plan/e-families.md): the per-category plans.

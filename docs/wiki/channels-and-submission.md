@@ -42,7 +42,7 @@ Which channels run on a host channel and which in the device is on
   and writes the token into the channel's notifier entry
   (`kchannelNotifyWorkSubmitToken_IMPL`), from where libcuda reads what it rings.
 - The Windows KMD computes its tokens in its own RM, caches them, and gives most channels
-  no error notifier ([caraxes/doorbell-token-pool.md](../caraxes/doorbell-token-pool.md) (g)).
+  no error notifier ([caraxes/doorbell-token-pool.md](../vfio/doorbell-token-pool.md) (g)).
 
 ## Zero-trap submission in VFIO Leandro
 
@@ -71,7 +71,7 @@ Which channels run on a host channel and which in the device is on
   write-combined window and rings the host doorbell: p50 2.4 us from the ring to the host
   doorbell on Linux B ([research: vkmark-frame](../research/vkmark-frame-2026-09-28.md)). A
   ring whose root still has jobs queued is held and rung by the completer thread without the
-  device lock ([caraxes/execution.md](../caraxes/execution.md) §9.1).
+  device lock ([caraxes/execution.md](../vfio/execution.md) §9.1).
 - A doorbell that still traps is posted: the vfio-user loop queues it without the device lock
   and answers at once; every later guest access rings the queue first, as a PCIe read does
   not pass a posted write (execution.md §9.9). Always on since 2026-09-30.
@@ -85,8 +85,8 @@ Which channels run on a host channel and which in the device is on
 | traps per submission, copy, event and synchronise (the shared-memory windows on) | 0 net of background; PPO submits 28000 times per second | [research: performance-facts](../research/performance-facts.md) |
 | short kernel launch, native / Linux B / Windows with guest tokens | 6 / 13 to 20 / 28.6 us median (C48, a VM booting beside it) | [research: windows-findings](../research/windows-findings.md) P32, step 4 |
 | Windows, trapped ring to its host doorbell, p50 | 7.0 us | windows-findings P38 |
-| a launch after 30 ms idle, guest / native | 680 us / 155 to 177 us, no trap in its window | [caraxes/optimization-backlog.md](../caraxes/optimization-backlog.md) |
-| reactor CPU, hybrid | 3.1 % of a core over a CUDA VM's life; spin takes a whole core | [caraxes/doorbell-poll.md](../caraxes/doorbell-poll.md) |
+| a launch after 30 ms idle, guest / native | 680 us / 155 to 177 us, no trap in its window | [caraxes/optimization-backlog.md](../vfio/optimization-backlog.md) |
+| reactor CPU, hybrid | 3.1 % of a core over a CUDA VM's life; spin takes a whole core | [caraxes/doorbell-poll.md](../vfio/doorbell-poll.md) |
 
 - Windows' guest-token run (C48): 9143 guest writes in 3169 eventfd wakeups; queued launch
   65.6 us, launch plus synchronize 104.8 us. The tail (p90 about 900 us) is the interrupt path.
@@ -96,12 +96,12 @@ Which channels run on a host channel and which in the device is on
 - Channel and mapping setup use the forwarded control path; the backend maps the GPFIFO and
   USERD pages into an 8 GiB VIRTIO shared-memory region through `SHMEM_MAP` (patch 0001),
   so subsequent submissions are guest memory writes and the doorbell is never forwarded
-  ([ARCHITECTURE.md](../ARCHITECTURE.md)).
+  ([architecture.md](../virtio/architecture.md)).
 
 ## Depth
 
-- [caraxes/doorbell-token-pool.md](../caraxes/doorbell-token-pool.md): tokens, KVM limits,
+- [caraxes/doorbell-token-pool.md](../vfio/doorbell-token-pool.md): tokens, KVM limits,
   guest tokens (g), the measurement.
-- [caraxes/doorbell-poll.md](../caraxes/doorbell-poll.md): the reactor modes and host tuning.
-- [caraxes/execution.md](../caraxes/execution.md) §9: the held ring, the posted doorbell.
+- [caraxes/doorbell-poll.md](../vfio/doorbell-poll.md): the reactor modes and host tuning.
+- [caraxes/execution.md](../vfio/execution.md) §9: the held ring, the posted doorbell.
 - [research/windows-and-traps.md](../research/windows-and-traps.md): what still traps.

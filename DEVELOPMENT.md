@@ -2,7 +2,7 @@
 # Development
 
 Run commands from the repository root. For VM installation and launch, use the
-[quickstart](docs/QUICKSTART.md).
+[quickstart](docs/virtio/quickstart.md).
 
 ## Requirements
 
@@ -11,7 +11,7 @@ Run commands from the repository root. For VM installation and launch, use the
 - Checks: clang-format 22.1.8, ShellCheck, `edid-decode`, ASan/UBSan.
   `nix develop` supplies most tools; check the formatter version separately.
 - Hardware: NVIDIA GPU/driver, matching userspace, KVM and guest networking.
-  [Host preparation](docs/VM-PREPARATION.md) lists packages and setup commands.
+  [Host preparation](docs/virtio/vm-preparation.md) lists packages and setup commands.
 - Core has no dependency on Leandro-Test. That optional private repository owns
   automated provisioning, workloads, benchmarks and hardware gates.
 
@@ -27,7 +27,7 @@ Run commands from the repository root. For VM installation and launch, use the
 - `vendor-abi <version>` fetches versioned headers for ABI generation.
 - Builds need no loaded NVIDIA driver. `check-driver` and `--driver auto` inspect it.
 - `--driver VERSION` overrides one invocation; it does not change `DRIVER_VERSION`
-  or regenerate bindings. Follow the [ABI workflow](docs/abi-versions.md).
+  or regenerate bindings. Follow the [ABI workflow](docs/virtio/abi-versions.md).
 - Cloud Hypervisor needs the complete [patch series](patches/README.md).
 - Build guest modules against the guest kernel's headers, not the host kernel.
   See [virtio_nvrm](guest-module/virtio_nvrm/README.md).
@@ -47,7 +47,7 @@ cargo fmt --all -- --check
 - C formatting excludes generated and vendored files.
 - Run focused tests while editing; run the full software check before review.
 - After runtime changes, rebuild release binaries and validate the affected GPU
-  workload. [Testing](docs/TESTING.md) explains coverage and result requirements.
+  workload. [Testing](docs/virtio/testing.md) explains coverage and result requirements.
 
 ## Nix
 
@@ -62,7 +62,7 @@ nix flake check
 - Host/guest configuration: [host example](nix/example-host.nix),
   [guest example](nix/example-guest.nix), [host options](nix/module.nix),
   [guest options](nix/module-guest.nix).
-- Optional evdev backend: `nix build .#vhost-device-input`; see [Input](docs/INPUT.md).
+- Optional evdev backend: `nix build .#vhost-device-input`; see [Input](docs/virtio/input.md).
 - `.#guest-deb` builds the Ubuntu DKMS package; `.#host-deb` builds host packages.
 - `.#guest-image` produces `kernel`, `initrd`, `rootfs.qcow2` and `image.env`;
   keep them together. `.#guest-image-uefi` builds the firmware-boot variant.
@@ -89,10 +89,10 @@ LEA_TRACE_FILE=traces/run.tsv LD_PRELOAD="$PWD/target/release/libnvrm_trace.so" 
 | Driver mismatch | Loaded `/proc/driver/nvidia/version`, compiled ABI and guest libraries; a package update does not replace a loaded module |
 | Old behavior after rebuild | Binary path and build timestamp; rebuild release artifacts |
 | Guest unreachable | Serial/hypervisor logs, tap/bridge setup and firewall forwarding |
-| Missing capability/library | [Userspace dependencies](docs/GUEST-USERSPACE.md), including `dlopen` lookups |
+| Missing capability/library | [Userspace dependencies](docs/virtio/guest-userspace.md), including `dlopen` lookups |
 | CUDA disappears after mediation change | Remove `mode` from `LEA_VGPU_MEDIATE`; default is `uuid,enc` |
 | Allocation refused | Backend logs; guest pin limit, host arena/aggregate limits and VRAM policy |
-| Black or frozen stream | [Display checks](docs/DISPLAY.md); verify changing pixels, not only FPS |
+| Black or frozen stream | [Display checks](docs/virtio/display.md); verify changing pixels, not only FPS |
 | Teardown hangs | Preserve logs; stop clients before the VM and backend. Live unbind is unsupported |
 
-See [security limits](docs/SECURITY.md) before changing ownership or teardown.
+See [security limits](docs/virtio/security.md) before changing ownership or teardown.

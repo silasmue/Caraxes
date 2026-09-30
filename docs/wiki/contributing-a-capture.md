@@ -110,6 +110,6 @@ the machine is needed.
 
 ## Depth
 
-- [caraxes/gsp-plan/lab-kit.md](../caraxes/gsp-plan/lab-kit.md): the kit in full, the
+- [caraxes/gsp-plan/lab-kit.md](../vfio/gsp-plan/lab-kit.md): the kit in full, the
   operator-only steps on a rented VM, which cloud part covers which chip.
-- [caraxes/lab-blackwell.md](../caraxes/lab-blackwell.md): the checklist of the first capture.
+- [caraxes/lab-blackwell.md](../vfio/lab-blackwell.md): the checklist of the first capture.

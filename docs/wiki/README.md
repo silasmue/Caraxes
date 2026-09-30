@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Leandro wiki
 
-One page per concept that [LEANDRO.md](../LEANDRO.md) names, for both architectures,
+One page per concept that [leandro.md](../leandro.md) names, for both architectures,
 VirtIO Leandro (v1) and VFIO Leandro (v2, code name Caraxes): the NVIDIA driver as a
 virtual GPU sees it, the GSP and its emulation, the PCI BARs and the memory model,
 submission and interrupts, execution, display, identity, performance and verification.
@@ -73,10 +73,10 @@ Each page is short, names the driver by path and function, and links to the
 
 - [docs/research](../research/README.md): one short evidence note per topic, every fact with a
   615 line or a run folder.
-- [docs/caraxes](../caraxes/README.md): the design documents and studies of VFIO Leandro;
-  [decisions](../caraxes/decisions.md) D1 to D20; [known issues](../caraxes/KNOWN-ISSUES.md).
-- [ARCHITECTURE.md](../ARCHITECTURE.md), [SECURITY.md](../SECURITY.md), [DISPLAY.md](../DISPLAY.md),
-  [TESTING.md](../TESTING.md): VirtIO Leandro's design documents.
+- [docs/vfio](../vfio/README.md): the design documents and studies of VFIO Leandro;
+  [decisions](../vfio/decisions.md) D1 to D20; [known issues](../vfio/known-issues.md).
+- [architecture.md](../virtio/architecture.md), [security.md](../virtio/security.md), [display.md](../virtio/display.md),
+  [testing.md](../virtio/testing.md): VirtIO Leandro's design documents.
 - The driver: the open kernel modules tree the citations name (615.71.09), referenced by path
   and function.
 

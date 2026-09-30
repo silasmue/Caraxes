@@ -5,7 +5,7 @@
 - Interposes open, close, dup, ioctl, mmap, read and poll functions while forwarding
   their arguments to libc. Tracing adds overhead; it is not the production data path.
 - Native/guest comparison evidence is recorded in
-  [OPEN-QUESTIONS](../../docs/OPEN-QUESTIONS.md).
+  [OPEN-QUESTIONS](../../docs/virtio/open-questions.md).
 
 ## Source map
 
