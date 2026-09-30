@@ -1346,3 +1346,89 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   client's disconnect and removes its socket, and CH's reboot path then fails with "Failed to
   create vfio-user client: No such file". Reboots from a running Windows worked (C93, C96).
 - Memory model: none.
+
+## Cloud Hypervisor, step 23: the gate candidate, the reboot, and a second GPU client (2026-09-30, C100-C117)
+
+- **Correction to step 22:** reboots from a running Windows did not work either. C96's ch.log
+  has the same fatal error as C97; "ssh back" was printed whether or not the guest came back.
+- **lf24 (C100):** the host-hint withdrawal (26e67b26) fired once when the KMD tore down for the
+  reboot ("withdrawal 1": 256 re-arms without an ack). The guest reached the reset 0.7 s later;
+  before lf24 this teardown livelocked. Heaven HIGH/NORMAL: 133.4 fps over 295 s.
+- **The reboot kills the VM (C100, C101):** CH's reboot drops the vfio-user client and builds a
+  new one about 0.7 s later: `VmReboot(DeviceManager(VfioUserCreateClient(StreamRead(Connection
+  reset by peer))))`. The device served one connection and exited when it closed.
+  - Fix, after the merge: reconnect-2026-09-30 (c43495af). The device binds the socket itself and
+    keeps listening. A client that connects within 2 s gets the device reset, and the old
+    client's memory and IRQ eventfds are released (vfio-user.rst "Client Disconnection").
+- **final1 (train c3e9bd5b + D16):**
+  - D3D11 stages: 12/12 (C101, C104, C106).
+  - Heaven HIGH/NORMAL: 152.4 and 146.0 fps (C105), 132.0 and 128.4 (C111).
+  - Superposition 1080p Medium: 10805 (C101), 11604 (C106), 10590 and 10996 (C111), 11965 (C112).
+  - 0 host Xid, 0 FLR, 0 shadow faults in every run.
+- **The gate candidate is deferred-v2 (b6d01293):** final1 + the live state dump
+  (diag-state) + the channel migration below. Its Windows leg is C118.
+- **D16 on Windows:** kept. The KMD still maps kind-0x09 surfaces with COMPRESSION_SIZE 0 and
+  the compbit store refused. The device refuses them as before: 3744-4741 leaves per session,
+  never touched (no fault). Nothing in C100-C113 points at D16. lf24 without D16 fails the same
+  way (below).
+- **KNOWN BUG #1: a benchmark next to another GPU client stops (fixed):**
+  - Symptom: Heaven or Superposition crashes 90-250 s into a run. The crash is 0xC0000005 in
+    d3d11.dll for Heaven, and 0xC0000005 or 0xC0000409 for Superposition. A burst of
+    LiveKernelEvent 141 (VIDEO_ENGINE_TIMEOUT_DETECTED) comes with it. There is no TDR event,
+    no FLR and no host Xid.
+  - Or the app hangs without any timeout (C112: the guest stopped presenting 95 s in; every
+    window update the device saw was latched).
+  - Rate with the user's Steam client (4-6 steamwebhelper) and Edge running (they start about
+    20 s after logon since his installs between C91 and C92): about half of the runs, on every
+    binary.
+    - lf24: 2 of 4 (C107).
+    - lf24+D16: 1 of 1.
+    - train3: 2 of 2.
+    - final1: 5 of 11.
+    - lf23-remap: a TDR with FLR in C109, and a hang in C113.
+  - With Steam and Edge stopped before every run: 0 of 4 (C111). With them stopped and
+    present-probe (windowed, 60 presents/s) as the second client: 1 of 3 (C112, the hang).
+  - Ruled out:
+    - The shader cache: C105 passed fresh and from the cache; C106 crashed fresh.
+    - The guest's files: the display driver's 216 files are identical to the 617.14 package,
+      and Heaven's data is identical to its package (C108).
+    - Host builds: none ran during the crashes.
+    - Device stalls: lock holds, shadow applies and budget runs stay under 80 ms in passing
+      and failing runs alike.
+  - **Cause:** every failure follows, within 0-65 s, a refused
+    NV5080_CTRL_CMD_DEFERRED_API_INTERNAL (0x50800104). It came 13 times across C101-C114,
+    none in C100 or C111. Its nested command is NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO
+    (C115, diag2).
+    - An example: chid 22, the app's GR channel, moved to a 65536-entry GPFIFO at
+      0x2_2538_0000 and a new USERD (0xff00a002 + 0x400). WDDM grows a busy channel's ring
+      this way under contention, with the deferred call as the old ring's last entry.
+    - The device modelled only the legacy context requests. Before refusing, it marked the
+      owner for a management takeover, and that takeover cannot happen past a channel's
+      start (GPGet ≤ 32). This is the "harvested GPGet … outside the bounded 8192-entry
+      prefix" line in the same millisecond.
+    - The refused method never completed: a hang, or the KMD's engine timeout.
+    - C114's live dump (diag1, device-ctl) inside a recovered 19 s gap: every channel's work
+      consumed, no interrupt pending. The guest waited on the refused operation.
+  - **Fix** (deferred-v2-2026-09-30, 196b3f78), following GSP-RM's own path (ctrl5080.h:125-186;
+    deferred_api.c:345-398, :444-560):
+    - V2 and INTERNAL register into the same table as legacy.
+    - A host channel: the host RM registers the migration on the owner's host 0x5080 object
+      and moves the host channel in its own stream. The host channel gets a second private
+      USERD, and both rings are published until the new ring's GPGet moves.
+    - A software channel: the device's executor switches at the method.
+    - A direct 0x20801116 moves an idle channel now.
+  - **Validation:** 0 deferred refusals, 0 hangs, 0 crashes, 0 host Xid, 0 FLR. Every
+    migration was registered and then completed by the host in its stream (8192 -> 65536
+    entries each, 16-106 ms after the registration).
+    - C116 (fix1, the C112 repro: present-probe beside three Heavens): 3 of 3 passed, 154.6,
+      154.3 and 152.5 fps. 3 migrations.
+    - C117 (fix1, natural: Steam and Edge running): 4 of 4 passed. Heaven 158.3 and 153.9 fps,
+      Superposition 12247 and 12175 (min fps 52-59, before about 13). 3 migrations.
+    - C118 (fix2, the gate candidate, natural): stages 12/12, Heaven 155.9 and 153.3 fps,
+      Superposition 12228 and 12160. 2 migrations, each switched exactly at the old ring's end
+      (GPGet 8017 = last published GPPut 8017; 3334 = 3334).
+- **heaven.ps1** reported every finished run as "FAIL: no score". The PHORONIX define prints
+  only "FPS:". Now a run passes on an FPS or Score line (b0d6e05c).
+- Memory model: KNOWN BUG #1 was measured on the BAR1 pool (32 MiB), GPA DMA, and compression
+  off (D16). The reconnect fix releases guest RAM registrations (hostmem) and needs no other
+  model.
