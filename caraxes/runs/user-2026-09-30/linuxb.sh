@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# The user's Linux B desktop session (615 guest, desktop-b) with the gate candidate fix2 (2026-09-30):
+# The user's Linux B desktop session (615 guest, desktop-b) with the merged dev binary (stack ffec4d49, 2026-09-30):
 # kick-smoke's bring-up (desktop-b-night.sh: display and kick page, BAR2 memfd, pool, FB 1024 MiB),
 # Sunshine forced to encoder = nvenc.
 #   up / moonlight / down, as sottr-linux.sh; the log says "ready". NIGHT_FB_MIB=2048 for more VRAM.
 set -uo pipefail
 W=/home/silas/git/Caraxes/caraxes/runs/night-2026-09-28/desktop-b-night.sh L=/mnt/vmstore/caraxes/runs-2026-09-30/user
 G=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b
-BIN=${BIN:-/mnt/vmstore/caraxes/vfio-user-nvgpu-dv2fix2-b6d01293}
+BIN=${BIN:-/mnt/vmstore/caraxes/vfio-user-nvgpu-stack-ffec4d49}
 case ${1:-} in
 up)
     setsid nohup /mnt/vmstore/caraxes/locks/vmlock.sh desktop-b 7200 "$0" hold > "$L/linuxb.log" 2>&1 < /dev/null &

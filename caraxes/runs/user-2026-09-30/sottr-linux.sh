@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The user's own SotTR session on Linux (desktop-b-dmem) with the gate candidate fix2 (2026-09-30).
+# The user's own SotTR session on Linux (desktop-b-dmem) with the merged dev binary (stack ffec4d49, 2026-09-30).
 # Same guest settings as the evening's SotTR A/B runs (sottr-ab.sh): stock kernel, 12 GiB RAM,
 # 4 GiB FB, host VRAM floor 1 GiB, display reserve v2 on (-1), dmem cap off, Sunshine.
 #   up         waits for the card (vmlock: one VM at a time), boots, prepares GDM and Sunshine,
@@ -10,7 +10,7 @@
 set -uo pipefail
 H=/home/silas/git/Caraxes/caraxes/runs/dmem-2026-09-29 W=$H/desktop-b-dmem-6g.sh
 G=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b-dmem L=/mnt/vmstore/caraxes/runs-2026-09-30/user
-BIN=${BIN:-/mnt/vmstore/caraxes/vfio-user-nvgpu-dv2fix2-b6d01293}
+BIN=${BIN:-/mnt/vmstore/caraxes/vfio-user-nvgpu-stack-ffec4d49}
 case ${1:-} in
 up)
     setsid nohup /mnt/vmstore/caraxes/locks/vmlock.sh desktop-b-dmem 7200 "$0" hold > "$L/sottr-linux.log" 2>&1 < /dev/null &
