@@ -56,7 +56,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 ABI = os.path.join(ROOT, "caraxes", "abi", "gsp-615.71.09")
-PLAN = os.path.join(ROOT, "docs", "caraxes", "gsp-plan")
+PLAN = os.path.join(ROOT, "docs", "vfio", "gsp-plan")
 RUNS = os.path.join(ROOT, "caraxes", "runs")
 
 # The 610-guest profile series (coverage-map.md §2): run directory -> kind per window name.

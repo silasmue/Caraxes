@@ -28,7 +28,7 @@
 | [caraxes-cutover-615-2026-09-24.md](caraxes-cutover-615-2026-09-24.md) | The checklist for the host driver upgrade from 610.57.04 to 615.71.09 |
 | [caraxes-environment-2026-09-23.md](caraxes-environment-2026-09-23.md) | Host, driver, tooling and vendor checkouts at the start; the reference dumps of the RTX 2070 |
 | [caraxes-display-d0-2026-09-23.md](caraxes-display-d0-2026-09-23.md) | Display experiment D0: the stock modeset module headless on the device |
-| [caraxes-gsp-abi-610.md](caraxes-gsp-abi-610.md) | The GSP message ABI of driver 610.57.04, compiled; current: [gsp-abi-615.md](../vfio/gsp-abi-615.md) |
+| [gsp-abi-610.md](../vfio/gsp-abi-610.md) | The GSP message ABI of driver 610.57.04, compiled; kept in vfio/ because the device embeds it (`ver/v610.rs`); current: [gsp-abi-615.md](../vfio/gsp-abi-615.md) |
 | [caraxes-gsp-rpc-protocol-610.md](caraxes-gsp-rpc-protocol-610.md) | The 610.57.04 CPU-GSP protocol from source; current: [gsp-transport-615.md](../vfio/gsp-transport-615.md) |
 | [caraxes-phase5-rpcs-610.md](caraxes-phase5-rpcs-610.md) | The 98 RPCs of a 610 boot up to `RmInitAdapter succeeded`, with an answer source each |
 | [caraxes-repo-split-2026-09-24.md](caraxes-repo-split-2026-09-24.md) | The plan for separating v1 and v2 into two repositories; not taken, both live here |

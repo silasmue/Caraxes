@@ -103,7 +103,7 @@ Each side writes the header of its own transmit queue at the start of that queue
 
 In 610 the header was different: `version` 0, `size`, `msgSize`, `msgCount`, `writePtr`, `flags`
 (`SWAP_RX`), `rxHdrOff`, `entryOff`, plus a 4-byte `msgqRxHeader` holding the read pointer
-([gsp-abi-610.md](../history/caraxes-gsp-abi-610.md) (a)). In 615 there is no rx header. The receiver's
+([gsp-abi-610.md](gsp-abi-610.md) (a)). In 615 there is no rx header. The receiver's
 `msgqRxLink` checks the other side's header: `size` equal to its own idea of the queue size,
 `msgSize` equal to `queueElementSizeMin`, `versionMajor` 2, and a consistent `msgCount`
 (`msgq.c:240-262`). A zero header fails with -7 (`rx.size != size`, `msgq.c:246-249`). That is the
@@ -482,7 +482,7 @@ show earlier:
 
 What is implemented is the launcher switch with checks behind it. The build fixes the version:
 a device binary emulates one driver version, as 610 already required
-([gsp-abi-610.md](../history/caraxes-gsp-abi-610.md) (e)). The 615 control layouts reach `ctrl.rs`, `kgr.rs` and
+([gsp-abi-610.md](gsp-abi-610.md) (e)). The 615 control layouts reach `ctrl.rs`, `kgr.rs` and
 `channel.rs` through `ver::active` at compile time. The switch therefore selects a binary and
 checks it, as follows:
 

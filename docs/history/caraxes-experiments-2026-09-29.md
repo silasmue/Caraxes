@@ -266,7 +266,7 @@ ECC counter reads were not in the map and are now.
 
 Setup: as E2; the boot model now owns the GSP side of the message queues
 (`crates/vfio-user-nvgpu/src/msgq.rs`, `rpc.rs`), with the struct layouts from
-[gsp-abi-610.md](caraxes-gsp-abi-610.md). Evidence: `caraxes/runs/e3-2026-09-23/`
+[gsp-abi-610.md](../vfio/gsp-abi-610.md). Evidence: `caraxes/runs/e3-2026-09-23/`
 (probe `e3-queues`).
 
 Observed, from the device's boot events:
@@ -573,7 +573,7 @@ Open after milestone 1: the N/A columns (forward the perf/thermal controls to th
   - `src/ver/`: feature `v610` (default, `nvrm-sys/v610`), module `v610.rs` with the
     RPC numbers, message layouts, classes, control ids, control layouts (computed from
     `nvrm_sys::v610` where typed), driver enums and the `nvidia-smi` lists. Tests check
-    the GSP offsets against the measured tables of [gsp-abi-610.md](caraxes-gsp-abi-610.md) (a)
+    the GSP offsets against the measured tables of [gsp-abi-610.md](../vfio/gsp-abi-610.md) (a)
     and pin the typed layouts to the numbers the handlers used.
   - `boot.rs` is the generic boot model (kernel-RM surface at the chip's offsets,
     queues, RPC service); `bar0.rs`, `ctrl.rs`, `kgr.rs`, `nvml.rs`, `uvm.rs`,

@@ -136,7 +136,7 @@ value large enough works; the real value stays unknown until R3.
    behaves the same. E3 must therefore answer the status queue within 4 s on the first
    attempt, or the model must treat the retry's reset sequence like a function-level reset
    (decide from the E3 trace).
-Update to Q4 (2026-09-23): answered by [gsp-abi-610.md](caraxes-gsp-abi-610.md): `GspStaticConfigInfo`
+Update to Q4 (2026-09-23): answered by [gsp-abi-610.md](../vfio/gsp-abi-610.md): `GspStaticConfigInfo`
 1600 bytes, `GspSystemInfo` 952, headers 16 + 32, `GSP_ARGUMENTS_CACHED` 152; the largest
 RPC is 65520 bytes.
 Update to Q7 (E3, 2026-09-23): settled. The status header carries `SWAP_RX`; the CPU

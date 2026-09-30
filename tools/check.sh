@@ -405,7 +405,7 @@ abi_generated() {
 # else the NAS copy; without one (or without cc and clang) the drift half is skipped with a
 # note. A changed device answer is reported, not failed: rerun the snapshot to record it.
 gsp_abi_baseline() {
-    local snap=caraxes/abi/gsp-615.71.09 tables=docs/caraxes/gsp-abi-615-tables.md tree="" c common
+    local snap=caraxes/abi/gsp-615.71.09 tables=docs/vfio/gsp-abi-615-tables.md tree="" c common
     python3 caraxes/tools/gsp-abi.py render "$snap" --check "$tables" || return 1
     common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
     for c in "${CARAXES_OGKM_615:-}" "${common:+$common/../../Leandro/vendor/open-gpu-kernel-modules}" \

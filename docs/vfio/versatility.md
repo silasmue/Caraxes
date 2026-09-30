@@ -109,7 +109,7 @@ honest:
    hand-written offsets (`RM_CONTROL_*`, `RM_ALLOC_*`, `FREE_*`, `DUP_*`, `GUEST_INFO_*`,
    `REGISTRY_*`, `SYSINFO_*`, `SI_*`, `FB_REGION_*`, `WPR_META_*`, `LIBOS_ARG_*`, `MQ_*`)
    are checked by `gsp_offsets_match_the_measured_abi` against the compiler-measured
-   tables of [gsp-abi-610.md](../history/caraxes-gsp-abi-610.md) (a), which the test parses.
+   tables of [gsp-abi-610.md](gsp-abi-610.md) (a), which the test parses.
    The bindings are imported as `nvrm_sys::v610 as ffi`, deliberately not as `sys`:
    `cargo xtask abi --check` (a `tools/check.sh` step) treats every `sys::` path in
    the workspace as a use that must go through the multi-version `RmAbi`, and this

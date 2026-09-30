@@ -41,8 +41,8 @@ import re
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-TSV = os.path.join(ROOT, "docs", "caraxes", "gsp-plan", "d-controls.tsv")
-PLAN = "docs/caraxes/gsp-plan/d-device-model.md"
+TSV = os.path.join(ROOT, "docs", "vfio", "gsp-plan", "d-controls.tsv")
+PLAN = "docs/vfio/gsp-plan/d-device-model.md"
 
 
 def _tables():

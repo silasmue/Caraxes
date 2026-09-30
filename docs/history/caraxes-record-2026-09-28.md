@@ -70,7 +70,7 @@ test conditions are in
 | [other-architectures.md](../vfio/other-architectures.md) | GSP boot path and RPC API on Ampere, Ada, Hopper, Blackwell; VF front end; API stability (subagent survey, parked idea P2) |
 | [lab-blackwell.md](../vfio/lab-blackwell.md) | Operator checklist for the Blackwell lab capture (`caraxes/tools/lab-capture.sh`): prerequisites, commands, what needs sudo, what to bring back to `caraxes/reference/<chip>/`, what not to do, the part-2 ABI check per driver version, and what each captured item feeds in the Blackwell identity work |
 | [fb-model.md](../vfio/fb-model.md) | The framebuffer model for milestone 1: PRAMIN and BAR2 paths, the GMMU walk for BAR3, FB layout from the WPR meta, region table, options for later (subagent report) |
-| [gsp-abi-610.md](caraxes-gsp-abi-610.md) | Compiled sizes and offsets of the GSP message-queue and RPC structures for 610.57.04 (`caraxes/tools/gsp-abi-sizes.sh`), what the kernel reads from `GspStaticConfigInfo`, the receive-side checks (subagent report) |
+| [gsp-abi-610.md](../vfio/gsp-abi-610.md) | Compiled sizes and offsets of the GSP message-queue and RPC structures for 610.57.04 (`caraxes/tools/gsp-abi-sizes.sh`), what the kernel reads from `GspStaticConfigInfo`, the receive-side checks (subagent report) |
 | [phase5-rpcs.md](caraxes-phase5-rpcs-610.md) | Ordered inventory of the 98 RPCs after `GET_GSP_STATIC_INFO` up to `RmInitAdapter succeeded!`, plus `nvidia-smi`, with an answer source per RPC and the five hardest (subagent report) |
 | [passthrough-procedure.md](../vfio/passthrough-procedure.md) | The prepared procedure for R1/R3 (SSH/tmux, unbind, vfio-pci, QEMU trace, recovery, watchdog), with the verified host preconditions and blockers (subagent report) |
 | [fifo-device-info.md](../vfio/fifo-device-info.md) | The FIFO device-info table for TU106: field semantics, engine descriptors, host-derived and synthesized values (subagent report) |
@@ -352,7 +352,7 @@ the VM; then display, expected to be much easier than in v1.
   VRAM allocations of 2.5, 3 and 5 GiB succeed as an unprivileged client at the top of the
   host FB region, no Xid, no host effect; reservation rule: top of the region, 2 MiB aligned,
   refuse unless size + 1 GiB is free, no floating fallback.
-- 2026-09-23: the four parallel packages landed: [gsp-abi-610.md](caraxes-gsp-abi-610.md)
+- 2026-09-23: the four parallel packages landed: [gsp-abi-610.md](../vfio/gsp-abi-610.md)
   (compiled sizes; Q4 answered), [fb-model.md](../vfio/fb-model.md) (BAR2/PRAMIN model and FB
   layout), [phase5-rpcs.md](caraxes-phase5-rpcs-610.md) (E4 inventory), and
   [passthrough-procedure.md](../vfio/passthrough-procedure.md) (three host blockers).
