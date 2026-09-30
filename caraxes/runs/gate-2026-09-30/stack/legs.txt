@@ -1,0 +1,16 @@
+09:34:00 start: 32b1c1f37b3be2e8 /mnt/vmstore/caraxes/vfio-user-nvgpu-stack-ffec4d49
+09:37:36 kick-smoke rc=0 RESULT PASS holder RESULT PASS  h265 hevc 
+09:37:36 nova rc=1 probes 
+09:37:37 vm10 rc=1  job-timeouts 
+09:40:06 rerun nova/vm10 with rom.bin linked
+09:52:07 windows rc=0
+09:53:00 nova rc=0 probes 5
+09:53:05 vm10 rc=1  job-timeouts 
+09:53:05 rerun done
+10:02:55 sottr rc=0 Average FPS: 34.7
+10:02:55 done
+10:06:38 ab-kick dv2 rc=0 glmark2 [build] duration=10: FPS: 4756 FrameTime: 0.210 ms RESULT PASS holder RESULT PASS 
+10:10:12 ab-kick stack rc=0 glmark2 [build] duration=10: FPS: 4501 FrameTime: 0.222 ms RESULT PASS holder RESULT PASS 
+10:10:12 ab done
+10:12:33 vm10 (slot 4) rc=0 result vk-offscreen.ppm: sha256 ok result weston-vkcube.png: sha256 ok  job-timeouts 1
+10:16:15 clean-kick rc=0 glmark2 [build] duration=10: FPS: 4558 FrameTime: 0.219 ms RESULT PASS holder RESULT PASS  warnings 0

@@ -1,0 +1,133 @@
+09:34:00 start: 32b1c1f37b3be2e8 /mnt/vmstore/caraxes/vfio-user-nvgpu-stack-ffec4d49
+09:37:36 kick-smoke rc=0 RESULT PASS holder RESULT PASS  h265 hevc 
+09:37:36 nova rc=1 probes 
+09:37:37 vm10 rc=1  job-timeouts 
+start W1-gate-stack 09:37:37 /mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/CH-build/vfio-user-nvgpu-stack-cap
+preflight ok: vfio-user-nvgpu-stack-cap, MemAvailable 23 GiB, host free FB 6407 MiB BAR1 232 MiB
+started W1-gate-stack device 3261798 cloud-hypervisor 3261818 ; wait for `run44.py ssh hostname`
+desktop up 09:38:25
+=== sleep=120 09:38:25
+=== config 09:40:25
+vfio-user-nvgpu: config: WARNING CARAXES_MIRROR_CHANNELS=1 is no longer read (removed 2026-09-30: the default with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_MIRROR_GR_SHADOW=1 is no longer read (removed 2026-09-30: the default with --host-exec (every host channel on a shadow VA space)); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_MIRROR_BARE_CE=1 is no longer read (removed 2026-09-30: the default with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_GUEST_DMA_GPA=1 is no longer read (removed 2026-09-30: the default with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_INTR_PAGE=1 is no longer read (removed 2026-09-30: the default with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_BAR1_PASSTHROUGH=pool is no longer read (removed 2026-09-30: the pool is the default with --host-exec (CARAXES_BAR1_POOL_MIB sizes it, 0: none); =1 deleted); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_BAR1_WINDOWS=2 is no longer read (removed 2026-09-30: fixed at 2); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_BAR1_WINDOW_MIB=16 is no longer read (removed 2026-09-30: fixed at 16); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_HOST_VRAM_FLOOR_MIB=1024 is no longer read (removed 2026-09-30: fixed at 1024); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_HOST_BOOST=1 is no longer read (removed 2026-09-30: always on with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_TRACE_FLUSH=0 is no longer read (removed 2026-09-30: flushed at event lines and every 100 ms); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_WIN_COMPBIT=1 is no longer read (removed 2026-09-30: retired by D16: without compression the compbit store is refused, with CARAXES_COMPRESSION=slice compression.rs answers it); ignored
+vfio-user-nvgpu: config: mode host execution (boot model, host RM, VRAM reservation slot 0, registered guest RAM); chip TU106, board RTX 2070; guest ABI chosen by the guest (570, 610 or 615; 610 until its GSP boot shows it)
+vfio-user-nvgpu: config: knobs: VRAM 4096 MiB (--fb-mib/--profile, LEA_VRAM_PROFILE_MIB); display on (--display); CARAXES_COMPRESSION=off (set); CARAXES_DOORBELL_POLL=hybrid (default); CARAXES_BAR1_POOL_MIB=32 (set)
+vfio-user-nvgpu: config: paths: every host channel on a shadow VA space, GPA DMA, host boost; BAR1 windows 2 x 16 MiB; interrupt page on; doorbell tokens off, guest tokens 240; MSI re-arm ioeventfd off, GSP queue head ioeventfd off; display page off, kick page off, usermode page off, invalidate page
+vfio-user-nvgpu: config: open switches: CARAXES_HOST_BAR1_FLOOR_MIB=96 CARAXES_SHADOW_USERD=1 CARAXES_DEFERRED_CONTEXT=1 CARAXES_FB_ZERO_BASED=1 CARAXES_SHADOW_FENCE=1 CARAXES_WIN_ACKS=1 CARAXES_WIN_DISPLAY_QUERIES=1 CARAXES_RUSD=1 CARAXES_LPWR_2806_OK=1 CARAXES_EMU_GR=1 CARAXES_PREFER_RECORDED=1
+vfio-user-nvgpu: config: diagnostics: CARAXES_PROFILE=1 CARAXES_TRACE_ACCESSES=0 CARAXES_LAUNCH_TIMING=1 CARAXES_SEMAPHORE_DIAG=1 CARAXES_RECORD_HOST=/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/W1-gate-stack/host-controls.tsv CARAXES_ACK_UNANSWERED=1 CARAXES_WIN_EXCEPT=2080a70a,2080a709,2080
+vfio-user-nvgpu: config: inputs: LEA_ROOT=/mnt/vmstore/caraxes/wt-win CARAXES_GUEST_RAM_BYTES=8589934592
+=== arm 09:40:25
+gpu.log: 7 armed, 0 armed again, 20 refused-lines; 7 event lines
+vfio-user-nvgpu: mirror: events: host OS event on GR0 notifier 0x800000c (non-stall) -> guest vector 4, event 0x80000011: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on CE2 notifier 0x8000019 (non-stall) -> guest vector 5, event 0x80000012: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on CE3 notifier 0x800001a (non-stall) -> guest vector 6, event 0x80000013: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on CE4 notifier 0x800001b (non-stall) -> guest vector 7, event 0x80000014: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on NVDEC0 notifier 0x800000e (non-stall) -> guest vector 8, event 0x80000015: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on NVENC0 notifier 0x8000026 (non-stall) -> guest vector 9, event 0x80000016: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on the RC notifier notifier 0x25 (RC, counted), event 0x80000017: armed [host]
+=== stages 09:40:25
+started caraxes-d3d11-stages
+device feature level b000
+PASS triangle (center): read 40-7F-BF-FF, want 40-80-BF-FF
+PASS clear (corner): read 00-00-00-FF, want 00-00-00-FF
+PASS depth: near triangle kept (center): read 40-7F-BF-FF, want 40-80-BF-FF
+PASS depth: far triangle where nothing is nearer: read FF-00-00-FF, want FF-00-00-FF
+PASS texture Load: read C8-64-32-FF, want C8-64-32-FF
+PASS constant buffer: read 19-E5-4C-FF, want 1A-E6-4D-FF
+PASS compute UAV: read 7F-40-FF-FF, want 80-40-FF-FF
+PASS MSAA 4x resolved: read 40-7F-BF-FF, want 40-80-BF-FF
+PASS event query: GetData hr 0x00000000 after 3 ms
+PASS occlusion query: 18432 samples (the triangle covers about 18000) after 0 ms, hr 0x00000000
+PASS tessellated triangle (center): read 40-7F-BF-FF, want 40-80-BF-FF
+PASS tessellation: clear outside (corner): read 00-00-00-FF, want 00-00-00-FF
+
+PASS: D3D11 stages
+
+=== heaven 09:41:04
+Unigine~# render_restart
+Loading "core/materials/default/unigine_render.mat" 47 materials 2368 shaders 6ms
+FPS:	140.428
+FAIL: no score in the output
+D3D11Render::D3D11Render(): Unknown NVidia GPU
+=== superposition 09:46:17
+end 09:49:59 after 207 s, exit 0
+FPS: 86.9
+Score: 11622
+Min FPS: 47.6
+Max FPS: 126.4
+	Render: DirectX
+	Render resolution: 1920x1061
+PASS: Superposition 1080p_medium
+=== reboot 09:50:10
+back up 09:51:14
+latches in the last 30 s: 229
+gpu.log: 14 armed, 0 armed again, 81 refused-lines; 14 event lines
+vfio-user-nvgpu: mirror: events: host OS event on CE3 notifier 0x800001a (non-stall) -> guest vector 6, event 0x80000013: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on CE4 notifier 0x800001b (non-stall) -> guest vector 7, event 0x80000014: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on NVDEC0 notifier 0x800000e (non-stall) -> guest vector 8, event 0x80000015: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on NVENC0 notifier 0x8000026 (non-stall) -> guest vector 9, event 0x80000016: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on the RC notifier notifier 0x25 (RC, counted), event 0x80000017: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on GR0 notifier 0x800000c (non-stall) -> guest vector 4, event 0x8000466c: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on CE2 notifier 0x8000019 (non-stall) -> guest vector 5, event 0x8000466d: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on CE3 notifier 0x800001a (non-stall) -> guest vector 6, event 0x8000466e: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on CE4 notifier 0x800001b (non-stall) -> guest vector 7, event 0x8000466f: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on NVDEC0 notifier 0x800000e (non-stall) -> guest vector 8, event 0x80004670: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on NVENC0 notifier 0x8000026 (non-stall) -> guest vector 9, event 0x80004671: armed [host]
+vfio-user-nvgpu: mirror: events: host OS event on the RC notifier notifier 0x25 (RC, counted), event 0x80004672: armed [host]
+=== clients 09:51:35
+[2026-09-30T07:50:25Z INFO  vfio_user] Connection closed
+vfio-user-nvgpu: client 2: the previous client closed the connection and a new one connected (a VMM reboot): device reset, the previous client's memory regions and IRQ eventfds released; soak new client: rss_kib=297772 vram_used_mib=5607 vram_free_mib=2584 bar
+=== refused 09:51:35
+compressible-kind refusals: 5716 (trace), 0 (log)
+vfio-user-nvgpu: config: WARNING CARAXES_WIN_COMPBIT=1 is no longer read (removed 2026-09-30: retired by D16: without compression the compbit store is refused, with CARAXES_COMPRESSION=slice compressi
+vfio-user-nvgpu: config: knobs: VRAM 4096 MiB (--fb-mib/--profile, LEA_VRAM_PROFILE_MIB); display on (--display); CARAXES_COMPRESSION=off (set); CARAXES_DOORBELL_POLL=hybrid (default); CARAXES_BAR1_PO
+=== events 09:51:35
+09:41:28 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: crashpad_log | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: setup.exe | P2: 154.0.4258.37
+09:41:16 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a1c57010
+09:41:16 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a3aa4010
+09:41:16 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a7cc0010
+09:41:16 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a3aa4010
+09:41:16 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a7703010
+09:41:15 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a7cc0010
+09:41:15 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a7543050
+09:41:15 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a6428010
+09:41:15 Windows Error Reporting 1001: Fehlerbucket , Typ 0 | Ereignisname: LiveKernelEvent | Antwort: Nicht verfÅgbar | CAB-Datei-ID: 0 |  | Problemsignatur: | P1: 141 | P2: ffff9209a1883010
+08:38:05 nvlddmkm 153: 
+08:38:05 nvlddmkm 153: 
+08:38:03 nvlddmkm 153: 
+08:38:00 nvlddmkm 14: 
+08:36:44 nvlddmkm 14: 
+08:36:44 nvlddmkm 14: 
+08:36:44 nvlddmkm 14: 
+08:36:44 nvlddmkm 14: 
+08:36:44 nvlddmkm 14: 
+08:36:44 nvlddmkm 14: 
+events done
+FLRs: 0; withdrawals: 1
+vfio-user-nvgpu: interrupt vectors by the guest's acks (0-3 GSP/FIFO/TMR, 4 GR0, 5-7 CE2-CE4, 8 NVDEC0, 9 NVENC0, 32+ leaf 1): 4: 272286 raise(s), 174658 from idle, 174656 ack(s) (mean 414 us, max 50825 us), 2 dropped while muted; 5: 13446 raise(s), 11615 from idle, 11615 ack(s) (mean 650 us, max 22054 us); 6: 9707 raise(s), 9685 from idle, 9685 ack(s) (mean 386 us, max 22190 us)
+stop 09:51:37
+INFO  fenced shadow VASes: 65, fence holes/refusals: 0
+INFO  GFXP BINDs: 0 bound, 0 refused
+INFO  held-doorbell replays: 116580 (P21: several thousand)
+INFO  shadow fault diagnostics: 0 (grep 'shadow fault diagnostic' /mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/W1-gate-stack/gpu-trace.log)
+PASS  GPFIFOs covered: 0 record(s), 0 covered, 0 gap(s)
+PASS  host: no Xid of another device (Linux B)
+PASS  host: no Xid of the Windows device (pid 3261798)
+INFO  host: 0 "can't update VA space" line(s)
+FAIL  no d3d-probe-status.json (run: run44.py probe start, then probe status)
+INFO  gpu.log: 15 ERROR line(s), 0 guest RC note(s) in the trace
+CH checks: FAILURES (see above)
+stopped; results /mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/W1-gate-stack
+09:52:07 windows rc=0
+10:02:55 sottr rc=0 Average FPS: 34.7
+10:02:55 done

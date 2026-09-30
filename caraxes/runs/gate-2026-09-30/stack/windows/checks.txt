@@ -1,0 +1,39 @@
+PASS  root kept: 61 lower-level call(s) kept the root, 0 installed as root
+PASS  root watch: no mismatch (pdbwatch ERROR lines 0)
+INFO  MEM_OP PDBs: 0xfd343000=root x156 0xfd34b000=root x163 0xfd35a000=root x12091 0xfd361000=root x6097 0xfd36f000=root x552 0xfd373000=root x274 0xfd37f000=root x115 0xfd386000=root x292 0xfd387000=root x1786 0xfd394000=root x2420 0xfd3ac000=root x143 0xfd3b1000=root x172 0xfd3b2000=root x365 0xfd3c0000=root x483 0xfd400000=root x353 0xfd40f000=root x194 0xfd414000=root x191 0xfd42a000=root x284 0xfd437000=root x570 0xfd43e000=root x712 0xfd44b000=root x278 0xfd464000=root x387 0xfd46f000=root x212 0xfd471000=root x408 0xfd485000=root x1572 0xfd499000=root x84 0xfd598000=root x7389
+INFO  register PDBs (roots only): 0xfd343000 x41 0xfd34b000 x47 0xfd35a000 x41 0xfd361000 x41 0xfd36f000 x85 0xfd373000 x70 0xfd37f000 x21 0xfd386000 x70 0xfd387000 x283 0xfd394000 x496 0xfd3ac000 x73 0xfd3b1000 x73 0xfd3b2000 x114 0xfd3c0000 x82 0xfd400000 x82 0xfd40f000 x41 0xfd414000 x41 0xfd42a000 x82 0xfd437000 x63 0xfd43e000 x63 0xfd44b000 x82 0xfd464000 x82 0xfd46f000 x84 0xfd471000 x82 0xfd485000 x86 0xfd499000 x34 0xfd598000 x36 0xfd59f000 x12 0xfd6ae000 x72 0xfdd54000 x12 0xfddc4000 x68
+INFO  MEM_OP PDBs that are no recorded VAS root: none
+PASS  no refused shadow leaf at VA >= 2^40
+PASS  no 'refused 0x1f'
+PASS  no malformed table entries (fix 3)
+INFO  shadow VAS starts:      65 0x0 
+PASS  every default-layout shadow VAS starts at 0
+PASS  no refused leaf below 1 MiB
+PASS  no 0x51 in 0x1_2000_0000..0x1_2200_0000
+INFO    global context size: buffer 3 host engine 0x11 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x3000, alignment 0x100 [host read]
+INFO    global context size: buffer 4 host engine 0xd (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x20000, alignment 0x100 [host read]
+INFO    global context size: buffer 5 host engine 0x13 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x3f3a00, alignment 0x1000 [host read]
+INFO    global context size: buffer 6 host engine 0x14 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x80000, alignment 0x100 [host read]
+INFO    global context size: buffer 9 host engine 0x17 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x10000, alignment 0x1000 [host read]
+INFO    global context size: buffer 11 host engine 0x18 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x80000, alignment 0x1000 [host read]
+INFO    global context size: buffer 3 host engine 0x11 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x3000, alignment 0x100 [host read]
+INFO    global context size: buffer 4 host engine 0xd (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x20000, alignment 0x100 [host read]
+INFO    global context size: buffer 5 host engine 0x13 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x3f3a00, alignment 0x1000 [host read]
+INFO    global context size: buffer 6 host engine 0x14 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x80000, alignment 0x100 [host read]
+INFO    global context size: buffer 9 host engine 0x17 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x10000, alignment 0x1000 [host read]
+INFO    global context size: buffer 11 host engine 0x18 (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status 0x0, size 0x80000, alignment 0x1000 [host read]
+INFO  F2a clips: 2 exclusion(s) cut short at a guest page past the host footprint
+INFO    WARN: shadow root 0xfd598000: global buffer 3 at 0x20233000: set-B exclusion cut short at 0x20240000 by a guest-mapped page (host size 0x3000, footprint to 0x20236000, 64 KiB extent to 0x20243000) [set B]
+INFO    WARN: shadow root 0xfd598000: global buffer 3 at 0x20233000: set-B exclusion cut short at 0x20240000 by a guest-mapped page (host size 0x3000, footprint to 0x20236000, 64 KiB extent to 0x20243000) [set B]
+PASS  no guest leaf refused as a collision with host-owned VAs (0x1a)
+INFO  fenced shadow VASes: 65, fence holes/refusals: 0
+INFO  GFXP BINDs: 0 bound, 0 refused
+INFO  held-doorbell replays: 116580 (P21: several thousand)
+INFO  shadow fault diagnostics: 0 (grep 'shadow fault diagnostic' /mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/W1-gate-stack/gpu-trace.log)
+PASS  GPFIFOs covered: 0 record(s), 0 covered, 0 gap(s)
+PASS  host: no Xid of another device (Linux B)
+PASS  host: no Xid of the Windows device (pid 3261798)
+INFO  host: 0 "can't update VA space" line(s)
+FAIL  no d3d-probe-status.json (run: run44.py probe start, then probe status)
+INFO  gpu.log: 15 ERROR line(s), 0 guest RC note(s) in the trace
+CH checks: FAILURES (see above)

@@ -1,0 +1,2 @@
+10:20:48 final1-424a43e8 rc=0 [cube] duration=5:terminate called after throwing an instance of 'vk:: job-timeouts 1 pool-errors 16
+10:23:05 diag1-58e5c6ac rc=0 [cube] duration=5:terminate called after throwing an instance of 'vk:: job-timeouts 1 pool-errors 16

@@ -1,0 +1,11 @@
+PROBE_EXIT=0
+start 09:46:31 preset 1080p_medium
+end 09:49:59 after 207 s, exit 0
+FPS: 86.9
+Score: 11622
+Min FPS: 47.6
+Max FPS: 126.4
+	Render: DirectX
+	App resolution: 1920x1061
+	Render resolution: 1920x1061
+PASS: Superposition 1080p_medium

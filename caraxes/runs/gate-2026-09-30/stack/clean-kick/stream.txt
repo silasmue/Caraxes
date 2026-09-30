@@ -1,0 +1,4 @@
+shot 1 mean=0.192051 rmse=-
+shot 2 mean=0.135749 rmse=12704.3
+shot 3 mean=0.136229 rmse=1544.84
+guest xid: 0

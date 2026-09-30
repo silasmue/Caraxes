@@ -1,0 +1,125 @@
+07:53:47 vram=303 free=3588 gpu=0 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:53:53 vram=303 free=3588 gpu=17 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:53:58 vram=303 free=3588 gpu=6 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:03 vram=370 free=3521 gpu=11 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:08 vram=372 free=3518 gpu=9 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:14 vram=386 free=3505 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:19 vram=385 free=3505 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:24 vram=385 free=3505 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:29 vram=385 free=3505 gpu=8 app=-/- session=- game=3657 nvkms_fail=0 xid=0
+07:54:34 vram=386 free=3505 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:39 vram=426 free=3465 gpu=9 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:45 vram=440 free=3450 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:50 vram=430 free=3460 gpu=9 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:54:55 vram=430 free=3460 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:55:00 vram=430 free=3460 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:55:05 vram=430 free=3460 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:55:10 vram=430 free=3460 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:55:16 vram=430 free=3460 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:55:21 vram=430 free=3460 gpu=8 app=-/- session=- game=none nvkms_fail=0 xid=0
+07:55:26 vram=430 free=3460 gpu=8 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:55:31 vram=2490 free=1912 gpu=4 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:55:37 vram=3004 free=438 gpu=1 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:55:44 vram=1916 free=1526 gpu=2 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:55:51 vram=693 free=3197 gpu=9 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:55:56 vram=1277 free=2606 gpu=9 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:02 vram=1936 free=1947 gpu=13 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:07 vram=2493 free=1397 gpu=18 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:12 vram=1713 free=2210 gpu=10 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:18 vram=2031 free=1847 gpu=26 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:23 vram=2923 free=963 gpu=19 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:29 vram=3319 free=571 gpu=19 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:34 vram=3708 free=179 gpu=14 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:39 vram=3887 free=4 gpu=6 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:45 vram=3886 free=2 gpu=9 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:50 vram=3889 free=1 gpu=8 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:56:55 vram=3889 free=1 gpu=8 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:01 vram=3890 free=1 gpu=11 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:06 vram=3890 free=6 gpu=8 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:11 vram=3890 free=1 gpu=10 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:17 vram=3885 free=2 gpu=6 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:22 vram=3887 free=1 gpu=9 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:28 vram=3879 free=12 gpu=12 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:33 vram=3889 free=9 gpu=6 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:38 vram=3774 free=127 gpu=7 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:44 vram=3888 free=2 gpu=7 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:49 vram=3867 free=23 gpu=7 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:57:55 vram=3429 free=470 gpu=6 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:00 vram=3480 free=411 gpu=74 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:05 vram=3469 free=422 gpu=80 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:10 vram=3487 free=404 gpu=87 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:16 vram=3488 free=402 gpu=72 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:21 vram=3482 free=408 gpu=82 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:26 vram=3486 free=404 gpu=81 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:31 vram=3496 free=394 gpu=41 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:37 vram=3496 free=394 gpu=24 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:42 vram=3496 free=394 gpu=64 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:47 vram=3495 free=393 gpu=9 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:52 vram=3557 free=330 gpu=18 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:58:58 vram=3627 free=261 gpu=0 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:05 vram=3714 free=174 gpu=22 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:10 vram=3632 free=258 gpu=13 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:15 vram=3508 free=363 gpu=12 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:21 vram=3874 free=28 gpu=16 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:26 vram=3872 free=18 gpu=15 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:32 vram=3888 free=3 gpu=15 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:37 vram=3884 free=6 gpu=22 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:42 vram=3865 free=28 gpu=30 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:48 vram=3868 free=23 gpu=74 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:53 vram=3870 free=18 gpu=82 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+07:59:58 vram=3873 free=17 gpu=81 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:04 vram=3873 free=17 gpu=78 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:09 vram=3870 free=20 gpu=78 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:14 vram=3706 free=197 gpu=6 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:20 vram=3837 free=36 gpu=8 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:25 vram=3786 free=104 gpu=19 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:30 vram=3771 free=125 gpu=10 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:36 vram=3786 free=107 gpu=42 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:41 vram=3779 free=111 gpu=8 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:47 vram=3784 free=106 gpu=81 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:52 vram=3783 free=107 gpu=57 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:00:57 vram=3782 free=109 gpu=50 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:02 vram=3784 free=95 gpu=30 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:08 vram=3802 free=89 gpu=22 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:13 vram=3805 free=88 gpu=28 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:18 vram=3816 free=74 gpu=37 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:24 vram=3812 free=77 gpu=31 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:29 vram=3801 free=89 gpu=54 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:34 vram=3807 free=83 gpu=45 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:39 vram=3810 free=80 gpu=59 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:45 vram=3816 free=74 gpu=61 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:50 vram=3815 free=75 gpu=69 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:01:55 vram=3819 free=72 gpu=51 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:02:01 vram=3817 free=74 gpu=62 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+08:02:06 vram=466 free=3435 gpu=0 app=-/- session=- game=4571 nvkms_fail=0 xid=0
+===
+[  439.957597] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  440.957878] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  442.028976] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  442.957884] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 52224 KiB
+[  443.322261] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  444.338927] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 41984 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  444.812844] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB
+[  445.146236] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  445.202198] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  446.208069] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  447.208557] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  449.208827] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 4 s
+[  451.541015] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 21504 of 52224 KiB
+[  451.541114] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  452.541065] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  453.541125] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  455.541422] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 4 s
+[  459.545760] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 8 s
+[  467.545672] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 16 s
+[  483.552187] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 30 s
+[  492.780458] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  493.407774] NVRM: GPU0 displayReserveServe: display reserve: released 10240 KiB for a refused scanout allocation of 10240 KiB, holds 31744 of 52224 KiB
+[  494.408369] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 1 s
+[  495.418670] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 2 s
+[  497.421205] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 4 s
+[  501.421172] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 8 s
+[  509.421583] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 16 s
+[  525.421597] NVRM: GPU0 _displayReserveRefillWorkItem: display reserve: holds 31744 of 52224 KiB and 0 KiB of old runs (0x51), next try in 30 s
+[  551.156753] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 41984 of 52224 KiB
+[  551.156913] NVRM: GPU0 displayReserveTake: display reserve: took back a freed scanout allocation of 10240 KiB, holds 52224 of 52224 KiB

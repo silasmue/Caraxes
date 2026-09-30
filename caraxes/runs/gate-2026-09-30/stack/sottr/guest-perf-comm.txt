@@ -1,0 +1,60 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 591K of event 'cpu-clock'
+# Event count (approx.): 147763250000
+#
+# Overhead  Command          Shared Object                       
+# ........  ...............  ....................................
+#
+    71.64%  swapper          [kernel.kallsyms]                   
+            |          
+            |--70.68%--pv_native_safe_halt
+            |          arch_cpu_idle
+            |          default_idle_call
+            |          cpuidle_idle_call
+            |          do_idle
+            |          cpu_startup_entry
+            |          |          
+            |          |--62.72%--start_secondary
+            |          |          secondary_startup_64_no_verify
+            |          |          
+            |           --7.96%--rest_init
+            |                     arch_call_rest_init
+            |                     start_kernel
+            |                     x86_64_start_reservations
+            |                     x86_64_start_kernel
+            |                     secondary_startup_64_no_verify
+            |          
+             --0.55%--handle_softirqs
+                       __irq_exit_rcu
+                       irq_exit_rcu
+
+     3.69%  WinMain          ShadowOfTheTombRaider               
+     3.65%  session::video   [kernel.kallsyms]                   
+            |          
+            |--2.07%--rwsem_spin_on_owner
+            |          |          
+            |           --2.03%--rwsem_optimistic_spin
+            |                     rwsem_down_write_slowpath
+            |                     down_write
+            |                     os_acquire_rwlock_write
+            |                     portSyncRwLockAcquireWrite
+            |                     rmapiLockAcquire
+            |                     |          
+            |                      --1.85%--serverTopLock_Prologue
+            |                                |          
+            |                                 --0.75%--serverInterUnmap
+            |                                           rmapiUnmapWithSecInfo
+            |                                           rmapiUnmapWithSecInfoTls
+            |                                           Nv04UnmapMemoryDmaWithSecInfo
+            |                                           RmIoctl
+            |                                           rm_ioctl
+            |                                           nvidia_unlocked_ioctl
+            |                                           __x64_sys_ioctl
+            |                                           x64_sys_call
+            |                                           do_syscall_64
+            |                                           entry_SYSCALL_64_after_hwframe
+            |                                           __GI___ioctl

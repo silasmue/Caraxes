@@ -1,0 +1,16 @@
+PROBE_EXIT=0
+device feature level b000
+PASS triangle (center): read 40-7F-BF-FF, want 40-80-BF-FF
+PASS clear (corner): read 00-00-00-FF, want 00-00-00-FF
+PASS depth: near triangle kept (center): read 40-7F-BF-FF, want 40-80-BF-FF
+PASS depth: far triangle where nothing is nearer: read FF-00-00-FF, want FF-00-00-FF
+PASS texture Load: read C8-64-32-FF, want C8-64-32-FF
+PASS constant buffer: read 19-E5-4C-FF, want 1A-E6-4D-FF
+PASS compute UAV: read 7F-40-FF-FF, want 80-40-FF-FF
+PASS MSAA 4x resolved: read 40-7F-BF-FF, want 40-80-BF-FF
+PASS event query: GetData hr 0x00000000 after 3 ms
+PASS occlusion query: 18432 samples (the triangle covers about 18000) after 0 ms, hr 0x00000000
+PASS tessellated triangle (center): read 40-7F-BF-FF, want 40-80-BF-FF
+PASS tessellation: clear outside (corner): read 00-00-00-FF, want 00-00-00-FF
+
+PASS: D3D11 stages

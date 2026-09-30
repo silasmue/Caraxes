@@ -1,0 +1,18 @@
+vfio-user-nvgpu: config: WARNING CARAXES_MIRROR_CHANNELS=1 is no longer read (removed 2026-09-30: the default with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_MIRROR_GR_SHADOW=1 is no longer read (removed 2026-09-30: the default with --host-exec (every host channel on a shadow VA space)); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_MIRROR_BARE_CE=1 is no longer read (removed 2026-09-30: the default with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_GUEST_DMA_GPA=1 is no longer read (removed 2026-09-30: the default with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_INTR_PAGE=1 is no longer read (removed 2026-09-30: the default with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_BAR1_PASSTHROUGH=pool is no longer read (removed 2026-09-30: the pool is the default with --host-exec (CARAXES_BAR1_POOL_MIB sizes it, 0: none); =1 deleted); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_BAR1_WINDOWS=2 is no longer read (removed 2026-09-30: fixed at 2); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_BAR1_WINDOW_MIB=16 is no longer read (removed 2026-09-30: fixed at 16); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_HOST_VRAM_FLOOR_MIB=1024 is no longer read (removed 2026-09-30: fixed at 1024); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_HOST_BOOST=1 is no longer read (removed 2026-09-30: always on with --host-exec); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_TRACE_FLUSH=0 is no longer read (removed 2026-09-30: flushed at event lines and every 100 ms); ignored
+vfio-user-nvgpu: config: WARNING CARAXES_WIN_COMPBIT=1 is no longer read (removed 2026-09-30: retired by D16: without compression the compbit store is refused, with CARAXES_COMPRESSION=slice compression.rs answers it); ignored
+vfio-user-nvgpu: config: mode host execution (boot model, host RM, VRAM reservation slot 0, registered guest RAM); chip TU106, board RTX 2070; guest ABI chosen by the guest (570, 610 or 615; 610 until its GSP boot shows it)
+vfio-user-nvgpu: config: knobs: VRAM 4096 MiB (--fb-mib/--profile, LEA_VRAM_PROFILE_MIB); display on (--display); CARAXES_COMPRESSION=off (set); CARAXES_DOORBELL_POLL=hybrid (default); CARAXES_BAR1_POOL_MIB=32 (set)
+vfio-user-nvgpu: config: paths: every host channel on a shadow VA space, GPA DMA, host boost; BAR1 windows 2 x 16 MiB; interrupt page on; doorbell tokens off, guest tokens 240; MSI re-arm ioeventfd off, GSP queue head ioeventfd off; display page off, kick page off, usermode page off, invalidate page off; BAR2 memfd off; zero-based guest FB
+vfio-user-nvgpu: config: open switches: CARAXES_HOST_BAR1_FLOOR_MIB=96 CARAXES_SHADOW_USERD=1 CARAXES_DEFERRED_CONTEXT=1 CARAXES_FB_ZERO_BASED=1 CARAXES_SHADOW_FENCE=1 CARAXES_WIN_ACKS=1 CARAXES_WIN_DISPLAY_QUERIES=1 CARAXES_RUSD=1 CARAXES_LPWR_2806_OK=1 CARAXES_EMU_GR=1 CARAXES_PREFER_RECORDED=1
+vfio-user-nvgpu: config: diagnostics: CARAXES_PROFILE=1 CARAXES_TRACE_ACCESSES=0 CARAXES_LAUNCH_TIMING=1 CARAXES_SEMAPHORE_DIAG=1 CARAXES_RECORD_HOST=/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/W1-gate-stack/host-controls.tsv CARAXES_ACK_UNANSWERED=1 CARAXES_WIN_EXCEPT=2080a70a,2080a709,2080a801,2080a02f,20803c01
+vfio-user-nvgpu: config: inputs: LEA_ROOT=/mnt/vmstore/caraxes/wt-win CARAXES_GUEST_RAM_BYTES=8589934592
