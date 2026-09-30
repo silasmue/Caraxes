@@ -1427,6 +1427,18 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     - C118 (fix2, the gate candidate, natural): stages 12/12, Heaven 155.9 and 153.3 fps,
       Superposition 12228 and 12160. 2 migrations, each switched exactly at the old ring's end
       (GPGet 8017 = last published GPPut 8017; 3334 = 3334).
+- **KNOWN BUG #2: 3DMark DX12 faults at VA 0, then TDR (open, after the gate):** the user's
+  session C122 (reconnect2, 08:23-08:39), most likely Steel Nomad windowed; exclusive fullscreen
+  still fails at dx12_swapchain.cpp:238.
+  - Two host Xid 31s on the Windows device, 76 s apart: "ENGINE GRAPHICS GPC1 GPCCLIENT_GCC
+    faulted @ 0x0_00000000, FAULT_PTE": a constant-cache read at VA 0. Then an FLR (TDR) at
+    +890 s. The device's RC event both times: exceptType 0x1f, info16 0xe9.
+  - The first fault came 1.3 s after an exact ring migration (chid 63); the second had no
+    migration near it.
+  - Open question: whether the shadow missed a mapping or the guest faults on its own. A
+    native run would tell.
+  - The run's times are in 3DMark's result files (C:\Users\silas\Documents\3DMark,
+    C:\ProgramData\UL\3DMark\Results): read them at the next Windows start, read-only.
 - **heaven.ps1** reported every finished run as "FAIL: no score". The PHORONIX define prints
   only "FPS:". Now a run passes on an FPS or Score line (b0d6e05c).
 - Memory model: KNOWN BUG #1 was measured on the BAR1 pool (32 MiB), GPA DMA, and compression
