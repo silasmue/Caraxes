@@ -19,4 +19,5 @@ if (-not $p.WaitForExit(900000)) { $p.Kill(); "FAIL: Heaven did not finish in 15
 $t1 = Get-Date
 "end $($t1.ToString('HH:mm:ss')) after $([int]($t1 - $t0).TotalSeconds) s, exit $($p.ExitCode)"
 Get-Content $out -ErrorAction SilentlyContinue | Select-String -Pattern "FPS|Score|Min|Max|Render|Direct3D|Error|error" | ForEach-Object { $_.Line }
-if (Select-String -Path $out -Pattern "Score" -Quiet -ErrorAction SilentlyContinue) { "PASS: Heaven $Quality/$Tessellation" } else { "FAIL: no score in the output" }
+# The PHORONIX define prints the run's mean as "FPS:" at the end, and no Score line.
+if (Select-String -Path $out -Pattern "^(FPS|Score):" -Quiet -ErrorAction SilentlyContinue) { "PASS: Heaven $Quality/$Tessellation" } else { "FAIL: no FPS or score in the output (the run did not finish)" }
