@@ -1,0 +1,6 @@
+desktop-b-dmem: stock guest kernel
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+games disk: /mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b-dmem/games.qcow2
+dma table: 0:7ffb40000000:40000000,40000000:7ffac0000000:40000000,80000000:7ffa80000000:40000000,100000000:7ffa40000000:40000000,140000000:7ffa00000000:40000000,180000000:7ff9c0000000:40000000,1c0000000:7ff980000000:40000000,200000000:7ff900000000:40000000
+server pid 3405402, VM pid 3405422; logs in /mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b-dmem
+ssh up at 192.168.106.26

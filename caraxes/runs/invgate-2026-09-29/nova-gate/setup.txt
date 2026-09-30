@@ -1,0 +1,15 @@
+aebefe6a3bf939b455e4d199f9a6c10156b3cc1a5ab490b9c2c27b0e31660385  /mnt/vmstore/caraxes/vfio-user-nvgpu-invgate-f2af77c6
+8f33f98d68733ffdf1c7bc9a2b5447038c81f5077e0f03d296f548b849cf0ef0  /mnt/vmstore/caraxes/nova-kernel/build/arch/x86/boot/bzImage
+b7651733ccade3a420b0c2c5f795b636c3442f0c40e99cd28680ed54ba8391fc  /mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+f2af77c6 feat: count held invalidates by scope (one root, ALL_PDB and the untrapped roots it held)
+CARAXES_BOOT_MODEL=1
+CARAXES_CPUS=2
+CARAXES_FB_MIB=1024
+CARAXES_GUEST_ABI=
+CARAXES_INITRD=none
+CARAXES_KERNEL=/mnt/vmstore/caraxes/nova-kernel/build/arch/x86/boot/bzImage
+CARAXES_MEM=1G
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-invgate-f2af77c6
+CARAXES_TAP=none
+CARAXES_VBIOS=/mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin
+VM=vm9
