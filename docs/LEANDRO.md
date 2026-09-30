@@ -428,7 +428,8 @@ Wiki: [execution-mirror](wiki/execution-mirror.md), [software-executor](wiki/sof
   host's scrub on free clears the slice before the next owner (23 to 38 ms for 2 GiB). A guest
   reboot under Cloud Hypervisor drops and re-creates the vfio-user client; the device keeps
   its socket, resets to power-on state for the next client and releases the old client's
-  memory and IRQ eventfds (branch reconnect-2026-09-30).
+  memory and IRQ eventfds; validated in C119 and the gate's Windows leg
+  ([research/windows-findings.md](research/windows-findings.md), step 23).
 - **What has no quota.** Host BAR1 (256 MiB host-wide) is budgeted per device (two 16 MiB
   windows plus the pool, a host floor of 64 or 96 MiB); host VRAM has a floor for the host
   desktop; GPU time, channel count and RM work are not budgeted, and the shadow's own page

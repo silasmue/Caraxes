@@ -44,7 +44,8 @@ Every isolation run used a stock driver; no adversarial guest has been tested
 - v2, Windows 11 guest (stock 617.14) under Cloud Hypervisor: a stable desktop, the D3D11
   stages 12 of 12, Unigine Heaven 1080p High 152 to 158 fps, Superposition 1080p Medium up
   to 12247 points, Sunshine with NVENC or x264, NVENC and NVDEC bit-exact. The crashes
-  beside a second GPU client are fixed (channel migration, 11 of 11 runs).
+  beside a second GPU client are fixed (channel migration, 11 of 11 runs); guest reboots
+  survive the vfio-user reconnect.
 - v2, open drivers: nova-core probes to completion in pure emulation; nouveau with GSP-RM
   570.144 and Mesa NVK renders on the device (Weston, vkcube, glmark2, vkmark).
 - v2 performance: GPU-bound work runs at the card's speed. Setup paths cost more than
