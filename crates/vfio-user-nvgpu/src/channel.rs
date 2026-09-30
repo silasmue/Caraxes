@@ -447,6 +447,25 @@ pub struct Channel {
     sem_diag_seen: std::collections::BTreeSet<(u64, u32)>,
     /// The acquire the channel's last run blocked on ([`AcquireWait`]).
     acquire_wait: Option<AcquireWait>,
+    /// Deferred ring migrations registered on this channel's 0x5080 object ([`RingSwitch`]).
+    ring_switches: Vec<RingSwitch>,
+    /// Those whose method ran in the current entry: applied after it.
+    switched: Vec<RingSwitch>,
+}
+
+/// A deferred NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO (ctrl2080fifo.h:693-725) for a channel
+/// the device executes itself, registered on the owner channel's 0x5080 object: at the
+/// owner's `NV5080` method 0x200 with this API handle (the deferred call, run where GSP-RM
+/// runs it, deferred_api.c `_class5080DeferredApiV2`), the target moves to the new ring after
+/// that pushbuffer entry, as the host fetches the next entry from the new GPFIFO.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RingSwitch {
+    pub api: u32,
+    pub target: u32,
+    pub target_generation: u64,
+    pub userd: Target,
+    pub gpfifo_va: u64,
+    pub entries: u32,
 }
 
 impl Channel {
@@ -1142,6 +1161,66 @@ impl Registry {
             .collect()
     }
 
+    /// Register a deferred ring migration on software channel `owner` (the device runs its
+    /// method, [`RingSwitch`]).
+    pub fn add_ring_switch(&mut self, owner: u32, s: RingSwitch) -> Result<(), String> {
+        let ch = self.channels.get_mut(&owner).ok_or("the deferred object's channel is gone")?;
+        if ch.mirrored {
+            return Err("the owner runs on the host".into());
+        }
+        if ch.ring_switches.iter().any(|r| r.api == s.api) {
+            return Err("deferred API handle already registered".into());
+        }
+        ch.ring_switches.push(s);
+        Ok(())
+    }
+
+    /// A REMOVE_API of a registered ring migration; whether it was one.
+    pub fn remove_ring_switch(&mut self, owner: u32, api: u32) -> bool {
+        self.channels.get_mut(&owner).is_some_and(|ch| {
+            let n = ch.ring_switches.len();
+            ch.ring_switches.retain(|r| r.api != api);
+            ch.ring_switches.len() != n
+        })
+    }
+
+    /// Channel `chid` moves to a new ring now: its USERD, GPFIFO and entry count, and, for a
+    /// software channel, the device's position (the new USERD's GPGet, where the guest starts
+    /// it). For a mirrored channel it is the registry's view after the host moved (mirror.rs
+    /// `settle_migrations`, `migrate_now`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn switch_ring(
+        &mut self,
+        chid: u32,
+        generation: Option<u64>,
+        userd: Target,
+        gpfifo_va: u64,
+        entries: u32,
+        get: u32,
+    ) -> Result<String, String> {
+        let ch = self
+            .channels
+            .get_mut(&chid)
+            .filter(|c| generation.is_none_or(|g| g == c.generation))
+            .ok_or_else(|| format!("chid {chid}: gone or replaced"))?;
+        if get >= entries {
+            return Err(format!("chid {chid}: GPGet {get} is outside the new {entries}-entry ring"));
+        }
+        let note = format!(
+            "chid {chid}: ring switched at gp {} of {} entries (GPFIFO va {:#x}) to gp {get} of {entries} (GPFIFO va {gpfifo_va:#x}), USERD {:?} -> {userd:?}",
+            ch.gp_get, ch.gpfifo_entries, ch.gpfifo_va, ch.userd
+        );
+        ch.userd = Some(userd);
+        ch.gpfifo_va = gpfifo_va;
+        ch.gpfifo_entries = entries;
+        if !ch.mirrored {
+            ch.gp_get = get;
+            ch.gp_put_seen = get;
+            ch.resume = None;
+        }
+        Ok(note)
+    }
+
     /// Software acquires may wait for a host GPU write without another guest doorbell.
     pub fn blocked_software_channels(&self) -> Vec<u32> {
         self.channels
@@ -1619,6 +1698,8 @@ impl Registry {
                     deferred: None,
                     sem_diag_seen: std::collections::BTreeSet::new(),
                     acquire_wait: None,
+                    ring_switches: Vec::new(),
+                    switched: Vec::new(),
                 };
                 let mut note = format!(
                     "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?}{} alloc_flags {flags:#x} [guest]",
@@ -2437,6 +2518,11 @@ impl Registry {
             if !stored {
                 notes.push(format!("chid {chid}: GPGet write to {userd:?} failed"));
             }
+            // A ring migration whose method ran in this entry: the next entry comes from
+            // the new ring (applied after the run, with any other channel's).
+            if !ch.switched.is_empty() {
+                break;
+            }
             // The run's budget: stop between two entries, the slice clock continues.
             if ch.gp_get != gp_put % entries && started.elapsed() >= budget {
                 ch.budget_stop = true;
@@ -2451,12 +2537,33 @@ impl Registry {
             }
         }
         let inv = std::mem::take(&mut ch.tlb_invalidates);
+        let switched = std::mem::take(&mut ch.switched);
         for pdb in &inv {
             self.pdb_watch.note_invalidate(*pdb);
         }
         self.tlb_invalidates.extend(inv);
         if held {
             self.held_at_invalidate.push(chid);
+        }
+        for s in switched {
+            let get = match s.userd {
+                Target::Fb(pa) => mem.read_u32(Target::Fb(pa + USERD_GP_GET)),
+                Target::Sys(pa) => mem.read_u32(Target::Sys(pa + USERD_GP_GET)),
+                _ => None,
+            };
+            let switched = match get {
+                Some(get) => self.switch_ring(s.target, Some(s.target_generation), s.userd, s.gpfifo_va, s.entries, get),
+                None => Err(format!("chid {}: the new USERD {:?} is unreadable", s.target, s.userd)),
+            };
+            match switched {
+                Ok(n) => notes.push(format!("deferred API {:#x}: {n}", s.api)),
+                Err(e) => notes.push(format!("deferred API {:#x}: ring switch failed: {e}", s.api)),
+            }
+            // The switched channel goes on from its new ring at the slice clock's next pass.
+            if let Some(t) = self.channels.get_mut(&s.target) {
+                t.budget_stop = true;
+            }
+            CE_SLICES_PENDING.store(true, std::sync::atomic::Ordering::Release);
         }
         notes
     }
@@ -2561,6 +2668,15 @@ impl Registry {
                     Self::host_method(ch, mem, root, subch, a, data, now, ch.deferred_management)
                 } else if ch.deferred_management && class == 0x5080 {
                     Self::deferred_management_method(ch, binding, a, data)
+                } else if class == 0x5080 && a == 0x200 && ch.ring_switches.iter().any(|s| s.api == data) {
+                    // A registered ring migration's deferred call ([`RingSwitch`]).
+                    let i = ch.ring_switches.iter().position(|s| s.api == data).unwrap();
+                    let s = ch.ring_switches.remove(i);
+                    ch.switched.push(s);
+                    Ok(Some(format!(
+                        "deferred API {data:#x} (UpdateChannelInfo): chid {} moves to its new ring after this entry",
+                        s.target
+                    )))
                 } else if ch.deferred_management && class == 0xc597 {
                     Self::strict_report_method(ch, mem, root, subch, a, data)
                 } else if ch.deferred_management && class == classes.compute {
@@ -5215,6 +5331,78 @@ mod tests {
         assert!(reg.blocked_software_channels().is_empty());
         assert_eq!(reg.channel(9).and_then(|c| c.acquire_wait), None);
         assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        std::fs::remove_file(path).ok();
+    }
+
+    /// KNOWN BUG #1 (Windows step 23): a deferred NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO
+    /// on a channel the device executes. The ring switches after the entry that carries the
+    /// 0x5080 method with its API handle; nothing of the old ring runs again, and the new
+    /// ring's first entry runs from the new USERD's GPGet.
+    #[test]
+    fn a_software_channel_moves_to_its_new_ring_at_the_deferred_method() {
+        let mut pb = inc(5, 0, &[0x5080]);
+        pb.extend(inc(5, 0x200, &[0x4000_007e]));
+        let (mut fb, sys, path, mut reg) = software_fixture("ring-switch", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
+        // The new ring: 16 entries at VA 0x1000_1000 (FB 0x101000), USERD at FB 0x20_1000,
+        // one entry published: a semaphore release of 0x55 (pushbuffer at VA 0x1000_8100).
+        let release = inc(0, 0x10, &[0, 0x1000_9000, 0x55, 0x0110_0002]);
+        let bytes: Vec<u8> = release.iter().flat_map(|w| w.to_le_bytes()).collect();
+        assert!(sys.write(0x4000_0100, &bytes));
+        fb.write_u64(0x101000, 0x1000_8100 | (((release.len() as u64) << 10) << 32));
+        fb.write(0x20_1000 + USERD_GP_GET, &0u32.to_le_bytes());
+        fb.write(0x20_1000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        let generation = reg.channel(9).unwrap().generation;
+        let switch = RingSwitch {
+            api: 0x4000_007e,
+            target: 9,
+            target_generation: generation,
+            userd: Target::Fb(0x20_1000),
+            gpfifo_va: 0x1000_1000,
+            entries: 16,
+        };
+        reg.add_ring_switch(9, switch).unwrap();
+        assert!(reg.add_ring_switch(9, switch).is_err(), "one registration per handle");
+
+        let first = reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert!(first.iter().any(|n| n.contains("moves to its new ring after this entry")), "{first:?}");
+        assert!(first.iter().any(|n| n.contains("ring switched at gp 1 of 32 entries")), "{first:?}");
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1, "the old ring's entry done");
+        let ch = reg.channel(9).unwrap();
+        assert_eq!((ch.userd, ch.gpfifo_va, ch.gpfifo_entries), (Some(Target::Fb(0x20_1000)), 0x1000_1000, 16));
+        assert_eq!(sys.read_u32(0x4000_1000), Some(0), "the new ring has not run yet");
+
+        let second = reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert_eq!(sys.read_u32(0x4000_1000), Some(0x55), "{second:?}");
+        assert_eq!(fb.read_u64(0x20_1000 + USERD_GP_GET).unwrap() as u32, 1);
+        assert!(!reg.remove_ring_switch(9, 0x4000_007e), "consumed at its method");
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A REMOVE_API of a registered ring migration drops it: its method no longer switches.
+    #[test]
+    fn a_removed_ring_migration_does_not_switch() {
+        let mut pb = inc(5, 0, &[0x5080]);
+        pb.extend(inc(5, 0x200, &[0x4000_007e]));
+        let (mut fb, sys, path, mut reg) = software_fixture("ring-switch-removed", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
+        let generation = reg.channel(9).unwrap().generation;
+        reg.add_ring_switch(
+            9,
+            RingSwitch {
+                api: 0x4000_007e,
+                target: 9,
+                target_generation: generation,
+                userd: Target::Fb(0x20_1000),
+                gpfifo_va: 0x1000_1000,
+                entries: 16,
+            },
+        )
+        .unwrap();
+        assert!(reg.remove_ring_switch(9, 0x4000_007e));
+        let notes = reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
+        assert!(!notes.iter().any(|n| n.contains("ring switched")), "{notes:?}");
+        assert_eq!(reg.channel(9).unwrap().gpfifo_entries, 32);
         std::fs::remove_file(path).ok();
     }
 

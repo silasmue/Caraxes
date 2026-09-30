@@ -106,6 +106,10 @@ pub struct Dispatcher {
     handle_gen: BTreeMap<u32, u32>,
     client_handle_gen: u32,
     deferred_context: deferred_context::State,
+    /// The new USERD of an UpdateChannelInfo the next control carries (direct, or a deferred
+    /// API's bundle), resolved by the boot model from the memory the kernel registered with
+    /// GSP (gspmem.rs `registered_target`), with the GPGet the guest left in it.
+    pub migration_userd: Option<Result<(crate::fb::Target, u32), String>>,
     /// PCI ids of the emulated function (config space).
     pub pci_device_id: u32,
     pub pci_sub_device_id: u32,
@@ -265,6 +269,7 @@ impl Dispatcher {
             handle_gen: BTreeMap::new(),
             client_handle_gen: 0,
             deferred_context: deferred_context::State::default(),
+            migration_userd: None,
             pci_device_id: id.pci.device_id(),
             pci_sub_device_id: id.pci.sub_device_id(),
             pci_revision: id.pci.revision as u32,
@@ -864,6 +869,7 @@ impl Dispatcher {
         let tlb0 = gm.fb.exec_tlb_stats();
         let maps0 = gm.fb.vram_stats().map_or(0, |v| v.maps);
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
+        notes.extend(self.apply_migrations());
         let spent = t0.elapsed();
         let [translate, copy, fetch, inv_wait, gp_get] = crate::dlock::take_spent();
         let tlb1 = gm.fb.exec_tlb_stats();
@@ -2107,6 +2113,11 @@ impl Dispatcher {
         if matches!(cmd, 0x5080_0101..=0x5080_0104)
             && self.deferred_context.enabled {
             return self.register_deferred(h_client, h_object, cmd, params);
+        }
+        // The channel migration of the deferred-context model (Windows: the deferred API
+        // family is refused as legacy_uncalled otherwise, gsp-dtable.py FAMILIES).
+        if cmd == crate::deferred::CMD_UPDATE_CHANNEL_INFO && self.deferred_context.enabled {
+            return self.update_channel_info(params);
         }
         // This control used to be a Windows-only recorded acknowledgement. It changes the
         // device's live VA-space association, so model it before every recorded override.

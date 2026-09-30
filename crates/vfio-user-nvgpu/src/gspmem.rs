@@ -364,6 +364,35 @@ impl OpEvent {
     }
 }
 
+/// The physical target of `len` bytes at byte `off` of a registered memory (its page list,
+/// the first page's offset included), which must not cross a 4 KiB page: a USERD a channel
+/// migrates to (NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO's `hUserdMemory` + `userdOffset`,
+/// ctrl2080fifo.h:693-725; the kernel registers the memory with GSP first,
+/// deferred_api.c:345-378).
+pub fn registered_target(r: &Registered, off: u64, len: u64) -> Result<crate::fb::Target, String> {
+    let page = 1u64 << RM_PAGE_SHIFT;
+    if len == 0 || off.checked_add(len).is_none_or(|end| end > r.length) {
+        return Err(format!("{len:#x} bytes at {off:#x} leave the {:#x}-byte memory", r.length));
+    }
+    let at = r.pte_adjust as u64 + off;
+    if at % page + len > page {
+        return Err(format!("{len:#x} bytes at {off:#x} cross a page"));
+    }
+    let pa = if r.pages.len() == 1 {
+        r.pages[0] + at
+    } else {
+        r.pages
+            .get((at / page) as usize)
+            .map(|p| p + at % page)
+            .ok_or_else(|| format!("offset {off:#x} has no page"))?
+    };
+    match r.class {
+        NV01_MEMORY_LIST_SYSTEM => Ok(crate::fb::Target::Sys(pa)),
+        NV01_MEMORY_LIST_FBMEM => Ok(crate::fb::Target::Fb(pa)),
+        c => Err(format!("memory class {c:#x}")),
+    }
+}
+
 /// Write `data` at byte `off` of a registered system-memory buffer (its page list, the
 /// first page's offset included); `false` when a page is not guest RAM or the range leaves
 /// the registration.

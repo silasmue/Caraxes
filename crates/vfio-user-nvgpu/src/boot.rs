@@ -2450,6 +2450,26 @@ impl BootModel {
                                 label: "guest (GSP-side event buffer, gspmem.rs)",
                                 note: r.note,
                             });
+                        // The new USERD of a channel migration (a direct or deferred
+                        // UpdateChannelInfo): the memory the kernel registered with GSP first
+                        // (deferred_api.c:345-378), with the GPGet the guest left in it.
+                        self.ctrl.migration_userd = crate::deferred::migration_bundle(cmd, params).map(|info| {
+                            let r = self
+                                .gspmem
+                                .memories
+                                .get(&(info.h_client, info.h_userd_memory))
+                                .ok_or_else(|| format!("hUserdMemory {:#x} is not registered with GSP", info.h_userd_memory))?;
+                            let t = crate::gspmem::registered_target(r, info.userd_offset, 512)?;
+                            let at = match t {
+                                crate::fb::Target::Fb(pa) => crate::fb::Target::Fb(pa + 0x88),
+                                crate::fb::Target::Sys(pa) => crate::fb::Target::Sys(pa + 0x88),
+                                other => other,
+                            };
+                            let get = crate::channel::GpuMem { fb: &mut self.fb, sys: mem }
+                                .read_u32(at)
+                                .ok_or_else(|| format!("the new USERD {t:?} is unreadable"))?;
+                            Ok((t, get))
+                        });
                         let a = match gm
                             .or_else(|| crate::chip::physical::answer(self.chip.data(), cmd, params))
                         {

@@ -1062,6 +1062,41 @@ struct ShadowUserd {
     published_put: Option<u32>,
     /// Get and GPGet of the host USERD at the last harvest (`GpuState::read_if_moved`).
     harvested: Option<(u32, u32)>,
+    /// A ring migration in flight ([`Mirror::begin_migration`]): the host channel moves to
+    /// this private USERD when it runs the deferred UpdateChannelInfo in its stream.
+    next: Option<Box<NextRing>>,
+}
+
+/// The ring a host channel migrates to (NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO as a
+/// deferred API, run by the host RM at the software method): its own private USERD and the
+/// guest's new USERD. Until the host has provably fetched on it, both rings are published
+/// and harvested: the host reads GP_PUT from the old USERD up to the method and from this
+/// one after it, so no consumed entry is replayed and no new one is missed.
+struct NextRing {
+    storage: HostUserd,
+    guest: u64,
+    entries: u32,
+    published_put: Option<u32>,
+    harvested: Option<(u32, u32)>,
+    /// The GPGet the new USERD started with: the host has fetched on the new ring once it
+    /// differs.
+    initial_get: u32,
+    api: u32,
+    gpfifo_va: u64,
+    since: Instant,
+}
+
+/// A migration the host completed ([`ShadowUserd::settle`]): the old ring and USERD, the
+/// new ones, and where the old ring stopped.
+pub struct Migrated {
+    pub api: u32,
+    pub old_guest: u64,
+    pub old_entries: u32,
+    pub old_get: u32,
+    pub new_guest: u64,
+    pub new_entries: u32,
+    pub new_gpfifo_va: u64,
+    pub after: std::time::Duration,
 }
 
 /// A host channel's private USERD, shared with the USERD poller that runs without the
@@ -1139,36 +1174,99 @@ pub fn userd_watch() -> Vec<(u32, Arc<UserdSlot>)> {
         .collect()
 }
 
+/// The GPU-owned words of `storage` back to the guest's USERD at `guest` if they moved.
+fn harvest_ring(storage: &HostUserd, guest: u64, harvested: &mut Option<(u32, u32)>, mem: &GuestMemory) {
+    if let Some(state) = crate::userd::GpuState::read_if_moved(harvested, |off| Some(storage.read_u32(off))) {
+        state.publish(|off, value| {
+            if let Some(at) = guest.checked_add(off) {
+                mem.write(at, &value.to_le_bytes());
+            }
+        });
+    }
+}
+
+/// The guest published entries not forwarded yet: its GPPut (NV_RAMUSERD GP_PUT, +0x8c)
+/// inside the ring and not the one last published.
+fn ring_pending(guest: u64, entries: u32, published_put: Option<u32>, mem: &GuestMemory) -> bool {
+    mem.read_u32(guest + 0x8c)
+        .is_some_and(|put| put < entries && Some(put) != published_put)
+}
+
+/// The guest's CPU-owned words to `storage`, GPPut last; the GPPut published.
+fn publish_ring(storage: &HostUserd, guest: u64, entries: u32, gm: &GpuMem) -> Result<u32, String> {
+    let cpu = crate::userd::CpuState::read(entries, |off| gm.read_u32(Target::Sys(guest.checked_add(off)?)))
+        .ok_or("unreadable or invalid guest USERD submission")?;
+    cpu.publish(|off, value| storage.write_u32(off, value));
+    storage.flush();
+    Ok(cpu.gp_put())
+}
+
 impl ShadowUserd {
-    /// [`Self::harvest`] with guest RAM only (the words go to the guest's sysmem USERD).
+    /// [`Self::harvest`] with guest RAM only (the words go to the guest's sysmem USERD);
+    /// both rings while a migration is in flight.
     fn harvest_sys(&mut self, mem: &GuestMemory) {
-        let storage = &self.storage;
-        if let Some(state) = crate::userd::GpuState::read_if_moved(&mut self.harvested, |off| {
-            Some(storage.read_u32(off))
-        }) {
-            state.publish(|off, value| {
-                if let Some(at) = self.guest.checked_add(off) {
-                    mem.write(at, &value.to_le_bytes());
-                }
-            });
+        harvest_ring(&self.storage, self.guest, &mut self.harvested, mem);
+        if let Some(n) = self.next.as_mut() {
+            harvest_ring(&n.storage, n.guest, &mut n.harvested, mem);
         }
     }
 
-    /// The guest published entries the device has not forwarded: its GPPut (NV_RAMUSERD
-    /// GP_PUT, +0x8c) inside the ring and not the one last published.
+    /// The guest published entries the device has not forwarded, on either ring.
     fn pending(&self, mem: &GuestMemory) -> bool {
-        mem.read_u32(self.guest + 0x8c)
-            .is_some_and(|put| put < self.entries && Some(put) != self.published_put)
+        ring_pending(self.guest, self.entries, self.published_put, mem)
+            || self
+                .next
+                .as_ref()
+                .is_some_and(|n| ring_pending(n.guest, n.entries, n.published_put, mem))
     }
 
+    /// Publish the guest's submission. While a migration is in flight the new ring is
+    /// published too, and the old one only as long as the guest still reads well there
+    /// (the guest may free the old ring once it moved on).
     fn publish(&mut self, gm: &GpuMem) -> Result<u32, String> {
-        let cpu = crate::userd::CpuState::read(self.entries, |off| {
-            gm.read_u32(Target::Sys(self.guest.checked_add(off)?))
-        }).ok_or("unreadable or invalid guest USERD submission")?;
-        cpu.publish(|off, value| self.storage.write_u32(off, value));
-        self.storage.flush();
-        self.published_put = Some(cpu.gp_put());
-        Ok(cpu.gp_put())
+        let old = publish_ring(&self.storage, self.guest, self.entries, gm);
+        let Some(n) = self.next.as_mut() else {
+            let put = old?;
+            self.published_put = Some(put);
+            return Ok(put);
+        };
+        if let Ok(put) = old {
+            self.published_put = Some(put);
+        }
+        let put = publish_ring(&n.storage, n.guest, n.entries, gm)?;
+        n.published_put = Some(put);
+        Ok(self.published_put.unwrap_or(put))
+    }
+
+    /// The host fetched on the new ring (its GPGet left the start): the new ring becomes the
+    /// channel's, and the old private USERD is returned for the caller to free (the host
+    /// channel no longer references it: it moved at the method, before this fetch).
+    fn settle(&mut self) -> Option<(HostUserd, Migrated)> {
+        let moved = self
+            .next
+            .as_ref()
+            .is_some_and(|n| n.storage.read_u32(0x88) != n.initial_get);
+        if !moved {
+            return None;
+        }
+        let n = *self.next.take().unwrap();
+        let old_get = self.storage.read_u32(0x88);
+        let done = Migrated {
+            api: n.api,
+            old_guest: self.guest,
+            old_entries: self.entries,
+            old_get,
+            new_guest: n.guest,
+            new_entries: n.entries,
+            new_gpfifo_va: n.gpfifo_va,
+            after: n.since.elapsed(),
+        };
+        let old = std::mem::replace(&mut self.storage, n.storage);
+        self.guest = n.guest;
+        self.entries = n.entries;
+        self.published_put = n.published_put;
+        self.harvested = n.harvested;
+        Some((old, done))
     }
 
     fn harvest(&mut self, gm: &mut GpuMem) {
@@ -1349,6 +1447,7 @@ fn build_on_host(b: BuildInput, hm: &Mutex<HostMemory>) -> BuildOut {
                     entries,
                     published_put: None,
                     harvested: None,
+                    next: None,
                 });
                 (handle, 0)
             }
@@ -1982,6 +2081,9 @@ pub struct Mirror {
     ring_gate: Arc<crate::ringgate::RingGate>,
     held_rings: BTreeMap<u32, crate::ringgate::HeldRing>,
     ring_stats: crate::ringgate::RingStats,
+    /// Ring migrations the host completed, for the dispatcher's registry
+    /// ([`Self::take_migrations`]): `(chid, generation, what moved)`.
+    migrations_done: Vec<(u32, u64, Migrated)>,
     /// Mirror builds in flight on the worker, by guest ChID (execution.md §9.2), the host
     /// TSG cells their jobs share, the counters, and the channels committed since the
     /// dispatcher last pinned their tokens ([`Mirror::take_committed`]).
@@ -2175,6 +2277,7 @@ impl Mirror {
             ring_gate,
             held_rings: BTreeMap::new(),
             ring_stats: Default::default(),
+            migrations_done: Vec::new(),
             builds: BTreeMap::new(),
             prepare_async: false,
             tsg_cells: BTreeMap::new(),
@@ -3304,6 +3407,10 @@ impl Mirror {
             if let Some(hc) = self.channels.get(&chid) {
                 hc.with_userd(|u| u.harvest(gm));
             }
+            // A ring migration the host completed in its stream (a channel of it only).
+            if self.channels.get(&chid).is_some_and(|hc| hc.with_userd(|u| u.next.is_some()) == Some(true)) {
+                notes.extend(self.settle_migrations(Some(chid)));
+            }
         }
         notes
     }
@@ -4224,6 +4331,253 @@ impl Mirror {
             .iter()
             .find(|(_, c)| c.token == token)
             .map(|(chid, _)| *chid)
+    }
+
+    /// Whether guest channel `chid` has a host channel now.
+    pub fn has_host_channel(&self, chid: u32) -> bool {
+        self.channels.contains_key(&chid)
+    }
+
+    /// A deferred NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO for host channel `chid`, registered
+    /// on the host as GSP-RM registers it (deferred_api.c `defapiCtrlCmdDeferredApiV2`): the
+    /// host's own NV5080_CTRL_CMD_DEFERRED_API_V2 on the owner channel's host 0x5080 object
+    /// (`owner`, `object`: the guest's), same API handle, the bundle naming the host channel,
+    /// a new private USERD for the new ring, and the guest's GPFIFO VA (the shadow VAS maps it
+    /// as the guest does). The host RM moves the host channel in its stream at the software
+    /// method; until the host has fetched on the new ring both rings are published
+    /// ([`ShadowUserd::publish`], [`Self::settle_migrations`]).
+    #[allow(clippy::too_many_arguments)]
+    pub fn begin_migration(
+        &mut self,
+        reg: &Registry,
+        owner: u32,
+        object: u32,
+        chid: u32,
+        api: u32,
+        flags: u32,
+        info: &crate::deferred::ChannelInfo,
+        new_guest: u64,
+        get: u32,
+    ) -> Result<String, String> {
+        let owner_host = self
+            .channels
+            .get(&owner)
+            .filter(|hc| reg.channel(owner).is_some_and(|c| c.generation == hc.generation))
+            .ok_or("the deferred object's channel has no host channel yet")?;
+        let host_object = *owner_host
+            .engine_map
+            .get(&object)
+            .ok_or("the deferred object has no host object")?;
+        let hc = self
+            .channels
+            .get(&chid)
+            .filter(|hc| reg.channel(chid).is_some_and(|c| c.generation == hc.generation))
+            .ok_or("the channel has no host channel yet")?;
+        let (host_channel, old_entries) = (hc.handle, hc.with_userd(|u| u.entries));
+        let old_entries = old_entries.ok_or("a ring migration needs a private USERD (CARAXES_SHADOW_USERD=1)")?;
+        if hc.with_userd(|u| u.next.is_some()) == Some(true) {
+            return Err("a ring migration of this channel is already in flight".into());
+        }
+        if get >= info.gp_fifo_entries {
+            return Err("the new USERD's GPGet is outside the new ring".into());
+        }
+        let mut h = self.hm.lock().unwrap();
+        let storage = h
+            .alloc_host_userd()
+            .map_err(|st| format!("private USERD for the new ring: {}", status_name(st)))?;
+        // An empty ring at the guest's start: the new GPPut is published before a doorbell.
+        storage.write_u32(0x88, get);
+        storage.write_u32(0x8c, get);
+        storage.flush();
+        let host_info = crate::deferred::ChannelInfo {
+            h_client: h.root(),
+            h_channel: host_channel,
+            h_userd_memory: storage.handle(),
+            gp_fifo_entries: info.gp_fifo_entries,
+            gp_fifo_offset: info.gp_fifo_offset,
+            userd_offset: 0,
+        };
+        let mut p = crate::deferred::encode_channel_info_request(api, flags, &host_info);
+        let st = h.control(host_object, crate::deferred::CMD_DEFERRED_API_V2, &mut p);
+        if st != sys::NV_OK {
+            let _ = h.free_host_userd(storage);
+            return Err(format!(
+                "host DEFERRED_API_V2 (UpdateChannelInfo) on host object {host_object:#x}: {}",
+                status_name(st)
+            ));
+        }
+        drop(h);
+        let next = NextRing {
+            storage,
+            guest: new_guest,
+            entries: info.gp_fifo_entries,
+            published_put: None,
+            harvested: None,
+            initial_get: get,
+            api,
+            gpfifo_va: info.gp_fifo_offset,
+            since: Instant::now(),
+        };
+        if let Some(hc) = self.channels.get(&chid) {
+            hc.with_userd(|u| u.next = Some(Box::new(next)));
+        }
+        Ok(format!(
+            "chid {chid}: ring migration API {api:#x} registered on host object {host_object:#x}: {old_entries} -> {} entries, GPFIFO va {:#x}, guest USERD -> {new_guest:#x}; the host switches at the method in the stream [host]",
+            info.gp_fifo_entries, info.gp_fifo_offset
+        ))
+    }
+
+    /// A REMOVE_API of a ring migration registered on the host: the host's registration is
+    /// removed on the owner's host 0x5080 object as GSP-RM removes it, and the new ring's
+    /// private USERD goes (the host never moved). `None` when `api` is no migration here.
+    pub fn cancel_migration(&mut self, owner: u32, object: u32, api: u32) -> Option<Result<String, String>> {
+        let chid = *self
+            .channels
+            .iter()
+            .find(|(_, hc)| hc.with_userd(|u| u.next.as_ref().is_some_and(|n| n.api == api)) == Some(true))?
+            .0;
+        let host_object = self.channels.get(&owner).and_then(|hc| hc.engine_map.get(&object).copied());
+        let next = self.channels.get(&chid).and_then(|hc| hc.with_userd(|u| u.next.take()).flatten());
+        let mut h = self.hm.lock().unwrap();
+        let st = host_object.map(|o| {
+            let mut p = api.to_le_bytes();
+            h.control(o, crate::deferred::CMD_REMOVE_API, &mut p)
+        });
+        if let Some(n) = next {
+            let _ = h.free_host_userd(n.storage);
+        }
+        Some(match st {
+            Some(st) if st == sys::NV_OK => Ok(format!("deferred API {api:#x} (ring migration of chid {chid}) removed on the host")),
+            Some(st) => Err(format!("host REMOVE_API {api:#x}: {}", status_name(st))),
+            None => Err("the deferred object has no host object".into()),
+        })
+    }
+
+    /// Migrations the host completed: once the host fetched on a new ring, it becomes the
+    /// channel's and the old private USERD goes (the host channel left it at the method).
+    /// One line each; the registry's view follows through [`Self::take_migrations`].
+    pub fn settle_migrations(&mut self, only: Option<u32>) -> Vec<String> {
+        let mut notes = Vec::new();
+        let chids: Vec<u32> = self.channels.keys().copied().filter(|c| only.is_none_or(|o| o == *c)).collect();
+        for chid in chids {
+            let Some(hc) = self.channels.get(&chid) else { continue };
+            let generation = hc.generation;
+            let Some((old, done)) = hc.with_userd(|u| u.settle()).flatten() else { continue };
+            let freed = self.hm.lock().unwrap().free_host_userd(old);
+            notes.push(format!(
+                "chid {chid}: ring migrated in the host's stream (API {:#x}) after {} ms: {} -> {} entries, left the old ring at GPGet {}, GPFIFO va {:#x}, guest USERD {:#x} -> {:#x}; old private USERD {} [host]",
+                done.api,
+                done.after.as_millis(),
+                done.old_entries,
+                done.new_entries,
+                done.old_get,
+                done.new_gpfifo_va,
+                done.old_guest,
+                done.new_guest,
+                match freed {
+                    Ok(()) => "freed".to_string(),
+                    Err(st) => format!("NOT freed: {}", status_name(st)),
+                }
+            ));
+            self.migrations_done.push((chid, generation, done));
+        }
+        notes
+    }
+
+    /// The migrations completed since the last call, for the registry.
+    pub fn take_migrations(&mut self) -> Vec<(u32, u64, Migrated)> {
+        std::mem::take(&mut self.migrations_done)
+    }
+
+    /// A direct NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO for host channel `chid` (the guest
+    /// calls it on an idle channel): the host channel idled, then moved by the host's own
+    /// control (kernel_fifo_ctrl.c `subdeviceCtrlCmdFifoUpdateChannelInfo`, which needs the
+    /// client-allocated USERD every host channel of the mirror has) onto a new private USERD.
+    pub fn migrate_now(
+        &mut self,
+        reg: &Registry,
+        chid: u32,
+        info: &crate::deferred::ChannelInfo,
+        new_guest: u64,
+        get: u32,
+    ) -> Result<String, String> {
+        let ch = reg.channel(chid).ok_or("no such channel")?;
+        let hc = self
+            .channels
+            .get(&chid)
+            .filter(|hc| hc.generation == ch.generation)
+            .ok_or("the channel has no host channel")?;
+        let host_channel = hc.handle;
+        if hc.with_userd(|u| u.next.is_some()) != Some(false) {
+            return Err("needs a private USERD and no migration in flight".into());
+        }
+        let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
+            | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
+        let (st, idle_note) = self.idle_host_channels(&[(chid, host_channel)], flags, 100_000);
+        if st != sys::NV_OK {
+            return Err(idle_note);
+        }
+        if get >= info.gp_fifo_entries {
+            return Err("the new USERD's GPGet is outside the new ring".into());
+        }
+        let mut h = self.hm.lock().unwrap();
+        let storage = h
+            .alloc_host_userd()
+            .map_err(|st| format!("private USERD for the new ring: {}", status_name(st)))?;
+        storage.write_u32(0x88, get);
+        storage.write_u32(0x8c, get);
+        storage.flush();
+        let host_info = crate::deferred::ChannelInfo {
+            h_client: h.root(),
+            h_channel: host_channel,
+            h_userd_memory: storage.handle(),
+            gp_fifo_entries: info.gp_fifo_entries,
+            gp_fifo_offset: info.gp_fifo_offset,
+            userd_offset: 0,
+        };
+        let mut p = host_info.encode();
+        let st = h.control(h.subdevice(), crate::deferred::CMD_UPDATE_CHANNEL_INFO, &mut p);
+        if st != sys::NV_OK {
+            let _ = h.free_host_userd(storage);
+            return Err(format!("host UPDATE_CHANNEL_INFO: {}", status_name(st)));
+        }
+        let hc = self.channels.get(&chid).unwrap();
+        let old = hc.with_userd(|u| {
+            let old_entries = u.entries;
+            let old_get = u.storage.read_u32(0x88);
+            let old_guest = u.guest;
+            let old = std::mem::replace(&mut u.storage, storage);
+            u.guest = new_guest;
+            u.entries = info.gp_fifo_entries;
+            u.published_put = None;
+            u.harvested = None;
+            (old, old_entries, old_get, old_guest)
+        });
+        let Some((old, old_entries, old_get, old_guest)) = old else {
+            return Err("private USERD disappeared".into());
+        };
+        let freed = h.free_host_userd(old);
+        drop(h);
+        self.migrations_done.push((
+            chid,
+            ch.generation,
+            Migrated {
+                api: 0,
+                old_guest,
+                old_entries,
+                old_get,
+                new_guest,
+                new_entries: info.gp_fifo_entries,
+                new_gpfifo_va: info.gp_fifo_offset,
+                after: std::time::Duration::ZERO,
+            },
+        ));
+        Ok(format!(
+            "chid {chid}: ring moved now (idle): {old_entries} -> {} entries at GPGet {old_get} of the old ring, GPFIFO va {:#x}, guest USERD {old_guest:#x} -> {new_guest:#x}; {idle_note}; old private USERD {} [host]",
+            info.gp_fifo_entries,
+            info.gp_fifo_offset,
+            if freed.is_ok() { "freed" } else { "NOT freed" }
+        ))
     }
 
     /// Read the fetched prefix boundary without retiring the host channel.
@@ -6200,6 +6554,12 @@ impl Mirror {
                 if r.is_ok() {
                     // The cell is emptied first: the poller no longer reads the window.
                     if let Some(u) = hc.userd.take().and_then(|s| s.take()) {
+                        // A migration still in flight: its new ring's USERD goes too.
+                        if let Some(n) = u.next {
+                            if let Err(st) = h.free_host_userd(n.storage) {
+                                notes.push(format!("chid {chid}: ERROR freeing the migration's private USERD: {}", status_name(st)));
+                            }
+                        }
                         if let Err(st) = h.free_host_userd(u.storage) {
                             notes.push(format!("chid {chid}: ERROR freeing private USERD: {}", status_name(st)));
                         }
@@ -7436,6 +7796,7 @@ mod tests {
                 entries: 16,
                 published_put: Some(2),
                 harvested: None,
+                next: None,
             },
             true,
         );
@@ -7458,6 +7819,72 @@ mod tests {
         let u = slot.take().expect("the channel's USERD");
         assert!(!slot.poll(&mem), "freed: left alone");
         assert_eq!(u.entries, 16);
+        std::mem::forget(u);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// KNOWN BUG #1 (Windows step 23): a ring migration of a host channel. Until the host
+    /// fetched on the new ring both rings are published and harvested (the host reads the
+    /// old USERD up to the deferred method and the new one after it); once its GPGet moved
+    /// on the new ring the new ring is the channel's and the old private USERD is handed
+    /// back for freeing.
+    #[test]
+    fn a_ring_migration_publishes_both_rings_until_the_host_fetched_on_the_new_one() {
+        let (mem, _, base, path) = crate::msgq::tests::queue_fixture("userd-migrate");
+        let old_host: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let new_host: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let (old_ptr, new_ptr) = (old_host.as_mut_ptr(), new_host.as_mut_ptr());
+        // SAFETY: the pages are leaked and only this test touches them.
+        let host = |p: *mut u8, off: usize, v: u32| unsafe { std::ptr::write_volatile(p.add(off) as *mut u32, v) };
+        let (old_guest, new_guest) = (base + 0x2000, base + 0x3000);
+        let mut fb = crate::fb::FakeFb::new(1 << 20);
+        let mut u = ShadowUserd {
+            storage: crate::hostmem::HostUserd::for_test(old_host),
+            guest: old_guest,
+            entries: 8,
+            published_put: Some(5),
+            harvested: None,
+            next: Some(Box::new(NextRing {
+                storage: crate::hostmem::HostUserd::for_test(new_host),
+                guest: new_guest,
+                entries: 64,
+                published_put: None,
+                harvested: None,
+                initial_get: 0,
+                api: 0x4000_007e,
+                gpfifo_va: 0x2_2538_0000,
+                since: Instant::now(),
+            })),
+        };
+        // The guest's last old-ring entry (the deferred method) and an empty new ring.
+        assert!(mem.write(old_guest + 0x8c, &6u32.to_le_bytes()));
+        assert!(mem.write(new_guest + 0x8c, &0u32.to_le_bytes()));
+        assert!(u.pending(&mem));
+        assert_eq!(u.publish(&GpuMem { fb: &mut fb, sys: &mem }), Ok(6));
+        assert_eq!(u.storage.read_u32(0x8c), 6);
+        assert_eq!(u.next.as_ref().unwrap().storage.read_u32(0x8c), 0);
+        assert!(!u.pending(&mem));
+        // The guest goes on on the new ring before the host reached the method.
+        assert!(mem.write(new_guest + 0x8c, &3u32.to_le_bytes()));
+        assert!(u.pending(&mem), "new-ring entries are pending");
+        u.publish(&GpuMem { fb: &mut fb, sys: &mem }).unwrap();
+        assert_eq!(u.next.as_ref().unwrap().storage.read_u32(0x8c), 3);
+        assert_eq!(u.storage.read_u32(0x8c), 6, "the old ring stays where the method is");
+        // The host consumed the old ring up to the method: not settled yet.
+        host(old_ptr, 0x88, 6);
+        assert!(u.settle().is_none());
+        u.harvest_sys(&mem);
+        assert_eq!(mem.read_u32(old_guest + 0x88), Some(6), "old GPGet harvested to the old ring");
+        // The host moved at the method and fetched on the new ring.
+        host(new_ptr, 0x88, 1);
+        let (old, done) = u.settle().expect("migrated");
+        assert_eq!((done.old_entries, done.old_get, done.new_entries), (8, 6, 64));
+        assert_eq!((done.old_guest, done.new_guest, done.api), (old_guest, new_guest, 0x4000_007e));
+        assert_eq!((u.guest, u.entries, u.published_put), (new_guest, 64, Some(3)));
+        assert!(u.next.is_none());
+        u.harvest_sys(&mem);
+        assert_eq!(mem.read_u32(new_guest + 0x88), Some(1), "new GPGet harvested to the new ring");
+        std::mem::forget(old);
         std::mem::forget(u);
         let _ = std::fs::remove_file(&path);
     }
