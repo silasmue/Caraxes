@@ -38,22 +38,22 @@ them, which is what a virtual GPU has to know first.
 
 ## Who answers what
 
-| Answered by | Examples | In VFIO Leandro |
+| Answered by | Examples | In Leandro VFIO |
 |---|---|---|
 | the kernel RM itself | `GPU_GET_NAME_STRING`, `FB_GET_INFO_V2`, `GET_WORK_SUBMIT_TOKEN`, `GET_PIDS` | never reaches the device; the answers come from the static configuration the device sent at boot ([identity-and-costume](identity-and-costume.md)) |
 | GSP-RM (routed) | `GPU_GET_INFO_V2`, `CE_GET_CAPS`, `GR_GET_INFO`, the display NV0073 controls, `GPFIFO_SCHEDULE` | the device answers per category ([gsp-control-categories](gsp-control-categories.md)) |
-| GSS legacy, BINAPI | ids outside the export tables that `nvidia-smi` sends (perf, clocks, thermal) | forwarded to the host with rewritten identity; the reply's `rmctrlFlags` stay 0 unless the open switch `CARAXES_LEGACY_CACHEABLE=1` marks ten static ones cacheable ([caraxes/gsp-transport-615.md](../caraxes/gsp-transport-615.md) §11.1) |
+| GSS legacy, BINAPI | ids outside the export tables that `nvidia-smi` sends (perf, clocks, thermal) | forwarded to the host with rewritten identity; the reply's `rmctrlFlags` stay 0 unless the open switch `CARAXES_LEGACY_CACHEABLE=1` marks ten static ones cacheable ([vfio/gsp-transport-615.md](../vfio/gsp-transport-615.md) §11.1) |
 | the Windows build only | ids the 615 export tables lack, for example FIFO control 0x20801111 | acknowledged or answered per id ([guest-drivers-and-abis](guest-drivers-and-abis.md)); the ABI snapshot cannot see them |
 
-- VirtIO Leandro sees every control at the ioctl layer and blocks 34 of them whose embedded
+- Leandro VirtIO sees every control at the ioctl layer and blocks 34 of them whose embedded
   pointers or file descriptors it does not translate (`blocked_ctrls()` in
-  `crates/nvrm-abi/src/xlate.rs`, [SECURITY.md](../SECURITY.md)).
-- VFIO Leandro sees only the routed ones; the guest's user space is served by the guest's own
+  `crates/nvrm-abi/src/xlate.rs`, [security.md](../virtio/security.md)).
+- Leandro VFIO sees only the routed ones; the guest's user space is served by the guest's own
   kernel RM as on bare metal.
 
 ## Depth
 
 - [research/gsp-surface.md](../research/gsp-surface.md): the counts of 615.71.09.
-- [caraxes/gsp-transport-classes.md](../caraxes/gsp-transport-classes.md): every routed control
+- [vfio/gsp-transport-classes.md](../vfio/gsp-transport-classes.md): every routed control
   by its structure and its transport class.
-- [caraxes/nvml.md](../caraxes/nvml.md): the controls `nvidia-smi` sends.
+- [vfio/nvml.md](../vfio/nvml.md): the controls `nvidia-smi` sends.

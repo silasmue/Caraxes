@@ -4,7 +4,7 @@
 
 The GPU System Processor (GSP) is a RISC-V core on every NVIDIA GPU from Turing on. GSP-RM
 is the physical half of the Resource Manager compiled to run on it. The kernel RM in the
-open kernel modules is its client, and VFIO Leandro's device plays GSP-RM's role for the
+open kernel modules is its client, and Leandro VFIO's device plays GSP-RM's role for the
 guest: it produces the CPU-visible side effects of the boot and answers the RPC stream. One
 device binary does this for four guest drivers
 ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
@@ -64,12 +64,12 @@ device binary does this for four guest drivers
   inline.
 - The vocabulary is not smaller: `GSP_RM_ALLOC` and `GSP_RM_CONTROL` wrap the RM class and
   control space, and the kernel RM adds the internal controls it sends on its own
-  ([the caraxes record](../history/caraxes-record-2026-09-28.md), idea P1).
+  ([the v2 working record](../history/caraxes-record-2026-09-28.md), idea P1).
 
 ## Depth
 
 - [research/gsp-surface.md](../research/gsp-surface.md): the surface in numbers.
-- [caraxes/gsp-surface.md](../caraxes/gsp-surface.md), [caraxes/gsp-plan/README.md](../caraxes/gsp-plan/README.md):
+- [vfio/gsp-surface.md](../vfio/gsp-surface.md), [vfio/gsp-plan/README.md](../vfio/gsp-plan/README.md):
   the inventory and the plans.
-- [caraxes/other-architectures.md](../caraxes/other-architectures.md): the boot path on
+- [vfio/other-architectures.md](../vfio/other-architectures.md): the boot path on
   Ampere, Ada, Hopper and Blackwell.

@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-<!-- Written 2026-09-23 for backlog item N1 (docs/caraxes/README.md, parked idea P8). Citations:
+<!-- Written 2026-09-23 for backlog item N1 (docs/vfio/README.md, parked idea P8). Citations:
      ACPI = ACPI 6.5 (uefi.org/specs/ACPI/6.5, read through the Wayback Machine because uefi.org
      answered 403); "6.8" = the guest kernel, Ubuntu tag Ubuntu-6.8.0-136.136 (the files cited are
      identical to upstream v6.8 except kernel/dma/direct.c, which carries a stable fix); "6.12" =
@@ -23,7 +23,7 @@ guest then gives the host IOVA: guest physical address + the offset of that rang
 
 ## 1. The problem
 
-The facts come from [sysmem-iova.md](../docs/caraxes/sysmem-iova.md):
+The facts come from [sysmem-iova.md](../docs/vfio/sysmem-iova.md):
 
 - The guest has no vIOMMU, so it writes guest physical addresses (GPAs) into GPU page tables.
 - The physical GPU sits in a translated host IOMMU domain (DMA-FQ), so it can reach only the IOVAs
@@ -133,7 +133,7 @@ Every sysmem DMA address that the driver gives the GPU comes from the DMA API, c
 | RM coherent allocations | `dma_alloc_coherent` (`kernel-open/nvidia/nv-vm.c:340`) | yes |
 | UVM sysmem chunks | `dma_map_page` (`kernel-open/nvidia-uvm/uvm_gpu.c:3979`) | yes |
 | UVM coherent | `dma_alloc_coherent` (`uvm_gpu.c:3936`) | yes |
-| Peer MMIO (P2P) | `dma_map_resource` (`nv-dma.c:839`) | **no**: `dma_direct_map_resource` returns the address unchanged and only checks it against the mask and `bus_dma_limit` (6.8 `kernel/dma/direct.c:509-523`). Not used by Caraxes (one GPU) |
+| Peer MMIO (P2P) | `dma_map_resource` (`nv-dma.c:839`) | **no**: `dma_direct_map_resource` returns the address unchanged and only checks it against the mask and `bus_dma_limit` (6.8 `kernel/dma/direct.c:509-523`). Not used by Leandro VFIO (one GPU) |
 | UVM page-tree root in sysmem | `page_to_phys` (`uvm_gpu.c:1342-1345`) | **no**: keep the root in vidmem (default; sysmem-iova.md §3(a)) |
 
 - **The raw path is not taken.** The raw `nv_phys_to_dma` path runs only when no remap is required,
@@ -319,7 +319,7 @@ The change is [linux/0001-x86-acpi-honour-dma-ranges.patch](linux/0001-x86-acpi-
 
 **Effect.** Only devices below an ACPI node with `_DMA` are touched; every other device gets
 -ENODEV and no change.
-- No IOMMU (the Caraxes guest): dma-direct and swiotlb translate. An uncovered physical address
+- No IOMMU (the Leandro VFIO guest): dma-direct and swiotlb translate. An uncovered physical address
   fails to map rather than passing through.
 - Behind an IOMMU DMA domain: iommu-dma ignores the table but bounds IOVAs by `bus_dma_limit`
   (6.8 `drivers/iommu/dma-iommu.c:778`), as on arm64.
@@ -394,7 +394,7 @@ The IOVAs are then fixed before boot and stay valid for the VM's life.
 
 Both are larger and less generic than 0004.
 
-## 6. Test plan in the Caraxes VM
+## 6. Test plan in the Leandro VFIO VM
 
 These steps need the operator (VM use and host GPU, §8). Record the results in
 `caraxes/runs/acpi-dma-<date>/`.
@@ -495,8 +495,8 @@ These steps need the operator (VM use and host GPU, §8). Record the results in
 5. **Not run:** no VM boot, no guest kernel boot, no GPU contact.
 6. **Not edited (the task allowed new files only):**
    - `patches/README.md` should gain a row for 0004;
-   - `docs/caraxes/README.md` should mark N1 and P8 as having patches;
-   - `docs/caraxes/sysmem-iova.md` §3(a) and §5 should link here.
+   - `docs/vfio/README.md` should mark N1 and P8 as having patches;
+   - `docs/vfio/sysmem-iova.md` §3(a) and §5 should link here.
 
 ## Results (2026-09-23)
 

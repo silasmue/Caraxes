@@ -13,9 +13,9 @@ under `/usr/lib/modules/7.2.4-arch1-2/build/include/` (read directly, exact), an
 guest's `6.8.0-136-generic` is an Ubuntu build and may shift a line or two). Where
 neither was available, file and function only.
 
-**Why this module exists** (read first: `docs/caraxes/sysmem-iova.md` §5, removal
+**Why this module exists** (read first: `docs/vfio/sysmem-iova.md` §5, removal
 plan, and §3(b)/§4, design and rationale; short version in this directory's
-`README.md` and atop `caraxes_dma_range.c`): the Caraxes guest has no vIOMMU, so every
+`reference.md` and atop `caraxes_dma_range.c`): the Leandro VFIO guest has no vIOMMU, so every
 DMA address the guest kernel hands the passthrough-shaped NVIDIA GPU is a guest
 physical address, but the physical GPU on the host lives in a translated IOMMU domain
 and only reaches the IOVAs the host mapped guest RAM at. This module installs a
@@ -33,7 +33,7 @@ model change that stops guest addresses reaching the GPU at all).
 | `caraxes_dma_range_pci.h` | Device lookup, shared with the test module |
 | `caraxes_dma_range_test.c` | A second module that exercises the DMA API against the installed map |
 | `Makefile` | Out-of-tree kbuild boilerplate for both modules |
-| `README.md` | Operator-facing reference: parameters, behaviour, readback, build/load order |
+| `reference.md` | Operator-facing reference: parameters, behaviour, readback, build/load order |
 
 ## Module parameters: the plain ones, and the one that couldn't be plain
 
@@ -287,7 +287,7 @@ install; `cdr_live_get()` takes `device_lock()` first (so the driver core can't 
 `dma_range_map` mid-print) and prints what the device carries now; `cdr_status_get()`
 reports device/driver/map/pin state as one line. `cdr_print()` (393–400) formats each
 range as `0xcpu:0xdma:0xsize`, so `table` joined with commas is a valid `ranges=`
-value again — the README's `diff "$P/table" "$P/live"` check relies on that.
+value again — reference.md's `diff "$P/table" "$P/live"` check relies on that.
 
 ## Version guards, error paths, and the `-Werror` build
 
@@ -374,7 +374,7 @@ NVIDIA state.
   reset between outer-loop iterations. `cdr_check_coverage()` requires whole-range
   coverage before install, so this module's own load path can't trigger it — a table
   edited to pass validation and still leave a gap remains dangerous on this kernel;
-  fixed upstream by 7.x's `dma_find_range()` per this directory's `README.md`.
+  fixed upstream by 7.x's `dma_find_range()` per this directory's `reference.md`.
 - **Changing the map under a live mapping.** `cdr_init()` refuses to install
   (`-EEXIST`, or `-EBUSY` if a driver is bound) unless `force=1`, and never while a
   driver is bound — a bound driver's cached DMA addresses would silently translate

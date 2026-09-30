@@ -5,7 +5,7 @@
 BAR0 is the 16 MiB register window of a Turing GPU. A GSP-client kernel RM touches a small
 part of it: the boot ids, the configuration mirror, the PROM window, the two falcons it
 boots, the interrupt tree, the MMU invalidate, the flush registers, the timer, the usermode
-page and the display front end. Everything else belongs to GSP-RM. In VFIO Leandro BAR0 is a
+page and the display front end. Everything else belongs to GSP-RM. In Leandro VFIO BAR0 is a
 trapped region except the pages and registers the device offers as memory or as ioeventfds;
 [traps-and-fast-paths](traps-and-fast-paths.md) has what each access costs and how often it
 comes.
@@ -37,7 +37,7 @@ comes.
   registers; those are GSP-RM's. UVM writes the replayable fault buffer's `GET`.
 - The interrupt self-test at boot triggers a vector through `LEAF_TRIGGER`.
 - The kernel RM's own timeouts use the OS timer in GSP-client mode, not PTIMER
-  ([caraxes/kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md)).
+  ([vfio/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md)).
 
 ## In the device
 
@@ -61,8 +61,8 @@ comes.
 
 ## Depth
 
-- [caraxes/registers-turing.md](../caraxes/registers-turing.md): the consolidated map by phase.
-- [caraxes/kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md): what the kernel RM
+- [vfio/registers-turing.md](../vfio/registers-turing.md): the consolidated map by phase.
+- [vfio/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md): what the kernel RM
   touches per engine.
 - [research: trap-census-2026-09-30](../research/trap-census-2026-09-30.md): what still traps
   per workload, by register.

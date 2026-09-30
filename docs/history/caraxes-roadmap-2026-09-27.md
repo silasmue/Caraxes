@@ -39,22 +39,22 @@ later annotations. Current measurements are linked from [README.md](caraxes-reco
 - Display: DisplayPort SST connector with EDID and link training, modeset, flips paced at the
   mode's rate, vblank, Weston and GNOME on Wayland, hotplug, hardware cursor; the vdisplay and
   display gates pass on Wayland; the first frame rendered on the physical GPU (display-e).
-- Benchmark: harness and the v1 / v2 / native table (P13, [benchmark.md](../caraxes/benchmark.md)).
+- Benchmark: harness and the v1 / v2 / native table (P13, [benchmark.md](../vfio/benchmark.md)).
 - Hardening: GSP message queue (ordering, wedges, checksum), flush registers, fail-closed
   teardown.
-- The GSP surface inventory (P23, [gsp-surface.md](../caraxes/gsp-surface.md)): 829 controls reach GSP, 171
+- The GSP surface inventory (P23, [gsp-surface.md](../vfio/gsp-surface.md)): 829 controls reach GSP, 171
   answered today, the rest sorted into five categories with a recipe each.
 - Research: display and DisplayPort studies, nova, execution formats, DMA routes, GR completion
   and diagnosis, the upstream vGPU manager comparison, the Blackwell lab capture kit.
 
 ## In progress (today)
 
-- Mapping package on vm2 ([mapping.md](../caraxes/mapping.md) when it lands): write-through shadow,
+- Mapping package on vm2 ([mapping.md](../vfio/mapping.md) when it lands): write-through shadow,
   coalesced maps, mapping budget and batched teardown are in (allocations 20 ms to 0.9 ms,
   context create 5.4 s to 2.7 s); next the doorbell passthrough (target 30 us per submission),
   then context create and destroy, resync off the server thread, the two P20 isolation fixes
   (all channels on the filtered shadow, IOVA = GPA + offset), and the benchmark rerun.
-- GPU-rendered desktop on vm0 ([display-e.md](../caraxes/display-e.md) when it lands): Weston on the NVIDIA
+- GPU-rendered desktop on vm0 ([display-e.md](../vfio/display-e.md) when it lands): Weston on the NVIDIA
   EGL stack at 60 Hz, next Mutter with a measured frame rate, the v1 stages swapchain, present,
   rt and events in the display gate (9 of 11 on the first run, present held at 48 FPS by the
   synchronous resync), the classic demos (vkcube, glxgears, eglgears, glmark2), Sunshine with
@@ -76,7 +76,7 @@ hybrid proposed as the later default.
 
 1. P21: BAR1 window passthrough (operator's order). Prototype G measured 2026-09-24 (three of
    four submission traps gone, rlprobe stage 4 halved). The datamatch token pool was designed
-   and built 2026-09-24 behind `CARAXES_DOORBELL_TOKENS=N` ([doorbell-token-pool.md](../caraxes/doorbell-token-pool.md),
+   and built 2026-09-24 behind `CARAXES_DOORBELL_TOKENS=N` ([doorbell-token-pool.md](../vfio/doorbell-token-pool.md),
    patch 0006, crate patch 0002): the bound is 253 tokens (`SCM_MAX_FD`, one reply), not KVM's
    count, which leaves ioeventfds out of `NR_IOBUS_DEVS`; default 64 because KVM scans the
    entries of one address at about 25 ns each. Pure emulation verified; the GPU measurement
@@ -85,14 +85,14 @@ hybrid proposed as the later default.
    grow for asset streaming in a game).
 2. The game benchmark: Shadow of the Tomb Raider in the Caraxes guest at 720p and 1080p,
    streamed through Sunshine to Moonlight on the host with the v1 stream measurement, one guest
-   and then two concurrently against [sottr-4q](../measurements/sottr-4q/README.md); the guest
+   and then two concurrently against [sottr-4q](../virtio/measurements/sottr-4q/README.md); the guest
    needs the game installed (v1 image or a Steam login by the operator). **Prepared 2026-09-24**
-   ([sottr-stage.md](../caraxes/sottr-stage.md)): vm4 with 3 GiB at slot 0 and v1's Steam library as an
+   ([sottr-stage.md](../vfio/sottr-stage.md)): vm4 with 3 GiB at slot 0 and v1's Steam library as an
    overlay; `caraxes/runs/sottr-2026-09-24/up.sh`, `stream.sh`, `down.sh`; plumbing passed in
    pure emulation. Next: the operator's GPU run once vm0 and vm2 are down (Steam login, the
    benchmark at 720p and 1080p), then two game VMs at slots 0 and 1 of 3 GiB.
    **2026-09-25:** the game VM is vm4-615 with the 615.71.09 driver as Ubuntu installs it
-   (`up-615.sh`, [sottr-stage.md](../caraxes/sottr-stage.md) section 8); the stream ran on the first try.
+   (`up-615.sh`, [sottr-stage.md](../vfio/sottr-stage.md) section 8); the stream ran on the first try.
    **Weekend goal (operator, 2026-09-25): the guest driver must not matter.** A plain Ubuntu VM
    with the distribution's NVIDIA driver package (`apt install nvidia-driver-*`) must work:
    no registry keys (the device serves the CeUtils, scrubber and watchdog channels that
@@ -101,7 +101,7 @@ hybrid proposed as the later default.
    instead of `CARAXES_DRIVER`. The list is sottr-stage.md section 8.1.
 3. NVENC through a mirror for Sunshine hardware encoding (pulled forward from later: the game
    comparison with v1 needs it); the Moonlight stream stage. **In progress 2026-09-25**
-   ([video-engines.md](../caraxes/video-engines.md)): the session opens and the channel is mirrored with
+   ([video-engines.md](../vfio/video-engines.md)): the session opens and the channel is mirrored with
    a deferred video object; next is the 610 probe (encode and decode 300 frames), then 615,
    then Sunshine `encoder = nvenc`.
 4. D19, the move to driver 615.71.09 before P23: the device's 615 transport (agent running:

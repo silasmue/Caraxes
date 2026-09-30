@@ -4,8 +4,8 @@
 
 The NVIDIA Resource Manager (RM) organises everything a client can touch as a tree of
 objects under a client handle: devices, subdevices, memory, address spaces, channels,
-engine objects and events. Both Leandro architectures speak this model, VirtIO Leandro at
-the ioctl layer and VFIO Leandro one layer below, inside the GSP RPCs. Driver references
+engine objects and events. Both Leandro architectures speak this model, Leandro VirtIO at
+the ioctl layer and Leandro VFIO one layer below, inside the GSP RPCs. Driver references
 name the open kernel modules (615.71.09 for cited lines).
 
 ## The tree
@@ -35,8 +35,8 @@ name the open kernel modules (615.71.09 for cited lines).
 - Control: `NV_ESC_RM_CONTROL` with a command id and a parameter struct; see
   [rm-controls](rm-controls.md).
 - Duplicate: `DUP_OBJECT` copies an object reference into another client; the source is
-  looked up globally, which is why VirtIO Leandro guards foreign handles
-  ([SECURITY.md](../SECURITY.md)).
+  looked up globally, which is why Leandro VirtIO guards foreign handles
+  ([security.md](../virtio/security.md)).
 - The list of every class with its routing flags: `src/nvidia/src/kernel/rmapi/resource_list.h`
   (224 `RS_ENTRY` rows in 615).
 
@@ -52,10 +52,10 @@ name the open kernel modules (615.71.09 for cited lines).
 
 ## Where each architecture cuts the tree
 
-- VirtIO Leandro forwards the ioctls (`RmIoctl` in `src/nvidia/arch/nvalloc/unix/src/escape.c`
+- Leandro VirtIO forwards the ioctls (`RmIoctl` in `src/nvidia/arch/nvalloc/unix/src/escape.c`
   on the host side) and keeps per guest process a session, mirrored file descriptors and
-  handle bookkeeping ([ARCHITECTURE.md](../ARCHITECTURE.md)).
-- VFIO Leandro's guest kernel RM keeps the whole tree itself; only GSP-bound allocations and
+  handle bookkeeping ([architecture.md](../virtio/architecture.md)).
+- Leandro VFIO's guest kernel RM keeps the whole tree itself; only GSP-bound allocations and
   routed controls travel as `GSP_RM_ALLOC` and `GSP_RM_CONTROL`
   (`rpcRmApiAlloc_GSP`, `rpcRmApiControl_GSP` in `src/nvidia/src/kernel/vgpu/rpc.c`). The
   device constructs the same objects under the guest's handles and mirrors channels and
@@ -68,7 +68,7 @@ name the open kernel modules (615.71.09 for cited lines).
 
 - [research/gsp-rpc-events-classes.md](../research/gsp-rpc-events-classes.md): the classes on
   the wire and the refusal rule.
-- [caraxes/gsp-plan/classes.md](../caraxes/gsp-plan/classes.md): every class that reaches GSP,
+- [vfio/gsp-plan/classes.md](../vfio/gsp-plan/classes.md): every class that reaches GSP,
   its alloc parameters in 610 and 615, and the device's answer.
-- [caraxes/leandro-reuse.md](../caraxes/leandro-reuse.md): why the ioctl-shaped v1 translation
+- [vfio/leandro-reuse.md](../vfio/leandro-reuse.md): why the ioctl-shaped v1 translation
   and the inline GSP payloads differ.

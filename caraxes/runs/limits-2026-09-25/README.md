@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Limits runs, 2026-09-25
 
-This directory holds the evidence for [docs/caraxes/limits-mig-ecc-vgpu.md](../../../docs/caraxes/limits-mig-ecc-vgpu.md).
+This directory holds the evidence for [docs/vfio/limits-mig-ecc-vgpu.md](../../../docs/vfio/limits-mig-ecc-vgpu.md).
 The runs are pure emulation on vm8: no host RM, no reservation, no GPU, no network device.
 
 ## Setup

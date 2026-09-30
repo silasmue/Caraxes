@@ -103,7 +103,7 @@ options nvidia NVreg_GpuInitOnProbe=1 NVreg_ResmanDebugLevel=0 NVreg_RegistryDwo
 ## Depth
 
 - [research/driver-structure.md](../research/driver-structure.md): the cited 615 lines.
-- [caraxes/driver-modes.md](../caraxes/driver-modes.md), [caraxes/init-map.md](../caraxes/init-map.md):
+- [vfio/driver-modes.md](../vfio/driver-modes.md), [vfio/init-map.md](../vfio/init-map.md):
   from PCI probe to the first RPC.
-- [caraxes/kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md): what the kernel RM
+- [vfio/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md): what the kernel RM
   touches directly besides GSP.

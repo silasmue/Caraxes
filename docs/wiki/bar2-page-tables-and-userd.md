@@ -5,7 +5,7 @@
 BAR2 (PCI BAR3 on Turing, 32 MiB) is the RM's own virtual aperture into video memory: the
 kernel RM maps page tables, instance blocks and scrub targets through it, translated by a
 GMMU page table it bootstraps itself. The RM's USERD pages sit behind the same mechanisms.
-In VFIO Leandro BAR2 traps by default; with the BAR2 memfd it is host RAM, synced where the
+In Leandro VFIO BAR2 traps by default; with the BAR2 memfd it is host RAM, synced where the
 driver itself orders its writes. Trap rates are on [traps-and-fast-paths](traps-and-fast-paths.md).
 
 ## How the kernel RM uses BAR2
@@ -83,7 +83,7 @@ driver itself orders its writes. Trap rates are on [traps-and-fast-paths](traps-
 
 ## Depth
 
-- [caraxes/bar2-memfd.md](../caraxes/bar2-memfd.md): the design, the sync rules, hazards, tests.
-- [caraxes/fb-model.md](../caraxes/fb-model.md): PRAMIN, the BAR2 walk and the FB layout.
-- [caraxes/kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md) §C KernelBus.
-- [caraxes/mapping.md](../caraxes/mapping.md) §3: the BAR2 accounting of a context creation.
+- [vfio/bar2-memfd.md](../vfio/bar2-memfd.md): the design, the sync rules, hazards, tests.
+- [vfio/fb-model.md](../vfio/fb-model.md): PRAMIN, the BAR2 walk and the FB layout.
+- [vfio/kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md) §C KernelBus.
+- [vfio/mapping.md](../vfio/mapping.md) §3: the BAR2 accounting of a context creation.

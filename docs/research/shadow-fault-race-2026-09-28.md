@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Shadow fault race: nvidia-uvm's MEM_OP invalidates (2026-09-28)
 
-Scope: the host Xid 31 of Linux guest desktop-b at 21:20:24 (PyTorch ResNet-18, `CARAXES_COMPRESSION=slice`, FB 4096 MiB, slot 0), its cause, the fix on branch `shadowrace-2026-09-28`, and the F3 fault-record lookup. `T` = `/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b/gpu-trace.log` (line numbers; times in µs since the device start, 1790621954.632 s Unix by the wall times of the ran-ahead lines, e.g. `T:268742`). Background: [bar1-pool.md §9](../caraxes/bar1-pool.md), [execution.md §8](../caraxes/execution.md).
+Scope: the host Xid 31 of Linux guest desktop-b at 21:20:24 (PyTorch ResNet-18, `CARAXES_COMPRESSION=slice`, FB 4096 MiB, slot 0), its cause, the fix on branch `shadowrace-2026-09-28`, and the F3 fault-record lookup. `T` = `/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b/gpu-trace.log` (line numbers; times in µs since the device start, 1790621954.632 s Unix by the wall times of the ran-ahead lines, e.g. `T:268742`). Background: [bar1-pool.md §9](../vfio/bar1-pool.md), [execution.md §8](../vfio/execution.md).
 
 ## Facts
 
@@ -48,7 +48,7 @@ Scope: the host Xid 31 of Linux guest desktop-b at 21:20:24 (PyTorch ResNet-18, 
 - dmesg wall time maps to device time 1269387995, about 96 ms after the RC scan: the clocks differ by more than the window.
 - The ran-ahead counter did not fire: it counts only planned or deferred plans, and unplanned table writes are neither.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Fix (fail closed): a software `MEM_OP` TLB invalidate that names a shadow root stops its push right after the method. The dispatcher then plans the named roots and waits for the worker. Only then does the push continue, including UVM's semaphore release. Code:
   - channel.rs: `doorbell_holding`, `Stop::HeldAtInvalidate`;

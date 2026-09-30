@@ -30,12 +30,12 @@ Why the second change: Cloud Hypervisor v53.0 pins `vfio-ioctls` 0.7.0, which pi
 `vfio-bindings` `=0.6.2`, and passes `vfio_bindings` types between its own code and
 `vfio_user`. With `=0.6.3` the two would not unify. 0.6.3 differs from 0.6.2 only by
 a `pasid` field in `vfio_device_attach_iommufd_pt` and `vfio_device_detach_iommufd_pt`,
-which this crate does not use. The Caraxes workspace resolves 0.6.3, Cloud Hypervisor
+which this crate does not use. The Leandro workspace resolves 0.6.3, Cloud Hypervisor
 0.6.2; both build.
 
 ## Who uses it
 
-- The Caraxes workspace: `[patch.crates-io] vfio_user = { path = "vendor/vfio-user-rs" }`
+- The Leandro workspace: `[patch.crates-io] vfio_user = { path = "vendor/vfio-user-rs" }`
   in `../../Cargo.toml`. `crates/vfio-user-nvgpu` declares the doorbell sub-region with
   `Server::add_ioeventfd()` when `CARAXES_DOORBELL_IOEVENTFD=1`.
 - Cloud Hypervisor with `patches/0005-vfio-user-region-io-fds.patch`, which adds
@@ -70,4 +70,4 @@ are in [../../patches/README.md](../../patches/README.md), "Patch 0005". In shor
 patch applied: 10 passed (7 new), `cargo clippy -p vfio_user --all-targets -D warnings`
 clean. With patch 0002 as well (`/mnt/vmstore/caraxes/vfio-rs-0006`): 14 passed (4 new),
 clippy and rustfmt clean. This directory is not a workspace member, so the tests are not run from the
-Caraxes workspace; `src/lib.rs` here is byte-identical to the tested file.
+Leandro workspace; `src/lib.rs` here is byte-identical to the tested file.

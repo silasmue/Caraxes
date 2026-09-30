@@ -27,7 +27,7 @@ Scope: can `cudaMallocManaged` work in a Linux 615 guest when every GPU mapping 
   - `decode_pte` keeps only valid, aperture and address [D/fb.rs:1475-1488];
   - every shadow mapping is `ACCESS_READ_WRITE` [D/hostmem.rs:1579];
   - the host RM sets `ATOMIC_DISABLE` only for TLB-locked mappings [615 tree: src/nvidia/src/kernel/gpu/mem_mgr/arch/maxwell/virt_mem_allocator_gm107.c:2488-2493].
-- Inferred: on Caraxes a GPU atomic on such an RW guest mapping executes, device-scope like mapped pinned memory, instead of raising the atomic fault it raises on the card.
+- Inferred: on Leandro VFIO a GPU atomic on such an RW guest mapping executes, device-scope like mapped pinned memory, instead of raising the atomic fault it raises on the card.
 - The shadow maps sysmem leaves that lie in registered guest RAM, and the device registers all of guest RAM (the whole-RAM pin) [D/shadow.rs:15-18, 420-462; memory-model.md].
 
 ### Module parameters: none maps without a fault
@@ -69,7 +69,7 @@ Scope: can `cudaMallocManaged` work in a Linux 615 guest when every GPU mapping 
 
 ### Results per candidate
 
-| Candidate | CPU write, then GPU read/write | GPU-first touch | GPU atomics on Caraxes |
+| Candidate | CPU write, then GPU read/write | GPU-first touch | GPU atomics on Leandro VFIO |
 |---|---|---|---|
 | bit 0 = 1, no advice (today) | fault: CPU-resident page without a GPU PTE | fault | - |
 | App: PreferredLocation CPU + AccessedBy GPU | works | fault (nothing resident) | work (device scope) |
@@ -111,7 +111,7 @@ Scope: can `cudaMallocManaged` work in a Linux 615 guest when every GPU mapping 
 
 - Size: about 12 files, 20 functions, 300 lines of logic plus 150-250 lines of tests. This is an inferred estimate.
 - Tools events can reuse `UvmEventMapRemoteCauseCoherence` [U/uvm_types.h:1069-1071].
-- Detection for Caraxes:
+- Detection for Leandro VFIO:
   - the device reads the guest registry in GMCAPI `GSP_INIT` [D/gmcapi.rs:606-652];
   - a patched guest sets `RmDisableHwFaultBuffer=1` and so announces itself before the first `GSP_GET_FEATURES`.
 - A signal from the device to the guest would need a field NVIDIA defines, such as a new `gspFeatures` bit or `replayableFaultBufferSize` 0. Size 0 would break an unpatched guest's UVM (Inferred).
@@ -132,7 +132,7 @@ Scope: can `cudaMallocManaged` work in a Linux 615 guest when every GPU mapping 
 - The device names that key but counts it as "other" [D/gmcapi.rs:412, 517, 652]. The natural hook is `gsp_init` [D/boot.rs:2683-2686].
 - The 610 `GspSystemInfo` has no OS field [615 tree: src/nvidia/inc/kernel/gpu/gsp/gsp_static_config.h:191-235].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Best option without a patch: managed memory pinned in guest sysmem by a preload shim. It needs no fault, not even for a GPU-first touch.
   - Guest: nvidia-uvm option `uvm_disable_hmm=1`, and `libcaraxes-managed.so` in `/etc/ld.so.preload`.
@@ -156,7 +156,7 @@ Scope: can `cudaMallocManaged` work in a Linux 615 guest when every GPU mapping 
   - the shim follows the 615 ioctl ABI.
 - Atomics depend on the device keeping guest sysmem leaves RW, with permission bits ignored. If the shadow ever mirrors `ATOMIC_DISABLE`, GPU atomics on managed memory fault again.
 - With a patch: the no-fault mode above, as a PR against open-gpu-kernel-modules framed as "UVM for GPUs without replayable fault delivery (legacy vGPU, emulated GPUs)".
-  - A CLA and a public PR need the licence decision first (Caraxes licence rule).
+  - A CLA and a public PR need the licence decision first (Leandro VFIO licence rule).
 - Device answer per guest OS:
 
 | `HOST_OS_TYPE` | `gspFeatures` bit 0 | Why |

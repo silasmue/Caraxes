@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Contributing a capture
 
-A capture of a card the maintainers do not own is how VFIO Leandro gains a chip, a board or
+A capture of a card the maintainers do not own is how Leandro VFIO gains a chip, a board or
 a feature family. The lab kit is a self-contained pack a person runs by hand on a machine
 with an NVIDIA GPU; it reads, redacts, and leaves one tarball to send. It never loads a
 module, resets the card, writes a register, changes a mode or calls the network.
@@ -110,6 +110,6 @@ the machine is needed.
 
 ## Depth
 
-- [caraxes/gsp-plan/lab-kit.md](../caraxes/gsp-plan/lab-kit.md): the kit in full, the
+- [vfio/gsp-plan/lab-kit.md](../vfio/gsp-plan/lab-kit.md): the kit in full, the
   operator-only steps on a rented VM, which cloud part covers which chip.
-- [caraxes/lab-blackwell.md](../caraxes/lab-blackwell.md): the checklist of the first capture.
+- [vfio/lab-blackwell.md](../vfio/lab-blackwell.md): the checklist of the first capture.

@@ -87,7 +87,7 @@ Scope: where a CUDA context's creation and destruction and a device allocation's
   - The same scan code takes 22 us for 135 clean pages in a release micro-benchmark (`bar2area::tests::bench_scan_of_135_clean_pages`, ignored), C 12-24 us [R/micro/sc.c, sc.txt]: in the device it is 6× slower; not explained yet (cache lines the guest's vCPUs own, preemption; `perf` on the device thread is the next step).
 - A gather of 2 MiB of scattered guest sysmem, the new profile rows (new-bench, 464 gathers of 508 pages, 395 runs each): window of mremaps 1.41 ms, the host RM's descriptor 1.00 ms, the window's munmap 0.70 ms [R/new-bench/profile.1.tsv `gather:`].
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 ### Ranked by gain per effort
 

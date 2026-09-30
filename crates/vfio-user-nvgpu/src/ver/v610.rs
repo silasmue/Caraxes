@@ -1329,7 +1329,7 @@ mod tests {
     use super::*;
     use crate::ver::measured;
 
-    const GSP_ABI: &str = include_str!("../../../../docs/caraxes/gsp-abi-610.md");
+    const GSP_ABI: &str = include_str!("../../../../docs/vfio/gsp-abi-610.md");
 
     /// Every hand-written GSP message offset against the compiler-measured tables.
     #[test]

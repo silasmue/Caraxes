@@ -12,8 +12,8 @@ Scope: what the registers the Windows driver reads before Code 43 are, whether d
 - The VBIOS read comes *after* the register sequence, not before: header, PCIR at 0x170, NPDE at 0x180-0x198, image 0 (0x0-0xebfc) twice, then the whole 512 KiB window 0x0-0x7fffc; the 100 `NV_PMC_BOOT_0` reads are interleaved with this scan [same trace; 161307 PROM reads per attempt].
 - The GeForce runs have the same PROM pattern: A has 327943 trace lines with 5329 non-PROM, i.e. 2 × 161307 PROM reads, exactly the T4 count per attempt [night-2026-09-25/A-extcfg-mirror-summary.txt].
 - Every Windows run served a PROM image of 130048 bytes (x86 image + EFI image, or the x86 image alone with `rom-legacy-only.bin`); beyond it the window answers `0xffffffff` [A-extcfg-mirror-gpu.log line 5; gpu-up.sh:37-40].
-- The capture lacks the NVIDIA extension image (PCI code type 0xE0) that the chain announces: the BIT `p` token points the falcon ucode table at 0xed24 + expansion-ROM offset 0x11000 = 0x1fd24, past the end [docs/caraxes/vbios-synthesis.md "Summary"; own decode of the BIT in `rom.bin`].
-- The Linux RM failed on exactly this image in E0 (`s_locateExpansionRoms`, `NV_ERR_INVALID_DATA`); Linux runs since then use `synth-vbios.bin`, which appends a 0x600-byte 0xE0 image [docs/caraxes/vbios-synthesis.md "Background"; docs/caraxes/experiments.md "E0 result"].
+- The capture lacks the NVIDIA extension image (PCI code type 0xE0) that the chain announces: the BIT `p` token points the falcon ucode table at 0xed24 + expansion-ROM offset 0x11000 = 0x1fd24, past the end [docs/vfio/vbios-synthesis.md "Summary"; own decode of the BIT in `rom.bin`].
+- The Linux RM failed on exactly this image in E0 (`s_locateExpansionRoms`, `NV_ERR_INVALID_DATA`); Linux runs since then use `synth-vbios.bin`, which appends a 0x600-byte 0xE0 image [docs/vfio/vbios-synthesis.md "Background"; docs/vfio/experiments.md "E0 result"].
 - The one register value in the sequence that differs from the real card: `0x110abc` answers 0 (GSP falcon model), the card has `0x20` [caraxes/reference/rtx2070/bar0-registers-2026-09-25.txt; A-extcfg-mirror-bar0-head.txt]. All other 34 offsets match the capture or the model's true value.
 
 ### Register map (TU106)
@@ -77,7 +77,7 @@ Scope: what the registers the Windows driver reads before Code 43 are, whether d
 | - | GeForce against data-centre driver | night run C, Day one | ruled out |
 | - | A wrong BAR0 value among the identification registers | capture rounds 1-3 (except `0x110abc`) | ruled out |
 
-## Consequence for Caraxes (experiments, in order)
+## Consequence for Leandro VFIO (experiments, in order)
 
 1. **Serve a VBIOS with the extension image**: `--vbios caraxes/reference/rtx2070/synth-vbios.bin` (keep `rom-legacy-only.bin` on the ROM BAR). Success: PROM reads above 0x1fc00 return data, and new BAR0 offsets follow the scan (`0x118128`/`0x118234`, `NV_PGSP_FALCON_MAILBOX0` 0x110040, the falcon reset/DMEM ports), or a different stop point. The synthetic FWSEC is a stub: enough for a GSP path the device emulates, not for a CPU-RM path that runs real ucode.
 2. **Answer `0x110abc` = 0x20** (let the capture win for unmodelled falcon offsets, or model HWCFG). Success: the sequence after `0x1400` changes. Run it together with 1 and alone, to know which one gated.

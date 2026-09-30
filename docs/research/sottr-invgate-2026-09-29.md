@@ -15,7 +15,7 @@ the benchmark and the four-guest gate. Evidence: `/mnt/vmstore/caraxes/runs-2026
 - 54213 held invalidates, 1850 s held (34 ms mean, 794 ms longest), 3.47 M busy trigger reads; the
   holds waited for other roots' jobs in the FIFO shadow worker and the other roots' deferred plans
   each hold flushed first [S/gpu-exit.log].
-- Fix (f2af77c6, docs/caraxes/execution.md §8.1): TRIGGER busy only until the invalidated root's
+- Fix (f2af77c6, docs/vfio/execution.md §8.1): TRIGGER busy only until the invalidated root's
   jobs are applied (ALL_PDB: the roots whose GPPut store does not trap); per-root worker queues, a
   waited-for root first; per-job progress.
 

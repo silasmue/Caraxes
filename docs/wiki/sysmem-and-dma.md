@@ -4,9 +4,9 @@
 
 A GPU reads guest RAM through the host's IOMMU at addresses the host driver chooses
 (IOVAs), while the guest's driver writes the addresses it knows into its page tables. In
-VFIO Leandro the guest writes its guest physical addresses (GPAs), as on bare metal, and the
+Leandro VFIO the guest writes its guest physical addresses (GPAs), as on bare metal, and the
 device translates them to IOVAs of registered guest RAM when it builds the shadow page tables.
-VirtIO Leandro never has the problem, because the host backend registers memory on the
+Leandro VirtIO never has the problem, because the host backend registers memory on the
 guest's behalf.
 
 ## How the host RM registers memory
@@ -14,7 +14,7 @@ guest's behalf.
 - Each descriptor is one `NV01_MEMORY_SYSTEM_OS_DESCRIPTOR` over a host virtual range, pinned
   with `FOLL_LONGTERM` (`kernel-open/nvidia/os-mlock.c`) and mapped for the device with one
   `dma_map_sg` call, which gives one contiguous IOVA range aligned to the descriptor's
-  power-of-two size, allocated top-down ([caraxes/sysmem-iova.md](../caraxes/sysmem-iova.md)).
+  power-of-two size, allocated top-down ([vfio/sysmem-iova.md](../vfio/sysmem-iova.md)).
 - A descriptor is at most 4 GiB minus 4 KiB. The first one that does not fit below 4 GiB
   switches the host GPU to 64-bit IOVAs until the host reboots; chunks then lie near 2^47.
 - The RM holds the pages by page array, so the window the descriptor was made over can be
@@ -22,14 +22,14 @@ guest's behalf.
 
 ## The two architectures
 
-| | VirtIO Leandro | VFIO Leandro |
+| | Leandro VirtIO | Leandro VFIO |
 |---|---|---|
 | who registers | the backend, per guest request, in a per-VM pin budget (`LEA_MAX_PIN_TOTAL_MIB`, 1024 by default) | the device, the guest's whole RAM, at `DMA_MAP` |
 | addresses the guest writes | none: the backend maps and the guest gets a handle | GPAs, as on bare metal |
 | translation | in the backend's request translation | in the shadow page tables ([page-tables-and-shadow](page-tables-and-shadow.md)) |
 | guest change | the Leandro module | none |
 
-## Registration in VFIO Leandro
+## Registration in Leandro VFIO
 
 - With `--host-exec` the guest's DMA addresses are its GPAs and no guest module is loaded
   (`crates/vfio-user-nvgpu/src/device.rs` `with_guest_dma_gpa`; the default since
@@ -73,10 +73,10 @@ guest's behalf.
 - Why not the alternatives: an ACPI `_DMA` method needs a Cloud Hypervisor patch and an
   x86 Linux change ([patches/ACPI-DMA.md](../../patches/ACPI-DMA.md)); a vIOMMU cannot line
   up two allocators; host-side tricks cannot see the guest's tables
-  ([caraxes/dma-routes.md](../caraxes/dma-routes.md)).
+  ([vfio/dma-routes.md](../vfio/dma-routes.md)).
 
 ## Depth
 
 - [research: memory-model](../research/memory-model.md): the cited lines and the rules.
-- [caraxes/memory-model.md](../caraxes/memory-model.md) §2, [caraxes/sysmem-iova.md](../caraxes/sysmem-iova.md),
+- [vfio/memory-model.md](../vfio/memory-model.md) §2, [vfio/sysmem-iova.md](../vfio/sysmem-iova.md),
   [guest-module/caraxes_dma_range/README.md](../../guest-module/caraxes_dma_range/README.md).

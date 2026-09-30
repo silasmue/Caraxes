@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Xid 31 in cuda-hostreg (vm1, 2026-09-24): record
 
-The analysis is in [docs/caraxes/memory-model.md](../../../docs/caraxes/memory-model.md) §2,
+The analysis is in [docs/vfio/memory-model.md](../../../docs/vfio/memory-model.md) §2,
 "The alias in the device".
 
 **Cause.** hostregprobe's pinned buffer owned guest pages in the 2 MiB rounding of the

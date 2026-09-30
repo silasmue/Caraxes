@@ -7,5 +7,5 @@
   its returned bytes. Read each result's status and provenance.
 - Old paths and commands refer to the original harness. Current automated matrix
   tooling lives in the optional Leandro-Test repository.
-- Current policy: [driver versions](../docs/abi-versions.md) and
-  [testing](../docs/TESTING.md).
+- Current policy: [driver versions](../docs/virtio/abi-versions.md) and
+  [testing](../docs/virtio/testing.md).

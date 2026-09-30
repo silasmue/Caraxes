@@ -68,7 +68,7 @@ One device binary, four guests, before every merge into dev
 - `tools/caraxes-gate.sh` runs `nvml` (11 checks against two host readings), `cuda` (12 scored
   tests, one ssh call each), `gpu` (v1's stages), `vdisplay` and `display` (60 +- 0.5 Hz).
 - v1's verdict rules: one JSON line, exit 0 pass, 1 fail, 2 skip (a missing precondition only),
-  binary verdicts, a dying gate reports a fail ([TESTING.md](../TESTING.md)).
+  binary verdicts, a dying gate reports a fail ([testing.md](../virtio/testing.md)).
 - A failed `cuda` test is re-run under the v1 tracer (`LD_PRELOAD=libnvrm_trace.so`); each run
   writes `caraxes/runs/gate-<name>-<date>/`. v1 on the 615 image: `caraxes/tools/v1-gates.sh`.
 
@@ -109,5 +109,5 @@ One device binary, four guests, before every merge into dev
 ## Depth
 
 - [research/methods.md](../research/methods.md): every tool with its lines.
-- [caraxes/testing.md](../caraxes/testing.md), [caraxes/benchmark.md](../caraxes/benchmark.md) §2,
-  [caraxes/coverage-map.md](../caraxes/coverage-map.md).
+- [vfio/testing.md](../vfio/testing.md), [vfio/benchmark.md](../vfio/benchmark.md) §2,
+  [vfio/coverage-map.md](../vfio/coverage-map.md).

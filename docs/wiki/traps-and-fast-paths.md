@@ -29,7 +29,7 @@ defaults are those of 2026-09-30 ([device-configuration](device-configuration.md
 
 | Access | Cost, p50 |
 |---|---|
-| trapped access without device work, quiet host | 23 to 27 us ([caraxes/mapping.md](../caraxes/mapping.md) §6) |
+| trapped access without device work, quiet host | 23 to 27 us ([vfio/mapping.md](../vfio/mapping.md) §6) |
 | trapped read / write beside two VMs (2026-09-30) | 35.5 us / 40.0 us |
 | trapped read answered before the device lock (PTIMER, `TIME`) | 38.3 to 38.6 us |
 | back-to-back trapped BAR2 writes, Windows | 27 to 32 us guest-seen |

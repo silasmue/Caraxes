@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # P20 evidence, 2026-09-24
 
-Write-up: [docs/caraxes/parallel.md](../../../docs/caraxes/parallel.md). Tools: `caraxes/tools/p20*.{sh,c,py}`.
+Write-up: [docs/vfio/parallel.md](../../../docs/vfio/parallel.md). Tools: `caraxes/tools/p20*.{sh,c,py}`.
 Guest clocks are UTC, host clocks are CEST (UTC+2). Device traces under `*/device/` are git-ignored.
 
 | Directory | What |

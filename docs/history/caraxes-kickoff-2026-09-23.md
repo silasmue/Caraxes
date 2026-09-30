@@ -65,13 +65,13 @@ prints `Leandro RTX 2070-4G` with the profile's memory size). Windows comes late
 
 1. [README.md](caraxes-record-2026-09-28.md): findings 1–9, decisions D1–D6.
 2. [experiments.md](caraxes-experiments-2026-09-29.md): the ladder E0–E4 and the reference captures R1–R3.
-3. [vfio-user.md](../caraxes/vfio-user.md): protocol, the Cloud Hypervisor client, the E0 device model.
-4. [init-map.md](../caraxes/init-map.md) phases 0–2: what the driver does before it needs GSP.
-5. [registers-turing.md](../caraxes/registers-turing.md): the BAR0 map by phase.
-6. [identity-profile.md](../caraxes/identity-profile.md): where the name and FB size come from.
-7. When E1–E3 arrive: [gsp-boot-turing.md](../caraxes/gsp-boot-turing.md),
-   [gsp-rpc-protocol.md](caraxes-gsp-rpc-protocol-610.md), [kernel-rm-hw-surface.md](../caraxes/kernel-rm-hw-surface.md),
-   [leandro-reuse.md](../caraxes/leandro-reuse.md).
+3. [vfio-user.md](../vfio/vfio-user.md): protocol, the Cloud Hypervisor client, the E0 device model.
+4. [init-map.md](../vfio/init-map.md) phases 0–2: what the driver does before it needs GSP.
+5. [registers-turing.md](../vfio/registers-turing.md): the BAR0 map by phase.
+6. [identity-profile.md](../vfio/identity-profile.md): where the name and FB size come from.
+7. When E1–E3 arrive: [gsp-boot-turing.md](../vfio/gsp-boot-turing.md),
+   [gsp-rpc-protocol.md](caraxes-gsp-rpc-protocol-610.md), [kernel-rm-hw-surface.md](../vfio/kernel-rm-hw-surface.md),
+   [leandro-reuse.md](../vfio/leandro-reuse.md).
 8. [open-questions.md](caraxes-open-questions-2026-09-23.md) and [environment.md](caraxes-environment-2026-09-23.md).
 
 ## 4. State when this brief was written
@@ -109,7 +109,7 @@ Each step has a check. Do not skip to the next step while a check fails.
    MSI (0x68, 64-bit, one vector, no masking) and PCIe (0x78) capabilities as on
    the card; return zeros for the extended capability list at 0x100. Check: a unit
    test reads back vendor/device/subsystem/class/revision and the BAR size masks.
-3. **Regions and IRQs** as in the table in [vfio-user.md](../caraxes/vfio-user.md): BAR0 16 MiB
+3. **Regions and IRQs** as in the table in [vfio-user.md](../vfio/vfio-user.md): BAR0 16 MiB
    trapped, BAR1 256 MiB trapped, BAR3 32 MiB trapped, BAR5 128 B I/O, ROM 512 KiB
    from `rom.bin` (git-ignored; fail with a clear message if missing), config 4 KiB.
    IRQ info INTx 1, MSI 1, MSI-X 0. `set_irqs` keeps the eventfds and never fires.
@@ -160,7 +160,7 @@ Each step has a check. Do not skip to the next step while a check fails.
    shows reads at BAR0 0x4, 0x0, 0xA00 (three rounds), then the PROM window from
    0x300000, then `RmInitAdapter failed` with the VBIOS error path in the guest log.
    Falsifiers: probe refusal (config model wrong), no PROM reads (init-map order
-   wrong), any read at an offset absent from [registers-turing.md](../caraxes/registers-turing.md)
+   wrong), any read at an offset absent from [registers-turing.md](../vfio/registers-turing.md)
    (map incomplete; add it with the phase it belongs to).
 9. **Record.** Guest `dmesg`, the trace file, the Cloud Hypervisor log, the commit
    ids of this tree and of `vendor/open-gpu-kernel-modules`, into
@@ -209,7 +209,7 @@ format, and run the tracer on `nvidia-smi` in the guest to compare the two strea
   that a backend on a different GPU (an AMD card, for instance) could serve an
   NVIDIA guest in principle. Recorded on 2026-09-23 at the operator's request; not
   to be worked on until milestone 1 is reached, and then only after a written design.
-  Related: the v1 generalization proposal in [../VIRTIO-UAPI.md](../VIRTIO-UAPI.md).
+  Related: the v1 generalization proposal in [../virtio/virtio-uapi.md](../virtio/virtio-uapi.md).
   Measured on 2026-09-23 (numbers in [README.md](caraxes-record-2026-09-28.md), parked ideas): the GSP
   boundary carries the whole RM alloc/control vocabulary inside two RPCs, so it is not
   smaller than the ioctl boundary; a small vendor-neutral protocol would have to sit

@@ -190,7 +190,7 @@ mod tests {
     use super::*;
     use crate::ver::measured;
 
-    const TRANSPORT_DOC: &str = include_str!("../../../../docs/caraxes/gsp-transport-615.md");
+    const TRANSPORT_DOC: &str = include_str!("../../../../docs/vfio/gsp-transport-615.md");
 
     /// The RPC payload layouts generic code shares with 610 are the 615 ones too, and the
     /// RMARGS offsets are the measured `GSP_ARGUMENTS_CACHED` ones (the compiler tables

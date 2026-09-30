@@ -2,8 +2,8 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # BAR2 memfd beside the BAR1 pool, 2026-09-25 (vm3)
 
-Backlog item 1 of [docs/caraxes/optimization-backlog.md](../../../docs/caraxes/optimization-backlog.md):
-the cause, the fix and the numbers are in [docs/caraxes/bar2-memfd.md](../../../docs/caraxes/bar2-memfd.md) §8.
+Backlog item 1 of [docs/vfio/optimization-backlog.md](../../../docs/vfio/optimization-backlog.md):
+the cause, the fix and the numbers are in [docs/vfio/bar2-memfd.md](../../../docs/vfio/bar2-memfd.md) §8.
 
 The device is `/mnt/vmstore/caraxes/vfio-user-nvgpu-opt1-bb52a46`, a release build of main d466e9d
 plus the fix (commit bb52a46). The environment is `run.sh`'s: the census's environment

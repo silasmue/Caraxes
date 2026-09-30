@@ -3,11 +3,11 @@
 # Isolation rules
 
 The host desktop and the other guests share the card with every VM. These are the rules a
-VFIO Leandro device enforces so that a guest reaches only its own memory and its faults
-stay its own, what they rest on, and where VirtIO Leandro's boundary differs. Malicious
+Leandro VFIO device enforces so that a guest reaches only its own memory and its faults
+stay its own, what they rest on, and where Leandro VirtIO's boundary differs. Malicious
 guests are untested in both; every isolation run used the stock driver.
 
-## The rules (VFIO Leandro)
+## The rules (Leandro VFIO)
 
 | Rule | Statement | Enforced by | Evidence |
 |---|---|---|---|
@@ -64,13 +64,13 @@ guests are untested in both; every isolation run used the stock driver.
 - No adversarial test yet: a fuzzing guest against the GSP dispatcher and the shadow filter,
   a hostile page-table writer and a doorbell storm are the missing tests.
 
-## VirtIO Leandro's boundary
+## Leandro VirtIO's boundary
 
 - The VM is the policy boundary; the guest kernel separates guest processes. The backend
   validates request sizes, pointer spans, descriptor metadata and memory ranges, resolves
   tokens to backend-owned FDs, charges a pin budget and blocks 34 controls and the
   capability-FD classes.
-- Remaining risks named in [SECURITY.md](../SECURITY.md): foreign RM handles through DUP and
+- Remaining risks named in [security.md](../virtio/security.md): foreign RM handles through DUP and
   UVM imports, unannotated pointer fields, backing-page release without a reference ledger,
   no partition of the card. Hostile-guest containment is not established.
 
@@ -78,6 +78,6 @@ guests are untested in both; every isolation run used the stock driver.
 
 - [research/isolation-and-xids.md](../research/isolation-and-xids.md): the rules with their
   lines and every Xid with cause and fix.
-- [caraxes/parallel.md](../caraxes/parallel.md): the parallelism proof (slots, pattern test,
+- [vfio/parallel.md](../vfio/parallel.md): the parallelism proof (slots, pattern test,
   scrub, fail-closed teardown, the refused third VM).
-- [caraxes/memory-model.md](../caraxes/memory-model.md) §3, §7.4: privilege and the fail-closed argument.
+- [vfio/memory-model.md](../vfio/memory-model.md) §3, §7.4: privilege and the fail-closed argument.

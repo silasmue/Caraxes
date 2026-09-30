@@ -29,12 +29,12 @@ out: (b) ioeventfds from QEMU, (d) the usermode page as memory, (e) Windows unde
 - About 1026 interrupts in 21 s, 28 traps each (0.78 ms guest-seen per interrupt); PTIMER was read
   3 times, the usermode TIME never.
 - QEMU 11.1.1's vfio-user client maps the sparse areas a region offers (the BAR1 pool runs that
-  way under QEMU [docs/caraxes/zero-based-fb.md]), but has no `VFIO_USER_DEVICE_GET_REGION_IO_FDS`:
+  way under QEMU [docs/vfio/zero-based-fb.md]), but has no `VFIO_USER_DEVICE_GET_REGION_IO_FDS`:
   no ioeventfd for a vfio-user region [its 14 vfio-user trace events (`-trace help`) and its
   strings have no io-fd message].
 - Cloud Hypervisor with patches 0005/0006 asks for the io fds and registers the token pool's
   datamatch ioeventfds with KVM: a ring is one KVM exit ending in an eventfd [patches/README.md
-  "Patch 0005", "Patch 0006"; docs/caraxes/doorbell-token-pool.md].
+  "Patch 0005", "Patch 0006"; docs/vfio/doorbell-token-pool.md].
 - The zero-based FB (Windows) refuses the token-less wildcard doorbell ioeventfd; the token pool
   (one datamatch per token) is allowed [main.rs `CARAXES_FB_ZERO_BASED` checks].
 
@@ -99,7 +99,7 @@ out: (b) ioeventfds from QEMU, (d) the usermode page as memory, (e) Windows unde
 - Gain: the token pool's ioeventfds (Linux short kernel 11 us), the interrupt page and the
   display kick page as on Linux; one hypervisor for both guests.
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 - Order under QEMU, each a measured A/B on Windows (short kernel, PyTorch first step, smoke):
   1. BAR2 memfd: the largest trap class, one switch, known on Linux;

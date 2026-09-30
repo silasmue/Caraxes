@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Coverage map, 2026-09-25 (vm2)
 
-The runs behind [docs/caraxes/coverage-map.md](../../../docs/caraxes/coverage-map.md). The
+The runs behind [docs/vfio/coverage-map.md](../../../docs/vfio/coverage-map.md). The
 environment is `run.sh`'s:
 - vm2, 610 guest, 1 GiB at reservation slot 3, host RM and execution;
 - the night environment (`../night-2026-09-24/env.sh`) plus the recommended configuration:

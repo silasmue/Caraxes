@@ -6,7 +6,7 @@ A streamed desktop or game encodes every frame. With x264 on the vCPUs Sunshine 
 guest cores at 1080p60; with NVENC it encodes from VRAM for a quarter of a core. NVDEC does
 the same for video playback. Both are falcon engines with their own runlists, reached
 through a channel and one class each (TU106: `NVC4B7_VIDEO_ENCODER`, `NVC4B0_VIDEO_DECODER`).
-In VFIO Leandro the guest's video channels run on host mirror channels; every codec TU106
+In Leandro VFIO the guest's video channels run on host mirror channels; every codec TU106
 has works on Linux and Windows, and NVDEC's output is bit-exact.
 
 ## How the stock driver uses them
@@ -25,12 +25,12 @@ has works on Linux and Windows, and NVDEC's output is bit-exact.
   (`gkflcnRegisterIntrService`) and turns into events on subdevice notifiers 14 (NVDEC0)
   and 38 (NVENC0).
 
-## VirtIO Leandro
+## Leandro VirtIO
 
 - The guest's channel and object are host objects created by the backend, so NVENC works as
   on the host. Sunshine `capture=kms` with NVENC passed a client-frame check (2026-09-19).
 
-## VFIO Leandro
+## Leandro VFIO
 
 - The session controls are forwarded to the host as GSS legacy controls.
 - The channel runs on a host mirror in a host TSG of its own, bound to its engine and
@@ -55,7 +55,7 @@ has works on Linux and Windows, and NVDEC's output is bit-exact.
 - Doorbells: the video libraries ring their own guest token and never read the pool token
   ([research: video-path](../research/video-path-2026-09-28.md)); the automatic guest-token
   ioeventfds include NVENC's runlist 7 on TU106
-  ([caraxes/doorbell-token-pool.md](../caraxes/doorbell-token-pool.md) (g)).
+  ([vfio/doorbell-token-pool.md](../vfio/doorbell-token-pool.md) (g)).
 - Two designs failed and were removed:
   - Reserving free VA to steer the host's context: an RM allocation storm that froze the host.
   - Holding the first doorbell until the object: a deadlock, because the guest waits for
@@ -102,7 +102,7 @@ all 1800 frames against the host's software decode
 
 ## Depth
 
-- [caraxes/video-engines.md](../caraxes/video-engines.md): what the guest sends, the layout,
+- [vfio/video-engines.md](../vfio/video-engines.md): what the guest sends, the layout,
   the failure modes.
 - [research/video-path-2026-09-28.md](../research/video-path-2026-09-28.md): one frame's time.
 - [display-and-kms.md](display-and-kms.md): capture and streaming.

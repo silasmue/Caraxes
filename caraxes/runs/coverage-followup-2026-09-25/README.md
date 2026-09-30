@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # Coverage follow-up, 2026-09-25 (vm2)
 
-The runs behind the status lines of [coverage-map.md](../../../docs/caraxes/coverage-map.md) for:
+The runs behind the status lines of [coverage-map.md](../../../docs/vfio/coverage-map.md) for:
 - the 21 sweep getters now answered (chips/tu106/controls.toml, `FORWARD`);
 - the forward cache (`src/fwdcache.rs`).
 

@@ -2,7 +2,7 @@
 # Alpha acceptance work, 2026-09-27
 
 Order agreed with the user: fix the V1/V2 findings, Windows, Linux desktop,
-then latency optimization. All Caraxes VM trials execute against the host GPU.
+then latency optimization. All Leandro VFIO VM trials execute against the host GPU.
 Do not copy source code or benchmarks from nvkvm/Kayfabe into Leandro.
 External projects may inform comparisons and ideas; implement and validate locally.
 

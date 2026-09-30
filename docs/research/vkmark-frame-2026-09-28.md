@@ -96,7 +96,7 @@ Scope: where a vkmark frame's time goes in a 615 Linux guest (scenes cube and cl
 - The device cannot see guest CPU work that falls inside a "waiting" gap. The CPU and waiting split is therefore a bound, not a measurement.
 - No native split exists (no native trace).
 
-## Consequence for Caraxes
+## Consequence for Leandro VFIO
 
 | # | Fix | Effort | Gain per frame, cube / clear (estimate) | Proof | SotTR | Confidence |
 |---|---|---|---|---|---|---|
