@@ -37,6 +37,17 @@ Every isolation run used a stock driver; no adversarial guest has been tested
 
 ## Status (2026-09-30)
 
+One synthetic TU106 and one device binary serve four driver stacks, the stock ones
+unmodified ([guest support](docs/vfio/guest-support.md), numbers in
+[performance](docs/performance.md)):
+
+| Guest driver | Boot, rebind | Graphics | CUDA, video |
+|---|---|---|---|
+| NVIDIA open 615.71.09, Linux | boots | GNOME on Wayland, Vulkan, GL | CUDA, NVENC, NVDEC |
+| NVIDIA 617.14, Windows 11 | boots, reboots | WDDM desktop, D3D11 | CUDA, NVENC, NVDEC |
+| nova-core | 5 probes, 3 rebinds, a reload | none in the driver | none in the driver |
+| nouveau with Mesa NVK | boots, unbinds | headless Weston, Vulkan, GL | no CUDA; video not tested |
+
 - v2, Linux guest (Ubuntu 24.04, stock 615.71.09): CUDA, Vulkan, GL, a GNOME desktop on
   Wayland, NVENC and NVDEC bit-exact against software decode (H.264, HEVC, VP9), Sunshine
   streaming with NVENC at 60 fps and 5.9 ms host latency. Gates: `nvml` pass, `cuda` 10 of
@@ -47,7 +58,7 @@ Every isolation run used a stock driver; no adversarial guest has been tested
   beside a second GPU client are fixed (channel migration, 11 of 11 runs); guest reboots
   survive the vfio-user reconnect.
 - v2, open drivers: nova-core probes to completion in pure emulation; nouveau with GSP-RM
-  570.144 and Mesa NVK renders on the device (Weston, vkcube, glmark2, vkmark).
+  570.144 and Mesa NVK renders on the device (Weston, vkcube, glmark2; vkmark open).
 - v2 performance: GPU-bound work runs at the card's speed. Setup paths cost more than
   native (cuCtxCreate 240 to 256 ms beside another VM against 130 ms native). 3D workloads
   still trap 3200 to 8600 times per second, 14 to 24 % of a vCPU; the plan to remove them
@@ -126,6 +137,36 @@ CARAXES_CHECK_EMU_BOOT=1 ./tools/check.sh    # also boots the synthetic GPU with
 | `tools/` | build, checks, the v2 launcher and gates, the Windows test pack |
 | `matrix/` | v1's recorded ioctl coverage |
 | `docs/` | shared documents; `docs/virtio/` for v1, `docs/vfio/` for v2 ([index](docs/README.md)) |
+
+## Related projects
+
+Same goal, a shared NVIDIA GPU for VMs without passthrough or vGPU:
+
+- [kayfabe](https://github.com/reindertpelsma/kayfabe): a stock NVIDIA driver in the guest
+  against emulated hardware with a faked GSP, work forwarded to a host GPU; Rust; research
+  stage. The approach closest to Leandro VFIO.
+- [nvkvm-pv](https://github.com/reindertpelsma/nvkvm-pv): a paravirtual NVIDIA GPU for KVM
+  guests; a small guest kernel module forwards the NVIDIA driver's own API over virtio to the
+  host driver, with unmodified user space. The approach closest to Leandro VirtIO.
+  - [nvkvm-kata](https://github.com/reindertpelsma/nvkvm-kata): nvkvm inside Kata Containers.
+  - [nvkvm-steamos](https://github.com/reindertpelsma/nvkvm-steamos): SteamOS as an nvkvm-pv
+    guest.
+- [virtio-nvgpu](https://github.com/nestrilabs/virtio-nvgpu): a virtio device that forwards
+  NVIDIA kernel-driver ioctls between a Linux guest and the host at the driver ABI level;
+  aimed at headless streaming. Also close to Leandro VirtIO.
+
+Other approaches:
+
+- virtio-gpu DRM native context: forwards the native kernel-driver UAPI instead of a graphics
+  API; upstream for AMD (amdgpu) and Qualcomm (freedreno), Intel in review
+  ([virglrenderer](https://gitlab.freedesktop.org/virgl/virglrenderer),
+  [QEMU's virtio-gpu docs](https://www.qemu.org/docs/master/system/devices/virtio/virtio-gpu.html)).
+  The reference for the VirtIO variants of Meleys (AMD) and Dreamfyre (Intel).
+- [vgpu_unlock](https://github.com/DualCoder/vgpu_unlock): enables NVIDIA's own vGPU on
+  consumer cards.
+
+Over the coming months the goal is to learn as much as possible from all of these approaches,
+then work out common protocols together (Sunfyre in the [roadmap](docs/roadmap.md)).
 
 ## Contributing and attribution
 

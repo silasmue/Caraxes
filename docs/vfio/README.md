@@ -12,6 +12,7 @@ source surveys and measured studies, one document per topic, dated where their n
 
 | File | Contents |
 |---|---|
+| [guest-support.md](guest-support.md) | The status per guest driver: Linux 615, Windows 617, nova-core, nouveau with NVK, each cell with its record |
 | [quickstart.md](quickstart.md) | Build the device, prepare a guest, run a Linux, Windows, nova or nouveau VM, verify |
 | [architecture.md](architecture.md) | The device process, its data paths, the source map, what is chip-bound and what is version-bound |
 | [known-issues.md](known-issues.md) | Open defects and limits with their evidence; the issues closed recently |

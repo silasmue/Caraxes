@@ -17,7 +17,8 @@ forms.
 
 ## Code names
 
-Dragons name the lines of work. They appear only here and in the [roadmap](roadmap.md).
+Dragons name the lines of work. They appear here, in the [roadmap](roadmap.md) and in the
+README's related projects; everything else uses the official names.
 
 | Code name | Line of work |
 |---|---|

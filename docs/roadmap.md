@@ -18,10 +18,12 @@ The lines of work carry dragon code names ([naming](naming.md)). The previous ro
 ## Meleys: AMD
 
 - Planned: a VirtIO and a VFIO variant. Nothing exists yet; `virtio-kfd` is a name proposal.
+- Reference for the VirtIO variant: virtio-gpu DRM native context, upstream for amdgpu.
 
 ## Dreamfyre: Intel
 
 - Planned: a VirtIO and a VFIO variant. Nothing exists yet; `virtio-xe` is a name proposal.
+- Reference for the VirtIO variant: virtio-gpu DRM native context, in review for Intel.
 
 ## Sunfyre: the common protocol
 
