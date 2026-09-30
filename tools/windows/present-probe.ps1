@@ -99,5 +99,5 @@ public static class Present {
   }
 }
 '@
-Add-Type -TypeDefinition $src -Language CSharp -ReferencedAssemblies System.Windows.Forms
+Add-Type -TypeDefinition $src -Language CSharp -ReferencedAssemblies System.Windows.Forms, System.Drawing
 [Present]::Run($Frames, $Seconds, $Width, $Height)
