@@ -2,21 +2,21 @@
 # Leandro
 
 GPU sharing for virtual machines on one NVIDIA card that the host keeps using. Two
-architectures live in this repository:
+architectures live in this repository, each named after what the guest sees:
 
-- **Leandro VirtIO (v1)**: API forwarding. A Leandro kernel module in the guest,
-  `virtio_nvrm.ko`, forwards the NVIDIA driver calls over vhost-user to a per-VM host
-  backend, `vhost-user-nvrm`, which replays them on the host driver.
-- **Leandro VFIO (v2)**: a synthetic NVIDIA TU106, reported as an RTX
-  2070, served to the guest over vfio-user by a per-VM host process, `vfio-user-nvgpu`. The
-  guest runs its stock driver. The device plays the GSP firmware, models the PCI BARs,
-  shadows the guest's page tables and runs the guest's channels on host channels as a
-  client of the host driver.
+- **Leandro VirtIO (v1)**: API forwarding. The guest sees a VirtIO device; a Leandro kernel
+  module in the guest, `virtio_nvrm.ko`, forwards the NVIDIA driver calls over vhost-user
+  to a per-VM host backend, `vhost-user-nvrm`, which replays them on the host driver.
+- **Leandro VFIO (v2)**: the guest sees a PCI GPU, a synthetic NVIDIA TU106 reported as an
+  RTX 2070, and runs its stock driver. A per-VM host process, `vfio-user-nvgpu`, serves it
+  over vfio-user: it plays the GSP firmware, models the PCI BARs, shadows the guest's page
+  tables and runs the guest's channels on host channels as a client of the host driver.
 
 ![The two architectures side by side](docs/img/leandro-two-architectures.svg)
 
-[docs/leandro.md](docs/leandro.md) describes both in one document; the
-[documentation index](docs/README.md) lists everything else.
+[docs/leandro.md](docs/leandro.md) describes both in one document, the
+[roadmap](docs/roadmap.md) what comes next; the [documentation index](docs/README.md) lists
+everything else.
 
 **Use trusted guests.** Both architectures confine a guest by validation in the host
 process; v2 adds a fixed VRAM slice, registered guest RAM and validated shadow page tables.
@@ -125,7 +125,7 @@ CARAXES_CHECK_EMU_BOOT=1 ./tools/check.sh    # also boots the synthetic GPU with
 | `caraxes/tools/` | benchmark, census, profile, coverage, ABI and lab-kit tools |
 | `tools/` | build, checks, the v2 launcher and gates, the Windows test pack |
 | `matrix/` | v1's recorded ioctl coverage |
-| `docs/` | the documentation of both ([index](docs/README.md)) |
+| `docs/` | shared documents; `docs/virtio/` for v1, `docs/vfio/` for v2 ([index](docs/README.md)) |
 
 ## Contributing and attribution
 

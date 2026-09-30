@@ -1,11 +1,12 @@
 <!-- SPDX-License-Identifier: MIT -->
-# Leandro VFIO: design documents and studies
+# Leandro VFIO
 
-The long form behind Leandro VFIO (v2): designs, source surveys and
-measured studies, one document per topic. The entry points are the
-[repository README](../../README.md), [leandro.md](../leandro.md), the
-[wiki](../wiki/README.md) and the [research notes](../research/README.md). Documents here
-are dated where their numbers are; a superseded document lives in [docs/history](../history/README.md).
+Leandro VFIO (v2) gives the guest a PCI GPU, a synthetic TU106 (RTX 2070), for its stock
+driver; the per-VM host process `vfio-user-nvgpu` serves it over vfio-user, plays the GSP
+firmware and runs the guest's work on the host card. This directory holds its designs,
+source surveys and measured studies, one document per topic, dated where their numbers are.
+[leandro.md](../leandro.md) compares it with Leandro VirtIO; superseded documents live in
+[history](../history/README.md#leandro-vfio-v2).
 
 ## Start here
 

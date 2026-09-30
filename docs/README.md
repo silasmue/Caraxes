@@ -1,66 +1,43 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Documentation
 
-Two architectures share this documentation: Leandro VirtIO (v1), API forwarding through a
-guest module, and Leandro VFIO (v2), a synthetic NVIDIA GPU for stock
-guest drivers. Start with [leandro.md](leandro.md) for both, the [v2 quickstart](vfio/quickstart.md)
-or the [v1 quickstart](virtio/quickstart.md) to run a VM, and the [wiki](wiki/README.md) for one
-concept at a time. Read [Security](virtio/security.md) and the [isolation rules](wiki/isolation-rules.md)
-before interpreting isolation claims.
+Two versions live in this repository, each named after what the guest sees:
 
-## Both architectures
+- **Leandro VirtIO (v1):** the guest sees a VirtIO device and runs Leandro's module
+  `virtio_nvrm`; the host backend `vhost-user-nvrm` serves it over vhost-user and forwards
+  the RM API. Documents in [virtio/](virtio/README.md).
+- **Leandro VFIO (v2):** the guest sees a PCI GPU, a synthetic TU106 (RTX 2070), and runs its
+  stock driver; the host process `vfio-user-nvgpu` serves it over vfio-user with GSP
+  emulation. Documents in [vfio/](vfio/README.md).
+
+Read [security](virtio/security.md) and the [isolation rules](wiki/isolation-rules.md) before
+interpreting isolation claims.
+
+## Shared
 
 | File | Contents |
 |---|---|
-| [leandro.md](leandro.md) | The overview: the two architectures, the driver, the GSP and its emulation, PCI and memory, submission and interrupts, execution, display, identity, performance, verification, the ranked weaknesses and the road to Christmas 2026 |
+| [leandro.md](leandro.md) | Both versions in one document: the driver, the GSP and its emulation, memory, submission, execution, display, identity, performance, verification, the ranked weaknesses and the road to Christmas 2026 |
+| [performance.md](performance.md) | Measured performance of both versions against native |
+| [roadmap.md](roadmap.md) | What exists and what is planned, by code name; the next step |
+| [naming.md](naming.md) | Official names, code names, prefixes, directories and components |
 | [wiki/](wiki/README.md) | One page per concept, driver references by path and function, a glossary |
 | [research/](research/README.md) | The evidence: one short note per topic, 615.71.09 lines and run folders |
-| [naming.md](naming.md) | Component names, terminology and the guest-visible GPU name of both architectures |
-| [Project README](../README.md) | What each version is, the status, requirements and build commands |
+| [history/](history/README.md) | Dated snapshots of both versions |
+| [Project README](../README.md) | Status, requirements and build commands |
 | [Development](../DEVELOPMENT.md) | Build, checks, Nix, tracing and troubleshooting |
 | [Licenses](../LICENSES.md) | Licensing and third-party attribution |
 
-## Leandro VFIO (v2)
+## Per version
 
-| File | Contents |
-|---|---|
-| [vfio/quickstart.md](vfio/quickstart.md) | Build the device, prepare a guest, run a Linux, Windows, nova or nouveau VM, verify |
-| [vfio/architecture.md](vfio/architecture.md) | The device process, its data paths, the source map, what is chip-bound and what is version-bound |
-| [vfio/known-issues.md](vfio/known-issues.md) | Open defects and limits with their evidence, and the issues closed recently |
-| [vfio/decisions.md](vfio/decisions.md) | The design decisions D1 to D20 |
-| [vfio/testing.md](vfio/testing.md) | The v1 gates against the device, the verdict rules, the guest-side test material |
-| [vfio/benchmark.md](vfio/benchmark.md) | v1, v2 and native on one card: harness, method, the tables |
-| [vfio/](vfio/README.md) | The index of the v2 design documents and studies |
-
-## Leandro VirtIO (v1): setup and use
-
-| File | Contents |
-|---|---|
-| [virtio/quickstart.md](virtio/quickstart.md) | Two Ubuntu desktops or two NixOS compute guests |
-| [virtio/vm-preparation.md](virtio/vm-preparation.md) | Host installation, Cloud Hypervisor patches, networking and images |
-| [virtio/ubuntu-desktop.md](virtio/ubuntu-desktop.md) | Guest modules, NVIDIA userspace, GNOME/X11 and Sunshine |
-| [virtio/wayland.md](virtio/wayland.md) | GNOME/Wayland, KMS capture and verification |
-| [virtio/input.md](virtio/input.md) | Moonlight input and optional upstream evdev forwarding |
-| [virtio/guest-userspace.md](virtio/guest-userspace.md) | NVIDIA library installation and version requirements |
-| [virtio/showcase.md](virtio/showcase.md) | Demonstration checks and what they establish |
-
-## Leandro VirtIO (v1): design and development
-
-| File | Contents |
-|---|---|
-| [virtio/architecture.md](virtio/architecture.md) | Request path, ownership, mappings, events and source map |
-| [virtio/security.md](virtio/security.md) | Trust boundary, validation, remaining risks and required tests |
-| [virtio/display.md](virtio/display.md) | Virtual display, capture, module parameters and limits |
-| [virtio/abi-versions.md](virtio/abi-versions.md) | Supported driver ABIs, generation and version changes |
-| [virtio/testing.md](virtio/testing.md) | Automated checks, hardware evidence and measurement rules |
-| [virtio/open-questions.md](virtio/open-questions.md) | Numbered investigations, findings and unresolved issues |
-| [virtio/future.md](virtio/future.md) | Planned correctness, compatibility and research work |
-| [virtio/virtio-uapi.md](virtio/virtio-uapi.md) | Proposal for generalizing table-described driver forwarding |
-| [virtio/llm.md](virtio/llm.md) | Maintenance notes; filename retained for existing links |
+- Leandro VirtIO: [quickstart](virtio/quickstart.md), [architecture](virtio/architecture.md),
+  [testing](virtio/testing.md), [open questions](virtio/open-questions.md); everything in
+  [virtio/](virtio/README.md), measurements included.
+- Leandro VFIO: [quickstart](vfio/quickstart.md), [architecture](vfio/architecture.md),
+  [known issues](vfio/known-issues.md), [decisions](vfio/decisions.md); everything in
+  [vfio/](vfio/README.md). Run records: `../caraxes/runs/`, one folder per experiment and date.
 
 ## Crate and module READMEs
-
-Each README describes the component and its source files.
 
 | README | Component |
 |---|---|
@@ -81,18 +58,3 @@ Each README describes the component and its source files.
 
 [crates/xtask](../crates/xtask/src/main.rs) has no separate README; its ABI generation
 commands are in [virtio/abi-versions.md](virtio/abi-versions.md).
-
-## Records and history
-
-Recorded runs, not guarantees for the current revision.
-
-| File or directory | Contents |
-|---|---|
-| [history](history/README.md) | Dated snapshots of both versions: the v2 working record, briefs, the experiment ladder, superseded surveys |
-| [virtio/measurements/fence-14](virtio/measurements/fence-14/README.md) | v1: Vulkan fence-wait polling fallback |
-| [virtio/measurements/vram-68](virtio/measurements/vram-68/README.md) | v1: two-guest VRAM policy comparison |
-| [virtio/measurements/vram-69](virtio/measurements/vram-69/README.md) | v1: four-guest VRAM policy tests |
-| [virtio/measurements/vram-69b](virtio/measurements/vram-69b/README.md) | v1: admission limits and vGPU-mode behaviour |
-| [virtio/measurements/vram-70](virtio/measurements/vram-70/README.md) | v1: workloads under different VRAM limits |
-| [virtio/measurements/sottr-4q](virtio/measurements/sottr-4q/README.md) | v1: two concurrent Shadow of the Tomb Raider benchmarks |
-| `../caraxes/runs/` | v2: every run record, one folder per experiment and date |
