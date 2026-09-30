@@ -1,29 +1,41 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Documentation
 
-Two architectures share this documentation. VFIO Leandro (v2, code name Caraxes) is
-this repository's device; VirtIO Leandro (v1) is the API-forwarding architecture whose
-design documents below are kept here beside its crates. Start with
-[LEANDRO.md](LEANDRO.md) for both, the [wiki](wiki/README.md) for one concept at a
-time, [caraxes/quickstart.md](caraxes/quickstart.md) to run the device, and
-[Quickstart](QUICKSTART.md) or [Architecture](ARCHITECTURE.md) for VirtIO Leandro. Read
-[Security](SECURITY.md) and the [isolation rules](wiki/isolation-rules.md) before
-interpreting isolation claims.
+Two architectures share this documentation: VirtIO Leandro (v1), API forwarding through a
+guest module, and VFIO Leandro (v2, code name Caraxes), a synthetic NVIDIA GPU for stock
+guest drivers. Start with [LEANDRO.md](LEANDRO.md) for both, the [v2 quickstart](caraxes/quickstart.md)
+or the [v1 quickstart](QUICKSTART.md) to run a VM, and the [wiki](wiki/README.md) for one
+concept at a time. Read [Security](SECURITY.md) and the [isolation rules](wiki/isolation-rules.md)
+before interpreting isolation claims.
 
 ## Both architectures
 
 | File | Contents |
 |---|---|
-| [LEANDRO.md](LEANDRO.md) | The overview: the problem, the two architectures side by side, the driver, the GSP and its emulation, BARs and memory, submission, execution, display, identity, performance, verification, the ranked weaknesses |
-| [wiki/](wiki/README.md) | One page per concept, driver references by path and function, a glossary, the captured cards and how to contribute one |
-| [research/](research/README.md) | The evidence: one short note per topic with 615.71.09 lines and run folders |
-| [caraxes/](history/caraxes-record-2026-09-28.md) | The working record of VFIO Leandro: decisions D1 to D20, studies, designs, measurements, status |
+| [LEANDRO.md](LEANDRO.md) | The overview: the two architectures, the driver, the GSP and its emulation, PCI and memory, submission and interrupts, execution, display, identity, performance, verification, the ranked weaknesses and the road to Christmas 2026 |
+| [wiki/](wiki/README.md) | One page per concept, driver references by path and function, a glossary |
+| [research/](research/README.md) | The evidence: one short note per topic, 615.71.09 lines and run folders |
+| [NAMING.md](NAMING.md) | Component names, terminology and the guest-visible GPU name of both architectures |
+| [Project README](../README.md) | What each version is, the status, requirements and build commands |
+| [Development](../DEVELOPMENT.md) | Build, checks, Nix, tracing and troubleshooting |
+| [Licenses](../LICENSES.md) | Licensing and third-party attribution |
 
-## VirtIO Leandro: setup and use
+## VFIO Leandro (v2)
 
 | File | Contents |
 |---|---|
-| [Project README](../README.md) | Overview, requirements and build commands of this repository (VFIO Leandro) |
+| [caraxes/quickstart.md](caraxes/quickstart.md) | Build the device, prepare a guest, run a Linux, Windows, nova or nouveau VM, verify |
+| [caraxes/architecture.md](caraxes/architecture.md) | The device process, its data paths, the source map, what is chip-bound and what is version-bound |
+| [caraxes/KNOWN-ISSUES.md](caraxes/KNOWN-ISSUES.md) | Open defects and limits with their evidence, and the issues closed recently |
+| [caraxes/decisions.md](caraxes/decisions.md) | The design decisions D1 to D20 |
+| [caraxes/testing.md](caraxes/testing.md) | The v1 gates against the device, the verdict rules, the guest-side test material |
+| [caraxes/benchmark.md](caraxes/benchmark.md) | v1, v2 and native on one card: harness, method, the tables |
+| [caraxes/](caraxes/README.md) | The index of the v2 design documents and studies |
+
+## VirtIO Leandro (v1): setup and use
+
+| File | Contents |
+|---|---|
 | [QUICKSTART.md](QUICKSTART.md) | Two Ubuntu desktops or two NixOS compute guests |
 | [VM-PREPARATION.md](VM-PREPARATION.md) | Host installation, Cloud Hypervisor patches, networking and images |
 | [UBUNTU-DESKTOP.md](UBUNTU-DESKTOP.md) | Guest modules, NVIDIA userspace, GNOME/X11 and Sunshine |
@@ -32,7 +44,7 @@ interpreting isolation claims.
 | [GUEST-USERSPACE.md](GUEST-USERSPACE.md) | NVIDIA library installation and version requirements |
 | [SHOWCASE.md](SHOWCASE.md) | Demonstration checks and what they establish |
 
-## VirtIO Leandro: design and development
+## VirtIO Leandro (v1): design and development
 
 | File | Contents |
 |---|---|
@@ -40,14 +52,11 @@ interpreting isolation claims.
 | [SECURITY.md](SECURITY.md) | Trust boundary, validation, remaining risks and required tests |
 | [DISPLAY.md](DISPLAY.md) | Virtual display, capture, module parameters and limits |
 | [abi-versions.md](abi-versions.md) | Supported driver ABIs, generation and version changes |
-| [Development](../DEVELOPMENT.md) | Build, checks, Nix, tracing and troubleshooting |
 | [TESTING.md](TESTING.md) | Automated checks, hardware evidence and measurement rules |
 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) | Numbered investigations, findings and unresolved issues |
 | [FUTURE.md](FUTURE.md) | Planned correctness, compatibility and research work |
 | [VIRTIO-UAPI.md](VIRTIO-UAPI.md) | Proposal for generalizing table-described driver forwarding |
-| [NAMING.md](NAMING.md) | Component names, terminology and the guest-visible GPU name of both architectures |
 | [llm.md](llm.md) | Maintenance notes; filename retained for existing links |
-| [Licenses](../LICENSES.md) | Licensing and third-party attribution |
 
 ## Crate and module READMEs
 
@@ -55,31 +64,35 @@ Each README describes the component and its source files.
 
 | README | Component |
 |---|---|
-| [guest-module/virtio_nvrm](../guest-module/virtio_nvrm/README.md) | Guest RM/UVM forwarding, mappings, events and display |
-| [guest-module/nvrm_nodes](../guest-module/nvrm_nodes/README.md) | Guest NVIDIA proc data, optional placeholder nodes and pinning diagnostics |
-| [crates/vhost-user-nvrm](../crates/vhost-user-nvrm/README.md) | Per-VM host backend, sessions and resource ownership |
-| [crates/nvrm-wire](../crates/nvrm-wire/README.md) | Shared request/reply schema and generated C header |
-| [crates/nvrm-sys](../crates/nvrm-sys/README.md) | Generated NVIDIA bindings and layout metadata |
-| [crates/nvrm-abi](../crates/nvrm-abi/README.md) | Ioctl descriptors, embedded pointers, FDs and mediation layouts |
-| [crates/nvrm-client](../crates/nvrm-client/README.md) | Direct RM ownership wrappers and diagnostic tools |
-| [crates/nvrm-trace](../crates/nvrm-trace/README.md) | `LD_PRELOAD` call tracing |
+| [crates/vfio-user-nvgpu](../crates/vfio-user-nvgpu/) | v2: the device (no separate README; [caraxes/architecture.md](caraxes/architecture.md) is its source map) |
+| [crates/dp-sink](../crates/dp-sink/README.md) | v2: DisplayPort sink model |
+| [guest-module/caraxes_dma_range](../guest-module/caraxes_dma_range/README.md) | v2: the former guest DMA-range module (decision D13) |
+| [guest-module/virtio_nvrm](../guest-module/virtio_nvrm/README.md) | v1: guest RM/UVM forwarding, mappings, events and display |
+| [guest-module/nvrm_nodes](../guest-module/nvrm_nodes/README.md) | v1: guest NVIDIA proc data, optional placeholder nodes and pinning diagnostics |
+| [crates/vhost-user-nvrm](../crates/vhost-user-nvrm/README.md) | v1: per-VM host backend, sessions and resource ownership |
+| [crates/nvrm-wire](../crates/nvrm-wire/README.md) | v1: request/reply schema and generated C header |
+| [crates/nvrm-sys](../crates/nvrm-sys/README.md) | shared: generated NVIDIA bindings and layout metadata |
+| [crates/nvrm-abi](../crates/nvrm-abi/README.md) | shared: ioctl descriptors, embedded pointers, FDs, mediation layouts, the naming model |
+| [crates/nvrm-client](../crates/nvrm-client/README.md) | shared: RM ownership wrappers and diagnostic tools |
+| [crates/nvrm-trace](../crates/nvrm-trace/README.md) | shared: `LD_PRELOAD` call tracing |
 | [patches](../patches/README.md) | Cloud Hypervisor changes, validation and upstreaming |
-| [matrix](../matrix/README.md) | NVIDIA userspace API coverage and recorded probes |
+| [matrix](../matrix/README.md) | v1: NVIDIA userspace API coverage and recorded probes |
+| [tools/windows](../tools/windows/README.md) | v2: the Windows test pack |
 
-[crates/xtask](../crates/xtask/src/main.rs) has no separate README.
-Its ABI generation commands are documented in [abi-versions.md](abi-versions.md).
+[crates/xtask](../crates/xtask/src/main.rs) has no separate README; its ABI generation
+commands are in [abi-versions.md](abi-versions.md).
 
-## Historical evidence
+## Records and history
 
-These files describe recorded runs, not guarantees for the current revision.
+Recorded runs, not guarantees for the current revision.
 
 | File or directory | Contents |
 |---|---|
-| [history](history/README.md) | Archived investigation, testing and maintenance documents |
-| [measurements/fence-14](measurements/fence-14/README.md) | Vulkan fence-wait polling fallback |
-| [measurements/vram-68](measurements/vram-68/README.md) | Two-guest VRAM policy comparison |
-| [measurements/vram-69](measurements/vram-69/README.md) | Four-guest VRAM policy tests |
-| [measurements/vram-69b](measurements/vram-69b/README.md) | Admission limits and vGPU-mode behavior |
-| [vram-69b/libcuda/TRACES.md](measurements/vram-69b/libcuda/TRACES.md) | Trace file inventory |
-| [measurements/vram-70](measurements/vram-70/README.md) | Workloads under different VRAM limits |
-| [measurements/sottr-4q](measurements/sottr-4q/README.md) | Two concurrent Shadow of the Tomb Raider benchmarks |
+| [history](history/README.md) | Dated snapshots of both versions: the v2 working record, briefs, the experiment ladder, superseded surveys |
+| [measurements/fence-14](measurements/fence-14/README.md) | v1: Vulkan fence-wait polling fallback |
+| [measurements/vram-68](measurements/vram-68/README.md) | v1: two-guest VRAM policy comparison |
+| [measurements/vram-69](measurements/vram-69/README.md) | v1: four-guest VRAM policy tests |
+| [measurements/vram-69b](measurements/vram-69b/README.md) | v1: admission limits and vGPU-mode behaviour |
+| [measurements/vram-70](measurements/vram-70/README.md) | v1: workloads under different VRAM limits |
+| [measurements/sottr-4q](measurements/sottr-4q/README.md) | v1: two concurrent Shadow of the Tomb Raider benchmarks |
+| `../caraxes/runs/` | v2: every run record, one folder per experiment and date |

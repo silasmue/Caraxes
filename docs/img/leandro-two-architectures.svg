@@ -1,0 +1,99 @@
+<!-- SPDX-License-Identifier: MIT -->
+<svg width="940" height="560" viewBox="0 0 940 560" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Leandro: two architectures</title>
+<desc>VirtIO Leandro (v1) replaces the guest kernel driver with a module that forwards RM ioctls over vhost-user to a per-VM host backend. VFIO Leandro (v2) keeps the stock guest driver and presents a synthetic NVIDIA PCI device over vfio-user; the per-VM device process plays GSP-RM, models the BARs, shadows the page tables and runs the guest's channels on host channels.</desc>
+
+<rect x="0" y="0" width="940" height="560" fill="#FFFFFF"/>
+
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+  <path d="M2 1L8 5L2 9" fill="none" stroke="#444441" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+
+<g font-family="Helvetica, Arial, sans-serif">
+<text x="470" y="30" text-anchor="middle" font-size="16" font-weight="500" fill="#2C2C2A">Leandro: two architectures, one GPU shared with the host</text>
+
+<!-- Panel v1 -->
+<rect x="20" y="48" width="440" height="496" rx="16" fill="#FAFAF7" stroke="#B4B2A9"/>
+<text x="240" y="72" text-anchor="middle" font-size="14" font-weight="500" fill="#2C2C2A">VirtIO Leandro (v1): API forwarding</text>
+
+<rect x="36" y="86" width="408" height="216" rx="12" fill="#EEEDFE" stroke="#534AB7"/>
+<text x="52" y="106" font-size="13" font-weight="500" fill="#3C3489">Guest VM (no GPU)</text>
+
+<rect x="52" y="118" width="376" height="44" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="240" y="136" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">Application</text>
+<text x="240" y="152" text-anchor="middle" font-size="11" fill="#5F5E5A">CUDA, Vulkan, GL, NVENC, a Wayland desktop</text>
+<line x1="240" y1="162" x2="240" y2="174" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="52" y="176" width="376" height="44" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="240" y="194" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">NVIDIA user space, unchanged</text>
+<text x="240" y="210" text-anchor="middle" font-size="11" fill="#5F5E5A">libcuda, libnvidia-*, staged to match the host driver</text>
+<line x1="240" y1="220" x2="240" y2="232" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="52" y="234" width="376" height="56" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="240" y="252" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">virtio_nvrm.ko and nvrm_nodes.ko</text>
+<text x="240" y="268" text-anchor="middle" font-size="11" fill="#5F5E5A">Leandro guest modules in place of nvidia.ko:</text>
+<text x="240" y="282" text-anchor="middle" font-size="11" fill="#5F5E5A">each supported ioctl becomes a virtio request</text>
+
+<line x1="90" y1="302" x2="90" y2="338" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="102" y="316" font-size="11" fill="#5F5E5A">vhost-user queues: requests, replies, events;</text>
+<text x="102" y="330" font-size="11" fill="#5F5E5A">a shared window carries submissions without forwarding</text>
+
+<rect x="36" y="342" width="408" height="186" rx="12" fill="#E1F5EE" stroke="#0F6E56"/>
+<text x="52" y="362" font-size="13" font-weight="500" fill="#085041">Host</text>
+
+<rect x="52" y="374" width="376" height="56" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="240" y="392" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">vhost-user-nvrm, one process per VM</text>
+<text x="240" y="408" text-anchor="middle" font-size="11" fill="#5F5E5A">validates each request against the host ABI,</text>
+<text x="240" y="422" text-anchor="middle" font-size="11" fill="#5F5E5A">translates pointers and FDs, replays the ioctl</text>
+<line x1="240" y1="430" x2="240" y2="442" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="52" y="444" width="376" height="70" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="240" y="462" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">Host driver and GPU</text>
+<text x="240" y="478" text-anchor="middle" font-size="11" fill="#5F5E5A">nvidia.ko, nvidia-uvm: every RM call is a round trip;</text>
+<text x="240" y="492" text-anchor="middle" font-size="11" fill="#5F5E5A">GPU work runs at the card's speed on the guest's</text>
+<text x="240" y="506" text-anchor="middle" font-size="11" fill="#5F5E5A">own channels; no VRAM partition</text>
+
+<!-- Panel v2 -->
+<rect x="480" y="48" width="440" height="496" rx="16" fill="#FAFAF7" stroke="#B4B2A9"/>
+<text x="700" y="72" text-anchor="middle" font-size="14" font-weight="500" fill="#2C2C2A">VFIO Leandro (v2, Caraxes): a synthetic GPU</text>
+
+<rect x="496" y="86" width="408" height="216" rx="12" fill="#EEEDFE" stroke="#534AB7"/>
+<text x="512" y="106" font-size="13" font-weight="500" fill="#3C3489">Guest VM (sees an RTX 2070)</text>
+
+<rect x="512" y="118" width="376" height="44" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="700" y="136" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">Application</text>
+<text x="700" y="152" text-anchor="middle" font-size="11" fill="#5F5E5A">CUDA, Vulkan, GL, D3D11, NVENC, a desktop</text>
+<line x1="700" y1="162" x2="700" y2="174" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="512" y="176" width="376" height="44" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="700" y="194" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">NVIDIA user space from the distribution</text>
+<text x="700" y="210" text-anchor="middle" font-size="11" fill="#5F5E5A">no staging: the guest's own packages</text>
+<line x1="700" y1="220" x2="700" y2="232" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="512" y="234" width="376" height="56" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="700" y="252" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">Stock kernel driver in GSP-client mode</text>
+<text x="700" y="268" text-anchor="middle" font-size="11" fill="#5F5E5A">Linux 615 (nvidia.ko, nvidia-uvm, nvidia-modeset),</text>
+<text x="700" y="282" text-anchor="middle" font-size="11" fill="#5F5E5A">Windows 617, nova-core, nouveau with NVK</text>
+
+<line x1="550" y1="302" x2="550" y2="338" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="562" y="316" font-size="11" fill="#5F5E5A">vfio-user: PCI config space, BAR0/1/2 (trapped or mapped),</text>
+<text x="562" y="330" font-size="11" fill="#5F5E5A">the GSP message queues in guest RAM, one MSI</text>
+
+<rect x="496" y="342" width="408" height="186" rx="12" fill="#E1F5EE" stroke="#0F6E56"/>
+<text x="512" y="362" font-size="13" font-weight="500" fill="#085041">Host</text>
+
+<rect x="512" y="374" width="376" height="56" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="700" y="392" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">vfio-user-nvgpu, one process per VM</text>
+<text x="700" y="408" text-anchor="middle" font-size="11" fill="#5F5E5A">plays GSP-RM, models the BARs and the display,</text>
+<text x="700" y="422" text-anchor="middle" font-size="11" fill="#5F5E5A">shadows the page tables, mirrors the channels</text>
+<line x1="700" y1="430" x2="700" y2="442" stroke="#444441" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="512" y="444" width="376" height="70" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+<text x="700" y="462" text-anchor="middle" font-size="13" font-weight="500" fill="#2C2C2A">Host RM as an unprivileged client, then the GPU</text>
+<text x="700" y="478" text-anchor="middle" font-size="11" fill="#5F5E5A">a fixed VRAM slice, registered guest RAM,</text>
+<text x="700" y="492" text-anchor="middle" font-size="11" fill="#5F5E5A">host channels on a shadow VA space; the GPU</text>
+<text x="700" y="506" text-anchor="middle" font-size="11" fill="#5F5E5A">walks only validated tables</text>
+</g>
+</svg>
