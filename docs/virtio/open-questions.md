@@ -124,6 +124,10 @@
 - This bounds registration admission, not unique physical pages. The aggregate default is provisional; repeated successful allocation/free can reach it.
 - Measure retained/quarantined bytes under repeated CUDA, display and PRIME workloads. If normal use exhausts the cap, implement the reference ledger rather than treating a larger limit as reclamation.
 
+### 84. CUDA contexts after the robustness test <a id="84-cuda-contexts-fail-after-the-robustness-test"></a>
+
+- **Open, 2026-09-30.** In a Leandro-Test series every CUDA context created after the robustness test fails until the VM restarts, which takes 20 later tests down with it; the cuda gate passes 14 of 14 after a restart. Cause open. Evidence: [performance.md](../performance.md), run records `/mnt/vmstore/caraxes/runs-2026-09-30/bench/v1b/`.
+
 ## Resolved and decided
 
 ### 1. Descriptor-table compatibility <a id="1-does-the-descriptor-table-warrant-a-protocol-change"></a>
