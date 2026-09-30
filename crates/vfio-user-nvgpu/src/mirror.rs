@@ -1093,6 +1093,9 @@ pub struct Migrated {
     pub old_guest: u64,
     pub old_entries: u32,
     pub old_get: u32,
+    /// The old ring's last published GPPut: equal to `old_get` when the host left the old
+    /// ring exactly at its end (the method was its last entry).
+    pub old_put: Option<u32>,
     pub new_guest: u64,
     pub new_entries: u32,
     pub new_gpfifo_va: u64,
@@ -1256,6 +1259,7 @@ impl ShadowUserd {
             old_guest: self.guest,
             old_entries: self.entries,
             old_get,
+            old_put: self.published_put,
             new_guest: n.guest,
             new_entries: n.entries,
             new_gpfifo_va: n.gpfifo_va,
@@ -2521,7 +2525,19 @@ impl Mirror {
                         u.storage.read_u32(0x48),
                         u.published_put,
                         u.harvested
-                    )
+                    ) + &u.next.as_ref().map_or(String::new(), |n| {
+                        format!(
+                            "; migration API {:#x} in flight {} ms: new ring {} entries at {:#x}, its USERD GP_GET {:#x} GP_PUT {:#x} (started {:#x}), published {:?}",
+                            n.api,
+                            n.since.elapsed().as_millis(),
+                            n.entries,
+                            n.gpfifo_va,
+                            n.storage.read_u32(0x88),
+                            n.storage.read_u32(0x8c),
+                            n.initial_get,
+                            n.published_put
+                        )
+                    })
                 })
                 .unwrap_or_else(|| "guest USERD".into());
             format!(
@@ -4465,12 +4481,17 @@ impl Mirror {
             let Some((old, done)) = hc.with_userd(|u| u.settle()).flatten() else { continue };
             let freed = self.hm.lock().unwrap().free_host_userd(old);
             notes.push(format!(
-                "chid {chid}: ring migrated in the host's stream (API {:#x}) after {} ms: {} -> {} entries, left the old ring at GPGet {}, GPFIFO va {:#x}, guest USERD {:#x} -> {:#x}; old private USERD {} [host]",
+                "chid {chid}: ring migrated in the host's stream (API {:#x}) after {} ms: {} -> {} entries, left the old ring at GPGet {} ({}), GPFIFO va {:#x}, guest USERD {:#x} -> {:#x}; old private USERD {} [host]",
                 done.api,
                 done.after.as_millis(),
                 done.old_entries,
                 done.new_entries,
                 done.old_get,
+                match done.old_put {
+                    Some(p) if p == done.old_get => format!("its last published GPPut {p}: at its end"),
+                    Some(p) => format!("MISMATCH: its last published GPPut is {p}"),
+                    None => "nothing published on it".to_string(),
+                },
                 done.new_gpfifo_va,
                 done.old_guest,
                 done.new_guest,
@@ -4566,6 +4587,7 @@ impl Mirror {
                 old_guest,
                 old_entries,
                 old_get,
+                old_put: None,
                 new_guest,
                 new_entries: info.gp_fifo_entries,
                 new_gpfifo_va: info.gp_fifo_offset,
@@ -7878,7 +7900,7 @@ mod tests {
         // The host moved at the method and fetched on the new ring.
         host(new_ptr, 0x88, 1);
         let (old, done) = u.settle().expect("migrated");
-        assert_eq!((done.old_entries, done.old_get, done.new_entries), (8, 6, 64));
+        assert_eq!((done.old_entries, done.old_get, done.old_put, done.new_entries), (8, 6, Some(6), 64));
         assert_eq!((done.old_guest, done.new_guest, done.api), (old_guest, new_guest, 0x4000_007e));
         assert_eq!((u.guest, u.entries, u.published_put), (new_guest, 64, Some(3)));
         assert!(u.next.is_none());
