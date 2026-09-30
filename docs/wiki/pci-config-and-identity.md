@@ -14,15 +14,19 @@ offsets at fixed positions that a costume must not move.
 | vendor, device, revision, subsystem ids | config header and the BAR0 mirror `NV_PCFG` at 0x88000 | `gpuGetIdInfo_GM107` (`src/nvidia/src/kernel/gpu/arch/maxwell/kern_gpu_gm107.c`); `dev_nv_xve.h` names the mirror |
 | BAR sizes | the config header; later `NV2080_CTRL_CMD_BUS_GET_PCI_BAR_INFO` | `kernel-open/nvidia/nv.c` at probe, `kern_bus.c` |
 | MSI enable | mirror 0x88000 + 0x68 bit 16, kept in sync with the real capability | KernelBif (`src/nvidia/src/kernel/gpu/bif/`) |
-| MSI re-arm | `NV_XVE_CYA_2` at mirror offset 0x704 (BAR0 0x88704), written once per interrupt; the value is ignored, hardware looks at the offset | `kernel_bif_gm107.c` |
+| MSI re-arm | `NV_XVE_CYA_2` at mirror offset 0x704 (BAR0 0x88704), written once per interrupt; the value is ignored, hardware looks at the offset | `kbifRearmMSI_GM107` (`kernel_bif_gm107.c`) |
 | PCIe link registers | fixed XVE offsets 0x84 and 0x88 (`dev_nv_xve.h` for gm107) | `kernel_bif_gm107.c` |
+| the hidden SR-IOV block | mirror 0xBD8 to 0xBFC (`NV_XVE_SRIOV_CAP_HDR*`) | `kbifCacheVFInfo_TU102` (`kernel_bif_tu102.c`) |
 | the option ROM | the PCI image chain through the BAR0 PROM window at 0x300000, not the ROM BAR | `kgspExtractVbiosFromRom_HAL` |
 | the "Model" line in `/proc/driver/nvidia/gpus/*/information` | the driver's own name table keyed by PCI device id (`src/nvidia/generated/g_nv_name_released.h`) | `kernel-open/nvidia/nv-procfs.c` |
 
 - No PCI id enters the chip choice; the HAL comes from the boot registers alone
   ([kernel-rm-hal-and-registry](kernel-rm-hal-and-registry.md)).
-- The guest's PCI configuration capability walk (offsets 0x06, 0x34, 0x60, 0x68, 0x78) still
-  costs 0 to 280 trapped reads per second; the caller is unidentified.
+- The Windows driver reads the extended space through the mirror before any GSP contact
+  (0x700 and the hidden SR-IOV block) and stops with Code 43 when it reads zeros
+  ([caraxes/vfio-user.md](../caraxes/vfio-user.md), "Extended configuration space").
+- A guest walks its capability list (offsets 0x06, 0x34, 0x60, 0x68, 0x78) over and over; the
+  caller is not identified. Each read is a trap ([traps-and-fast-paths](traps-and-fast-paths.md)).
 
 ## TU106 against GB206
 
@@ -42,10 +46,21 @@ offsets at fixed positions that a costume must not move.
 
 ## In the device
 
-- `config.rs` seeds the space from the captured `lspci -xxxx` dump
-  (`caraxes/reference/rtx2070/config-space.txt`); BARs, the ROM BAR, command and MSI
-  registers are writable per PCI rules; the rest is read-only.
-- The BAR0 mirror answers the same bytes; MSI enable there tracks the capability.
+- `crates/vfio-user-nvgpu/src/config.rs` seeds the space from the captured `lspci -xxxx` dump
+  (`caraxes/reference/rtx2070/config-space.txt`), so ids, class and the capability chain match
+  the card byte for byte; the BAR layout and the ROM BAR size come from the board file. BARs,
+  the ROM BAR, the command register, MSI and the usual control words are writable per PCI
+  rules; the rest of the header is read-only.
+- The extended space (0x100 to 0xFFF) holds the capture's bytes. SR-IOV, ARI and the Device
+  Serial Number are unlinked and zeroed; the hidden SR-IOV block stays, read-only; the AER
+  status words are write-1-to-clear. The mirror always serves the extended space; the
+  vfio-user config region shows it only with `CARAXES_EXT_CONFIG=1` (opt-in, no A/B yet) and
+  reads zeros there otherwise.
+- No synthetic board offers MSI-X; the device offers MSI and INTx
+  ([research: trap-census-2026-09-30](../research/trap-census-2026-09-30.md)).
+- The mirror answers the BARs with their sizing masks, not the programmed addresses. After an
+  FLR the Windows KMD wrote those back, and Cloud Hypervisor then failed to move BAR0 (open;
+  [research: windows-findings](../research/windows-findings.md), Cloud Hypervisor step 17).
 - Cloud Hypervisor's vfio-user client reads the space over the socket; it is not mappable,
   so a cache of read-only dwords in the VMM would need a patch.
 

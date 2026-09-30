@@ -616,7 +616,7 @@ the unload is final and the next boot starts from the construction step.
 ## 7. Open questions needing a measurement
 
 1. **Does the stock 615 guest reach any conditional RPC on the gates?** Proposal: run the
-   CUDA, NVML and display gates of [cutover-615.md](../cutover-615.md) with the 615 device and
+   CUDA, NVML and display gates of [cutover-615.md](../../history/caraxes-cutover-615-2026-09-24.md) with the 615 device and
    collect `BootModel::unanswered` (the `unanswered` list, `boot.rs:81`) per gate; every RPC
    function there that is not in section 4 is a finding against this survey.
 2. **What does the operational-event import do once `ALLOC_MEMORY` succeeds?** After step 3

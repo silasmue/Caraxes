@@ -40,6 +40,8 @@ sha256 per file):
 | `boot.tsv` | stable or boot type the device implements: size, hash, version constants | 41 |
 | `layouts.tsv`, `constants.tsv`, `enums.tsv`, `bitfields.tsv` | field offsets, transport constants, stable enumerators, DRF bit ranges | 666, 242, 58, 924 |
 
+- Snapshots of 610.57.04 and 570.144 sit beside it in `caraxes/abi/`, with the deltas
+  `delta-610.57.04-615.71.09.md` and `delta-615.71.09-570.144.md`.
 - Sizes are compiler `sizeof`; the layout hash covers clang's record layout, so a field
   moved at equal size changes it. Driver-side columns depend only on the tree; the device
   columns are read from the crate. `transport.tsv` adds the transport class
@@ -55,7 +57,11 @@ sha256 per file):
    break and stops for a decision; the sender survey is redone.
 4. Regenerate the per-version tables into `src/ver/vN/` (`gsp-tables.py`, `ctrl-layouts.py`,
    `gsp-dtable.py`) after the version's `nvrm-sys` bindings exist; `ver/vN.rs` overrides
-   what moved.
+   what moved. For the one binary add a `ver::GuestAbi` variant, a `guest_layouts!` table,
+   the private stand-ins in `src/ver/common.rs` and, for a new transport or element frame, a
+   rule in `BootModel::detect_guest`
+   ([research: one-abi-binary](../research/one-abi-binary-2026-09-28.md),
+   [guest-drivers-and-abis](guest-drivers-and-abis.md)).
 5. If the host moves to N, add a `hostabi.rs` row per changed host call, GSS-legacy sizes
    from an `nvidia-smi -q` trace included.
 6. `tools/check.sh`, the unit tests, the guest gates with an image of version N.
@@ -66,7 +72,12 @@ sha256 per file):
   152 to 184, `rpc_rc_triggered` 48 to 64, seven control structs, one reused id 0x20800A36).
 - What the diff cannot see: GSS-legacy sizes (no open header), the new meaning of the
   channel and TSG `internalFlags`, the register-held queue pointers, and which RPCs a client
-  stopped sending; those are the hand-kept survey column.
+  stopped sending; those are the hand-kept survey column. Controls compiled only into the
+  Windows build (0x20801111) are in no export table and in no snapshot.
+- The 610-to-570 diff lists 57 changes that affect the device. nouveau reaches six: the
+  control frame, two allocation structs, the OS error log and the kernel interrupt table, all
+  translated, and `GPFIFO_SCHEDULE`, echoed at the guest's size
+  ([research: open-render](../research/open-render-2026-09-29.md)).
 
 ## The drift check
 

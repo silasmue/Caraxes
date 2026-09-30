@@ -2,7 +2,7 @@
 # The v1 guest image for driver 615.71.09
 
 The Leandro v1 (API forwarding) guest for the 615.71.09 host. It replaces the hand-made overlay of the first v1 run
-on 615 ([cutover-615.md](cutover-615.md) section (e), record `caraxes/runs/cutover-615-2026-09-24/v1/`). Made on
+on 615 ([cutover-615.md](../history/caraxes-cutover-615-2026-09-24.md) section (e), record `caraxes/runs/cutover-615-2026-09-24/v1/`). Made on
 2026-09-24 without booting it, from that overlay. `caraxes/tools/bench-v1vm.sh` uses it by default when the driver
 selection says 615.
 

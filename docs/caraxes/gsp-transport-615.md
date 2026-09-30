@@ -5,7 +5,7 @@
 # The CPU-GSP transport of driver 615.71.09, as the device serves it
 
 Decision D19 moves the project's baseline to driver 615.71.09 before the GSP-surface work
-([roadmap.md](roadmap.md)). From 615 on NVIDIA marks the GSP transport and boot structures
+([roadmap.md](../history/caraxes-roadmap-2026-09-27.md)). From 615 on NVIDIA marks the GSP transport and boot structures
 `NV_ABI_STABLE`. This note describes that transport end to end, as the 615 kernel RM drives it on
 Turing, and how `crates/vfio-user-nvgpu` plays the GSP side of it.
 
@@ -16,7 +16,7 @@ Every claim cites file and line in the 615.71.09 tree. Paths are relative to its
 
 The guest evidence is in [guest-driver-versions.md](guest-driver-versions.md) §5 and under
 `caraxes/runs/guest-driver-2026-09-24/615.71.09/`. The device's first 615 runs are under
-`caraxes/runs/transport-615-2026-09-24/` ([experiments.md](experiments.md), "615 transport").
+`caraxes/runs/transport-615-2026-09-24/` ([experiments.md](../history/caraxes-experiments-2026-09-29.md), "615 transport").
 
 ## Summary
 
@@ -103,7 +103,7 @@ Each side writes the header of its own transmit queue at the start of that queue
 
 In 610 the header was different: `version` 0, `size`, `msgSize`, `msgCount`, `writePtr`, `flags`
 (`SWAP_RX`), `rxHdrOff`, `entryOff`, plus a 4-byte `msgqRxHeader` holding the read pointer
-([gsp-abi-610.md](gsp-abi-610.md) (a)). In 615 there is no rx header. The receiver's
+([gsp-abi-610.md](../history/caraxes-gsp-abi-610.md) (a)). In 615 there is no rx header. The receiver's
 `msgqRxLink` checks the other side's header: `size` equal to its own idea of the queue size,
 `msgSize` equal to `queueElementSizeMin`, `versionMajor` 2, and a consistent `msgCount`
 (`msgq.c:240-262`). A zero header fails with -7 (`rx.size != size`, `msgq.c:246-249`). That is the
@@ -482,7 +482,7 @@ show earlier:
 
 What is implemented is the launcher switch with checks behind it. The build fixes the version:
 a device binary emulates one driver version, as 610 already required
-([gsp-abi-610.md](gsp-abi-610.md) (e)). The 615 control layouts reach `ctrl.rs`, `kgr.rs` and
+([gsp-abi-610.md](../history/caraxes-gsp-abi-610.md) (e)). The 615 control layouts reach `ctrl.rs`, `kgr.rs` and
 `channel.rs` through `ver::active` at compile time. The switch therefore selects a binary and
 checks it, as follows:
 
@@ -577,7 +577,7 @@ feature):
 - With `--features v615`: `ver::v615::tests` (Appendix A, the versioned layouts, the reused
   id).
 
-Result of the first 615 guest boot: see [experiments.md](experiments.md), "615 transport".
+Result of the first 615 guest boot: see [experiments.md](../history/caraxes-experiments-2026-09-29.md), "615 transport".
 
 Open items:
 

@@ -193,7 +193,7 @@ Merge note (13:10): the 615 guest transport (msgq v2, GMCAPI init, `ver/v615`) a
 host-ABI selection (`hostabi.rs`) are both on main now, merged from two branches.
 
 Join (evening, this section's checks below): the host-facing items of open item 1 of
-[gsp-transport-615.md](gsp-transport-615.md) are done in code, for every combination of a 610
+[gsp-transport-615.md](../caraxes/gsp-transport-615.md) are done in code, for every combination of a 610
 or 615 guest (`ver::active`, build time) on a 610 or 615 host (`hostabi::current()`, start-up):
 
 - **SM order.** One path, `kgr.rs` `global_sm_order`: the host call is sized by the host
@@ -287,7 +287,7 @@ Only after `ver/v615` (msgq v2 with register-held pointers, MCTP-framed elements
    `caraxes/runs/guest-driver-2026-09-24/commands.txt`), `gpu-encode` and the GL/EGL/Vulkan
    rows fail on 615. That is expected, not a device fault.
    **Display (2026-09-25):** the display path runs on the 615 guest without a device change
-   ([display-615.md](display-615.md)): vm0-615 takes the 615 GL, EGL and Vulkan libraries from
+   ([display-615.md](../caraxes/display-615.md)): vm0-615 takes the 615 GL, EGL and Vulkan libraries from
    the host's own nvidia-utils 615.71.09 and a rebuilt `nvidia-drm.ko` (the image's DKMS module
    needs `drm_display_helper.ko` from linux-modules-extra). The display gate passes 11/11, and the
    trap tables equal the 610 guest's series C.
@@ -388,7 +388,7 @@ series (benchmark.md "First 615 series"), every run rc 0.
 
 ### The 615 guest's display path (2026-09-25)
 
-Record `caraxes/runs/display-615-2026-09-24/`, details in [display-615.md](display-615.md). State
+Record `caraxes/runs/display-615-2026-09-24/`, details in [display-615.md](../caraxes/display-615.md). State
 folder `vm0-615`: an overlay on the 615 base image with vm0's seed (192.168.100.20). Unlike vm2-615
 and vm3-615, nvidia_modeset and nvidia_drm are allowed, but only after the launcher's DMA table
 is installed; nvidia_peermem stays blocked and nvidia-persistenced masked. The environment is
@@ -493,7 +493,7 @@ The VM is down. To bring it back up: `V=/mnt/vmstore/caraxes/bench-v1-615 NVRM=/
 then the manual `modules` step from `commands.txt` section 4. With the new script this overlay is refused,
 because it sits on the base image. Use the image below.
 
-**Follow-ups done and booted (2026-09-24, 18:24: smi PASS, 14 of 14 cuda rows pass on the 615 image; the record is `caraxes/runs/v1-615-image-2026-09-24/`), in [v1-615-image.md](v1-615-image.md):**
+**Follow-ups done and booted (2026-09-24, 18:24: smi PASS, 14 of 14 cuda rows pass on the 615 image; the record is `caraxes/runs/v1-615-image-2026-09-24/`), in [v1-615-image.md](../caraxes/v1-615-image.md):**
 
 1. There is now a standalone image, `/mnt/vmstore/caraxes/images/guest-v1-2026-09-24-615.71.09.qcow2` (sha256
    `cba67208...71f5d`). It was flattened from this overlay. `nvidia-modprobe` is now a local dpkg diversion,

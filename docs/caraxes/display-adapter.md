@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: MIT -->
 # The NVIDIA display adapter: control dispatch, EDID lifecycle, classes, channels
 
-Package B of the side assignment ([briefing-display-nova.md](briefing-display-nova.md) §2, §3,
-§7, §10, §12; P16 in [README.md](README.md)). Written 2026-09-23. Source survey only: no VM,
+Package B of the side assignment ([briefing-display-nova.md](../history/caraxes-briefing-display-nova-2026-09-23.md) §2, §3,
+§7, §10, §12; P16 in [README.md](../history/caraxes-record-2026-09-28.md)). Written 2026-09-23. Source survey only: no VM,
 no host GPU access, no change to the device crate. It inventories what the guest driver
 sends for **one DisplayPort SST connector** (D15) and where each request terminates, so the
 device knows which controls it must answer, which state it must keep, and in which order
@@ -690,5 +690,5 @@ gate names the observation that would be different if the device were lying.
   `src/ctrl.rs:238-283,682-687`, `src/boot.rs:600-660`, `src/chip/turing.rs:152`.
 - nouveau r535 (linux-6.12): `nvkm/engine/disp/r535.c:955-1100,1281-1310,1571-1580`.
 - Caraxes notes: [display-path.md](display-path.md), [display-connector.md](display-connector.md),
-  [display-scaling.md](display-scaling.md), [display-d0.md](display-d0.md),
-  [fb-model.md](fb-model.md) §3.2, [briefing-display-nova.md](briefing-display-nova.md).
+  [display-scaling.md](display-scaling.md), [display-d0.md](../history/caraxes-display-d0-2026-09-23.md),
+  [fb-model.md](fb-model.md) §3.2, [briefing-display-nova.md](../history/caraxes-briefing-display-nova-2026-09-23.md).

@@ -4,7 +4,7 @@
 Updated: 2026-09-28, 16:40 CEST (Claude Code). P17 ran at 08:15 and was stopped after
 four host Xid 31; its result is below. No VM is running; the host was rebooted at 15:15.
 
-Ready-to-use continuation prompt: [Claude Code prompt](claude-continue-windows.md).
+Ready-to-use continuation prompt: [Claude Code prompt](claude-continue-windows-2026-09-28.md).
 
 ## Workspace and constraints
 
@@ -94,7 +94,7 @@ Ready-to-use continuation prompt: [Claude Code prompt](claude-continue-windows.m
   changes remain diagnostic only; the actual display color pipeline is unfinished.
 - Tests: ABI615 535 unit + two integration passed, one ignored at c9531d34;
   ABI610 532 unit + two integration passed at ec3d1fa8.
-- Detailed evidence: [Deferred context report](windows-deferred-context-2026-09-28.md).
+- Detailed evidence: [Deferred context report](../research/windows-deferred-context-2026-09-28.md).
 
 ## Windows: confirmed progress and blocker
 
@@ -298,7 +298,7 @@ LRU capacity, and preserves cumulative counters.
 - No new host Xid. VM stopped; diagnostic LUT profile remains unmerged.
 - Next: capture the complete initial prefix and validate it before retiring the
   host channel. FIFO GPGet equality alone does not prove GPU work completion.
-- Details: [Deferred context report](windows-deferred-context-2026-09-28.md).
+- Details: [Deferred context report](../research/windows-deferred-context-2026-09-28.md).
 
 ## Next actions
 

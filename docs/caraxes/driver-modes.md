@@ -66,7 +66,7 @@ present and compiled unconditionally (`src/nvidia/src/kernel/vgpu/rpc.c`,
    failure (`src/nvidia/src/kernel/vgpu/objvgpu.c:97-103`).
 
 Presenting an Ada identity to a Turing GPU is not an option (D2 in
-[README.md](README.md)): the kernel RM's HAL and class lists, and userspace's SASS
+[README.md](../history/caraxes-record-2026-09-28.md)): the kernel RM's HAL and class lists, and userspace's SASS
 target, would follow the fake identity.
 
 ## Variant 2: monolithic PF — absent
@@ -82,7 +82,7 @@ GPU System Processor (GSP)"). For a Turing identity this variant cannot initiali
 `RmInitAdapter` (`osinit.c:1971-2378`) fetches `gsp_tu10x.bin` (`RmFetchGspRmImages`,
 :2022), attaches the GPU (`osInitNvMapping`, :2048), and calls `kgspInitRm`
 (:2115). Everything in [gsp-boot-turing.md](gsp-boot-turing.md) happens inside
-`kgspInitRm`; everything in [gsp-rpc-protocol.md](gsp-rpc-protocol.md) starts at its
+`kgspInitRm`; everything in [gsp-rpc-protocol.md](../history/caraxes-gsp-rpc-protocol-610.md) starts at its
 end. The kernel RM keeps direct control of a set of hardware blocks after boot
 ([kernel-rm-hw-surface.md](kernel-rm-hw-surface.md)); all object semantics go through
 `GSP_RM_ALLOC` / `GSP_RM_CONTROL` / `FREE` / `DUP_OBJECT` RPCs, which is where the

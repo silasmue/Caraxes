@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # GSP plan: preparing a full implementation of the GSP surface on 615.71.09
 
-The research programme after D19 and P23 ([../README.md](../README.md)): everything a GSP-RM
+The research programme after D19 and P23 ([../README.md](../decisions.md)): everything a GSP-RM
 stand-in must answer for a stock 615.71.09 kernel RM on TU106, from source, compared with what
 `crates/vfio-user-nvgpu` does today, with a recipe, a truth source and an isolation rating per
 item. [../gsp-surface.md](../gsp-surface.md) is the inventory this plan starts from. One row

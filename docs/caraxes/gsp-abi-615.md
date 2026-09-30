@@ -3,7 +3,7 @@
 <!-- Written 2026-09-25 against the open-gpu-kernel-modules tree at 615.71.09 (the Leandro checkout, version.mk sha256 40c9cf44...) and the vendored 610.57.04 tree; numbers are those of the snapshots in caraxes/abi/, generated at repository commit a90ea5b. Rerun the tools for current numbers. -->
 # The GSP ABI baseline: 615.71.09
 
-Decision D20 ([README.md](README.md)): **615.71.09 is the recorded GSP ABI baseline of this
+Decision D20 ([README.md](decisions.md)): **615.71.09 is the recorded GSP ABI baseline of this
 project; later driver versions are handled as diffed deltas against `caraxes/abi/`.** The
 operator's reason: from 615 on NVIDIA marks the GSP transport and boot structures
 `NV_ABI_STABLE`, so the boundary the device emulates should change only a little from here,
@@ -190,7 +190,7 @@ corrects the flag-based 149 by hand; the snapshot keeps the flags.
 
 The "sent by a GSP client" column is the one column that is a survey rather than a
 measurement: `GSP_CLIENT_SENDS` and `GSP_CLIENT_SENDS_615` in `gsp-surface.py`, from
-[gsp-rpc-protocol.md](gsp-rpc-protocol.md) §3 and [gsp-plan/rpc-functions.md](gsp-plan/rpc-functions.md)
+[gsp-rpc-protocol.md](../history/caraxes-gsp-rpc-protocol-610.md) §3 and [gsp-plan/rpc-functions.md](gsp-plan/rpc-functions.md)
 §2. A new driver version needs that survey redone for its sender changes (section 6, step 3).
 
 ## 5. The worked example: 610.57.04 to 615.71.09

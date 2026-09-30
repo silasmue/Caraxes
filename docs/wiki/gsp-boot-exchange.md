@@ -5,7 +5,8 @@
 The boot exchange is the ordered sequence of register writes, firmware loads and the first
 messages by which the kernel RM brings GSP-RM up. A synthetic device answers each step with
 the value the CPU checks next; no firmware runs. This page gives the Turing order of
-615.71.09 and the differences on Blackwell and Hopper.
+615.71.09 (cited lines are 615.71.09 lines), the older exchange of the 570 guests, and the
+differences on Blackwell and Hopper.
 
 ## Turing (`kgspBootstrap_TU102`)
 
@@ -15,15 +16,17 @@ the value the CPU checks next; no firmware runs. This page gives the Turing orde
 | 2 | CPU | creates the command queue in guest RAM (`msgqTxCreate`) and writes `NV_PGSP_QUEUE_HEAD(0) = 0` while the GSP falcon is halted | `src/nvidia/src/libraries/msgq/msgq.c` |
 | 3 | CPU | loads FWSEC into the GSP falcon, starts it, waits for the halt and the WPR2 registers; the device derives the WPR2 values from the FRTS command the CPU wrote | `src/nvidia/src/kernel/gpu/gsp/arch/turing/kernel_gsp_tu102.c`, the falcon model |
 | 4 | CPU | resets the falcon into RISC-V, writes the libos-argument page address into `MAILBOX0/1` | `kernel_gsp_tu102.c` |
-| 5 | CPU to SEC2 | Booter Load with the WPR meta address; the device links its status queue here, because the next step arrives without a doorbell | `kernel_gsp_tu102.c` |
+| 5 | CPU to SEC2 | Booter Load with the WPR meta address; the device reads the guest ABI from RMARGS and links its status queue here, because the next step arrives without a doorbell | `kernel_gsp_tu102.c` |
 | 6 | CPU | `GspStatusQueueInit` polls `msgqRxLink` for the device's queue header (4 s), then writes `NV_PGSP_MSGQ_TAIL(0) = 0` | 615: `kernel_gsp_tu102.c:469`, `msgq.c:270-272` |
 | 7 | CPU to GSP | `GMCAPI_CMD_GSP_INIT` with the system information and every registry key as NVKV words, `QUEUE_HEAD(0) = 1` | 615: `kernel_gsp_tu102.c:473`, `kernel_gsp.c:4893-5217` |
 | 8 | GSP to CPU | the static configuration as NVKV: GPU names, GID, VBIOS fields, FB length and regions, BAR PDE bases, engine mask, feature words; the response is the init completion | 615: `kernel_gsp.c:5328-5344` |
 | 9 | CPU to GSP | `INIT_GSP_TRACE_CRASH_BUFFER`, the internal client, device and subdevice, the first `GSP_RM_CONTROL`s, `UPDATE_BAR_PDE`, the event import's `ALLOC_MEMORY` | `RmInitAdapter` in `src/nvidia/arch/nvalloc/unix/src/osinit.c` |
 
-- A 615 boot carries 272 RPCs (189 controls, 50 allocations, 30 frees). In 610 step 7 and 8
-  were four RPCs (`GSP_SET_SYSTEM_INFO`, `SET_REGISTRY`, `GET_GSP_STATIC_INFO`) and a
-  `GSP_INIT_DONE` event.
+- A 615 boot carries 272 RPCs (189 controls, 50 allocations, 30 frees)
+  ([research: gsp-rpc-events-classes](../research/gsp-rpc-events-classes.md)). The device's
+  TU106 response in step 8 is 560 bytes of keys
+  ([research: gsp-transport](../research/gsp-transport.md)). In 610 steps 7 and 8 were three RPCs (`GSP_SET_SYSTEM_INFO`, `SET_REGISTRY`,
+  `GET_GSP_STATIC_INFO`) and the wait for the `GSP_INIT_DONE` event.
 - The static-configuration decoder is strict: a known key of the wrong type, index or length
   fails the whole init with `NV_ERR_INVALID_ARGUMENT`; an unknown key is ignored.
 - Nothing in the VBIOS executes; the captured ROM holds two PCI images, and the device
@@ -36,9 +39,27 @@ the value the CPU checks next; no firmware runs. This page gives the Turing orde
   `MAILBOX0`; then the falcon reset with FWSEC-SB, Booter Unload on SEC2, and a
   function-level reset by the OS before the next load.
 - On resume the kernel sets `IN_PM_TRANSITION`, skips the queue link and waits for
-  `GSP_RESUME_DONE` instead of sending `GSP_INIT` (615: `kernel_gsp_tu102.c:463-478`).
+  `GSP_RESUME_DONE` instead of sending `GSP_INIT` (615: `kernel_gsp_tu102.c:463-478`). The
+  device keeps its model on such a suspend and sends `GSP_RESUME_DONE` after the next Booter
+  Load; only unit tests cover it ([research: gsp-transport](../research/gsp-transport.md)).
+- Windows recovers from a TDR with a function-level reset and a new GSP boot. The RM sets
+  PTIMER forward before every GSP boot (615: `kernel_gsp.c:5677-5682`), so the device keeps
+  one clock across the reset ([research: windows-findings](../research/windows-findings.md),
+  Cloud Hypervisor step 5).
 - A `QUEUE_HEAD` write of 0 while the device's read pointer is not 0 means the queue was
   created anew (reload without reset); the device drops the link.
+
+## The 570 exchange (nova-core, nouveau)
+
+- Message queue v0 with the pointers in shared memory and the checksummed pre-610 element
+  ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
+- The CPU sends `GSP_SET_SYSTEM_INFO` and `SET_REGISTRY`; GSP-RM answers with the
+  `GSP_RUN_CPU_SEQUENCER` event, then `GSP_INIT_DONE`; the CPU asks `GET_GSP_STATIC_INFO`
+  (at least 1656 bytes) and sends `UNLOADING_GUEST_DRIVER` at unload. The device sends
+  nothing else unsolicited ([caraxes/nova-guest.md](../caraxes/nova-guest.md) §2.1).
+- nouveau queues its first RPCs and rings before the mailboxes carry the libos arguments,
+  then only polls. The device links the queues at Booter Load when commands are queued, as
+  GSP-RM does at its init ([research: open-render](../research/open-render-2026-09-29.md)).
 
 ## Blackwell and Hopper (FSP Chain of Trust)
 

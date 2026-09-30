@@ -16,7 +16,7 @@ function. On TU106 it uses 14:
 
 | Function | When | Device answer |
 |---|---|---|
-| `GSP_RM_CONTROL` (76) | every boot, every client | per control ([gsp-control-categories](gsp-control-categories.md)) |
+| `GSP_RM_CONTROL` (76) | every boot, every client | per control ([gsp-control-categories](gsp-control-categories.md)); GSS-legacy replies keep `rmctrlFlags` 0 unless `CARAXES_LEGACY_CACHEABLE=1` |
 | `GSP_RM_ALLOC` (103) | every boot, every client | constructs under the guest's handles; foreign classes refused with GSP-RM's codes |
 | `FREE` (10) | every boot | status 0, drops registered memory and mirror objects |
 | `CONTINUATION_RECORD` (71) | any RPC above 65512 bytes | reassembled for control, alloc and `ALLOC_MEMORY`; emitted for large replies |
@@ -33,6 +33,10 @@ function. On TU106 it uses 14:
 - A 610 client also sent `SET_GUEST_SYSTEM_INFO`, `GET_GSP_STATIC_INFO`,
   `GSP_SET_SYSTEM_INFO`, `SET_REGISTRY` and `UNLOADING_GUEST_DRIVER`; 615 folded them into
   `GMCAPI_CMD_GSP_INIT` and `GSP_SUSPEND` ([gsp-message-queue](gsp-message-queue.md)).
+- The 570 guests boot with `GSP_SET_SYSTEM_INFO`, `SET_REGISTRY`, `GET_GSP_STATIC_INFO` and
+  `UNLOADING_GUEST_DRIVER`, numbered as in 610; nouveau then sends `GSP_RM_ALLOC` and
+  `GSP_RM_CONTROL` with the 570 control frame. The Windows 617 KMD uses the functions of the
+  table ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
 - `ALLOC_MEMORY` is not optional on 615: refused, the event import logs
   `goeimport: step 3a failed` and stays off, and the deferred-API USERD update of GL and
   Vulkan, the profiler's buffers and the heap backing store at suspend fail with it.
@@ -43,7 +47,11 @@ function. On TU106 it uses 14:
 
 - 45 events (0x1001 to 0x102D) in 615, 36 dispatched by the kernel; an unhandled one reaches
   the kernel's default case, which logs and ignores it (`kernel_gsp.c`).
-- `GSP_INIT_DONE` is no longer awaited on 615; the `GSP_INIT` response is the completion.
+- `GSP_INIT_DONE` is no longer awaited on 615; the `GSP_INIT` response is the completion. A
+  570 or 610 guest still waits for it, a 570 guest after `GSP_RUN_CPU_SEQUENCER`.
+- Payloads differ per guest ABI: `RC_TRIGGERED` is 48 bytes in 570 and 610 and 64 in 615;
+  `OS_ERROR_LOG` has `runlistId`, `chid` and `errString` at 4, 8, 12 in 570 and at 8, 12, 16
+  in 610 ([research: open-render](../research/open-render-2026-09-29.md)).
 
 | Need on TU106 Linux | Events | Device |
 |---|---|---|
@@ -58,8 +66,9 @@ function. On TU106 it uses 14:
   record in the registered operational-event buffer, woken with `POST_EVENT`; the guest
   kernel sets "OS reboot required" when a UVM-owned channel gets an RC
   (`src/nvidia/src/kernel/gpu/rc/kernel_rc_notification.c`).
-- MMU faults: the executor raises none; a mirror fault is an RC of a non-UVM channel; UVM
-  fault forwarding is open work ([execution-mirror](execution-mirror.md)).
+- MMU faults: GMCAPI `MMU_FAULT_QUEUED` (0x40001) is not raised; a mirror fault is an RC of
+  a non-UVM channel ([execution-mirror](execution-mirror.md)). Replayable UVM faults have no
+  host producer ([research: uvm-faults](../research/uvm-faults-2026-09-28.md)).
 
 ## Classes on the wire
 
@@ -67,8 +76,12 @@ function. On TU106 it uses 14:
   wire from a GSP client; 48 are in TU106's class database; 36 are allocated by a stock
   TU106 Linux stack.
 - Outside the database the device answers `NV_ERR_NOT_SUPPORTED`, under a channel
-  `NV_ERR_INVALID_CLASS`, as `alloc_free.c` does; the profiler classes 0x90CC, 0xB0CC,
-  0xB1CC, 0xB2CC are refused with `NV_ERR_INSUFFICIENT_PERMISSIONS`.
+  `NV_ERR_INVALID_CLASS`, as `alloc_free.c` does. Inside it the device refuses the profiler
+  classes 0x90CC, 0xB1CC, 0xB2CC and the perf buffer 0x844C with `NV_ERR_NOT_SUPPORTED` until
+  it models a profiler (`REFUSED` in `crates/vfio-user-nvgpu/src/classes.rs`).
+- The Windows build allocates classes outside the Linux database; the device records 0xB297
+  under a subdevice (`WINDOWS_ONLY` in `classes.rs`,
+  [guest-drivers-and-abis](guest-drivers-and-abis.md)).
 - 615 added `NV_OPERATIONAL_EVENT_BUFFER_BIND` 0x90D0 and `WPPS_CONFIG_SESSION` 0xD0CD; the
   one alloc-parameter change among GSP-bound classes is `NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS`
   (20 to 28 bytes), and the channel and TSG `internalFlags` now carry the kernel's TSG id.

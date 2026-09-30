@@ -4,7 +4,7 @@
      arithmetic on cited code; items marked "choice" are design decisions of this note. -->
 # Framebuffer model for the synthetic TU106 (milestone 1)
 
-This note settles open questions 5 and 17 ([open-questions.md](open-questions.md)) far enough to build
+This note settles open questions 5 and 17 ([open-questions.md](../history/caraxes-open-questions-2026-09-23.md)) far enough to build
 milestone 1: `RmInitAdapter succeeded`, `/dev/nvidia0` usable, and `nvidia-smi` printing the card.
 It specifies:
 

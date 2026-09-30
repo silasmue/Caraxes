@@ -2,7 +2,7 @@
 # Passthrough procedure for R1/R3 (written, not run)
 
 > 2026-09-29: for R4 (and R1/R3 with it), sections 2-4 are replaced by
-> [experiments.md](experiments.md) R4 and `caraxes/tools/passthrough/`. Two corrections to
+> [experiments.md](../history/caraxes-experiments-2026-09-29.md) R4 and `caraxes/tools/passthrough/`. Two corrections to
 > this file: the port 00:03.1 has reset_method `pm`, so its `reset` resets the port, not the
 > card (the secondary bus reset is its `reset_subordinate`); and QEMU's log trace backend
 > writes timestamps only with `-msg timestamp=on`.
@@ -12,17 +12,17 @@ host driver, the card's registers, or the Wayland session. Every command below
 that changes host state is a **plan** for a future session run over SSH in
 tmux from a second machine, per the operator's decision on 2026-09-23 ("no
 passthrough for the moment, we need to prepare that better") and the safety
-envelope in [experiments.md](experiments.md). Section 1's read-only checks
+envelope in [experiments.md](../history/caraxes-experiments-2026-09-29.md). Section 1's read-only checks
 were run now, from the desktop session itself, because they cannot break
 anything; their real output is recorded below so the rest of the procedure is
 grounded in this machine's actual state, not assumptions. All host paths below
 are absolute to this machine (hostname `manacor`); command output was captured
 2026-09-23, roughly 11:00-11:25 CEST.
 
-Read first: [experiments.md](experiments.md) (R1/R3 definitions, safety
-table), [kickoff.md](kickoff.md) rule 1 and section 5 step 6 (guest
-preparation), [environment.md](environment.md) (host inventory),
-[open-questions.md](open-questions.md) Q1/Q3 (what R1/R3 resolve).
+Read first: [experiments.md](../history/caraxes-experiments-2026-09-29.md) (R1/R3 definitions, safety
+table), [kickoff.md](../history/caraxes-kickoff-2026-09-23.md) rule 1 and section 5 step 6 (guest
+preparation), [environment.md](../history/caraxes-environment-2026-09-23.md) (host inventory),
+[open-questions.md](../history/caraxes-open-questions-2026-09-23.md) Q1/Q3 (what R1/R3 resolve).
 
 ## 1. Preconditions
 
@@ -385,7 +385,7 @@ Reuse the overlay `tools/caraxes-vm.sh` already prepared for E0/E1
 `target/caraxes/vm0/rootfs.qcow2`): it already has `nvidia.ko` 610.57.04 built
 in-guest from `vendor/open-gpu-kernel-modules` against the Ubuntu
 610.57.04 image's headers, with `gsp_tu10x.bin` installed, per
-[kickoff.md](kickoff.md) section 5 step 6. That overlay's driver was never
+[kickoff.md](../history/caraxes-kickoff-2026-09-23.md) section 5 step 6. That overlay's driver was never
 loaded against real hardware, so it is exactly what R1/R3 need. If a fresh
 overlay is preferred instead of reusing `vm0`'s, repeat kickoff.md section 5
 step 6 against a new `qemu-img create -f qcow2 -b <base> -F qcow2 <new>.qcow2`
@@ -489,7 +489,7 @@ The exact field layout of `vfio_region_read`/`vfio_region_write` lines is
 defined in QEMU's `hw/vfio/region.c` (or `common.c`), which is **not** part
 of the files fetched into `vendor/qemu-vfio-user/` (only `container.c`,
 `device.c`, `pci.c`, `proxy.c` and `hw-vfio-pci.c` were pulled in, per
-[environment.md](environment.md) -- none of them define this trace point).
+[environment.md](../history/caraxes-environment-2026-09-23.md) -- none of them define this trace point).
 Do not trust a hardcoded field order below without checking a handful of real
 lines first:
 
@@ -550,11 +550,11 @@ Filter the same trace for BAR0 region reads at offsets `0x0` (`NV_PMC_BOOT_0`),
 `0x4` (`NV_PMC_BOOT_1`) and `0xA00` (`NV_PMC_BOOT_42`). Per
 [init-map.md](init-map.md) and the E0 result these are read in three rounds
 (probe, start, `RmInitAdapter`), so nine lines total are expected; all three
-rounds should agree. [environment.md](environment.md) records the predicted
+rounds should agree. [environment.md](../history/caraxes-environment-2026-09-23.md) records the predicted
 values from the datasheet encoding (`BOOT_0 = 0x166000A1`, `BOOT_1 = 0`,
 `BOOT_42` chip id `0x166` with revision A1) -- record what the real card
 actually returns next to those predictions, and update
-[open-questions.md](open-questions.md) Q1 and Q3 with the measured values and
+[open-questions.md](../history/caraxes-open-questions-2026-09-23.md) Q1 and Q3 with the measured values and
 the trace file's location. (This document does not edit `open-questions.md`
 itself -- that update is the follow-up action after a real run.)
 
@@ -718,7 +718,7 @@ section-4 sequence; recovery must be safe to run twice.
   shell, start tmux), before scheduling a run. Do this well before the
   window, not as part of the same session.
 - **GSP/SEC2 hang risk.** Per the safety table in
-  [experiments.md](experiments.md), writes to falcon/WPR registers can hang
+  [experiments.md](../history/caraxes-experiments-2026-09-29.md), writes to falcon/WPR registers can hang
   GSP-RM (Xid 119/120) and need a reboot to clear. This procedure only reads
   (traces) the real init sequence; it does not add any register writes beyond
   what the stock driver already does on every normal boot. The residual risk

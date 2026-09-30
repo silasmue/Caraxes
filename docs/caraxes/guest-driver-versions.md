@@ -4,7 +4,7 @@
 The operator's question: what happens with a guest that runs a different driver version from
 the one the device emulates? Every guest so far ran 610.57.04, the host's version, from
 NVIDIA's package. The device (`crates/vfio-user-nvgpu`) speaks the 610.57.04 GSP ABI through
-`src/ver/v610.rs` (D14, [README.md](README.md)). This note covers the versions tried, where
+`src/ver/v610.rs` (D14, [README.md](decisions.md)). This note covers the versions tried, where
 each one stopped, the structural cause in the sources, the size differences, and what D14
 needs so that the device can serve another version.
 

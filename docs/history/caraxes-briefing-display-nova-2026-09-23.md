@@ -5,9 +5,9 @@
 Source report and implementation briefing handed over by the operator on 2026-09-23 as a
 side assignment ("run it in parallel where possible, not top priority, can help us a lot in
 the long run"). Kept verbatim below (German). Caraxes context that the briefing did not have:
-[display-path.md](display-path.md), [display-connector.md](display-connector.md),
-[display-scaling.md](display-scaling.md), decisions D15/D16 and P12 in [README.md](README.md),
-[display-d0.md](display-d0.md). Sources S01-S31 are named, not linked; agents resolve them
+[display-path.md](../caraxes/display-path.md), [display-connector.md](../caraxes/display-connector.md),
+[display-scaling.md](../caraxes/display-scaling.md), decisions D15/D16 and P12 in [README.md](caraxes-record-2026-09-28.md),
+[display-d0.md](caraxes-display-d0-2026-09-23.md). Sources S01-S31 are named, not linked; agents resolve them
 against `vendor/open-gpu-kernel-modules` (610.57.04) and public trees and record the commits
 they used.
 

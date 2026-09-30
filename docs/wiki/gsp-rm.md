@@ -5,7 +5,9 @@
 The GPU System Processor (GSP) is a RISC-V core on every NVIDIA GPU from Turing on. GSP-RM
 is the physical half of the Resource Manager compiled to run on it. The kernel RM in the
 open kernel modules is its client, and VFIO Leandro's device plays GSP-RM's role for the
-guest: it produces the CPU-visible side effects of the boot and answers the RPC stream.
+guest: it produces the CPU-visible side effects of the boot and answers the RPC stream. One
+device binary does this for four guest drivers
+([guest-drivers-and-abis](guest-drivers-and-abis.md)).
 
 ## Division of labour on real hardware
 
@@ -31,7 +33,8 @@ guest: it produces the CPU-visible side effects of the boot and answers the RPC 
    ([gsp-boot-exchange](gsp-boot-exchange.md)).
 2. The message queue in guest RAM and the four pointer registers
    ([gsp-message-queue](gsp-message-queue.md)).
-3. An answer to `GMCAPI_CMD_GSP_INIT` and to the 14 RPC functions a 615 client uses
+3. An answer to `GMCAPI_CMD_GSP_INIT` and to the 14 RPC functions a 615 client uses, and
+   for a 570 guest the older boot RPCs with the CPU-sequencer event
    ([gsp-rpc-and-events](gsp-rpc-and-events.md)).
 4. An answer to every routed control the client sends, sorted by where the truth lives
    ([gsp-control-categories](gsp-control-categories.md)).
@@ -49,6 +52,8 @@ guest: it produces the CPU-visible side effects of the boot and answers the RPC 
   creates as an RM client ([execution-mirror](execution-mirror.md)).
 - It does not run GSP-RM's log buffers; a decoded line would need the per-version metadata
   of the guest's `gsp_*.bin`.
+- It does not check the guest firmware's version: it reads the ABI generation from RMARGS and
+  the first queue element.
 
 ## Why the GSP boundary and not the ioctl boundary
 
@@ -59,7 +64,7 @@ guest: it produces the CPU-visible side effects of the boot and answers the RPC 
   inline.
 - The vocabulary is not smaller: `GSP_RM_ALLOC` and `GSP_RM_CONTROL` wrap the RM class and
   control space, and the kernel RM adds the internal controls it sends on its own
-  ([caraxes/README.md](../caraxes/README.md), idea P1).
+  ([the caraxes record](../history/caraxes-record-2026-09-28.md), idea P1).
 
 ## Depth
 

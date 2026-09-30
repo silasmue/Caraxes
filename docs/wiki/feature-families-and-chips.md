@@ -47,6 +47,20 @@ GB206 needs beyond Turing.
   controls on GB100 and GB20x; the synthetic GB206 answers them `NV_ERR_NOT_SUPPORTED` and the
   gate passes.
 
+## What the Windows guest adds
+
+- The Windows 617.14 KMD sends controls the Linux guests do not. The device answers them behind
+  open switches only the Windows wrapper sets: `CARAXES_WIN_ACKS` (four controls the KMD needs
+  acknowledged), `CARAXES_WIN_DISPLAY_QUERIES` and `CARAXES_LPWR_2806_OK` (LPWR 0x2806 answered
+  `NV_OK`); `CARAXES_RUSD` keeps the RM user shared data page as GSP-RM keeps it
+  ([device-configuration](device-configuration.md)).
+- The card answers every OS alike, so each needs an A/B on Linux before it becomes a default
+  (`caraxes/runs/flags-2026-09-30/NOTE.md`).
+- `0x20801111`, a FIFO control without a public header, comes with two handles of the KMD's class
+  0xB297 objects, twice per frame in NVENC mode. The KMD unloads GSP-RM when it is refused, so the
+  device acknowledges it and executes nothing (`crates/vfio-user-nvgpu/src/recorded.rs`
+  `FIFO_WINDOWS_1111`); its meaning is unknown (`caraxes/runs/codec-2026-09-30/matrix.md`).
+
 ## What a second chip needs (GB206 from the lab capture)
 
 | Item | GB206 | TU106 |

@@ -5,7 +5,7 @@ This is the checklist for one capture run on a lab machine with a Blackwell GeFo
 (for example an RTX 5060 Ti, GB206) and the NVIDIA driver installed. The run is done by
 the operator, unattended by us. What comes back is filed under
 `caraxes/reference/<chip>/` (for example `caraxes/reference/gb206/`), and a Blackwell
-identity is built from it later, per decision D14 ([README.md](README.md)) and the
+identity is built from it later, per decision D14 ([README.md](decisions.md)) and the
 Blackwell checklist of [versatility.md](versatility.md).
 
 The kit is one script, [caraxes/tools/lab-capture.sh](../../caraxes/tools/lab-capture.sh).
@@ -358,7 +358,7 @@ The script was run on the RTX 2070 host (TU106, driver 610.57.04) without sudo
 (`--no-sudo --rom`) on 2026-09-24. The record is in
 `caraxes/runs/lab-selftest-2026-09-24/` (`README.md` there has the result). The ROM
 walk was checked separately on `caraxes/reference/rtx2070/rom.bin` (verdict: chain
-complete, no FWSEC image, as documented in [environment.md](environment.md)) and on
+complete, no FWSEC image, as documented in [environment.md](../history/caraxes-environment-2026-09-23.md)) and on
 `synth-vbios.bin` (FWSEC image present, falcon ucode table found at 0x1fd24).
 
 ## Sources

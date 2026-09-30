@@ -25,7 +25,7 @@
 - The device registers guest RAM with the host RM in 1 GiB chunks. Each chunk
   gets one contiguous IOVA range. This module makes the guest use those IOVAs
   (sysmem-iova.md §4, option (b)).
-- This is **decision D13** in [docs/caraxes/README.md](../../docs/caraxes/README.md):
+- This is **decision D13** in [docs/caraxes/decisions.md](../../docs/caraxes/decisions.md):
   a temporary guest aid with a removal plan, and the only guest-side patch in
   the plan.
 - **Removal** (sysmem-iova.md §5). Delete the module, its modprobe.d lines and

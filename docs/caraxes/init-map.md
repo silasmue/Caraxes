@@ -5,7 +5,7 @@ The path the stock open driver (610.57.04) takes on a Turing identity in GSP-cli
 mode. Paths are relative to `vendor/open-gpu-kernel-modules`. Each step names what
 the synthetic device must provide ("device:") and what the guest must have ("guest:").
 The register-level detail of phase 4 is in [gsp-boot-turing.md](gsp-boot-turing.md);
-the queue/RPC detail of phase 5 is in [gsp-rpc-protocol.md](gsp-rpc-protocol.md).
+the queue/RPC detail of phase 5 is in [gsp-rpc-protocol.md](../history/caraxes-gsp-rpc-protocol-610.md).
 
 ## Phase 0: module load and match
 

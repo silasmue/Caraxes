@@ -61,7 +61,7 @@ python3 caraxes/tools/gsp-surface.py --ogkm DIR      # another driver tree (or C
 - *RPC functions and events:* the X-macro `X(UNIT, NAME, NUM)` and `E(NAME, NUM)` lists in
   `src/nvidia/inc/kernel/vgpu/rpc_global_enums.h`, with the versioned payload structs from
   `src/nvidia/generated/g_rpc-structures.h` (`rpc_<name>_vXX_YY`). Which functions a GSP client
-  sends is taken from the source survey in [gsp-rpc-protocol.md](gsp-rpc-protocol.md) §3 (a
+  sends is taken from the source survey in [gsp-rpc-protocol.md](../history/caraxes-gsp-rpc-protocol-610.md) §3 (a
   constant in the script, cited there); which events the CPU dispatches is parsed from the
   `case NV_VGPU_MSG_EVENT_*` list of `_kgspProcessRpcEvent` (`src/nvidia/src/kernel/gpu/gsp/kernel_gsp.c:1399`).
 - *Controls:* every `__nvoc_exported_method_def_*` table of every `src/nvidia/generated/g_*_nvoc.c`
@@ -368,7 +368,7 @@ RC error counts, GPU accounting. 66 of the 71 are NON_PRIVILEGED.
 **Recipe: a forward rule.** Extend the `FORWARD` table of `ver/v610.rs` from a list into a rule:
 forward when the control is public, the target object maps to a host object the device holds
 (subdevice or device, `nvml.rs` `forward`), the parameters are not FINN-serialized (the embedded-
-pointer controls listed in [gsp-rpc-protocol.md](gsp-rpc-protocol.md) §5 are excluded), and the
+pointer controls listed in [gsp-rpc-protocol.md](../history/caraxes-gsp-rpc-protocol-610.md) §5 are excluded), and the
 control is not on a D9 deny list. The deny list is what must not leave the host: process and
 accounting data of the host (`NV0000_CTRL_CMD_GPUACCT_*`, anything that returns PIDs), the host's
 own RC error records, and identity the profile replaces (nvml.rs). PRIVILEGED controls (4) need

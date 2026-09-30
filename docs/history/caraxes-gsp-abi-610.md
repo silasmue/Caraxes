@@ -3,7 +3,7 @@
      Section (a) is generated output of caraxes/tools/gsp-abi-sizes.sh; do not edit it by hand, re-run the tool. -->
 # The GSP message ABI of driver 610.57.04, compiled
 
-This note answers open question Q4 ([open-questions.md](open-questions.md)). It gives the exact sizes and offsets of the structures a synthetic GSP has to speak for driver 610.57.04, measured by a compiler rather than derived by hand. It also lists what the CPU-side kernel RM does with each field.
+This note answers open question Q4 ([open-questions.md](caraxes-open-questions-2026-09-23.md)). It gives the exact sizes and offsets of the structures a synthetic GSP has to speak for driver 610.57.04, measured by a compiler rather than derived by hand. It also lists what the CPU-side kernel RM does with each field.
 
 Unless a path says otherwise, it is relative to `vendor/open-gpu-kernel-modules/`. Every claim cites file:line in that tree. Offsets are for x86-64 (LP64), the ABI the kernel module is built for.
 
@@ -30,7 +30,7 @@ Q4 asked whether the two big payloads fit in one message. They do, with room to 
 
 - **The GSP static info has no GR info in this version.** The brief expected `NV2080_CTRL_INTERNAL_STATIC_GR_INFO` inside `GspStaticConfigInfo`. In 610.57.04 the struct holds 49 top-level members and none of them is GR info (gsp_static_config.h:80-167). Chip info and the device-info table are fetched later through internal RM controls: `gpuGetChipInfo` (gpu_gspclient.c:218, :325, :354) and `NV2080_CTRL_CMD_INTERNAL_GET_DEVICE_INFO_TABLE` (gpu_gspclient.c:241-246). On the wire those are GSP_RM_CONTROL RPCs, not static info.
 - **SET_REGISTRY has no struct.** `rpc_set_registry_v17_00` exists only as a print descriptor (generated/g_rpc-structures.h:7900-7912). The payload is a `PACKED_REGISTRY_TABLE` (generated/g_os_nvoc.h:222-235) placed directly at `rpc_message_data` (rpc.c:10522-10526). The tool measures that struct instead.
-- **The MCTP check covers every message.** [other-architectures.md](other-architectures.md) §6(c) describes it as belonging to the CrashCat log path, which is wrong. `GspMsgQueueReceiveStatus` checks the MCTP version and the vendor ID on every status-queue element it reads (message_queue_cpu.c:737-759).
+- **The MCTP check covers every message.** [other-architectures.md](../caraxes/other-architectures.md) §6(c) describes it as belonging to the CrashCat log path, which is wrong. `GspMsgQueueReceiveStatus` checks the MCTP version and the vendor ID on every status-queue element it reads (message_queue_cpu.c:737-759).
 - **SET_GUEST_SYSTEM_INFO_EXT is not sent on bare metal.** Its macro sends only when `GPU_GET_VGPU_RPC` is non-NULL (vgpu/rpc_vgpu.h:71-78). That is only the case under `IS_VIRTUAL` (gpu.c:6357-6365). A GSP-client boot therefore sends SET_GUEST_SYSTEM_INFO alone.
 - **`GSP_FMC_INIT_PARAMS` is Hopper-only.** It is used only inside `GSP_FMC_BOOT_PARAMS`, and only in kernel_gsp_gh100.c:173, :191 and :430. Turing never builds it. It is measured here for completeness.
 

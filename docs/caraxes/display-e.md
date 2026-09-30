@@ -10,7 +10,7 @@ scans the result out on the device clock. Two agents ran it on vm0 on 2026-09-24
 - **Series E** (e1 to e31, 08:39 to 10:33, the first display agent, stopped by the operator at
   10:46): the NVIDIA EGL/GL/Vulkan stack on the device, Weston and GNOME on it, the display
   gate's GPU stages, the classic demos, the rerun after the mapping worker. Evidence
-  [../../caraxes/runs/display-e-2026-09-24/](../../caraxes/runs/display-e-2026-09-24/) (per run:
+  [../../caraxes/runs/display-e-2026-09-24/](../../caraxes/runs/display-e-2026-09-24) (per run:
   `command.txt` with the guest command, `guest.txt`, the device trace window or its event lines,
   `guest-dmesg.txt`, `host-xid.txt`, `host-check.txt`), the gate runs
   `caraxes/runs/gate-display-2026-09-24-5/` to `-7/`. This section is reconstructed from that
@@ -19,7 +19,7 @@ scans the result out on the device clock. Two agents ran it on vm0 on 2026-09-24
 - **Series F** (f0 to f7, 13:06 to 13:52, this package): the demos on the current main, the
   per-frame trap tables of Mutter and Weston with and without the doorbell ioeventfd, the stream
   stage, a pointer device. Evidence
-  [../../caraxes/runs/display-f-2026-09-24/](../../caraxes/runs/display-f-2026-09-24/): `env.sh`
+  [../../caraxes/runs/display-f-2026-09-24/](../../caraxes/runs/display-f-2026-09-24): `env.sh`
   (the configuration), `vm.sh` and `run.sh` (how each run was taken), `guest/` (the guest
   scripts), one directory per run.
 

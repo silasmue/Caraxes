@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: MIT -->
 # The SotTR stage: Shadow of the Tomb Raider in a Caraxes VM
 
-Written 2026-09-24. This is roadmap item 2 ([roadmap.md](roadmap.md)): the game workload is the
+Written 2026-09-24. This is roadmap item 2 ([roadmap.md](../history/caraxes-roadmap-2026-09-27.md)): the game workload is the
 benchmark that decides. The stage gives the operator a VM with 3 GiB in which to start, play
 and measure Shadow of the Tomb Raider, streamed to Moonlight on this host. The GPU run is the
 operator's. What ran here is the plumbing test in pure emulation (section 6).
 
-Scripts and evidence: [caraxes/runs/sottr-2026-09-24/](../../caraxes/runs/sottr-2026-09-24/)
+Scripts and evidence: [caraxes/runs/sottr-2026-09-24/](../../caraxes/runs/sottr-2026-09-24)
 (its `README.md` is the operator's page).
 
 ## 1. What was prepared

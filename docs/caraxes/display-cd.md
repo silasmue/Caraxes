@@ -4,7 +4,7 @@
 Run 2026-09-24 on vm0, branch `worktree-agent-adbfba499c7110889` (from main `5de9b40`). Plan:
 phases C and D of [display-connector.md](display-connector.md) §4 on top of phases A and B
 ([display-ab.md](display-ab.md), D15 DisplayPort SST). Evidence:
-[../../caraxes/runs/display-cd-2026-09-24/](../../caraxes/runs/display-cd-2026-09-24/)
+[../../caraxes/runs/display-cd-2026-09-24/](../../caraxes/runs/display-cd-2026-09-24)
 (commands word for word in `commands.md`; each run has the guest command, the guest output and
 the events of the device trace), the gate runs `caraxes/runs/gate-vdisplay-2026-09-24-3/` and
 `caraxes/runs/gate-display-2026-09-24-2/`. Nothing scans out and nothing runs on the physical

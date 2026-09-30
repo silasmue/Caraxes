@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 # One device binary for every guest ABI (2026-09-28)
 
-Scope: what chose the guest ABI at compile time in `crates/vfio-user-nvgpu`; which layouts follow the host driver and which follow the guest; how one binary now serves nova-core (570), the 615 Linux guest and the 617 Windows guest (615 model) and picks the ABI from what the guest shows at its GSP boot. Branch `oneabi-2026-09-28` (from dev 7f1143be). Background: [guest-driver-versions.md §6](../caraxes/guest-driver-versions.md) (the earlier plan), [cutover-615.md](../caraxes/cutover-615.md) (host side), decision D14.
+Scope: what chose the guest ABI at compile time in `crates/vfio-user-nvgpu`; which layouts follow the host driver and which follow the guest; how one binary now serves nova-core (570), the 615 Linux guest and the 617 Windows guest (615 model) and picks the ABI from what the guest shows at its GSP boot. Branch `oneabi-2026-09-28` (from dev 7f1143be). Background: [guest-driver-versions.md §6](../caraxes/guest-driver-versions.md) (the earlier plan), [cutover-615.md](../history/caraxes-cutover-615-2026-09-24.md) (host side), decision D14.
 
 ## Facts
 

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # FIFO device info table for the synthetic TU106
 
-This file specifies the answer to row 7 of [phase5-rpcs.md](phase5-rpcs.md):
+This file specifies the answer to row 7 of [phase5-rpcs.md](../history/caraxes-phase5-rpcs-610.md):
 `NV2080_CTRL_CMD_FIFO_GET_DEVICE_INFO_TABLE` (0x20801112). The concrete table is in
 [caraxes/tools/fifo-table-tu106.json](../../caraxes/tools/fifo-table-tu106.json). The host
 values in it come from [caraxes/tools/fifo-host-query.rs](../../caraxes/tools/fifo-host-query.rs),

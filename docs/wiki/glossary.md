@@ -7,15 +7,20 @@ driver's vocabulary, then the device's.
 
 ## Project
 
-- **Leandro**: the project; one consumer NVIDIA GPU shared among Linux VMs on a host that keeps using it.
+- **Leandro**: the project; one consumer NVIDIA GPU shared among VMs on a host that keeps using it.
 - **VirtIO Leandro (v1)**: the API-forwarding architecture: `virtio_nvrm.ko` in the guest, `vhost-user-nvrm` on the host, RM ioctls replayed on the host driver.
 - **VFIO Leandro (v2, code name Caraxes)**: the synthetic-device architecture: a stock guest driver on a vfio-user PCI device, `vfio-user-nvgpu` on the host in the GSP-RM role.
 - **Caraxes**: the code name of VFIO Leandro; also the name of the device's launcher (`tools/caraxes-vm.sh`), environment variables (`CARAXES_*`) and record directories (`caraxes/`).
 - **Leandro-Test**: the optional private repository with the probes, VM provisioning and hardware gates both architectures use.
-- **Decision Dn**: a numbered design decision in [caraxes/README.md](../caraxes/README.md) (D1 GSP-client mode, D11 VRAM slice, D12 privilege, D13 DMA module, D14 three axes, D15 DisplayPort, D16 comptags, D17 shadow tables, D18 sparse registration, D19 615 baseline, D20 ABI snapshot).
+- **Decision Dn**: a numbered design decision in [caraxes/decisions.md](../caraxes/decisions.md) (D1 GSP-client mode, D11 VRAM slice, D12 privilege, D13 DMA module, D14 three axes, D15 DisplayPort, D16 comptags, D17 shadow tables, D18 sparse registration, D19 615 baseline, D20 ABI snapshot).
 - **Idea Pn**: a recorded, unplanned idea in the same document (P13 the two-path decision, P18 SR-IOV middleman, P21 BAR1 window, P23 GSP surface, P24 poll-mode GSP).
 - **Gate**: a binary pass-or-fail test run of one area (`nvml`, `cuda`, `gpu`, `vdisplay`, `display`) with v1's verdict rules.
-- **Profile (VRAM)**: the guest framebuffer size a VM is given (`4G`, `1333M`, or a vGPU-style `4Q` resolved to a size).
+- **Four-guest gate**: the check every change passes before a merge: one device binary on the Linux 615 kick-smoke, the nova-core 5 probes, nouveau with NVK rungs R1 to R8 and a Windows session ([verification-methods](verification-methods.md)).
+- **Kick-smoke**: the Linux 615 leg: the graphics smoke suite, then a Moonlight stream whose three screenshots must differ and not be black.
+- **Rung (R1 to R8)**: one step of the nouveau with NVK check, from the probe (R1) to vkcube on weston (R8).
+- **Rendering check**: `frame-check.sh`, a game screenshot against a known-good frame by colour statistics.
+- **Linux B, vm9, vm10**: the gate VMs: the Linux 615 desktop VM, the nova-core VM, the nouveau with NVK VM.
+- **Profile (VRAM)**: the guest framebuffer size a VM is given (`4G`, `1333M`, or a vGPU-style `4Q` resolved to a size); 4096 MiB by default.
 - **Personality**: the board the guest is told it has (`RTX 2070`); with the transport and the profile it forms the guest-visible name.
 - **Costume**: a presented chip or board identity that differs from the executing chip.
 - **Costume ladder**: the series of costumes measured for how far each can go (TU104, ids-only 5060 Ti, GA106, AD106, GH100, GB206).
@@ -96,20 +101,33 @@ driver's vocabulary, then the device's.
 - **MIG, CC, NVLink, C2C, HSHUB, ECC**: multi-instance GPU, confidential computing, the GPU interconnect, chip-to-chip, the high-speed hub, error-correcting memory.
 - **vGPU, SR-IOV, VF, PF**: NVIDIA's virtualisation product, PCIe virtual functions, a virtual and the physical function.
 - **ReBAR (resizable BAR)**: the PCIe capability that lets BAR1 cover the whole VRAM.
-- **nova-core**: the upstream Linux Rust driver for NVIDIA GPUs; a possible future guest.
+- **nova-core**: the upstream Linux Rust driver for NVIDIA GPUs; a gate guest with the 570 firmware: it probes and unloads, and has no channels upstream yet.
+- **nouveau, NVK**: the upstream Linux kernel driver (its GSP-RM r570 path) and Mesa's Vulkan driver on it; a gate guest that renders.
+- **Guest ABI**: the GSP interface generation a guest speaks (570, 595, 610, 615), detected by the device at the guest's GSP boot; Windows 617.14 is served the 615 model ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
+- **KMD, WDDM**: the Windows kernel-mode display driver (`nvlddmkm.sys`) and the driver model it implements.
+- **TDR, FLR**: Windows' timeout detection and recovery, and the function-level reset of the device it ends in.
+- **Deferred API object (`NV50_DEFERRED_API_CLASS`, 0x5080)**: an object on which a driver registers an RM control that runs when a channel reaches a software method in its stream ([channel-migration-and-deferred-api](channel-migration-and-deferred-api.md)).
+- **Deferred context**: the Windows KMD's GR context requests on that object (INITIALIZE, PROMOTE, EVICT), served under `CARAXES_DEFERRED_CONTEXT`.
+- **Channel migration (`FIFO_UPDATE_CHANNEL_INFO`, 0x20801116)**: a channel moved to a new GPFIFO ring and USERD; the Windows KMD grows a busy ring this way under contention, as a deferred API request.
+- **Flip notifier states**: NOT_BEGUN until the flip latches, BEGUN at the latch with its time, FINISHED when the next presentation displaces it (at once on a head without scanout).
+- **Latch**: the display engine taking an armed update into use; on the card at the blank's first line, where `LAST_DATA` is raised ([display-flips-and-reserve](display-flips-and-reserve.md)).
+- **Display reserve**: a 615 guest RM patch after v1's display balloon that keeps VRAM for NVKMS's scanout allocations and frees it when one is refused; loaded for game tests only.
 
 ## The device and the host
 
 - **vfio-user**: the protocol by which a user-space process serves a PCI device to a VMM over a socket.
 - **vhost-user**: the protocol by which a user-space process serves a virtio device to a VMM.
-- **Cloud Hypervisor**: the VMM both architectures run on, with the patches in `patches/`.
+- **Cloud Hypervisor**: the VMM both architectures run on, with the patches in `patches/`; Windows installs and maintenance boots use QEMU.
 - **Region, sparse mmap area**: a vfio-user BAR and the part of it a VMM maps as memory instead of trapping.
-- **Trap**: a guest access that exits to the VMM and travels to the device over the socket; 23 to 35 us.
+- **Trap**: a guest access the device offers neither as memory nor as an ioeventfd: a KVM exit, Cloud Hypervisor and a vfio-user round trip; 23 to 27 us p50 on a quiet host, 35 to 40 us beside two VMs.
+- **Fast path**: a route that avoids the trap or the device lock: a mapped page, a datamatch ioeventfd, a read answered before the lock ([traps-and-fast-paths](traps-and-fast-paths.md)).
+- **Routed trap**: a trapped access that a route serves without the device mutex (interrupt tree stores, the MSI re-arm, display page stores).
 - **ioeventfd, datamatch**: a KVM mechanism that turns a guest write at an address (and value) into an eventfd signal without leaving the kernel.
-- **Doorbell token pool**: the device's own work-submit tokens, one datamatch ioeventfd each.
-- **Reactor**: the device thread that polls the eventfds and the memory pages (`spin`, `hybrid`).
-- **Interrupt page, display page**: BAR0 pages offered as memory so interrupt servicing does not trap.
-- **BAR1 pool**: a private piece of the VRAM slice exported as a dma-buf behind guest BAR1 `[0, pool)`.
+- **Token pool, guest tokens**: the device's own work-submit tokens handed out through the notifier entry (64 on Linux), and the guests' own `runlist << 16 | ChID` tokens below ChID 48 (automatic with the boot model: 144 on Linux, 240 on Windows); each a datamatch ioeventfd.
+- **Reactor**: the device thread that polls the eventfds and the memory pages (`hybrid` by default with host execution, `spin`).
+- **Interrupt page, tagged and exact mode**: the interrupt tree's BAR0 page offered as memory; tagged: read-write, the reactor applies the stores (Linux); exact: mapped read-only by Cloud Hypervisor, each store traps and applies at once (Windows).
+- **Display page, kick page**: the display front-end page as read-only memory, and the window `PUT` page the reactor compares (Linux 615).
+- **BAR1 pool**: a private piece of the VRAM slice exported as a dma-buf behind guest BAR1 `[0, pool)`; 32 MiB by default with host execution.
 - **BAR2 memfd**: region 3 as a sealed memfd, synced at the RM's flush points.
 - **Window (shared-memory)**: any of the pages or areas a guest accesses without a trap.
 - **Sync point**: a trapped access at which the device reconciles a window with VRAM (flush read, invalidate, bind, GSP doorbell).
@@ -117,19 +135,28 @@ driver's vocabulary, then the device's.
 - **Carve-out**: the top 2 MiB of the slice, device-owned, holding the BAR roots.
 - **Registered guest RAM, OS descriptor**: guest memory pinned and mapped for the GPU through `NV01_MEMORY_SYSTEM_OS_DESCRIPTOR`.
 - **GPA, IOVA, HVA**: guest physical address, the address the GPU uses through the IOMMU, host virtual address.
-- **`caraxes_dma_range`**: the temporary guest module that makes guest DMA addresses equal to host IOVAs (D13).
+- **`caraxes_dma_range`**: the earlier guest module that made guest DMA addresses equal to host IOVAs (D13); replaced by GPA DMA.
+- **GPA DMA**: with host execution a guest DMA address is its guest physical address, and registered RAM sits at one linear IOVA offset.
 - **swiotlb alias**: the alias IOVA below 2^40 for the guest's bounce-buffer pool.
 - **Shadow, walk cache, `resolve_leaf`**: the device's validated copy of the guest's tables, its per-root cache, and the admission function.
 - **Set A, set B**: the GR context pages the host mirrors into the shadow, and the device-owned ranges a leaf may not name.
 - **Gather descriptor, region object, region pool**: one OS descriptor over scattered pages placed back to back; the 2 MiB host mapping unit; the free list of emptied units.
 - **Mirror (channel, TSG, VA space)**: the host RM object the device creates for a guest object.
+- **Host mirror channel**: the host channel that runs a guest channel's pushbuffer natively on the GPU, on a shadow VA space ([execution-mirror](execution-mirror.md)).
+- **Software executor**: the device's CPU interpreter of a guest channel, for channels that must not run on a host channel, above all the guest kernel's privileged copy channels ([software-executor](software-executor.md)).
 - **Shadow VA space**: the host VA space a mirror runs on, with filtered leaves only.
 - **Invalidator**: the privileged device channel that issues the TLB invalidate of a guest PDB.
 - **Untrapped-GPPut hold**: applying an invalidate before the guest continues when its USERD does not trap.
+- **Held invalidate**: the MMU invalidate's `TRIGGER` reads busy until the invalidated root's shadow jobs are applied.
 - **Fail closed**: refuse and keep state rather than guess; teardown stops at the first failure.
 - **Contained Xid**: a host Xid on the device's own pid and mirrors, with the host desktop unaffected.
 - **Host watch**: the sampler that judges the host desktop by `nvidia-smi` response time during a run.
 - **Emu-boot, pure emulation**: the synthetic GPU without a host RM, reservation or GPU.
+- **`--host-exec`, host execution**: the mode in which guest channels run on the physical GPU; it implies the boot model, the host RM, the VRAM reservation and registered guest RAM.
+- **Knob, open switch**: one of the five tuning options (VRAM size, display, `CARAXES_COMPRESSION`, `CARAXES_DOORBELL_POLL`, `CARAXES_BAR1_POOL_MIB`); a variable kept as it is until an A/B decides it ([device-configuration](device-configuration.md)).
+- **Config block**: the `config:` lines the device logs at start (mode, knobs, paths, open switches, diagnostics, inputs, unread variables), after one warning line per removed variable still set.
+- **vfio-user reconnect**: the device keeps listening after its client disconnects; a client within 2 s (a VMM reboot) gets the device reset, and the old client's memory and IRQ eventfds are released.
+- **Live state dump**: `echo state > <state dir>/device-ctl`: every channel, host object and the interrupt state in the device log.
 - **Version module (`ver/v615`)**: the generated per-driver-version tables of the device.
 - **Chip table, board file**: `chips/<chip>/*.toml` and `boards/*.toml`, the two data axes of the identity.
 - **ABI snapshot, delta, drift check**: the recorded 615 GSP ABI, a diff against it, the `check.sh` step.
@@ -139,3 +166,24 @@ driver's vocabulary, then the device's.
 - **`hostabi.rs`**: the device's hand-kept layouts of the controls it sends to the host RM.
 - **`nvrm-sys`, `nvrm-abi`, `nvrm-client`, `nvrm-wire`, `nvrm-trace`**: the shared crates: generated bindings, translation tables, the RM client, v1's wire schema, the `LD_PRELOAD` tracer.
 - **`dp-sink`**: the DisplayPort sink library behind the emulated connector.
+- **Message queue v0, pre-610 element**: the transport nova-core and nouveau use with GSP-RM 570: pointers in the queue headers, a checksummed element with a sequence number, four init RPCs and `GSP_INIT_DONE`.
+- **`GSP_RUN_CPU_SEQUENCER`**: the 570 boot's request that the CPU run a register script on GSP-RM's behalf; part of the nova and nouveau exchange.
+- **Code 43**: Windows' Device Manager status for a display adapter whose driver failed to start; the Windows bring-up's first wall.
+- **GFXP pool**: the graphics-preemption context buffers; on the device an owned GFXP slot per mirrored GR TSG inside the VM's slice.
+- **Tagged mode**: the interrupt page mapped read-write; the reactor sees the guest's stores through tag bits and sentinels (Linux).
+- **Exact mode**: the interrupt tree page mapped read-only (patch 0007); each guest store traps and is applied at once (Windows).
+- **Guest tokens**: datamatch ioeventfds on the driver's own `runlist << 16 | chid` doorbell values, beside the device's token pool.
+- **Posted doorbell**: a trapped doorbell answered at once and rung by the completer thread before the guest's next access, without the device lock.
+- **Fast reads**: `TRIGGER`, flush-page, PTIMER and `TIME` reads answered from atomics before the device lock.
+- **Owed flush, flush clock**: a BAR2 flush read only marks a memfd sync owed; a doorbell, an invalidate or the 1 ms clock settles it.
+- **Replica, retired page**: BAR1 pool states: a pool page's copy in VRAM the GPU maps, and a page moved back after the guest unmapped it.
+- **Registrar**: the thread that registers guest RAM with the host RM off the vfio-user loop (`registrar.rs`).
+- **`MEM_OP` hold**: a software TLB invalidate in a UVM push stops the push until the shadow plan for it is applied.
+- **Hint withdrawal**: host non-stall hints for a guest vector are muted after 256 re-arms without an ack, so a torn-down guest cannot livelock.
+- **Device lock (D)**: the mutex that serialises trapped accesses and device state; long holders were the cause of Windows' VSync timeouts and Linux' loading stalls.
+- **Device CE**: the device-owned host copy channel that performs the software executor's large transfers.
+- **Private pages**: the top 512 KiB of the VM's slice, holding the invalidator's and the device CE's tables; never guest memory.
+- **Management channel**: the Windows KMD's channel that sends INITIALIZE, PROMOTE and EVICT for GR contexts through the deferred API.
+- **Ring migration**: `NV2080_CTRL_CMD_FIFO_UPDATE_CHANNEL_INFO`, which moves a channel to a new GPFIFO and USERD; WDDM sends it deferred as the old ring's last entry.
+- **Shadow fence**: the host placeholder over the Windows D3D device VA range that keeps the shadow's own objects out of the guest's reach.
+- **Reconnect**: the device keeps its socket after a vfio-user client disconnects and resets to power-on state for the next client (a guest reboot under Cloud Hypervisor).

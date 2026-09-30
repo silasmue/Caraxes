@@ -30,7 +30,10 @@ the command queue on each trapped pointer write and fills the status queue itsel
 - `gpuGetGspMsgQueueRegisters_TU102` (`src/nvidia/src/kernel/gpu/arch/turing/kern_gpu_tu102.c`)
   maps queue 0 to these registers for TU10x through GB20x (`dev_gsp.h`). Each holds a
   monotonic counter used modulo `msgCount`; the ring is full at `write - read == msgCount`.
-- In 610 the pointers were words in the shared header and one slot stayed free.
+- In 610 the pointers were words in the shared header and one slot stayed free. The 570 and
+  610 guests still use that message queue v0; the device serves both generations
+  (`crates/vfio-user-nvgpu/src/msgq.rs`, `msgq/v2.rs`) and picks one per guest
+  ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
 
 ## The element
 
@@ -63,8 +66,9 @@ the command queue on each trapped pointer write and fills the status queue itsel
 - The device serves the command queue on every trapped `QUEUE_HEAD` write and answers reads
   of `QUEUE_TAIL` and `MSGQ_HEAD` from its queue state. Only `QUEUE_HEAD` carries work.
 - The kernel spins for the reply (`kgspRecvPoll`), reads `MSGQ_HEAD`, writes `MSGQ_TAIL`
-  and does a health check of the falcon: four trapped accesses per RPC, 108 us median from
-  the head write to the fourth, against 3 us of device work.
+  and reads the falcon's `DEBUGINFO` (0x110094) as a health check: four trapped accesses per
+  RPC, 108 us median from the head write to the fourth, against 3 us of device work
+  (2026-09-25, [caraxes/gsp-transport-classes.md](../caraxes/gsp-transport-classes.md)).
 
 ## GMCAPI
 
@@ -76,16 +80,24 @@ the command queue on each trapped pointer write and fills the status queue itsel
 - NVKV payloads are u64 words: key 15:0, index 27:16, opcode 31:28 (IMM32, SEQ32, SEQ64,
   ARRAY8/32/64), immediate or count in 63:32.
 
-## Toward a polled queue
+## The head as an ioeventfd
 
-- In 615 the command queue's write pointer is a register, not a word in shared RAM, so a
-  poll-mode device needs BAR0 page 0x110000 as a read-only memory area plus ioeventfds on
-  `QUEUE_HEAD` and `MSGQ_TAIL`; that saves about 130 us per RPC
-  ([gsp-transport-classes](gsp-transport-classes.md)).
+- `CARAXES_RPC_IOEVENTFD=1` registers `QUEUE_HEAD` as a KVM ioeventfd without datamatch; the
+  token pool's reactor reads its count (`Device::rpc_ioeventfd`). The value is lost, the count
+  is exact: the CPU writes the register once per element, and `msgqTxCreate`'s 0 is the only
+  other write ([caraxes/gsp-transport-615.md](../caraxes/gsp-transport-615.md) §11.2).
+- Per counted write the device checks the element at its own read pointer: "MCTP" and a
+  sequence after the last one mean an element, which the trapped path then serves with every
+  framing check; "SEEN", 0 or an old sequence mean none.
+- The switch is open: off by default, no A/B verdict yet (`settings.rs`). The census plan pairs
+  it with the falcon status words served from memory, four traps fewer per RPC
+  ([research: trap-census](../research/trap-census-2026-09-30.md)).
+- The full polled queue maps BAR0 page 0x110000 read-only and adds an ioeventfd on
+  `MSGQ_TAIL`; it would save about 130 us per RPC ([gsp-transport-classes](gsp-transport-classes.md)).
 
 ## Depth
 
 - [research/gsp-transport.md](../research/gsp-transport.md): the cited lines.
 - [caraxes/gsp-transport-615.md](../caraxes/gsp-transport-615.md): the transport key by key,
   610 against 615, the device's `msgq::v2` and `gmcapi` modules.
-- [caraxes/gsp-rpc-protocol.md](../caraxes/gsp-rpc-protocol.md): the 610 layout.
+- [history/caraxes-gsp-rpc-protocol-610.md](../history/caraxes-gsp-rpc-protocol-610.md): the 610 layout.

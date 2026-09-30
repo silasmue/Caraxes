@@ -7,7 +7,7 @@ worktree at `/home/silas/git/Caraxes`. Use explicit working directories.
 
 Read these files first:
 
-- `docs/research/claude-handoff-2026-09-27.md`: latest run, workspace and constraints.
+- `docs/history/claude-handoff-2026-09-27.md`: latest run, workspace and constraints.
 - `docs/research/windows-deferred-context-2026-09-28.md`: Windows evidence and limitations.
 - `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/checkpoint.json`: current runtime state.
 - Applicable `AGENTS.md` and the graphify skill. Query the existing graph before
