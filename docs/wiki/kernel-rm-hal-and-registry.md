@@ -45,19 +45,48 @@ guest later believes about its GPU follows from it.
   in the captured request). The device honours `RmLogonRC`, `RMSplitVasMgmtServerClientRm`
   and `EnableGpuFirmwareLogs` and traces the rest.
 
-| Key or option | Why a VFIO Leandro guest sets it |
+### What a 615 Linux guest carries today
+
+The guest image has one line in `/etc/modprobe.d/caraxes.conf`
+([research: driver-structure](../research/driver-structure.md),
+[research: methods](../research/methods.md)):
+
+```
+options nvidia NVreg_GpuInitOnProbe=1 NVreg_ResmanDebugLevel=0 NVreg_RegistryDwords="RmDisableGlobalCeUtils=1;RMDisableScrubOnFree=1;RmRcWatchdog=0"
+```
+
+| Option or key | Effect |
 |---|---|
 | `NVreg_GpuInitOnProbe=1` | `RmInitAdapter` runs at probe instead of first open |
-| `RmDisableGlobalCeUtils=1` | no global CeUtils object and no copy-engine memset test on a channel whose VA space the device never learns (`src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr.c`) |
-| `RMDisableScrubOnFree=1` | freed guest video memory is not scrubbed through a copy engine (`mem_mgr.c`) |
-| `RmRcWatchdog=0` | no watchdog GR channel (`src/nvidia/src/kernel/gpu/gr/kernel_watchdog.c`) |
-| `RMInstLoc` | bits 17:16 place RM-owned USERD (0 default, 1 coherent sysmem, 2 non-coherent, 3 vidmem); `_PDE`, `_BAR_PDE`, `_PTE`, `_BAR_PTE` fields place page tables (`src/nvidia/src/kernel/gpu/mmu/kern_gmmu.c`) |
-| `uvm_page_table_location` | the UVM module's page-table aperture, `vid` or `sys` (`kernel-open/nvidia-uvm/uvm_mmu.c`) |
+| `RmDisableGlobalCeUtils=1` | no global CeUtils object and no copy-engine memset test (`mem_mgr.c`); without it the TU106 in pure emulation stopped at that memset |
+| `RMDisableScrubOnFree=1` | freed video memory is not scrubbed through a copy engine (`mem_mgr.c`) |
+| `RmRcWatchdog=0` | no watchdog GR channel (`src/nvidia/src/kernel/gpu/gr/kernel_watchdog.c`); without it the GB206 in pure emulation stopped at `numGpcs > 0` in `krcWatchdogInit` |
 
-- The quickstart puts the three keys into `/etc/modprobe.d/caraxes.conf`; without them the
-  TU106 boot stops at the CeUtils memset and the GB206 at `numGpcs > 0` in `krcWatchdogInit`.
-- These keys are configuration, not driver changes; decision D17 allows only the page-table
-  location as a deviation from bare metal.
+- The device logs one warning per missing key (`missing_guest_keys` in
+  `crates/vfio-user-nvgpu/src/gspboot.rs`).
+- With `CARAXES_COMPRESSION=slice` (the Linux gates) the guest must not set
+  `RMDisableScrubOnFree`: the compressed slice relies on the guest's scrubber, and the device
+  warns when the key is set (`crates/vfio-user-nvgpu/src/compression.rs`); the kick-smoke
+  records of Linux B carry `RmDisableGlobalCeUtils=1;RmRcWatchdog=0` only
+  (`caraxes/runs/night-2026-09-28/kick-smoke-70614b41/smoke.txt`).
+- The keys stay until the device serves the CeUtils channel, which needs its default VA space
+  root and a software path, and the watchdog channel
+  ([research: memory-model](../research/memory-model.md), driver-structure).
+- The guest needs no option for its driver version: the device reads the ABI from the GSP
+  boot ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
+- nova-core and nouveau send their own three keys (`RMSecBusResetEnable`,
+  `RMForcePcieConfigSave`, `RMDevidCheckIgnore`) in `SET_REGISTRY`.
+
+### Keys that place memory
+
+- `RMInstLoc` bits 17:16 place RM-owned USERD (0 default, 1 coherent sysmem, 2 non-coherent,
+  3 vidmem); its `_PDE`, `_BAR_PDE`, `_PTE`, `_BAR_PTE` fields place page tables
+  (`src/nvidia/src/kernel/gpu/mmu/kern_gmmu.c`). `RMInstLoc=0x10000` left the guest RM stuck
+  before `RmInitAdapter` finished.
+- `uvm_page_table_location` (`vid` or `sys`, `kernel-open/nvidia-uvm/uvm_mmu.c`) sets the UVM
+  page-table aperture. Decision D17 names `vid` with the matching `RMInstLoc` fields as the
+  only configuration deviation of its DMA route; the UVM page-tree root is in vidmem with the
+  parameter at its default.
 
 ## What the kernel RM reads from the device
 

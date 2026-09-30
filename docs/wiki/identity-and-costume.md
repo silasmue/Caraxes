@@ -15,9 +15,31 @@ that differs from the executing chip; the ladder measured how far it can go.
   One module builds it (`nvrm_abi::naming`, `crates/nvrm-abi/src/naming.rs`); the backend
   never appears in the name ([NAMING.md](../NAMING.md)).
 - The profile is the guest framebuffer size, from a plain size or v1's vGPU-style catalogue
-  (`RTX2070-4Q` resolves through the card's VMMU segment size to a whole-segment size).
+  (`RTX2070-4Q` resolves through the card's VMMU segment size to a whole-segment size). The
+  device takes `--profile` or `--fb-mib`, else `LEA_VRAM_PROFILE_MIB`, default 4096 MiB
+  ([device-configuration](device-configuration.md)).
+- `LEA_GPU_NAME_FORMAT` (`transport` or `legacy`) picks the form; v1 and v2 share it.
 - The GID is the device's own, seeded by the legacy name and the size; a capture's UUID
   never enters a board file.
+- The driver-version axis is the guest ABI, chosen from the guest's GSP boot: 570 for nova-core
+  and nouveau, 615 for the Linux 615.71.09 driver and for Windows 617.14 (the 615 model)
+  ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
+
+## What each guest shows
+
+| Guest | Name and version it reports |
+|---|---|
+| Linux 615 | `nvidia-smi`, NVML, CUDA, torch, Vulkan and OpenGL: `Leandro VFIO RTX 2070-<size>` |
+| nova-core (570) | its probe logs `GPU name: Leandro VFIO RTX 2070-1G` |
+| nouveau with NVK (570) | NVK names the device from its own table: `NVIDIA GeForce RTX 2070 (NVK TU106)` |
+| Windows 617.14 | `nvidia-smi`, deviceQuery, `Win32_VideoController.VideoProcessor` and the registry AdapterString: the Leandro name; GSP firmware version 615.71.09 |
+| Windows Device Manager | `NVIDIA GeForce RTX 2070`: the INF DriverDesc for 10de:1f02, subsystem 1458:4011; a FriendlyName override would be a guest change |
+
+- Evidence: `caraxes/runs/openrender-2026-09-29/vm10-gate/RESULT.md`,
+  [research: open-render-2026-09-29](../research/open-render-2026-09-29.md),
+  [research: windows-findings](../research/windows-findings.md) ("Names"),
+  [research: linux-graphics-optimization-2026-09-27](../research/linux-graphics-optimization-2026-09-27.md),
+  `caraxes/runs/win11-2026-09-25/README.md`.
 
 ## Where each guest-visible fact comes from (615)
 
@@ -73,6 +95,11 @@ that differs from the executing chip; the ladder measured how far it can go.
 - Consequence: a chip executes only on a host card of its family; "fake the chip, keep the
   true SM" holds only inside the Turing family. The path to more chips is more host cards and
   the chip tables ([feature-families-and-chips](feature-families-and-chips.md)).
+- The ladder ran the 610.57.04 guest; no Linux 615 guest has run a costume. `nvml` `power-number`
+  reports `N/A` on every rung.
+- Windows tried one costume during the Code 43 hunt: a Tesla T4 (`tesla-t4-on-tu106`, TU104,
+  data-centre driver 616.92), with the same start sequence as the GeForce driver
+  (`caraxes/runs/win11-2026-09-25/README.md`, [research: windows-driver-code43](../research/windows-driver-code43.md)).
 
 ## Depth
 

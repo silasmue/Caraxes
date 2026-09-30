@@ -19,10 +19,13 @@ name the open kernel modules (615.71.09 for cited lines).
 | VA space | `FERMI_VASPACE_A` | a GPU virtual address space with its page tables |
 | TSG and channel | `KEPLER_CHANNEL_GROUP_A` (0xA06C), `TURING_CHANNEL_GPFIFO_A` (0xC46F) | a time-slice group and a GPFIFO channel on a runlist |
 | engine objects | `TURING_COMPUTE_A`, `TURING_A` (3D), `TURING_DMA_COPY_A` | what a channel's subchannels can run |
+| deferred API | `NV50_DEFERRED_API_CLASS` (0x5080) | a software object under a channel that runs a registered control when the channel reaches it |
 | events | `NV01_EVENT_*` | notifications bound to an object |
 
-- A handle is a 32-bit number the client chooses; the same number can exist under two
-  clients. The server side keeps the tree in the resource server
+- A handle is a 32-bit number the client chooses, or 0 to let the RM assign one (nouveau
+  allocates this way, [research: open-render](../research/open-render-2026-09-29.md)); the
+  same number can exist under two clients. The server side keeps the
+  tree in the resource server
   (`src/nvidia/src/libraries/resserv/src/rs_client.c`, `rs_server.c`); a free of a parent
   frees its children (615: `rs_client.c:1347`).
 - Allocation: `NV_ESC_RM_ALLOC` with a class id and a parameter struct; refused with
@@ -37,6 +40,16 @@ name the open kernel modules (615.71.09 for cited lines).
 - The list of every class with its routing flags: `src/nvidia/src/kernel/rmapi/resource_list.h`
   (224 `RS_ENTRY` rows in 615).
 
+## The deferred API object
+
+- A client registers a control under an API handle on the object
+  (`NV5080_CTRL_CMD_DEFERRED_API` 0x50800101, `_V2` 0x50800103;
+  `src/common/sdk/nvidia/inc/ctrl/ctrl5080.h`), and the software method 0x200 with that handle
+  runs it in the channel's stream. The kernel RM forwards V2 to GSP-RM as `_INTERNAL`
+  0x50800104 (`src/nvidia/src/kernel/gpu/deferred_api.c`, `defapiCtrlCmdDeferredApiV2`).
+- The Windows KMD prepares GR contexts and moves channels to larger rings this way
+  ([channel-migration-and-deferred-api](channel-migration-and-deferred-api.md)).
+
 ## Where each architecture cuts the tree
 
 - VirtIO Leandro forwards the ioctls (`RmIoctl` in `src/nvidia/arch/nvalloc/unix/src/escape.c`
@@ -48,7 +61,8 @@ name the open kernel modules (615.71.09 for cited lines).
   device constructs the same objects under the guest's handles and mirrors channels and
   VA spaces on host objects of its own ([execution-mirror](execution-mirror.md)).
 - A stock TU106 Linux stack allocates 36 of the 48 GSP-bound classes in the chip's class
-  database ([gsp-rpc-and-events](gsp-rpc-and-events.md)).
+  database ([gsp-rpc-and-events](gsp-rpc-and-events.md)). The four guest drivers differ in what
+  they allocate ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
 
 ## Depth
 

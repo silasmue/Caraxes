@@ -40,13 +40,19 @@ argument and the truth source of every answer, and every answer carries a proven
 - User space can stop on a refusal: 615 libcuda failed `cuInit` when
   `NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO` was refused, so a refused control seen in a
   user-space trace is re-examined, not assumed harmless.
+- A kernel can stop too: the Windows 617 KMD sends `GSP_SUSPEND` and reports Code 43 when
+  `GR_GFX_POOL_QUERY_SIZE` is refused ([research: windows-findings](../research/windows-findings.md),
+  P39). The Windows build also sends controls outside the export tables; the device answers
+  those ahead of the categories ([guest-drivers-and-abis](guest-drivers-and-abis.md)).
 
 ## The D rule table
 
 - The 308 D controls of 615 were sorted into 200 REFUSE, 37 DENY, 21 ACK, 42 MODEL, 3
   MIRROR and 5 TABLE, and 102 moved to E, 17 to C, 7 to A.
-- No CUDA or Wayland workload has reached a D control beyond
-  `NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL` on a DisplayPort unplug and one cuda-gdb control.
+- In Caraxes runs no CUDA or Wayland workload has reached a D control; the one D control
+  seen is `NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL` on a DisplayPort unplug. The real card's 610
+  user-space traces show one more, `NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG` from cuda-gdb
+  ([caraxes/gsp-plan/d-device-model.md](../caraxes/gsp-plan/d-device-model.md)).
 - The 12 display MODEL rows and the 4 open A rows are the remaining D gaps.
 
 ## Depth

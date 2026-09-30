@@ -5,8 +5,10 @@
 A guest desktop needs a monitor the driver believes in, a vblank cadence, page flips that
 complete, and a way to capture the result for streaming. Neither architecture scans out
 physically. VirtIO Leandro uses NVIDIA's displayless class with guest timers; VFIO Leandro
-emulates a DisplayPort monitor in the GSP role, so the stock `nvidia-modeset` and
-`nvidia-drm` see ordinary hardware and a Wayland compositor runs on KMS.
+emulates a DisplayPort monitor and the display engine in the GSP role, so the stock
+`nvidia-modeset` and `nvidia-drm` on Linux and the WDDM KMD on Windows see ordinary
+hardware. The flip, vblank, reset and reserve mechanics are on
+[display-flips-and-reserve](display-flips-and-reserve.md).
 
 ## The stock display stack
 
@@ -21,13 +23,15 @@ emulates a DisplayPort monitor in the GSP role, so the stock `nvidia-modeset` an
   window channel; nvkms registers `NV9010_VBLANK_CALLBACK` and the hotplug and DP IRQ
   events; there is no DRM vblank interrupt of its own (`nvkms-evo.c`, `nvkms-hw-flip.c`).
 - Hotplug reaches the kernel as `POST_EVENT` from GSP-RM.
+- The Windows KMD drives the same channels with its own flip model: notifier mode WRITE,
+  only `LAST_DATA` enabled, and the core's `SET_GET_BLANKING_CTRL`, which NVKMS never uses.
 
 ## VirtIO Leandro
 
 - `virtio_nvrm.ko` exposes the displayless class (`NVA083_GRID_DISPLAYLESS`) and generates
   an EDID; guest hrtimers supply vblank timing; fence wake-ups return as RM events on queue 1.
 - Module parameters: `vdisplay`, `vdisplay_width/height`, `vdisplay_vblank_hz` (60 by
-  default), NVKMS ceilings, a display reserve.
+  default), NVKMS ceilings, a display reserve (the balloon).
 - GNOME on Wayland with Sunshine `capture=kms` and NVENC passed a client-frame check on
   2026-09-19; two Shadow of the Tomb Raider guests at 720p completed concurrently on one card.
   The vblank configuration changes throttling (open question 27).
@@ -35,57 +39,67 @@ emulates a DisplayPort monitor in the GSP role, so the stock `nvidia-modeset` an
 
 ## VFIO Leandro
 
+Step numbers and run names (C87, P41) refer to
+[research: windows-findings](../research/windows-findings.md).
+
 1. The device declares head, window and SOR counts and the connector table itself (decision
    D15): one DisplayPort SST connector per head, no MST, no HDCP, DSC offered; heads are
-   synthetic and independent of the physical card, up to the emulated display IP's own cap.
+   synthetic and independent of the physical card. The display is on with `--display`.
 2. EDID over AUX and a DPCD model come from the `dp-sink` crate behind an NV0073 AUX
    adapter; link training answers as a sink would; the modes are the EDID's (1080p60 in the
    gate), an over-budget mode pruned.
-3. Flips are paced by the device's own timer at the mode's rate: vblank, `AWAKEN` and
-   `LAST_DATA` reach the guest as interrupts; the display FE interrupt status page holds the
-   28 words nvkms reads and acks.
-4. Rendering runs on the physical GPU through the shadow GR path: the guest's EGL, GL and
-   Vulkan stack, Weston and GNOME on it; the scanout surface is a guest allocation in the VRAM
-   slice that the device can read (block-linear, de-tiled for capture) and never a physical
-   head.
-5. Hotplug (`POST_EVENT`), a hardware cursor, DP unplug controls (`DP_SET_WAR_FLAGS`,
+3. The display caps page (NVC573, BAR0 0x640000) serves the RTX 2070's captured caps. Without
+   the TMO, ILUT and OLUT caps the Windows KMD loops and unloads (Code 43, P40, P41); with an
+   incomplete page it accepted flips but programmed no window (steps 4, 5).
+4. The engine latches flips on its own clock and lock at the blank's start, writes the flip
+   notifiers and semaphores, and raises `LAST_DATA` and `AWAKEN` as interrupts
+   ([display-flips-and-reserve](display-flips-and-reserve.md)).
+5. Rendering runs on the physical GPU through the shadow GR path; the scanout surface is a
+   guest allocation in the VRAM slice that the device can read (block-linear, de-tiled for
+   a dump) and never a physical head.
+6. Hotplug (`POST_EVENT`), a hardware cursor, DP unplug controls (`DP_SET_WAR_FLAGS`,
    `SPECIFIC_HDCP_CTRL`) are answered; nothing in the display path is forwarded to the host.
 
-| Measure | 615 guest | Configuration |
+| Measure | Value | Record |
 |---|---|---|
-| display gate | 11 of 11 with host execution | vm0-615 |
-| Weston GL presented / callbacks | 60.00 Hz / 59.79 Hz (sd 1.98 ms) | interrupt and display pages, token pool, hybrid reactor |
-| Mutter presented / callbacks | 59.40 Hz / 58.62 Hz (sd 7.70 ms) | same |
-| trapped accesses per frame, Weston / Mutter | 29.25 / 138.92 | same; Mutter's remainder is BAR2 page-table churn (74 writes, 23 reads) |
-| Sunshine kms + x264 to Moonlight | 25.85 FPS, 101 ms host latency, 2.09 guest cores | 610 guest, before the interrupt page |
-| classic demos on Weston | vkcube 44.1 FPS, glmark2-wayland 1804, glxgears 57 to 60 | 610 guest |
+| display gate, 615 guest | 11 of 11 | [caraxes/display-615.md](../caraxes/display-615.md) |
+| Weston GL, presented / callbacks | 60.00 Hz / 59.79 Hz | same |
+| Mutter, presented / callbacks | 59.40 Hz / 58.62 Hz | same |
+| trapped accesses per frame, Weston / Mutter | 29.25 / 138.92 | same |
+| Windows present probe, windowed 960x540, during a stream | 59.9 fps, 0 failed presents; the MPO overlay latched 59.2 to 60.0 flips/s (C87) | step 20 |
+| Windows desktop to Moonlight, Sunshine x264 | 54.8 FPS, host latency 11.9 ms (C87) | step 20 |
+| Linux B desktop to Moonlight, Sunshine KMS capture and NVENC HEVC | 59.96 fps, host latency 5.9 ms mean (l3) | [codec matrix](../../caraxes/runs/codec-2026-09-30/matrix.md) |
+| Heaven 4.0 DX11 1080p High, windowed | 155.9 and 153.3 fps (C118) | step 23 |
+| SotTR 1080p, Linux B, display reserve on | 15.4 FPS average, native 91.7 | [sottr-invgate](../research/sottr-invgate-2026-09-29.md) |
 
-- What is missing: guest frames encoded by NVENC through the mirror (see Encoding below); a
-  Shadow of the Tomb Raider frame rate; the 12 display MODEL controls of category D; Mutter and Weston with
-  the BAR2 memfd.
+- Open:
+  - 3DMark's DX12 exclusive fullscreen fails (`dx12_swapchain.cpp:238`, step 23).
+  - Channel kicks still take the device lock.
+- The gate compares a SotTR screenshot with a known-good frame by colour statistics
+  (`frame-check.sh`, [gate-2026-09-30](../../caraxes/runs/gate-2026-09-30/README.md)).
 - Why Wayland: the compositor runs on KMS with a vblank and page-flip cadence the device
   controls, which v1's guest timers could not settle; X11 was a stepping stone.
 
-## Encoding
+## Capture and encoding
 
-- The stream encodes every captured frame:
-  - x264 on the vCPUs cost 2.09 guest cores at 1080p (Sunshine `encoder = software`);
-  - NVENC encodes from VRAM for almost no CPU.
+- The stream encodes every captured frame: x264 on the vCPUs, or NVENC from VRAM.
 - VirtIO Leandro: the guest's NVENC objects are host objects; Sunshine used NVENC.
-- VFIO Leandro ([video-engines.md](video-engines.md)):
-  - the session controls are forwarded;
-  - the guest's NVENC channel is mirrored on the shadow VA space and bound to NVENC0 at its
-    first doorbell;
-  - the host's NVC4B7 object follows the guest's allocation once the guest's context page has
-    left the shadow.
-  - No guest frame has been encoded yet, and Sunshine stays on x264 until the probe passes.
-- NVDEC (video playback in the desktop) takes the same path with NVC4B0.
+- VFIO Leandro: the guest's NVENC channel runs on a host mirror channel; Sunshine
+  `encoder = nvenc` streams on Linux B and on Windows ([video-engines](video-engines.md)).
+  Linux B at 60 fps: Sunshine took 23.7 % of a core of guest CPU with NVENC against 142.3 %
+  with x264, and host latency 5.9 ms against 18.3 ms (l3,
+  [codec matrix](../../caraxes/runs/codec-2026-09-30/matrix.md)).
+- A device-side dump (`dump` in display-ctl) writes the scanout as PNG; a 1080p surface
+  reads in 135 steps, 17 ms under the device lock (step 7).
 
 ## Depth
 
+- [display-flips-and-reserve.md](display-flips-and-reserve.md): the notifier model, the
+  latch, the vblank costs, modeset and FLR, the NVKMS reserve.
 - [caraxes/display-ab.md](../caraxes/display-ab.md): connector, EDID, link training (D2, D3).
 - [caraxes/display-cd.md](../caraxes/display-cd.md), [caraxes/display-e.md](../caraxes/display-e.md),
   [caraxes/display-615.md](../caraxes/display-615.md): modeset, flips, the GPU-rendered desktop,
   the per-frame trap tables.
 - [caraxes/display-connector.md](../caraxes/display-connector.md), [caraxes/display-scaling.md](../caraxes/display-scaling.md),
   [caraxes/display-adapter.md](../caraxes/display-adapter.md): the studies behind D15.
+- [caraxes/display-own-clock.md](../caraxes/display-own-clock.md): the engine's own lock.

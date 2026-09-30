@@ -23,8 +23,16 @@ them, which is what a virtual GPU has to know first.
 | `RMCTRL_FLAGS_CACHEABLE`, `_CACHEABLE_BY_INPUT` | the kernel RM caches the answer per GPU (`src/nvidia/src/kernel/rmapi/rmapi_cache.c`); a device cannot add the flag |
 | `RMCTRL_FLAGS_GSP_PLUGIN_FOR_VGPU_GSP` | handled by the vGPU plugin in SR-IOV mode; not a GSP-client route |
 
+- A routed control with neither privilege flag (the GR preemption pool controls) needs
+  kernel privilege; `CAP_SYS_ADMIN` gives a user process only `USER_ROOT`
+  ([research: windows-deferred-context](../research/windows-deferred-context-2026-09-28.md), P12).
 - The size is checked before anything is read (615: `control.c:446-461`), so a control of the
   wrong version is refused, never misread.
+- A routed control returns two statuses, the RPC's and the handler's
+  (`rpcRmApiControl_GSP` in `src/nvidia/src/kernel/vgpu/rpc.c`): an RPC status of 0 with an
+  inner `NV_ERR_NOT_SUPPORTED` is a normal refusal. On an error the parameters are copied
+  out only for controls flagged to do so
+  ([research: astra-review](../research/astra-review-2026-09-26.md)).
 - The kernel skips its error message for a list of controls expected to fail on virtual
   GPUs (615: `src/nvidia/src/kernel/rmapi/rmapi_utils.c:198`).
 
@@ -34,7 +42,8 @@ them, which is what a virtual GPU has to know first.
 |---|---|---|
 | the kernel RM itself | `GPU_GET_NAME_STRING`, `FB_GET_INFO_V2`, `GET_WORK_SUBMIT_TOKEN`, `GET_PIDS` | never reaches the device; the answers come from the static configuration the device sent at boot ([identity-and-costume](identity-and-costume.md)) |
 | GSP-RM (routed) | `GPU_GET_INFO_V2`, `CE_GET_CAPS`, `GR_GET_INFO`, the display NV0073 controls, `GPFIFO_SCHEDULE` | the device answers per category ([gsp-control-categories](gsp-control-categories.md)) |
-| GSS legacy, BINAPI | ids outside the export tables that `nvidia-smi` sends (perf, clocks, thermal) | forwarded to the host with rewritten identity; the reply's `rmctrlFlags` may mark it cacheable |
+| GSS legacy, BINAPI | ids outside the export tables that `nvidia-smi` sends (perf, clocks, thermal) | forwarded to the host with rewritten identity; the reply's `rmctrlFlags` stay 0 unless the open switch `CARAXES_LEGACY_CACHEABLE=1` marks ten static ones cacheable ([caraxes/gsp-transport-615.md](../caraxes/gsp-transport-615.md) §11.1) |
+| the Windows build only | ids the 615 export tables lack, for example FIFO control 0x20801111 | acknowledged or answered per id ([guest-drivers-and-abis](guest-drivers-and-abis.md)); the ABI snapshot cannot see them |
 
 - VirtIO Leandro sees every control at the ioctl layer and blocks 34 of them whose embedded
   pointers or file descriptors it does not translate (`blocked_ctrls()` in
