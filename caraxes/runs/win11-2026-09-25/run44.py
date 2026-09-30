@@ -47,13 +47,13 @@ DEV = dict(CARAXES_DEFERRED_CONTEXT='1', CARAXES_SHADOW_USERD='1', CARAXES_FB_ZE
            WIN_GPU_CONFIG=str(ROOT / 'caraxes/reference/rtx2070/config-space.txt'),
            WIN_GPU_ROM='/mnt/vmstore/caraxes/win11/rom-legacy-only.bin', WIN_GPU_ROMBAR='1',
            WIN_GPU_VBIOS=str(ROOT / 'caraxes/reference/rtx2070/prom-window-2026-09-25-from-55aa.bin'),
-           WIN_GPU_DISPLAY='1', CARAXES_EMU_GR='1', CARAXES_RUSD='1', CARAXES_WIN_COMPBIT='1',
+           WIN_GPU_DISPLAY='1', CARAXES_EMU_GR='1', CARAXES_RUSD='1',
            CARAXES_WIN_DISPLAY_QUERIES='1', CARAXES_WIN_ACKS='1', CARAXES_PREFER_RECORDED='1',
            CARAXES_LPWR_2806_OK='1', CARAXES_ACK_UNANSWERED='1',
-           CARAXES_WIN_EXCEPT='2080a70a,2080a709,2080a801,2080a02f,20803c01', CARAXES_TRACE_FLUSH='0',
-           CARAXES_HOST_VRAM_FLOOR_MIB='1024', CARAXES_HOST_BAR1_FLOOR_MIB='96', WIN_HOST_MODE='exec',
+           CARAXES_WIN_EXCEPT='2080a70a,2080a709,2080a801,2080a02f,20803c01',
+           CARAXES_HOST_BAR1_FLOOR_MIB='96', WIN_HOST_MODE='exec',
            CARAXES_COMPRESSION='off', WIN_RESERVE_SLOT=os.environ.get('CH_SLOT', '0'),
-           CARAXES_SHADOW_FENCE='1', CARAXES_LAUNCH_TIMING='1', CARAXES_HOST_BOOST='1')
+           CARAXES_SHADOW_FENCE='1', CARAXES_LAUNCH_TIMING='1')
 # CH_DEV_EXTRA="K=V K=V": temporary A/B flags on top (recorded in env.json).
 for kv in os.environ.get('CH_DEV_EXTRA', '').split():
     k, v = kv.split('=', 1)

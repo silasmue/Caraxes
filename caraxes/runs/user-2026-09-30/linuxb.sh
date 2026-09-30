@@ -13,7 +13,7 @@ up)
     echo "starting; follow: tail -f $L/linuxb.log   (wait for 'ready')" ;;
 hold)
     echo "$(date +%T) up with $BIN"
-    NIGHT_SERVER=$BIN CARAXES_DISPLAY_KICK_PAGE=1 timeout 400 "$W" up || { echo "up failed"; exit 1; }
+    NIGHT_SERVER=$BIN timeout 400 "$W" up || { echo "up failed"; exit 1; }
     timeout 240 "$W" wait 200
     timeout 60 "$W" ssh "sed -i 's/^encoder = .*/encoder = nvenc/' ~/.config/sunshine/sunshine.conf; grep -E ^encoder ~/.config/sunshine/sunshine.conf; systemctl --user restart sunshine; sleep 5; systemctl --user is-active sunshine"
     echo "$(date +%T) ready: $0 moonlight"

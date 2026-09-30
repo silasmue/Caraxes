@@ -23,7 +23,7 @@ stop() { # Only this session's own run (another agent's run may be `current` aft
 trap stop EXIT
 echo "start $TAG $(date +%T) $BIN"
 CH_BIN=/mnt/vmstore/caraxes/ch-readonly-mmap/target-0008/release/cloud-hypervisor CH_SERVER=$BIN CH_SLOT=0 \
-  CH_DEV_EXTRA="CARAXES_INTR_PAGE=1 WIN_BAR1_POOL_MIB=32 WIN_CPUS=8 CARAXES_PROFILE=1 ${DEV_EXTRA:-}" \
+  CH_DEV_EXTRA="WIN_BAR1_POOL_MIB=32 WIN_CPUS=8 CARAXES_PROFILE=1 ${DEV_EXTRA:-}" \
   timeout 300 python3 CH-build/run44.py start $TAG > "$OUT/start.txt" 2>&1 || { cat "$OUT/start.txt"; exit 1; }
 tail -3 "$OUT/start.txt"
 # Host Xid watchdog: any host kernel line of this run's device pid ends the session (the EXIT

@@ -18,7 +18,7 @@
 #                           without the device, WIN_TAP default caraxes7, WIN_TAP_MAC default
 #                           02:00:00:00:00:47, WIN_CH the binary, WIN_CH_FW the firmware,
 #                           WIN_CH_SERIAL the serial log, default $W/ch-serial.log; with
-#                           CARAXES_INTR_PAGE=1 the tree page WIN_INTR_TREE, default 0xb81000,
+#                           WIN_HOST_MODE=exec (the interrupt page) the tree page WIN_INTR_TREE, default 0xb81000,
 #                           is mapped read-only)
 set -euo pipefail
 W=${WIN_STATE_DIR:-/mnt/vmstore/caraxes/win11}
@@ -45,13 +45,13 @@ if [[ ${WIN_GPU:-1} == 0 ]]; then
 else
     [[ -S $W/gpu.sock ]] || die "no device socket $W/gpu.sock: run gpu-up-host.sh first"
     dev="socket=$W/gpu.sock,id=gpu0,pci_device_id=${WIN_GPU_SLOT:-6}"
-    # The device's interrupt page (CARAXES_INTR_PAGE=1): the interrupt tree's page read-only
-    # for the guest, so its stores trap and the page shows the registers' own values
-    # (intr_page.rs exact mode). TU106's tree page is BAR0 0xb81000 (chips/tu106 intr_tree).
-    if [[ ${CARAXES_INTR_PAGE:-0} == 1 ]]; then
+    # The device's interrupt page (on with host execution, WIN_HOST_MODE=exec): the interrupt
+    # tree's page read-only for the guest, so its stores trap and the page shows the registers'
+    # own values (intr_page.rs exact mode). TU106's tree page is BAR0 0xb81000 (chips/tu106 intr_tree).
+    if [[ ${WIN_HOST_MODE:-rm} == exec ]]; then
         help=$("$CH" --help 2>&1)
         [[ $help == *x_readonly_mmap_areas* ]] ||
-            die "CARAXES_INTR_PAGE=1 needs Cloud Hypervisor with read-only vfio-user mmap areas"
+            die "the interrupt page (host execution) needs Cloud Hypervisor with read-only vfio-user mmap areas"
         dev+=",x_readonly_mmap_areas=[0:${WIN_INTR_TREE:-0xb81000}:0x1000]"
     fi
     gpu=(--user-device "$dev")

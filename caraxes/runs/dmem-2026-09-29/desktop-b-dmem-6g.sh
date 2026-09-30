@@ -7,7 +7,7 @@
 # (night-2026-09-28/desktop-b-night.sh), so it never runs beside Linux B. It boots the Ubuntu
 # HWE kernel copied to $W/boot when that is there (DMEM_KERNEL=hwe, the default), otherwise, or
 # with DMEM_KERNEL=stock, the stock 6.8.0-136 of the other guests.
-# 2026-09-29 copy for the 6 GiB SotTR run: NIGHT_VRAM_FLOOR_MIB sets the host VRAM floor.
+# 2026-09-29 copy for the 6 GiB SotTR run: NIGHT_MEM sets the guest RAM.
 # Usage: desktop-b-dmem-6g.sh up|down|status|wait|ssh [command...]
 set -euo pipefail
 W=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-b-dmem
@@ -27,12 +27,9 @@ export CARAXES_MEM=${NIGHT_MEM:-8G} CARAXES_CPUS=8 CARAXES_FB_MIB=${NIGHT_FB_MIB
 export CARAXES_GAMES_DISK=/mnt/vmstore/leandro/vm/games.qcow2
 export CARAXES_BOOT_MODEL=1 CARAXES_DISPLAY=1 CARAXES_DISPLAY_PAGE=1
 export CARAXES_DISPLAY_PAGE_READONLY=1
-export CARAXES_HOST_RM=1 CARAXES_RESERVE_VRAM=1 CARAXES_HOST_EXEC=1 CARAXES_DMA=register CARAXES_GUEST_DMA_GPA=1
-export CARAXES_MIRROR_CHANNELS=1 CARAXES_MIRROR_GR_SHADOW=1 CARAXES_CE_SHADOW=1 CARAXES_MIRROR_BARE_CE=1
+export CARAXES_HOST_RM=1 CARAXES_RESERVE_VRAM=1 CARAXES_HOST_EXEC=1 CARAXES_DMA=register
 export CARAXES_COMPRESSION=slice
-export CARAXES_INTR_PAGE=1 CARAXES_BAR1_PASSTHROUGH=pool CARAXES_BAR1_POOL_MIB=32
-export CARAXES_BAR1_WINDOWS=${NIGHT_BAR1_WINDOWS:-2} CARAXES_BAR1_WINDOW_MIB=${NIGHT_BAR1_WINDOW_MIB:-16}
+export CARAXES_BAR1_POOL_MIB=32
 export CARAXES_DOORBELL_TOKENS=64 CARAXES_DOORBELL_POLL=hybrid CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1
-export CARAXES_HOST_VRAM_FLOOR_MIB=${NIGHT_VRAM_FLOOR_MIB:-1024} CARAXES_HOST_BAR1_FLOOR_MIB=64
-export CARAXES_TRACE_FLUSH=0 CARAXES_LAUNCH_FAST=${NIGHT_FAST:-2}
+export CARAXES_HOST_BAR1_FLOOR_MIB=64
 exec "$(cd "$(dirname "$(readlink -f "$0")")/../night-2026-09-28" && pwd -P)/caraxes-vm-night.sh" "$@"
