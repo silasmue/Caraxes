@@ -219,7 +219,18 @@ impl Dispatcher {
                     .ok_or_else(|| "deferred API is unknown or already consumed".into());
             }
             if cmd != deferred::CMD_DEFERRED_API {
-                return Err("only legacy deferred context registration is implemented".into());
+                // The request (NV5080_CTRL_DEFERRED_API[_V2]_PARAMS, one layout): what it asks for.
+                let rd = |o: usize| params.get(o..o + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
+                let bundle: Vec<String> = (0..8).map(|i| format!("{:08x}", rd(24 + 4 * i))).collect();
+                return Err(format!(
+                    "only legacy deferred context registration is implemented (control {cmd:#x}: hApiHandle {:#x} cmd {:#x} flags {:#x} hClientVA {:#x} hDeviceVA {:#x}, bundle {})",
+                    rd(0),
+                    rd(4),
+                    rd(8),
+                    rd(12),
+                    rd(16),
+                    bundle.join(" ")
+                ));
             }
             let request = deferred::parse(params).map_err(|e| e.to_string())?;
             let target = TargetStamp::resolve(&self.channels, request)?;
