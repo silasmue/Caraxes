@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+[    0.000000] Command line: root=UUID=0b6c1a4e-2f3d-4c5b-8a9e-1f2e3d4c5b6a ro console=ttyS0
+[    5.120000] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  615.71.09
+Ubuntu 24.04.1 LTS fixturehost ttyS0
+fixturehost login:

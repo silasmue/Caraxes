@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+cloud-hypervisor: 0.012s: <vmm> INFO:vmm/src/lib.rs: API server started
+cloud-hypervisor: 0.340s: <vmm> WARN:virtio-devices/src/net.rs: tap caraxes0 mac 02:00:00:00:00:99 for 192.168.77.5
+cloud-hypervisor: 95.200s: <vcpu0> ERROR:vmm/src/cpu.rs: guest reboot requested

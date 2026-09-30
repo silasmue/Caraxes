@@ -21,6 +21,7 @@ interpreting isolation claims.
 | [performance.md](performance.md) | Measured performance of both versions against native |
 | [roadmap.md](roadmap.md) | What exists and what is planned, by code name; the next step |
 | [naming.md](naming.md) | Official names, code names, prefixes, directories and components |
+| [reporting.md](reporting.md) | Reporting a problem: `tools/leandro-report.sh` collects host, VM and guest state into one tarball, redacted on request; another card goes through a capture |
 | [wiki/](wiki/README.md) | One page per concept, driver references by path and function, a glossary |
 | [research/](research/README.md) | The evidence: one short note per topic, 615.71.09 lines and run folders |
 | [history/](history/README.md) | Dated snapshots of both versions |

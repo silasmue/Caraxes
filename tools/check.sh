@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
 # SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
-# Run the 18 software checks from a writable source checkout; no GPU or VM needed.
+# Run the 19 software checks from a writable source checkout; no GPU or VM needed.
 # Usage: tools/check.sh
 # Each check runs even if an earlier check fails. Exit 0 if all pass, 1 otherwise.
-# CARAXES_CHECK_EMU_BOOT=1 adds a 19th, emu-boot: tools/emu-boot-check.sh boots the TU106 in
+# CARAXES_CHECK_EMU_BOOT=1 adds a 20th, emu-boot: tools/emu-boot-check.sh boots the TU106 in
 # pure emulation (no host RM, no reservation, no GPU; a tapless VM, 1 to 2 minutes) to
 # RmInitAdapter and nvidia-smi (docs/caraxes/blackwell-gate.md section 5). It is reported as
 # SKIP with the reason when the firmware, the prepared image or Cloud Hypervisor is absent,
@@ -481,6 +481,8 @@ do_check() {
     step "gsp-abi"              gsp_abi_baseline
     step "dangling-refs"        dangling_refs
     step "no-markers"           no_markers
+    # The report collector against its fixture: manifest and redaction, no GPU, no VM.
+    step "leandro-report"       tools/leandro-report.sh --self-test
     if [[ ${CARAXES_CHECK_EMU_BOOT:-0} == 1 ]]; then
         step "emu-boot"         tools/emu-boot-check.sh --driver 610 --chip tu106
     else

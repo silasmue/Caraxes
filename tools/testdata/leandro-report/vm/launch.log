@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+device up: pid 4999999, config /home/fixtureuser/Caraxes/caraxes/reference/rtx2070/config-space.txt
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /d 1
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword /d hunter2
+probe log C:\Users\Tester\AppData\Local\Temp\probe.log

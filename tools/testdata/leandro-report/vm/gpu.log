@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+# The self-test's device log (tools/leandro-report.sh --self-test); every identity is fake.
+vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes (chosen by running driver 615.71.09)
+vfio-user-nvgpu: config: vram 4096 MiB in slot 0 of the host FB
+vfio-user-nvgpu: config: display on, compression off, doorbell poll hybrid
+vfio-user-nvgpu: config: BAR1 pool 32 MiB
+vfio-user-nvgpu: state directory /home/fixtureuser/vmstore/vm0 on fixturehost, operator Fixture Person
+vfio-user-nvgpu: guest at 10.0.2.15, host tap 192.168.77.5, link fe80::1
+vfio-user-nvgpu: WARNING guest registry RmRcWatchdog is absent, the device needs 0
+vfio-user-nvgpu: ERROR host RM control 0x2080a70a on 0000:01:00.0 returned NV_ERR_INVALID_ARGUMENT
+vfio-user-nvgpu: ERROR host RM control 0x2080a70a on 0000:01:00.0 returned NV_ERR_INVALID_ARGUMENT
+vfio-user-nvgpu: a message for fixtureuser@example.org
+[2026-09-30T10:05:00Z INFO  vfio_user] Connection closed
+vfio-user-nvgpu: device lock holds by holder: doorbell 12 hold(s) 3 ms
+vfio-user-nvgpu: soak exit: rss_kib=102400 host_objects=12
+vfio-user-nvgpu: soak after teardown: rss_kib=102400 host_objects=0
+bar0: 1000 reads, 200 writes
