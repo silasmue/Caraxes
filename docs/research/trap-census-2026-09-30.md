@@ -3,7 +3,7 @@
 # Trap census and elimination plan (2026-09-30)
 
 Scope: every guest access that still exits to Cloud Hypervisor (CH) and the device on today's
-code (train-2026-09-30 c3e9bd5b and the Windows lf24/final1 binaries), per workload on Linux
+code (train-2026-09-30 c3e9bd5b, as train3 on Windows in C104, and the Windows lf24/final1 binaries), per workload on Linux
 615 and Windows; what each costs; which fast paths exist and when they are on; the top ten
 sources with the spec-true way to remove each. Census and plan only: the eliminations come
 after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
@@ -30,10 +30,11 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
   - a7495f0e: trapped accesses the routes serve without the device mutex, per route
     (interrupt page, re-arm, display page, display status) with their device time. Before
     it the profile missed them (below).
-- New sessions: none ran. The priority file named Windows all night (repair, then gates and
-  codec sessions); the Linux B session (census-linux.sh) stayed queued, and the Windows agent
-  gave no go for a Windows census session. The Windows numbers below come from its and the
-  codec agent's sessions of tonight (C96-C101, w3).
+- New sessions: none ran. The priority file named Windows all night (repair, gates, codec
+  sessions; still at 07:56), so the Linux B session (census-linux.sh) stayed queued. A Windows
+  census session with the census binary (census-windows.sh, coordinator's go after C102) was
+  refused by the permission system and not retried. The Windows numbers below come from the
+  Windows and codec agents' own sessions (C96-C104, w3), train3 included (C104).
 
 ## Facts
 
@@ -96,6 +97,7 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
 | Linux vm2-615 boot + CUDA context bench (train/ab A1) | 1507 | 8 (9) | invalidate 404, BAR1 288 (no pool), PROM 198, flush read 185, GSP 40 RPC |
 | Windows Heaven 4.0, 133 fps, 292 s (C100 client 0xc1d000a4) | 3290 + ~5330 routed | 9.9 (46) + ~14 | interrupt tree stores ~5330, BAR2 writes 1228, PTIMER 896, doorbell 497, `TIME` 295, window `PUT` 138, ARMED reads 90 |
 | Windows Superposition 1080p medium, 80.8 fps, 208 s (C101 0xc1d000d7) | 2373 + ~4570 routed | 7.5 (27) + ~12 | tree stores ~4570, PTIMER 902, BAR2 525, `TIME` 306, doorbell 291, window `PUT` 138, ARMED 91 |
+| Windows Superposition on train3, 161 s (C104 0xc1d000d7) | 2577 + ~4780 routed | 8.1 (28) + ~13 | tree stores ~4780, PTIMER 882, BAR2 719, doorbell 326, `TIME` 301, window `PUT` 135, ARMED 88 |
 | Windows Sunshine NVENC stream, 21 fps, 106 s (w3 0xc1d00145) | 478 + ~2380 routed | 1.6 (7.6) + ~6 | tree stores ~2380, doorbell 170, GSP 45 RPC (+133 falcon), BAR2 83 |
 | Windows Sunshine x264 stream, 116 s (w3 0xc1d0019a) | 2217 + ~750 routed | 6.4 (6.7) + ~2 | BAR2 writes 2133, tree stores ~750, invalidate 26 |
 | Windows without a desktop session, 677 s (C96 0xc1d0002f) | 720 + ~650 routed | 1.8 (5.1) + ~2 | PTIMER 360, `TIME` 360 (a 120 Hz hi-lo-hi pair), tree stores ~650 |
@@ -177,8 +179,8 @@ after the train merge. `R` = `/mnt/vmstore/caraxes/runs-2026-09-30/traps/`.
   for the priority file. The SotTR arms ran older binaries (2026-09-29): posted doorbells and
   the async held invalidate are on train, so their doorbell and `TRIGGER` device times are
   upper bounds.
-- Windows idle desktop with DWM and the Windows session census (census-windows.sh) are
-  unmeasured: no go from the Windows agent. The per-token doorbell rows and routed-trap rows
-  have not run on a guest yet.
+- Windows idle desktop with DWM is unmeasured, and census-windows.sh has not run (refused by
+  the permission system). The per-token doorbell rows and routed-trap rows have not run on a
+  guest yet: which doorbell tokens miss the guest set is still inferred.
 - The Windows re-arm count per window is estimated from the session ratio.
 - Who reads Windows' clock pair, and how fresh it must be.
