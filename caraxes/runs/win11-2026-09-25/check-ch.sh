@@ -13,6 +13,19 @@ fail=0
 say() { printf '%-5s %s\n' "$1" "$2" | tee -a "$out"; [[ $1 == FAIL ]] && fail=1; return 0; }
 n() { grep -c -E "$1" "$2" 2>/dev/null || true; }
 
+for required in "$G" "$K" "$R/start.json"; do
+    [[ -r $required ]] || { say FAIL "required evidence missing: $required"; exit 1; }
+done
+trace_available=0
+if [[ -s $T ]]; then
+    trace_available=1
+elif python3 -c 'import json,sys; sys.exit(not json.load(open(sys.argv[1])).get("scored", False))' "$R/start.json"; then
+    say SKIP "trace-dependent checks: scored run intentionally omits gpu-trace.log"
+else
+    say FAIL "missing or empty gpu-trace.log in a diagnostic run"
+fi
+
+if (( trace_available )); then
 # 1. Fix 1: every lower-level COPY_SERVER_RESERVED_PDES keeps the root; none is installed.
 kept=$(n 'ctrl 0x90f10106: .*not a root' "$T")
 installed=$(n 'ctrl 0x90f10106: vaspace [^:]*: root Some\(.*levels \[0x[0-9a-f]+\+0x1000 ap [0-9] shift (29|38)\]' "$T")
@@ -58,6 +71,7 @@ else say FAIL "$nz shadow VAS(es) where the host ignored ALLOW_ZERO_ADDRESS"; fi
 low=$(perl -ne 'print "$1\n" if /shadow: (?:REFUSED leaf|map) va (0x[0-9a-f]+) .*(?:REFUSED|refused)/' "$T" \
     | perl -ne 'chomp; $c++ if hex($_) < (1 << 20); END { print $c // 0 }')
 [[ $low == 0 ]] && say PASS "no refused leaf below 1 MiB" || say FAIL "$low refused shadow leaf/leaves below 1 MiB"
+fi
 # P19: host-owned VAs in the guest's kernel-RM range (0x51 NO_MEMORY, F2 open).
 h51=$(perl -ne 'if (/VA Space alloc failed! Status Code: 0x51 Size: \S+ RangeLo: (0x[0-9a-f]+)/) { my $v = hex($1); $c++ if $v >= 0x120000000 && $v < 0x122000000 } END { print $c // 0 }' "$K")
 [[ $h51 == 0 ]] && say PASS "no 0x51 in 0x1_2000_0000..0x1_2200_0000" || say FAIL "$h51 host VA alloc 0x51 in 0x1_2000_0000..0x1_2200_0000 (host-owned VAs the guest uses; F2 open)"
@@ -66,17 +80,20 @@ grep -oE 'global context size: .{0,160}' "$G" | sed 's/^/INFO    /' | tee -a "$o
 cut=$(n 'set-B exclusion cut short' "$G")
 say INFO "F2a clips: $cut exclusion(s) cut short at a guest page past the host footprint"
 grep -m6 -oE 'WARN: shadow root .{0,220}exclusion cut short.{0,120}' "$G" | sed 's/^/INFO    /' | tee -a "$out"
+if (( trace_available )); then
 # P20: pages the guest maps inside a footprint are its own copy of the buffer (expected).
 c1a=$(grep -cE 'refused: per-leaf VA object 0x1a' "$T" 2>/dev/null || true)
 [[ $c1a == 0 ]] && say PASS "no guest leaf refused as a collision with host-owned VAs (0x1a)" || say FAIL "$c1a guest leaf/leaves refused 0x1a (host set B at a guest VA; F2b)"
 # P24 (F2b): fenced VASes, holes, and where the host's refusals now fall.
 fv=$(n 'fence \[0x120000000, 0x140000000\) held by the host' "$T"); fh=$(n 'a hole in the fence|fence \[.*refused' "$T")
 say INFO "fenced shadow VASes: $fv, fence holes/refusals: $fh"
+fi
 perl -ne 'if (/VA Space alloc failed! Status Code: (0x[0-9a-f]+) Size: \S+ RangeLo: (0x[0-9a-f]+)/) { my $v = hex($2); my $b = $v < 0x120000000 ? "below the fence" : $v < 0x140000000 ? "inside the fence" : "above the fence"; $c{"$1 $b"}++ } END { printf "INFO  host VA alloc failed %s: %d\n", $_, $c{$_} for sort keys %c }' "$K" | tee -a "$out"
 # P22: GFXP BINDs by outcome, the distinct refused payloads, held-channel replays.
 ok=$(n 'P17 EXPERIMENTAL: owned host GFXP' "$G"); ref=$(n 'P17 native GFXP binding refused' "$G")
 say INFO "GFXP BINDs: $ok bound, $ref refused"
 grep -oE 'P17 native GFXP binding refused: .*payload [0-9a-f]+' "$G" | sed -E 's/.*payload //' | sort | uniq -c | sed 's/^/INFO    refused payload x/' | tee -a "$out"
+if (( trace_available )); then
 rp=$(n 'enabled again, its held doorbell runs now' "$T")
 say INFO "held-doorbell replays: $rp (P21: several thousand)"
 # F3: the shadow fault diagnostics of MMU-fault RCs.
@@ -90,9 +107,10 @@ perl -0777 -ne '
         my ($c, $s, $g) = ($1, $2, $3); $n++;
         if ($g =~ /^gap/) { $gap++; push @g, "chid $c $s ($g)" } else { $cov++ }
     }
-    END { printf "%s GPFIFOs covered: %d record(s), %d covered, %d gap(s)%s\n", ($gap ? "FAIL " : "PASS "),
+    END { printf "%s GPFIFOs covered: %d record(s), %d covered, %d gap(s)%s\n", ($gap ? "FAIL " : $n ? "PASS " : "SKIP "),
           $n // 0, $cov // 0, $gap // 0, $gap ? ": " . join("; ", @g[0 .. ($#g < 5 ? $#g : 5)]) : "" }' "$T" | tee -a "$out"
 grep -q '^FAIL  GPFIFOs\|^FAIL GPFIFOs' "$out" && fail=1
+fi
 
 # 6. Host Xid (any; 31 decisive) and VA-space update failures.
 # Beside Linux B the host log holds both devices: attribute by pid (start.json win_device_pid).
@@ -125,6 +143,17 @@ else
 fi
 
 # Context: device errors and RCs.
-say INFO "gpu.log: $(n 'ERROR' "$G") ERROR line(s), $(n 'RC queued|guest RC' "$T") guest RC note(s) in the trace"
-[[ $fail == 0 ]] && echo "CH checks: ALL PASS" | tee -a "$out" || echo "CH checks: FAILURES (see above)" | tee -a "$out"
+say INFO "gpu.log: $(n 'ERROR' "$G") ERROR line(s)"
+if (( trace_available )); then
+    say INFO "guest RC: $(n 'RC queued|guest RC' "$T") note(s) in the trace"
+else
+    say SKIP "guest RC trace count unavailable"
+fi
+if (( fail )); then
+    echo "CH checks: FAILURES (see above)" | tee -a "$out"
+elif (( trace_available )); then
+    echo "CH checks: AVAILABLE CHECKS PASS (review SKIP lines)" | tee -a "$out"
+else
+    echo "CH checks: AVAILABLE CHECKS PASS; trace-dependent checks skipped" | tee -a "$out"
+fi
 exit $fail
