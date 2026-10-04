@@ -255,7 +255,7 @@ struct State {
     stores_traced: u32,
     /// The host engines' non-stall vectors ([`IntrPage::set_hint_vectors`]).
     hint: [u32; LEAVES],
-    /// MSI re-arms that sent the MSI again for pending host hints only, with no ack of one
+    /// Guest MSI re-arm writes for pending host hints only, with no ack of one
     /// of them since ([`IntrPage::rearm`]).
     hint_rearms: u32,
     /// Host hints withdrawn from a handler that does not service them: their raises are
@@ -294,7 +294,8 @@ pub struct Stats {
     pub msi_watchdog: AtomicU64,
     pub msi_refused: AtomicU64,
     pub cas_retries: AtomicU64,
-    /// MSI re-arms (`NV_XVE_CYA_2`) taken without the device mutex, and the MSIs they sent.
+    /// Guest MSI re-arm writes (`NV_XVE_CYA_2`) taken without the device mutex, and the
+    /// MSIs they sent (at most one per coalesced eventfd wake).
     pub rearms: AtomicU64,
     pub msi_rearm: AtomicU64,
     /// Host hints withdrawn at a re-arm, and their raises dropped while muted.
@@ -451,7 +452,19 @@ impl IntrPage {
     /// MSI would be for pending host hints only and the guest re-armed [`HINT_REARMS`]
     /// times without acknowledging one, they are withdrawn and muted.
     pub fn rearm(&self) -> bool {
-        bump(&self.stats.rearms);
+        self.rearm_count(1)
+    }
+
+    /// One coalesced exact-mode eventfd wake: count every guest write toward the host-hint
+    /// storm guard, but make only one MSI decision. Zero is no work; both counters saturate
+    /// without iterating over the write count. The trapped path uses `rearm`, with count 1.
+    pub fn rearm_count(&self, writes: u64) -> bool {
+        if writes == 0 {
+            return false;
+        }
+        let _ = self.stats.rearms.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+            Some(n.saturating_add(writes))
+        });
         if !self.exact() {
             return false;
         }
@@ -467,7 +480,9 @@ impl IntrPage {
             }
         });
         if (0..LEAVES).all(|i| live[i] & !st.hint[i] == 0) {
-            st.hint_rearms += 1;
+            st.hint_rearms = st.hint_rearms
+                .saturating_add(writes.min(u64::from(HINT_REARMS)) as u32)
+                .min(HINT_REARMS);
             if st.hint_rearms >= HINT_REARMS {
                 self.withdraw(&mut st, live);
                 return false;
@@ -1561,6 +1576,81 @@ mod tests {
         assert_eq!(p.stats.withdrawn.load(Ordering::Relaxed), 0);
     }
 
+    /// A batch reaches the same host-hint withdrawal threshold as individual trapped
+    /// writes, without sending an MSI for every write in the batch.
+    #[test]
+    fn coalesced_rearm_counts_every_write_toward_hint_withdrawal() {
+        for batches in [vec![u64::from(HINT_REARMS)], vec![125, 130, 1]] {
+            let (p, shared, mut msi, _wake) = page(Config::default());
+            p.set_hint_vectors(&[4]);
+            p.write(BASE + LEAF_EN_SET, &0x10u32.to_le_bytes());
+            p.write(BASE + TOP_EN_SET, &1u32.to_le_bytes());
+            assert!(p.exact());
+            assert!(shared.raise(4));
+            assert!(p.scan().msi);
+            assert_eq!(count(&mut msi), 1);
+            let mut writes = 0;
+            for batch in batches {
+                writes += batch;
+                let pending = writes < u64::from(HINT_REARMS);
+                assert_eq!(p.rearm_count(batch), pending);
+                assert_eq!(count(&mut msi), u64::from(pending), "one MSI decision per batch");
+                assert_eq!(p.stats.rearms.load(Ordering::Relaxed), writes);
+            }
+            assert_eq!(load(&p, LEAF), 0);
+            assert_eq!(p.stats.withdrawn.load(Ordering::Relaxed), 1);
+            assert_eq!(p.lock().hint_rearms, 0, "withdrawal resets the guard");
+        }
+    }
+
+    /// A real device vector alongside a host hint must prevent withdrawal, even for a
+    /// huge coalesced count; accounting saturates rather than wrapping.
+    #[test]
+    fn coalesced_rearm_keeps_device_vectors_and_saturates_accounting() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        p.set_hint_vectors(&[4]);
+        p.write(BASE + LEAF_EN_SET, &0x10u32.to_le_bytes());
+        p.write(BASE + LEAF_EN_SET + 16, &0x1000_0000u32.to_le_bytes());
+        p.write(BASE + TOP_EN_SET, &0x5u32.to_le_bytes());
+        assert!(shared.raise(4));
+        assert!(shared.raise(156));
+        p.scan();
+        count(&mut msi);
+        for batch in [u64::MAX - 1, 10, u64::MAX] {
+            assert!(p.rearm_count(batch));
+            assert_eq!(count(&mut msi), 1);
+            assert_eq!(load(&p, LEAF), 0x10);
+            assert_eq!(load(&p, LEAF + 16), 0x1000_0000);
+            assert_eq!(p.stats.withdrawn.load(Ordering::Relaxed), 0);
+            assert_eq!(p.lock().hint_rearms, 0);
+        }
+        assert_eq!(p.stats.rearms.load(Ordering::Relaxed), u64::MAX);
+        assert_eq!(p.stats.msi_rearm.load(Ordering::Relaxed), 3);
+    }
+
+    #[test]
+    fn coalesced_rearm_zero_is_no_work_and_huge_hint_batch_is_bounded() {
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        p.set_hint_vectors(&[4]);
+        p.write(BASE + LEAF_EN_SET, &0x10u32.to_le_bytes());
+        p.write(BASE + TOP_EN_SET, &1u32.to_le_bytes());
+        assert!(shared.raise(4));
+        p.scan();
+        count(&mut msi);
+        assert!(p.rearm_count(25));
+        assert_eq!(count(&mut msi), 1);
+        assert!(!p.rearm_count(0));
+        assert_eq!(count(&mut msi), 0);
+        assert_eq!(p.stats.rearms.load(Ordering::Relaxed), 25);
+        assert_eq!(p.lock().hint_rearms, 25);
+        assert_eq!(load(&p, LEAF), 0x10);
+        assert!(!p.rearm_count(u64::MAX));
+        assert_eq!(count(&mut msi), 0);
+        assert_eq!(p.stats.rearms.load(Ordering::Relaxed), u64::MAX);
+        assert_eq!(p.stats.withdrawn.load(Ordering::Relaxed), 1);
+        assert_eq!(load(&p, LEAF), 0);
+    }
+
     /// Exact mode's watchdog leaves the guest's enables alone: a vector pending under a
     /// masked subtree is no lost interrupt; one pending and enabled gets its MSI again.
     /// (A raise signals as the trapped path's `IntrShared::raise` does, enables or not.)
@@ -1648,13 +1738,52 @@ mod tests {
         assert_eq!(count(&mut msi2), 0);
     }
 
+    #[test]
+    fn exact_direct_completion_orders_the_page_before_the_msi() {
+        let (p, shared, mut msi, mut wake) = page(Config::default());
+        p.write(BASE + LEAF_EN_SET, &0x10u32.to_le_bytes());
+        p.write(BASE + TOP_EN_SET, &1u32.to_le_bytes());
+        assert!(p.exact());
+        assert!(shared.attach_direct(&p));
+        assert!(!p.scan().msi);
+        assert_eq!(count(&mut msi), 0);
+        assert!(shared.raise(4));
+        assert_eq!(count(&mut msi), 1);
+        assert_eq!(load(&p, LEAF), 0x10, "exact value visible before MSI");
+        assert_eq!(count(&mut wake), 0);
+        assert!(shared.raise(4));
+        assert_eq!(count(&mut msi), 0, "pending vector coalesces");
+        // A trapped ack re-pends the coalesced raise and publishes before its MSI.
+        p.write(BASE + LEAF, &0x10u32.to_le_bytes());
+        assert_eq!(count(&mut msi), 1);
+        assert_eq!(load(&p, LEAF), 0x10);
+        p.write(BASE + LEAF, &0x10u32.to_le_bytes());
+        assert_eq!(load(&p, LEAF), 0);
+        assert!(!p.scan().msi);
+        assert_eq!(count(&mut msi), 0);
+    }
+
     /// The direct completion racing the reactor's scan: every raise ends with its vector in
     /// the page and exactly one MSI, whichever thread folded it, and the MSI never comes
     /// before the page shows the vector.
     #[test]
     fn direct_completion_racing_the_reactor_loses_nothing() {
+        direct_completion_race(false);
+    }
+
+    #[test]
+    fn exact_direct_completion_racing_the_reactor_loses_nothing() {
+        direct_completion_race(true);
+    }
+
+    fn direct_completion_race(exact: bool) {
         use std::sync::atomic::AtomicBool;
         let (p, shared, mut msi, _wake) = page(Config::default());
+        if exact {
+            p.write(BASE + LEAF_EN_SET, &0x10u32.to_le_bytes());
+            p.write(BASE + TOP_EN_SET, &1u32.to_le_bytes());
+            assert!(p.exact());
+        }
         assert!(shared.attach_direct(&p));
         let stop = Arc::new(AtomicBool::new(false));
         let reactor = {
@@ -1675,8 +1804,13 @@ mod tests {
             }
             assert_eq!(n, 1);
             assert_eq!(load(&p, LEAF) & 0x10, 0x10, "the MSI came after the page store");
-            // The guest's ack; the reactor folds it without an MSI (nothing raised since).
-            store(&p, LEAF, 0x10);
+            // Exact mode applies the trapped ack synchronously; tagged mode's reactor
+            // folds the page store. Neither sends an MSI without another raise.
+            if exact {
+                p.write(BASE + LEAF, &0x10u32.to_le_bytes());
+            } else {
+                store(&p, LEAF, 0x10);
+            }
             let t = Instant::now();
             while load(&p, LEAF) & 0x10 != 0 {
                 assert!(t.elapsed() < Duration::from_secs(5), "the ack was not folded");

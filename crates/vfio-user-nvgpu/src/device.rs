@@ -278,10 +278,12 @@ pub fn spawn_token_reader_hooked(
             // The MSI re-arm with the interrupt page: taken by the page, never waiting for
             // the device mutex (`Routes`).
             let routed_rearm = match (rearm_at, routes.intr_page.as_ref()) {
-                (Some((i, _)), Some(p)) if p.exact() && rings.iter().any(|r| r.0 == i) => {
-                    p.note_routed();
-                    p.rearm();
-                    Some(i)
+                (Some((i, _)), Some(p)) if p.exact() => {
+                    rings.iter().find(|r| r.0 == i).map(|r| {
+                        p.note_routed();
+                        p.rearm_count(r.1);
+                        i
+                    })
                 }
                 _ => None,
             };
@@ -2866,6 +2868,73 @@ mod tests {
         assert!(!routes.write(1, tree, &0u32.to_le_bytes()), "BAR0 only");
         drop(held);
         assert!(page.summary().contains("served without the device mutex"));
+    }
+
+    /// Exact-mode re-arm eventfds account every coalesced guest write for the Windows
+    /// storm guard, and run even while the Device mutex is held elsewhere.
+    #[test]
+    fn exact_rearm_ioeventfd_counts_coalesced_writes_without_the_device_mutex() {
+        use std::io::{Read, Write};
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let shared = crate::intr::IntrShared::new();
+        // SAFETY: a plain syscall; the new descriptor is checked and owned below.
+        let raw = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC | libc::EFD_NONBLOCK) };
+        assert!(raw >= 0);
+        // SAFETY: this is the newly created descriptor.
+        let mut msi_r = unsafe { File::from_raw_fd(raw) };
+        shared.set_msi_fd(Some(msi_r.try_clone().unwrap()));
+        shared.set_msi_enabled(true);
+        let tree = 0x00B8_1000;
+        let page = crate::intr_page::IntrPage::create(
+            16 << 20,
+            tree,
+            crate::fixture::rtx2070().chip.data().identity,
+            shared.clone(),
+            crate::intr_page::Config::default(),
+        )
+        .unwrap();
+        let (_hook, wake) = crate::intr_page::PageHook::new(page.clone()).unwrap();
+        shared.attach_page(wake);
+        page.set_hint_vectors(&[4]);
+        page.write(tree + 0x200, &0x10u32.to_le_bytes());
+        page.write(tree + 0x608, &1u32.to_le_bytes());
+        assert!(page.exact());
+        assert!(shared.raise(4));
+        assert!(page.scan().msi);
+        let mut c = [0u8; 8];
+        msi_r.read_exact(&mut c).unwrap();
+        let rearm = 0x88704;
+        let (sub, reader) = msi_rearm_sub_region(rearm).unwrap();
+        let writer = File::from(sub.fd.try_clone().unwrap());
+        // Queue before starting the reactor so the whole batch is one eventfd read.
+        (&writer).write_all(&256u64.to_ne_bytes()).unwrap();
+        let routes = Routes { intr_page: Some(page.clone()), rearm: Some(rearm), ..Routes::default() };
+        let held = lock(&device);
+        let reactor = crate::poll::Reactor::new("test", crate::poll::Config::default(), None).unwrap();
+        let stats = spawn_token_reader_hooked(
+            device.clone(),
+            0xbb_0090,
+            Vec::new(),
+            Vec::new(),
+            reactor,
+            None,
+            Some((rearm, reader)),
+            None,
+            routes,
+        )
+        .unwrap();
+        let t0 = std::time::Instant::now();
+        while page.stats.withdrawn.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            assert!(t0.elapsed() < std::time::Duration::from_secs(5), "reactor did not withdraw the batched hint");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        stats.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(page.stats.rearms.load(std::sync::atomic::Ordering::Relaxed), 256);
+        assert_eq!(page.stats.withdrawn.load(std::sync::atomic::Ordering::Relaxed), 1);
+        assert_eq!(page.model().leaf[0], 0);
+        assert_eq!(msi_r.read(&mut c).unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+        assert_eq!((held.rearm_wakeups, held.rearm_writes), (0, 0), "exact mode bypasses the fallback");
+        drop(held);
     }
 
     /// The display's status registers are served under the display lock only: a guest
