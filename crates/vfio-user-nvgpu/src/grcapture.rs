@@ -156,7 +156,12 @@ impl Capture {
             self.class_exact[subch] = true;
             return;
         }
-        if self.classes[subch] != CLASS_3D {
+        // Windows uses subchannel 0 for the channel's C597 object. A context captured
+        // after takeover can contain SET_OBJECT(0) diagnostics even though subsequent
+        // methods execute against the restored 3D context; keep classifying that known
+        // hardware subchannel as C597. Other subchannels still require an exact binding.
+        let inferred_3d = subch == 0 && self.allowed_classes.contains(&CLASS_3D);
+        if self.classes[subch] != CLASS_3D && !inferred_3d {
             self.finish_call(open);
             return;
         }
@@ -555,13 +560,16 @@ mod tests {
         // A value that is not one of the host channel's engine classes cannot be a
         // successful SET_OBJECT and must not destroy the known C597 binding.
         words.extend(inc(0, 0, &[0x5540]));
+        words.extend(inc(0, 0, &[0]));
+        words.extend(oneinc(0, 0x3800 + 8 * 8, &[0x44, 0x55]));
         words.extend(inc(0, 0x10F4, &[1 << 8]));
 
         let mut c = Capture::new(&[(CLASS_3D, 1)]);
         c.push(9, &words);
         let notes = c.notes(3).join("\n");
-        assert!(notes.contains("SET_OBJECT state 0=0xc597@gp9"), "{notes}");
+        assert!(notes.contains("SET_OBJECT state none"), "{notes}");
         assert!(notes.contains("1 unexpected ignored"), "{notes}");
+        assert!(notes.contains("macro 8 params 2/2: 0x44 0x55"), "{notes}");
         assert!(notes.contains("legacy headers 3"), "{notes}");
         assert!(
             notes.contains("MME words 3") && notes.contains("starts 1"),
