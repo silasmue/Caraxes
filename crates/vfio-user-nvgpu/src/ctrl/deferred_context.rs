@@ -228,7 +228,11 @@ impl Dispatcher {
                 if self.channels.remove_ring_switch(chid, api) {
                     return Ok(format!("deferred API {api:#x} (ring migration) removed"));
                 }
-                if let Some(n) = self.mirror.as_mut().and_then(|m| m.cancel_migration(chid, object, api)) {
+                if let Some(n) = self
+                    .mirror
+                    .as_mut()
+                    .and_then(|m| m.cancel_migration(chid, object, api))
+                {
                     return n;
                 }
                 return self
@@ -240,8 +244,13 @@ impl Dispatcher {
             }
             if !deferred::is_registration(cmd) {
                 // The request (NV5080_CTRL_DEFERRED_API[_V2]_PARAMS, one layout): what it asks for.
-                let rd = |o: usize| params.get(o..o + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
-                let bundle: Vec<String> = (0..8).map(|i| format!("{:08x}", rd(24 + 4 * i))).collect();
+                let rd = |o: usize| {
+                    params
+                        .get(o..o + 4)
+                        .map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()))
+                };
+                let bundle: Vec<String> =
+                    (0..8).map(|i| format!("{:08x}", rd(24 + 4 * i))).collect();
                 return Err(format!(
                     "unknown deferred API control (control {cmd:#x}: hApiHandle {:#x} cmd {:#x} flags {:#x} hClientVA {:#x} hDeviceVA {:#x}, bundle {})",
                     rd(0),
@@ -334,8 +343,13 @@ impl Dispatcher {
                 // device completes that method with the error itself.
                 if let Some((c, _)) = owner {
                     let hosted = self.mirror.as_ref().is_some_and(|m| m.has_host_channel(c));
-                    if hosted && !was_management && self.deferred_context.management.remove(&c).is_some() {
-                        note.push_str("; the owner is not taken over (its method completes on the host)");
+                    if hosted
+                        && !was_management
+                        && self.deferred_context.management.remove(&c).is_some()
+                    {
+                        note.push_str(
+                            "; the owner is not taken over (its method completes on the host)",
+                        );
                     }
                 }
                 Answer {
@@ -355,8 +369,14 @@ impl Dispatcher {
     /// host RM registers and runs it in the host channel's stream (mirror.rs
     /// `begin_migration`). A channel the device executes: its executor switches the ring
     /// after the method's entry (channel.rs `RingSwitch`).
-    fn register_channel_migration(&mut self, object: u32, owner: u32, params: &[u8]) -> Result<String, String> {
-        let (api, flags, info) = deferred::parse_channel_info_request(params).map_err(|e| e.to_string())?;
+    fn register_channel_migration(
+        &mut self,
+        object: u32,
+        owner: u32,
+        params: &[u8],
+    ) -> Result<String, String> {
+        let (api, flags, info) =
+            deferred::parse_channel_info_request(params).map_err(|e| e.to_string())?;
         let (userd, initial_get) = self
             .migration_userd
             .take()
@@ -375,13 +395,28 @@ impl Dispatcher {
                 return Err("a host channel's new USERD must be guest system memory".into());
             };
             if !(target.2 && owner_mirrored) {
-                return Err("a ring migration between a host channel and a software one is not modelled".into());
+                return Err(
+                    "a ring migration between a host channel and a software one is not modelled"
+                        .into(),
+                );
             }
             let mirror = self.mirror.as_mut().ok_or("no host mirror")?;
-            return mirror.begin_migration(&self.channels, owner, object, target.0, api, flags, &info, new_guest, initial_get);
+            return mirror.begin_migration(
+                &self.channels,
+                owner,
+                object,
+                target.0,
+                api,
+                flags,
+                &info,
+                new_guest,
+                initial_get,
+            );
         }
         if flags != 0 {
-            return Err(format!("deferred flags {flags:#x} for a software channel's ring migration"));
+            return Err(format!(
+                "deferred flags {flags:#x} for a software channel's ring migration"
+            ));
         }
         self.channels.add_ring_switch(
             owner,
@@ -420,11 +455,22 @@ impl Dispatcher {
                     return Err("a host channel's new USERD must be guest system memory".into());
                 };
                 let mirror = self.mirror.as_mut().ok_or("no host mirror")?;
-                let note = mirror.migrate_now(&self.channels, chid, &info, new_guest, initial_get)?;
+                let note =
+                    mirror.migrate_now(&self.channels, chid, &info, new_guest, initial_get)?;
                 let applied = self.apply_migrations();
-                return Ok(std::iter::once(note).chain(applied).collect::<Vec<_>>().join("; "));
+                return Ok(std::iter::once(note)
+                    .chain(applied)
+                    .collect::<Vec<_>>()
+                    .join("; "));
             }
-            self.channels.switch_ring(chid, Some(generation), userd, info.gp_fifo_offset, info.gp_fifo_entries, initial_get)
+            self.channels.switch_ring(
+                chid,
+                Some(generation),
+                userd,
+                info.gp_fifo_offset,
+                info.gp_fifo_entries,
+                initial_get,
+            )
         })();
         match result {
             Ok(note) => Answer {
@@ -445,10 +491,21 @@ impl Dispatcher {
     /// The registry follows the ring migrations the host completed (mirror.rs
     /// `take_migrations`).
     pub(super) fn apply_migrations(&mut self) -> Vec<String> {
-        let done = self.mirror.as_mut().map(|m| m.take_migrations()).unwrap_or_default();
+        let done = self
+            .mirror
+            .as_mut()
+            .map(|m| m.take_migrations())
+            .unwrap_or_default();
         done.into_iter()
             .map(|(chid, generation, m)| {
-                match self.channels.switch_ring(chid, Some(generation), Target::Sys(m.new_guest), m.new_gpfifo_va, m.new_entries, 0) {
+                match self.channels.switch_ring(
+                    chid,
+                    Some(generation),
+                    Target::Sys(m.new_guest),
+                    m.new_gpfifo_va,
+                    m.new_entries,
+                    0,
+                ) {
                     Ok(n) => format!("registry: {n}"),
                     Err(e) => format!("registry: {e}"),
                 }
@@ -924,8 +981,16 @@ mod tests {
         let a = d.control(1, object, deferred::CMD_DEFERRED_API_INTERNAL, &params);
         assert_eq!(a.status, NV_OK, "{}", a.note);
         assert!(a.note.contains("registered on chid 4"), "{}", a.note);
-        assert!(!d.deferred_context.management.contains_key(&4), "no takeover for a migration");
-        let a = d.control(1, object, deferred::CMD_REMOVE_API, &0x4000_007eu32.to_le_bytes());
+        assert!(
+            !d.deferred_context.management.contains_key(&4),
+            "no takeover for a migration"
+        );
+        let a = d.control(
+            1,
+            object,
+            deferred::CMD_REMOVE_API,
+            &0x4000_007eu32.to_le_bytes(),
+        );
         assert_eq!(a.status, NV_OK, "{}", a.note);
         assert!(a.note.contains("ring migration"), "{}", a.note);
     }
@@ -956,13 +1021,26 @@ mod tests {
         let mut d = dispatcher();
         add_pair(&mut d, 1, 4, 5);
         d.migration_userd = Some(Ok((Target::Sys(0x2000), 3)));
-        let a = d.control(1, 0x10, deferred::CMD_UPDATE_CHANNEL_INFO, &migration(1, 0x40).encode());
+        let a = d.control(
+            1,
+            0x10,
+            deferred::CMD_UPDATE_CHANNEL_INFO,
+            &migration(1, 0x40).encode(),
+        );
         assert_eq!(a.status, NV_OK, "{}", a.note);
         let ch = d.channels.channel(4).unwrap();
-        assert_eq!((ch.userd, ch.gpfifo_va, ch.gpfifo_entries), (Some(Target::Sys(0x2000)), 0x1000_0000, 64));
+        assert_eq!(
+            (ch.userd, ch.gpfifo_va, ch.gpfifo_entries),
+            (Some(Target::Sys(0x2000)), 0x1000_0000, 64)
+        );
         assert_eq!(d.channels.channel_gp_get(4), Some(3));
         // Without the resolved USERD it is refused, as RM refuses a bad state.
-        let a = d.control(1, 0x10, deferred::CMD_UPDATE_CHANNEL_INFO, &migration(1, 0x40).encode());
+        let a = d.control(
+            1,
+            0x10,
+            deferred::CMD_UPDATE_CHANNEL_INFO,
+            &migration(1, 0x40).encode(),
+        );
         assert_eq!(a.status, 0x40);
     }
 

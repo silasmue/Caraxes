@@ -65,6 +65,9 @@ pub struct Capture {
     invalid_entries: u64,
     mme_writes: u64,
     start_writes: u64,
+    legacy_headers: u64,
+    tertiary_headers: u64,
+    reserved_headers: u64,
     direct_binds: u64,
     direct_unbinds: u64,
 }
@@ -91,6 +94,9 @@ impl Default for Capture {
             invalid_entries: 0,
             mme_writes: 0,
             start_writes: 0,
+            legacy_headers: 0,
+            tertiary_headers: 0,
+            reserved_headers: 0,
             direct_binds: 0,
             direct_unbinds: 0,
         }
@@ -216,14 +222,12 @@ impl Capture {
         while i < words.len() {
             let hdr = words[i];
             i += 1;
-            let (sec_op, count, subch, addr) = (
-                hdr >> 29,
-                ((hdr >> 16) & 0x1FFF) as usize,
-                ((hdr >> 13) & 7) as usize,
-                (hdr & 0xFFF) << 2,
-            );
+            let sec_op = hdr >> 29;
             match sec_op {
                 1 | 3 | 5 => {
+                    let count = ((hdr >> 16) & 0x1FFF) as usize;
+                    let subch = ((hdr >> 13) & 7) as usize;
+                    let addr = (hdr & 0xFFF) << 2;
                     let count = count.min(words.len() - i);
                     for k in 0..count {
                         let addr = match sec_op {
@@ -235,9 +239,43 @@ impl Capture {
                     }
                     i += count;
                 }
-                4 => self.method(gp, subch, addr, (hdr >> 16) & 0x1FFF, &mut open),
+                4 => self.method(
+                    gp,
+                    ((hdr >> 13) & 7) as usize,
+                    (hdr & 0xFFF) << 2,
+                    (hdr >> 16) & 0x1FFF,
+                    &mut open,
+                ),
+                // The legacy formats remain valid on C46F. Their count is at 28:18 and
+                // their byte method address is the header's 12:2 field. Treating these
+                // payload dwords as fresh headers desynchronizes the entire push (C125).
+                0 | 2 if (hdr >> 16) & 3 == 0 => {
+                    self.legacy_headers += 1;
+                    let count = ((hdr >> 18) & 0x7FF) as usize;
+                    let subch = ((hdr >> 13) & 7) as usize;
+                    let addr = hdr & 0x1FFC;
+                    let count = count.min(words.len() - i);
+                    for k in 0..count {
+                        let addr = if sec_op == 0 {
+                            addr + 4 * k as u32
+                        } else {
+                            addr
+                        };
+                        self.method(gp, subch, addr, words[i + k], &mut open);
+                    }
+                    i += count;
+                }
+                // GRP0 tertiary subdevice-mask operations carry no following payload.
+                0 => {
+                    self.tertiary_headers += 1;
+                    self.finish_call(&mut open);
+                }
                 7 => break,
-                _ => self.finish_call(&mut open),
+                _ => {
+                    self.reserved_headers += 1;
+                    self.finish_call(&mut open);
+                    break;
+                }
             }
         }
         self.finish_call(&mut open);
@@ -311,13 +349,16 @@ impl Capture {
         let mme_words = self.mme_words.iter().filter(|word| word.is_some()).count();
         let starts = self.starts.iter().filter(|start| start.is_some()).count();
         out.push(format!(
-            "gr live capture: chid {chid}: {} entries, {} pushbuffers, {} methods; unreadable entries {}, pushbuffers {}, invalid {}; exact SET_OBJECT {}; MME words {mme_words} ({} writes), starts {starts} ({} writes); direct CB binds {}, unbinds {} [guest memory, opt-in]",
+            "gr live capture: chid {chid}: {} entries, {} pushbuffers, {} methods; unreadable entries {}, pushbuffers {}, invalid {}; legacy headers {}, tertiary {}, reserved {}; exact SET_OBJECT {}; MME words {mme_words} ({} writes), starts {starts} ({} writes); direct CB binds {}, unbinds {} [guest memory, opt-in]",
             self.entries,
             self.pushbuffers,
             self.methods,
             self.unreadable_entries,
             self.unreadable_pushbuffers,
             self.invalid_entries,
+            self.legacy_headers,
+            self.tertiary_headers,
+            self.reserved_headers,
             if classes.is_empty() { "none".into() } else { classes.join(" ") },
             self.mme_writes,
             self.start_writes,
@@ -452,24 +493,30 @@ mod tests {
         out
     }
 
-    fn noninc(subch: u32, addr: u32, data: &[u32]) -> Vec<u32> {
-        let mut out = vec![(3 << 29) | ((data.len() as u32) << 16) | (subch << 13) | (addr >> 2)];
-        out.extend_from_slice(data);
-        out
-    }
-
     fn oneinc(subch: u32, addr: u32, data: &[u32]) -> Vec<u32> {
         let mut out = vec![(5 << 29) | ((data.len() as u32) << 16) | (subch << 13) | (addr >> 2)];
         out.extend_from_slice(data);
         out
     }
 
+    fn old_inc(subch: u32, addr: u32, data: &[u32]) -> Vec<u32> {
+        let mut out = vec![((data.len() as u32) << 18) | (subch << 13) | addr];
+        out.extend_from_slice(data);
+        out
+    }
+
+    fn old_noninc(subch: u32, addr: u32, data: &[u32]) -> Vec<u32> {
+        let mut out = vec![(2 << 29) | ((data.len() as u32) << 18) | (subch << 13) | addr];
+        out.extend_from_slice(data);
+        out
+    }
+
     #[test]
     fn live_capture_keeps_exact_mme_upload_calls_and_cb_state() {
-        let mut words = inc(0, 0, &[CLASS_3D]);
-        words.extend(inc(0, 0x11C, &[7, 12]));
+        let mut words = old_inc(0, 0, &[CLASS_3D]);
+        words.extend(old_inc(0, 0x11C, &[7, 12]));
         words.extend(inc(0, 0x114, &[12]));
-        words.extend(noninc(0, 0x118, &[0xAA, 0xBB, 0xCC]));
+        words.extend(old_noninc(0, 0x118, &[0xAA, 0xBB, 0xCC]));
         words.extend(inc(0, 0x2380, &[0x100, 0, 0]));
         words.extend(inc(0, 0x2410, &[1]));
         words.extend(oneinc(0, 0x3800 + 7 * 8, &[0x11, 0x22, 0x33]));
@@ -481,6 +528,7 @@ mod tests {
         c.push(9, &words);
         let notes = c.notes(3).join("\n");
         assert!(notes.contains("exact SET_OBJECT 0=0xc597@gp9"), "{notes}");
+        assert!(notes.contains("legacy headers 3"), "{notes}");
         assert!(
             notes.contains("MME words 3") && notes.contains("starts 1"),
             "{notes}"

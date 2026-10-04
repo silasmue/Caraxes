@@ -93,6 +93,78 @@ fn get64(b: &[u8], off: usize) -> u64 {
     u64::from_le_bytes(b[off..off + 8].try_into().unwrap())
 }
 
+/// Decode one C46F push header for bounded diagnostics. In addition to the modern
+/// INC/NON_INC/ONE_INC forms, Windows uses the still-valid legacy GRP0/GRP2 forms whose
+/// count and address fields differ. `i` points just past `hdr` and is advanced over data.
+/// The boolean says END_PB_SEGMENT was reached.
+fn diagnostic_push_methods(
+    words: &[u32],
+    i: &mut usize,
+    hdr: u32,
+) -> (bool, Vec<(usize, u32, u32)>) {
+    let sec_op = hdr >> 29;
+    if sec_op == 7 {
+        return (true, Vec::new());
+    }
+    let (count, subch, addr, increment) = match sec_op {
+        1 => (
+            ((hdr >> 16) & 0x1FFF) as usize,
+            ((hdr >> 13) & 7) as usize,
+            (hdr & 0xFFF) << 2,
+            2,
+        ),
+        3 => (
+            ((hdr >> 16) & 0x1FFF) as usize,
+            ((hdr >> 13) & 7) as usize,
+            (hdr & 0xFFF) << 2,
+            0,
+        ),
+        5 => (
+            ((hdr >> 16) & 0x1FFF) as usize,
+            ((hdr >> 13) & 7) as usize,
+            (hdr & 0xFFF) << 2,
+            1,
+        ),
+        // Legacy incrementing/non-incrementing formats: TERT_OP must be zero,
+        // COUNT is 28:18 and ADDRESS is the byte-aligned 12:2 field.
+        0 | 2 if (hdr >> 16) & 3 == 0 => (
+            ((hdr >> 18) & 0x7FF) as usize,
+            ((hdr >> 13) & 7) as usize,
+            hdr & 0x1FFC,
+            if sec_op == 0 { 2 } else { 0 },
+        ),
+        4 => {
+            return (
+                false,
+                vec![(
+                    ((hdr >> 13) & 7) as usize,
+                    (hdr & 0xFFF) << 2,
+                    (hdr >> 16) & 0x1FFF,
+                )],
+            )
+        }
+        // GRP0 tertiary subdevice-mask operations and reserved formats have no method
+        // payload useful to these diagnostics.
+        _ => return (false, Vec::new()),
+    };
+    let count = count.min(words.len().saturating_sub(*i));
+    let methods = (0..count)
+        .map(|k| {
+            let method = addr
+                + if increment == 2 {
+                    4 * k as u32
+                } else if increment == 1 && k > 0 {
+                    4
+                } else {
+                    0
+                };
+            (subch, method, words[*i + k])
+        })
+        .collect();
+    *i += count;
+    (false, methods)
+}
+
 /// What the device knows about the guest's objects and the addresses it was given.
 pub struct Dispatcher {
     host: Option<Box<dyn HostRm>>,
@@ -318,7 +390,10 @@ impl Dispatcher {
         const RS_UNIQUE_HANDLE_RANGE: u32 = 0x0008_0000;
         const RS_CLIENT_HANDLE_BASE: u32 = 0xc1d0_0000;
         const RS_CLIENT_HANDLE_MAX: u32 = 0x0010_0000;
-        if matches!(h_class, NV01_ROOT | v::NV01_ROOT_NON_PRIV | v::NV01_ROOT_CLIENT) {
+        if matches!(
+            h_class,
+            NV01_ROOT | v::NV01_ROOT_NON_PRIV | v::NV01_ROOT_CLIENT
+        ) {
             for _ in 0..RS_CLIENT_HANDLE_MAX {
                 let h = RS_CLIENT_HANDLE_BASE + self.client_handle_gen % RS_CLIENT_HANDLE_MAX;
                 self.client_handle_gen = self.client_handle_gen.wrapping_add(1);
@@ -523,7 +598,10 @@ impl Dispatcher {
                 .chain(host)
                 .filter(|&v| {
                     crate::tokens::own_on_page(chid, &self.doorbell_targets(v), p, |c| {
-                        self.channels.channel(c).and_then(|c| c.error_notifier).and_then(page)
+                        self.channels
+                            .channel(c)
+                            .and_then(|c| c.error_notifier)
+                            .and_then(page)
                     })
                 })
                 .collect(),
@@ -678,7 +756,11 @@ impl Dispatcher {
     /// The USERD poller's rings (main.rs, execution.md §9.11): each channel it found with
     /// entries not yet forwarded is checked again under the device lock as the locked poll
     /// checks it (`Mirror::userd_pending`) and rung as that poll rang it.
-    pub fn ring_userd_pending(&mut self, gm: &mut crate::channel::GpuMem, chids: &[u32]) -> Vec<String> {
+    pub fn ring_userd_pending(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        chids: &[u32],
+    ) -> Vec<String> {
         let mut notes = Vec::new();
         for &chid in chids {
             let pending = self
@@ -693,8 +775,11 @@ impl Dispatcher {
     }
 
     pub fn poll_shadow_userds(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
-        let pending = self.mirror.as_mut()
-            .map(|m| m.poll_userds(&self.channels, gm)).unwrap_or_default();
+        let pending = self
+            .mirror
+            .as_mut()
+            .map(|m| m.poll_userds(&self.channels, gm))
+            .unwrap_or_default();
         let mut notes = Vec::new();
         for chid in pending {
             notes.extend(self.doorbell_chid(gm, chid, chid, false));
@@ -769,9 +854,9 @@ impl Dispatcher {
         let held = std::mem::take(&mut self.dstate.rc.held);
         // A channel held for its VAS root (`root_hold`) stays held, quietly, until the
         // guest's invalidates name the walked root again.
-        let (run, keep): (Vec<u32>, Vec<u32>) = held.into_iter().partition(|c| {
-            !off.contains(c) && self.channels.root_mismatch(*c).is_none()
-        });
+        let (run, keep): (Vec<u32>, Vec<u32>) = held
+            .into_iter()
+            .partition(|c| !off.contains(c) && self.channels.root_mismatch(*c).is_none());
         self.dstate.rc.held = keep.into_iter().collect();
         let mut notes = Vec::new();
         for chid in run {
@@ -968,7 +1053,10 @@ impl Dispatcher {
         if self.deferred_context.is_management(&self.channels, chid) {
             return self.run_deferred_management(gm, chid, &off);
         }
-        if self.deferred_context.target_submission_blocked(&self.channels, chid) {
+        if self
+            .deferred_context
+            .target_submission_blocked(&self.channels, chid)
+        {
             return vec![format!(
                 "deferred target chid {chid}: submission held until context promotion"
             )];
@@ -986,7 +1074,8 @@ impl Dispatcher {
             let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
             // Builds committed in this call (mirror.rs `take_committed`): their tokens are
             // pinned below.
-            let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
+            let committed =
+                Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
             // The host doorbell write is the last step of a built shadow channel's ring.
             if m.stats.doorbells != host_doorbells {
                 self.host_doorbell_at
@@ -1168,7 +1257,9 @@ impl Dispatcher {
         };
         let (Some(userd), Some(root)) = (
             ch.userd,
-            self.channels.vas_key_of(ch).and_then(|k| self.channels.vas_root(k)),
+            self.channels
+                .vas_key_of(ch)
+                .and_then(|k| self.channels.vas_root(k)),
         ) else {
             notes.push(format!("gr postmortem: chid {chid}: no USERD or VAS root"));
             return notes;
@@ -1212,7 +1303,10 @@ impl Dispatcher {
         for k in (1..=ENTRIES.min(entries)).rev() {
             let idx = (put + entries - k) % entries;
             let mut e = [0u8; 8];
-            if gm.read_va(root, ch.gpfifo_va + 8 * idx as u64, &mut e).is_err() {
+            if gm
+                .read_va(root, ch.gpfifo_va + 8 * idx as u64, &mut e)
+                .is_err()
+            {
                 continue;
             }
             let (e0, e1) = (
@@ -1226,7 +1320,9 @@ impl Dispatcher {
             }
             let mut raw = vec![0u8; length * 4];
             if gm.read_va(root, pb_va, &mut raw).is_err() {
-                notes.push(format!("gr postmortem: chid {chid} gp {idx}: pushbuffer {pb_va:#x} unreadable"));
+                notes.push(format!(
+                    "gr postmortem: chid {chid} gp {idx}: pushbuffer {pb_va:#x} unreadable"
+                ));
                 continue;
             }
             let w: Vec<u32> = raw
@@ -1237,32 +1333,11 @@ impl Dispatcher {
             while i < w.len() {
                 let hdr = w[i];
                 i += 1;
-                let (sec_op, count, subch, addr) = (
-                    hdr >> 29,
-                    ((hdr >> 16) & 0x1FFF) as usize,
-                    ((hdr >> 13) & 7) as usize,
-                    (hdr & 0xFFF) << 2,
-                );
-                let methods: Vec<(u32, u32)> = match sec_op {
-                    1 | 3 | 5 => {
-                        let n = count.min(w.len() - i);
-                        let m = (0..n)
-                            .map(|k| {
-                                let a = match sec_op {
-                                    1 => addr + 4 * k as u32,
-                                    3 => addr,
-                                    _ => addr + if k == 0 { 0 } else { 4 },
-                                };
-                                (a, w[i + k])
-                            })
-                            .collect();
-                        i += n;
-                        m
-                    }
-                    4 => vec![(addr, (hdr >> 16) & 0x1FFF)],
-                    _ => continue,
-                };
-                for (a, d) in methods {
+                let (end, methods) = diagnostic_push_methods(&w, &mut i, hdr);
+                if end {
+                    break;
+                }
+                for (subch, a, d) in methods {
                     if a == 0 {
                         objects[subch] = d & 0xFFFF;
                         continue;
@@ -1316,7 +1391,11 @@ impl Dispatcher {
         if !other.is_empty() {
             notes.push(format!(
                 "ERROR gr postmortem: chid {chid} last 2D methods (gp, method, data): {}",
-                other.iter().map(|(i, a, d)| format!("{i}:{a:#x}={d:#x}")).collect::<Vec<_>>().join(" ")
+                other
+                    .iter()
+                    .map(|(i, a, d)| format!("{i}:{a:#x}={d:#x}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
             ));
         }
         for (idx, subch, d, s, op, assumed) in blits {
@@ -1392,27 +1471,10 @@ impl Dispatcher {
             while i < w.len() {
                 let hdr = w[i];
                 i += 1;
-                let (sec_op, count, subch, addr) = (
-                    hdr >> 29,
-                    ((hdr >> 16) & 0x1FFF) as usize,
-                    ((hdr >> 13) & 7) as usize,
-                    (hdr & 0xFFF) << 2,
-                );
-                match sec_op {
-                    1 | 3 | 5 => {
-                        let n = count.min(w.len() - i);
-                        for k in 0..n {
-                            let a = match sec_op {
-                                1 => addr + 4 * k as u32,
-                                3 => addr,
-                                _ => addr + if k == 0 { 0 } else { 4 },
-                            };
-                            methods.push((subch, a, w[i + k]));
-                        }
-                        i += n;
-                    }
-                    4 => methods.push((subch, addr, (hdr >> 16) & 0x1FFF)),
-                    _ => {}
+                let (end, decoded) = diagnostic_push_methods(&w, &mut i, hdr);
+                methods.extend(decoded);
+                if end {
+                    break;
                 }
             }
             Some((pb_va, length, sub, methods))
@@ -1507,11 +1569,7 @@ impl Dispatcher {
             inferred: bool,
         }
 
-        fn keep(
-            q: &mut std::collections::VecDeque<String>,
-            capacity: usize,
-            value: String,
-        ) {
+        fn keep(q: &mut std::collections::VecDeque<String>, capacity: usize, value: String) {
             if q.len() == capacity {
                 q.pop_front();
             }
@@ -1553,7 +1611,10 @@ impl Dispatcher {
         // If a reused pushbuffer has hidden it, infer C597 only on hardware subchannels 0-4;
         // 5-7 are software subchannels and treating their arbitrary data as methods caused
         // the false multi-kilobyte MME line in C123.
-        let has_3d = ch.engine_objects.iter().any(|(class, _)| *class == CLASS_3D);
+        let has_3d = ch
+            .engine_objects
+            .iter()
+            .any(|(class, _)| *class == CLASS_3D);
         let mut classes = [0u32; 8];
         let mut class_gp = [None; 8];
         let mut cb = [(0u32, 0u32, 0u32); 8]; // size, address upper, address lower
@@ -1613,33 +1674,11 @@ impl Dispatcher {
             while i < words.len() {
                 let hdr = words[i];
                 i += 1;
-                let (sec_op, n, subch, addr) = (
-                    hdr >> 29,
-                    ((hdr >> 16) & 0x1FFF) as usize,
-                    ((hdr >> 13) & 7) as usize,
-                    (hdr & 0xFFF) << 2,
-                );
-                let methods: Vec<(u32, u32)> = match sec_op {
-                    1 | 3 | 5 => {
-                        let n = n.min(words.len() - i);
-                        let methods = (0..n)
-                            .map(|k| {
-                                let a = match sec_op {
-                                    1 => addr + 4 * k as u32,
-                                    3 => addr,
-                                    _ => addr + if k == 0 { 0 } else { 4 },
-                                };
-                                (a, words[i + k])
-                            })
-                            .collect();
-                        i += n;
-                        methods
-                    }
-                    4 => vec![(addr, (hdr >> 16) & 0x1FFF)],
-                    7 => break,
-                    _ => Vec::new(),
-                };
-                for (a, data) in methods {
+                let (end, methods) = diagnostic_push_methods(&words, &mut i, hdr);
+                if end {
+                    break;
+                }
+                for (subch, a, data) in methods {
                     if a == 0 {
                         classes[subch] = data & 0xFFFF;
                         class_gp[subch] = Some(idx);
@@ -1710,15 +1749,11 @@ impl Dispatcher {
                         }
                         // Six pipeline shader slots, 0x40 bytes each.  Report the complete
                         // program VA when its lower half is written.
-                        a if (0x2014..=0x2158).contains(&a)
-                            && (a - 0x2014) % 0x40 == 0 =>
-                        {
+                        a if (0x2014..=0x2158).contains(&a) && (a - 0x2014) % 0x40 == 0 => {
                             let shader = ((a - 0x2014) / 0x40) as usize;
                             program_upper[subch][shader] = data & 0xFF;
                         }
-                        a if (0x2018..=0x2158).contains(&a)
-                            && (a - 0x2018) % 0x40 == 0 =>
-                        {
+                        a if (0x2018..=0x2158).contains(&a) && (a - 0x2018) % 0x40 == 0 => {
                             let shader = ((a - 0x2018) / 0x40) as usize;
                             let va = ((program_upper[subch][shader] as u64) << 32) | data as u64;
                             keep(
@@ -1971,32 +2006,11 @@ impl Dispatcher {
         while i < w.len() {
             let hdr = w[i];
             i += 1;
-            let (sec_op, count, subch, addr) = (
-                hdr >> 29,
-                ((hdr >> 16) & 0x1FFF) as usize,
-                ((hdr >> 13) & 7) as usize,
-                (hdr & 0xFFF) << 2,
-            );
-            let methods: Vec<(u32, u32)> = match sec_op {
-                1 | 3 | 5 => {
-                    let n = count.min(w.len() - i);
-                    let m = (0..n)
-                        .map(|k| {
-                            let a = match sec_op {
-                                1 => addr + 4 * k as u32,
-                                3 => addr,
-                                _ => addr + if k == 0 { 0 } else { 4 },
-                            };
-                            (a, w[i + k])
-                        })
-                        .collect();
-                    i += n;
-                    m
-                }
-                4 => vec![(addr, (hdr >> 16) & 0x1FFF)],
-                _ => continue,
-            };
-            for (a, d) in methods {
+            let (end, methods) = diagnostic_push_methods(&w, &mut i, hdr);
+            if end {
+                break;
+            }
+            for (subch, a, d) in methods {
                 match a {
                     0x000 => objects[subch] = d & 0xFFFF,
                     0x240 => sem = (sem & 0xFFFF_FFFF) | ((d as u64 & 0x1_FFFF) << 32),
@@ -2103,7 +2117,8 @@ impl Dispatcher {
             return Vec::new();
         };
         let mut notes = m.complete_held_rings(&self.channels, gm);
-        let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
+        let committed =
+            Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
         for (c, h) in committed {
             notes.extend(self.pin_pool_token(gm, c, h));
         }
@@ -2122,7 +2137,8 @@ impl Dispatcher {
             return Vec::new();
         };
         let mut notes = m.settle_builds_for_free(&self.channels, gm, h_client, h_object);
-        let committed = Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
+        let committed =
+            Self::after_mirror_builds(m, &self.channels, &mut self.dstate, gm, &mut notes);
         for (c, h) in committed {
             notes.extend(self.pin_pool_token(gm, c, h));
         }
@@ -2179,13 +2195,18 @@ impl Dispatcher {
         params: &[u8],
     ) -> Answer {
         if self.channels.engine_object(h_client, h_object).is_some()
-            || self.mirror.as_ref().is_some_and(|m| m.engine_handle_in_use(&self.channels, h_client, h_object))
+            || self
+                .mirror
+                .as_ref()
+                .is_some_and(|m| m.engine_handle_in_use(&self.channels, h_client, h_object))
         {
             return Answer {
                 status: nvrm_sys::NV_ERR_INVALID_ARGUMENT,
                 params: params.to_vec(),
                 label: "refused (live engine handle)",
-                note: format!("alloc {h_class:#x}: engine {h_client:#x}/{h_object:#x} is still live"),
+                note: format!(
+                    "alloc {h_class:#x}: engine {h_client:#x}/{h_object:#x} is still live"
+                ),
             };
         }
         // Profiler classes are refused (dmodel.rs, d-device-model.md 6.16); the D models note
@@ -2248,7 +2269,9 @@ impl Dispatcher {
                     .channels()
                     .find(|c| c.h_client == h_client && c.h_object == h_parent)
                     .map(|c| c.chid);
-                if let Some(n) = chid.and_then(|c| m.add_engine_object(c, h_object, h_class, params)) {
+                if let Some(n) =
+                    chid.and_then(|c| m.add_engine_object(c, h_object, h_class, params))
+                {
                     note.push_str("; ");
                     note.push_str(&n);
                 }
@@ -2368,8 +2391,7 @@ impl Dispatcher {
             None => crate::compression::finish_off(cmd, &mut answer),
         }
         const DEFERRED: [u32; 4] = [0x5080_0101, 0x5080_0102, 0x5080_0103, 0x5080_0104];
-        static CAPTURED: std::sync::atomic::AtomicUsize =
-            std::sync::atomic::AtomicUsize::new(0);
+        static CAPTURED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         if DEFERRED.contains(&cmd)
             && std::env::var("CARAXES_DEFERRED_API_CAPTURE").as_deref() == Ok("1")
             && CAPTURED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8
@@ -2434,7 +2456,8 @@ impl Dispatcher {
                 if let (Some(mirror), Some(client), Some(target)) =
                     (self.mirror.as_ref(), word(4), word(8))
                 {
-                    let note = mirror.deferred_context_modes(&self.channels, client, target)
+                    let note = mirror
+                        .deferred_context_modes(&self.channels, client, target)
                         .unwrap_or_else(|e| format!("host context modes unavailable: {e}"));
                     answer.note.push_str(&format!("; {note}"));
                 }
@@ -2493,8 +2516,7 @@ impl Dispatcher {
         if cmd == CMD_GR_CTXSW_PREEMPTION_BIND && self.mirror.is_some() {
             return self.preemption_bind(params);
         }
-        if matches!(cmd, 0x5080_0101..=0x5080_0104)
-            && self.deferred_context.enabled {
+        if matches!(cmd, 0x5080_0101..=0x5080_0104) && self.deferred_context.enabled {
             return self.register_deferred(h_client, h_object, cmd, params);
         }
         // The channel migration of the deferred-context model (Windows: the deferred API
@@ -2815,7 +2837,9 @@ impl Dispatcher {
             reg: Some(&self.channels),
             link_control: self.link_control,
         };
-        if let Some(a) = crate::public::answer_for_layout(&mut pctx, cmd, params, self.fb_layout.as_ref()) {
+        if let Some(a) =
+            crate::public::answer_for_layout(&mut pctx, cmd, params, self.fb_layout.as_ref())
+        {
             return a;
         }
         // nvidia-smi telemetry and identity (docs/caraxes/nvml.md) live in nvml.rs.
@@ -3242,6 +3266,33 @@ mod tests {
     }
 
     #[test]
+    fn diagnostic_push_decoder_handles_legacy_and_one_inc_formats() {
+        let words = [
+            (2 << 18),
+            0xC597,
+            0x1234,
+            (2 << 29) | (2 << 18) | 0x118,
+            0xAA,
+            0xBB,
+            (5 << 29) | (3 << 16) | (7 << 3),
+            0x11,
+            0x22,
+            0x33,
+        ];
+        let mut i = 1;
+        let (_, first) = diagnostic_push_methods(&words, &mut i, words[0]);
+        assert_eq!(first, vec![(0, 0, 0xC597), (0, 4, 0x1234)]);
+        let hdr = words[i];
+        i += 1;
+        let (_, second) = diagnostic_push_methods(&words, &mut i, hdr);
+        assert_eq!(second, vec![(0, 0x118, 0xAA), (0, 0x118, 0xBB)]);
+        let hdr = words[i];
+        i += 1;
+        let (_, third) = diagnostic_push_methods(&words, &mut i, hdr);
+        assert_eq!(third, vec![(0, 0xE0, 0x11), (0, 0xE4, 0x22), (0, 0xE4, 0x33)]);
+    }
+
+    #[test]
     fn virtual_memory_allocation_logging_preserves_the_reply_and_full_addresses() {
         use std::mem::{offset_of, size_of};
         macro_rules! layout {
@@ -3395,7 +3446,15 @@ mod tests {
         // ESCHED_DRIVEN_ENGINE 3, its notification 0, UVM_OWNED 1, UVM_SHARED 2.
         assert_eq!(
             (0..7).map(range).collect::<Vec<_>>(),
-            vec![(0xFF, 0xFF), (3, 3), (0, 0), (0xFF, 0xFF), (0xFF, 0xFF), (1, 1), (2, 2)]
+            vec![
+                (0xFF, 0xFF),
+                (3, 3),
+                (0, 0),
+                (0xFF, 0xFF),
+                (0xFF, 0xFF),
+                (1, 1),
+                (2, 2)
+            ]
         );
     }
 
