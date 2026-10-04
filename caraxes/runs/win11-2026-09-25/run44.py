@@ -241,9 +241,10 @@ def start(name, gpu=True):
             subprocess.run([str(HERE / 'gpu-up-host.sh')], env=e, stdout=f, stderr=subprocess.STDOUT, check=True,
                            start_new_session=True)
         st['win_device_pid'] = int((S / 'gpu.pid').read_text())
-        # The device removes a stale display-ctl when it starts; arm the automatic scanout
-        # dump now (window 0's new frames, at most one per 3 s, the last 10 kept).
-        (S / 'display-ctl').write_text('dump auto\n')
+        # Automatic scanout snapshots are diagnostic work, excluded from scored runs.
+        # The device removes a stale display-ctl when it starts.
+        if not SCORED:
+            (S / 'display-ctl').write_text('dump auto\n')
     with (out / 'ch.log').open('w') as f:
         p = subprocess.Popen([str(HERE / 'run-ch-gpu.sh')], env=e, stdout=f, stderr=subprocess.STDOUT,
                              stdin=subprocess.DEVNULL, start_new_session=True)
