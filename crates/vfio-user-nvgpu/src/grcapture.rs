@@ -26,6 +26,27 @@ const KEEP_VALID_ZERO: usize = 8;
 const KEEP_PARAMS: usize = 64;
 const KEEP_DMEM_SOURCES: usize = 64;
 const KEEP_BOOTSTRAP_CALLS: usize = 64;
+const KEEP_MME_UPLOADS: usize = 128;
+const KEEP_ROOT_EVENTS: usize = 256;
+
+#[derive(Clone, Copy, Debug)]
+struct RootEvent {
+    seq: u64,
+    gp: u32,
+    method: u32,
+    data: u32,
+}
+
+#[derive(Clone, Debug)]
+struct MmeUpload {
+    seq: u64,
+    last_seq: u64,
+    gp: u32,
+    pointer: u32,
+    version: Option<u32>,
+    words: Vec<u32>,
+    word_count: usize,
+}
 
 #[derive(Clone, Debug)]
 struct MacroCall {
@@ -79,7 +100,10 @@ pub struct Capture {
     class_gp: [Option<u32>; 8],
     class_exact: [bool; 8],
     mme_pointer: usize,
+    mme_version: Option<u32>,
     mme_words: Vec<Option<u32>>,
+    mme_uploads: Vec<MmeUpload>,
+    mme_upload: Option<MmeUpload>,
     start_pointer: usize,
     starts: [Option<u32>; MAX_MME_STARTS],
     mme_mem_address: u64,
@@ -92,6 +116,7 @@ pub struct Capture {
     calls: VecDeque<MacroCall>,
     bootstrap_calls: Vec<BootstrapCall>,
     direct: VecDeque<String>,
+    root_events: VecDeque<RootEvent>,
     valid_zero: VecDeque<String>,
     entries: u64,
     pushbuffers: u64,
@@ -117,7 +142,10 @@ impl Default for Capture {
             class_gp: [None; 8],
             class_exact: [false; 8],
             mme_pointer: 0,
+            mme_version: None,
             mme_words: vec![None; MAX_MME_WORDS],
+            mme_uploads: Vec::new(),
+            mme_upload: None,
             start_pointer: 0,
             starts: [None; MAX_MME_STARTS],
             mme_mem_address: 0,
@@ -130,6 +158,7 @@ impl Default for Capture {
             calls: VecDeque::with_capacity(KEEP_CALLS),
             bootstrap_calls: Vec::with_capacity(KEEP_BOOTSTRAP_CALLS),
             direct: VecDeque::with_capacity(KEEP_DIRECT),
+            root_events: VecDeque::new(),
             valid_zero: VecDeque::with_capacity(KEEP_VALID_ZERO),
             entries: 0,
             pushbuffers: 0,
@@ -210,6 +239,11 @@ impl Capture {
 
     fn method(&mut self, gp: u32, subch: usize, addr: u32, data: u32, open: &mut Option<OpenCall>) {
         self.methods += 1;
+        if addr != 0x0118 {
+            if let Some(upload) = self.mme_upload.take() {
+                self.mme_uploads.push(upload);
+            }
+        }
         if addr == 0 {
             self.finish_call(open);
             let class = data & 0xFFFF;
@@ -263,9 +297,42 @@ impl Capture {
         }
         self.finish_call(open);
 
+        if (0x0240..=0x025c).contains(&addr) || matches!(addr, 0x0504 | 0x0508) {
+            keep(
+                &mut self.root_events,
+                KEEP_ROOT_EVENTS,
+                RootEvent {
+                    seq: self.entries,
+                    gp,
+                    method: addr,
+                    data,
+                },
+            );
+        }
+
         match addr {
-            0x0114 => self.mme_pointer = data as usize,
+            0x0114 => {
+                self.mme_pointer = data as usize;
+                if self.mme_uploads.len() < KEEP_MME_UPLOADS {
+                    self.mme_upload = Some(MmeUpload {
+                        seq: self.entries,
+                        last_seq: self.entries,
+                        gp,
+                        pointer: data,
+                        version: self.mme_version,
+                        words: Vec::new(),
+                        word_count: 0,
+                    });
+                }
+            }
             0x0118 => {
+                if let Some(upload) = self.mme_upload.as_mut() {
+                    upload.last_seq = self.entries;
+                    upload.word_count += 1;
+                    if upload.words.len() < MAX_MME_WORDS {
+                        upload.words.push(data);
+                    }
+                }
                 if let Some(word) = self.mme_words.get_mut(self.mme_pointer) {
                     *word = Some(data);
                 }
@@ -280,6 +347,7 @@ impl Capture {
                 self.start_pointer = self.start_pointer.saturating_add(1);
                 self.start_writes += 1;
             }
+            0x0234 => self.mme_version = Some(data),
             0x0550 => {
                 self.mme_mem_address =
                     (self.mme_mem_address & 0xFFFF_FFFF) | ((data as u64 & 0xFF) << 32)
@@ -465,6 +533,34 @@ impl Capture {
     /// Windows replaces macro images later; the final image cannot explain initialization.
     pub fn initialization_notes(&self, chid: u32, cutoff: u64) -> Vec<String> {
         let mut out = Vec::new();
+        for event in self.root_events.iter().filter(|event| event.seq <= cutoff) {
+            out.push(format!(
+                "gr live capture: chid {chid}: root table gp {} capture-seq {} method {:#x}={:#x}",
+                event.gp, event.seq, event.method, event.data
+            ));
+        }
+        // Raw uploads preserve the pointer and payload without assuming pointer units.
+        // A normalized image cannot recover overwritten words if that assumption is wrong.
+        for upload in self
+            .mme_uploads
+            .iter()
+            .chain(self.mme_upload.iter())
+            .filter(|u| u.last_seq <= cutoff)
+        {
+            out.push(format!(
+                "gr live capture: chid {chid}: raw MME upload gp {} capture-seq {}..{} pointer {:#x} words {}/{} SET_MME_VERSION {}",
+                upload.gp, upload.seq, upload.last_seq, upload.pointer,
+                upload.words.len(), upload.word_count,
+                upload.version.map_or_else(|| "unknown".into(), |v| format!("{v:#x}"))
+            ));
+            for (chunk, words) in upload.words.chunks(16).enumerate() {
+                out.push(format!(
+                    "gr live capture: chid {chid}: raw MME upload gp {} pointer {:#x} data +{:#x}: {}",
+                    upload.gp, upload.pointer, chunk * 16,
+                    words.iter().map(|word| format!("{word:08x}")).collect::<Vec<_>>().join(" ")
+                ));
+            }
+        }
         for bootstrap in self.bootstrap_calls.iter().filter(|b| b.call.seq <= cutoff) {
             let call = &bootstrap.call;
             out.push(format!(
@@ -910,6 +1006,30 @@ mod tests {
         assert_eq!(bootstrap.code.len(), 60);
         assert_eq!(bootstrap.code[30], Some(0x101e));
         assert_eq!(bootstrap.code[59], Some(0x103b));
+    }
+
+    #[test]
+    fn raw_uploads_preserve_payloads_with_overlapping_pointer_ranges() {
+        let mut capture = Capture::new(&[(CLASS_3D, 1)]);
+        capture.entries = 1;
+        let mut first = inc(0, 0x114, &[0]);
+        first.extend(old_noninc(0, 0x118, &[0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]));
+        capture.push(0, &first);
+        capture.entries = 2;
+        let mut next = inc(0, 0x114, &[2]);
+        next.extend(old_noninc(0, 0x118, &[0x11, 0x22, 0x33]));
+        next.extend(oneinc(0, 0x3800, &[0]));
+        capture.push(1, &next);
+        assert_eq!(capture.mme_words[2], Some(0x11));
+        let notes = capture.initialization_notes(7, 1).join("\n");
+        assert!(notes.contains("pointer 0x0 words 6/6"), "{notes}");
+        assert!(
+            notes.contains("000000aa 000000bb 000000cc 000000dd 000000ee 000000ff"),
+            "{notes}"
+        );
+        assert!(!notes.contains("pointer 0x2"), "{notes}");
+        let notes = capture.initialization_notes(7, 2).join("\n");
+        assert!(notes.contains("pointer 0x2 words 3/3"), "{notes}");
     }
 
     #[test]
