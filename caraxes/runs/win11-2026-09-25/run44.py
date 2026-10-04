@@ -337,7 +337,7 @@ def pack(script, args, tag, wait_s, user=None):
     wrapper = rf'''$ErrorActionPreference = "Stop"
 Remove-Item -Force -ErrorAction SilentlyContinue {base}-exit.txt
 $a = @("-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File","{base}.ps1"{("," + arglist) if args else ""})
-$p = Start-Process powershell.exe -ArgumentList $a -PassThru -RedirectStandardOutput {base}-out.txt -RedirectStandardError {base}-err.txt
+$p = Start-Process powershell.exe -ArgumentList $a -WindowStyle Hidden -PassThru -RedirectStandardOutput {base}-out.txt -RedirectStandardError {base}-err.txt
 $null = $p.Handle
 if (-not $p.WaitForExit({wait_s * 1000})) {{ $p.Kill(); $r = "PROBE_TIMEOUT {wait_s} s" }} else {{ $r = "PROBE_EXIT=" + $p.ExitCode }}
 Set-Content -Encoding ascii {base}-exit.txt $r
@@ -348,7 +348,7 @@ Set-Content -Encoding ascii {base}-exit.txt $r
     os.unlink(t.name)
     prin = (f"New-ScheduledTaskPrincipal -UserId '{user}' -LogonType Interactive -RunLevel Limited" if user
             else "New-ScheduledTaskPrincipal -UserId SYSTEM -LogonType ServiceAccount -RunLevel Highest")
-    r = ssh(rf'''$act = New-ScheduledTaskAction -Execute powershell.exe -Argument '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File {base}-run.ps1'
+    r = ssh(rf'''$act = New-ScheduledTaskAction -Execute powershell.exe -Argument '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File {base}-run.ps1'
 $prin = {prin}
 $set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds {wait_s + 120}) -AllowStartIfOnBatteries
 Register-ScheduledTask -Force -TaskName caraxes-{tag} -Action $act -Principal $prin -Settings $set | Out-Null
