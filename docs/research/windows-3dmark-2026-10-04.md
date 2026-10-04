@@ -98,6 +98,17 @@
 - A separate DDA/NVENC recording started before another Fire Strike run. The encoder produced 1917 frames over 81.77 seconds, then DDA returned `0x887a0026` when the benchmark changed to exclusive fullscreen. This first clip is not proof of an animated 3D scene. The capture now restarts after display transitions and checks total recorded duration.
 - That recording attempt's Fire Strike workloads still completed (overall 5890); this is a functional run with extra encode overhead, not a scored A/B sample.
 - `f1a210b0` makes detailed Device-lock statistics optional (`CARAXES_DLOCK_STATS=0`), including software-part timers and per-piece aggregation. Default diagnostics stay on. Scored mode defaults off; an explicit `CH_DEV_EXTRA=CARAXES_DLOCK_STATS=1` permits a same-binary A/B. Validation: 881 device tests passed, 1 ignored; 2 integration tests passed. Release SHA256 `f79b419722611f4ec79eb1b340c1be592750c4ba81b943d234fd622064915182`.
+- A later recording recovered from fullscreen transitions: six segments, 180.03 recorded seconds. GT1 shows changing camera positions and an advancing benchmark frame counter; GT2 also shows a rendered scene. Reviewed images show no obvious corruption, without a native pixel reference. Capture FPS is encoder delivery, not benchmark rendering FPS; transitions leave gaps.
+- Motion artifacts: `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04/FireStrike-motion-20s.mp4`, `FireStrike-rendered-gt1.mp4`, `FireStrike-rendered-gt2.mp4`, and `FireStrike-rendered-segments.json`. These are real guest DDA captures encoded with NVENC.
+- That functional run completed all four workloads: overall 5685, graphics 5455; GT1 19.32626 / GT2 30.695971 FPS. Recording adds work, so exclude it from performance comparisons. C139 stopped cleanly with no host Xid; available health checks passed, trace-dependent checks skipped. Its full-session log contains 23 ERROR lines; this is not a claim of error-free operation.
+
+## Windows adapter name and next measurement
+
+- FriendlyName alone displays **Leandro VFIO RTX 2070** in both Device Manager and Task Manager on Windows 26200.8037 / stock NVIDIA 617.14. Screenshots: `C139-devmgr.png` and `C139-taskmgr-gpu.png` in the artifact directory above. DriverDesc remains NVIDIA GeForce RTX 2070; DXGI description has not been rechecked.
+- `tools/windows/display-name.ps1` reports the exact present RTX 2070 and offers backed-up Apply/Restore operations without restarting the driver. The name is a guest property; it may need reapplying after driver installation or devnode recreation.
+- Repeated Restore passed and preserved the original absent FriendlyName. Repeated Apply exposed an atomic backup replacement error; correction and runtime recheck are pending. C139 ended with the original name restored.
+- C140 uses the new `f1a210b0` binary with detailed lock statistics off, direct completion on, rearm eventfd off, compression off. Validation and scoring are in progress. This changes no compression policy or memory isolation.
+- Next GPU-side candidate: existing `CARAXES_COMPRESSION=slice`, retaining host coverage, ownership, ZBC and alignment checks. Qualify Windows rendering first, then compare with compression off using the same binary and other settings. Linux SOTTR follows Windows optimization.
 
 ## External RTX 2070 orientation
 
