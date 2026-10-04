@@ -185,7 +185,7 @@ public static class Probe {
   }
   static IntPtr DescriptorHeap(IntPtr device, int type, bool visible) {
     HeapDesc desc = new HeapDesc { Type = type, Count = 1, Flags = visible ? 1 : 0 };
-    Guid iid = new Guid("8efb471d-616f-4f49-90f7-127bb763fa51"); IntPtr heap;
+    Guid iid = new Guid("8efb471d-616c-4f49-90f7-127bb763fa51"); IntPtr heap;
     Check(Fn<CreateHeapFn>(device, 14)(device, ref desc, ref iid, out heap), "CreateDescriptorHeap type " + type); return heap;
   }
   static IntPtr RootSignature(IntPtr device, bool table) {

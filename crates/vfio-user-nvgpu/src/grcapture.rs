@@ -261,9 +261,12 @@ impl Capture {
         }
         // Windows uses subchannel 0 for the channel's C597 object. A context captured
         // after takeover can contain SET_OBJECT(0) diagnostics even though subsequent
-        // methods execute against the restored 3D context; keep classifying that known
-        // hardware subchannel as C597. Other subchannels still require an exact binding.
-        let inferred_3d = subch == 0 && self.allowed_classes.contains(&CLASS_3D);
+        // methods execute against the restored 3D context. Infer C597 only while that
+        // subchannel is unbound; an exact binding to another owned class supersedes it.
+        // Other subchannels still require an exact binding.
+        let inferred_3d = subch == 0
+            && self.classes[subch] == 0
+            && self.allowed_classes.contains(&CLASS_3D);
         if self.classes[subch] != CLASS_3D && !inferred_3d {
             self.finish_call(open);
             return;
@@ -943,6 +946,65 @@ mod tests {
         let mut out = vec![(2 << 29) | ((data.len() as u32) << 18) | (subch << 13) | addr];
         out.extend_from_slice(data);
         out
+    }
+
+    #[test]
+    fn compute_falcon_methods_do_not_replace_graphics_dma_state() {
+        let mut capture = Capture::new(&[(CLASS_3D, 0xff1fe026), (0xc5c0, 0xff1fe032)]);
+        // Establish graphics DMA state, then use the same offsets on an owned compute
+        // object. C5C0 names 0x550..0x55c SET_FALCON20..23, rather than MME DMA state.
+        let mut words = inc(0, 0, &[CLASS_3D]);
+        words.extend(inc(0, 0x550, &[0, 0x1000, 0x56, 2]));
+        words.extend(inc(0, 0, &[(1 << 16) | 0xc5c0]));
+        words.extend(inc(0, 0x550, &[5, 1, 1, 0]));
+        capture.push(0, &words);
+        assert_eq!(capture.classes[0], 0xc5c0);
+        assert!(capture.class_exact[0]);
+        assert_eq!(capture.mme_dma_reads, 1);
+        assert_eq!(capture.mme_mem_address, 0x1000);
+        assert_eq!(capture.mme_data_ram_address, 0x56);
+
+        // SET_OBJECT encodes ENGINE_ID in bits 20:16, separately from CLASS_ID.
+        // Rebinding graphics must resume capture with its retained graphics state.
+        let mut graphics = inc(0, 0, &[(2 << 16) | CLASS_3D]);
+        graphics.extend(inc(0, 0x55c, &[2]));
+        capture.push(1, &graphics);
+        assert_eq!(capture.classes[0], CLASS_3D);
+        assert_eq!(capture.unexpected_set_objects, 0);
+        assert_eq!(capture.mme_dma_reads, 2);
+        assert_eq!(capture.dma_reads.back().unwrap().va, 0x1000);
+        assert_eq!(capture.dma_reads.back().unwrap().index, 0x56);
+    }
+
+    #[test]
+    fn owned_2d_upload_does_not_overwrite_graphics_macro_image() {
+        let mut capture = Capture::new(&[(CLASS_3D, 0xff1fe026), (0x902d, 0xff1fe02c)]);
+        let mut words = inc(0, 0, &[CLASS_3D]);
+        words.extend(inc(0, 0x11c, &[0, 0]));
+        words.extend(inc(0, 0x114, &[0]));
+        words.extend(old_noninc(0, 0x118, &[0xaa, 0xbb, 0xcc]));
+        // NV902D has the same upload offsets, but its code and starts are not C597's.
+        words.extend(inc(0, 0, &[(1 << 16) | 0x902d]));
+        words.extend(inc(0, 0x11c, &[0, 7]));
+        words.extend(inc(0, 0x114, &[0]));
+        words.extend(old_noninc(0, 0x118, &[0xdd, 0xee, 0xff]));
+        capture.push(0, &words);
+        assert_eq!(capture.classes[0], 0x902d);
+        assert!(capture.class_exact[0]);
+        assert_eq!(capture.start_writes, 1);
+        assert_eq!(capture.mme_writes, 3);
+        assert_eq!(capture.mme_uploads.len(), 1);
+
+        let mut graphics = inc(0, 0, &[(2 << 16) | CLASS_3D]);
+        graphics.extend(oneinc(0, 0x3800, &[0x56, 0x7105000]));
+        capture.push(1, &graphics);
+        assert_eq!(capture.unexpected_set_objects, 0);
+        assert_eq!(capture.bootstrap_calls.len(), 1);
+        assert_eq!(capture.bootstrap_calls[0].start, Some(0));
+        assert_eq!(
+            capture.bootstrap_calls[0].code,
+            vec![Some(0xaa), Some(0xbb), Some(0xcc)]
+        );
     }
 
     #[test]
