@@ -6012,6 +6012,10 @@ mod tests {
             fb.write(0x100000 + 8 * idx, &[va.to_le_bytes(), e1.to_le_bytes()].concat());
         };
         let mut pb0 = inc(0, 0, &[0xC597]);
+        // A valid constant-buffer bind to VA 0 is the signature the C122 DX12 MMU-fault
+        // history must make explicit (GPCCLIENT_GCC, FAULT_PTE at VA 0).
+        pb0.extend(inc(0, 0x2380, &[0x100, 0, 0]));
+        pb0.extend(inc(0, 0x2410, &[1]));
         pb0.extend(inc(0, 0x3800, &[0x12]));
         entry(&mut fb, 0, 0x1000_1000, &pb0);
         let mut pb1 = inc(1, 0, &[compute]);
@@ -6031,6 +6035,13 @@ mod tests {
         let n = d.gr_rc_push_note(&mem, 9, 109).unwrap();
         assert!(n.contains("entry 0 (GPGet-1) pb 0x10001000") && n.contains("MME macro call"), "{n}");
         assert!(n.contains("(1 not fetched)"), "{n}");
+        let history = d.gr_rc_history_notes(&mem, 9, 31).join("\n");
+        assert!(history.contains("MME call 0 = 0x12"), "{history}");
+        assert!(
+            history.contains("CB bind group 0 slot 0 valid true: selector va 0x0 size 0x100")
+                && history.contains("**VALID VA 0**"),
+            "{history}"
+        );
         // Garbage in USERD is named, not decoded.
         fb.write(0x20_0000 + USERD_GP_GET, &0xFFFF_FFFFu32.to_le_bytes());
         let mem = GpuMem { fb: &mut fb, sys: &sys };

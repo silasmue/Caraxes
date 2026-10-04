@@ -1469,6 +1469,211 @@ impl Dispatcher {
         ))
     }
 
+    /// A bounded read-only history after an MMU-fault RC of a mirrored GR channel.  GPGet
+    /// names what PBDMA fetched, not what GR had finished, so GPGet-1 is commonly only the
+    /// trailing semaphore release (C122's DX12 fault at VA 0).  Walk the recent consumed
+    /// GPFIFO entries and retain the state that can explain a GCC read: pipeline programs,
+    /// constant-buffer selectors/binds, and MME calls (the driver's draw path).
+    ///
+    /// This is deliberately an RC-only post-mortem.  It adds no per-doorbell work to the
+    /// graphics path and bounds both the scan and its output.  Pushbuffers may already have
+    /// been reused by the guest; the summary says how many were still readable.
+    pub fn gr_rc_history_notes(
+        &self,
+        gm: &crate::channel::GpuMem,
+        chid: u32,
+        xid: u32,
+    ) -> Vec<String> {
+        use crate::fb::Target;
+        const SCAN_ENTRIES: u32 = 512;
+        const MAX_DWORDS: usize = 1 << 16;
+        const KEEP: usize = 16;
+        const CLASS_3D: u32 = 0xC597;
+
+        let mut notes = Vec::new();
+        let Some(ch) = self.channels.channel(chid) else {
+            return notes;
+        };
+        let (Some(userd), Some(root)) = (
+            ch.userd,
+            self.channels
+                .vas_key_of(ch)
+                .and_then(|k| self.channels.vas_root(k)),
+        ) else {
+            return notes;
+        };
+        let at = |off: u64| match userd {
+            Target::Fb(pa) => Target::Fb(pa + off),
+            Target::Sys(pa) => Target::Sys(pa + off),
+            t => t,
+        };
+        let (Some(get), Some(put)) = (gm.read_u32(at(0x88)), gm.read_u32(at(0x8C))) else {
+            notes.push(format!(
+                "gr rc history: chid {chid} (exceptType {xid}): USERD unreadable"
+            ));
+            return notes;
+        };
+        let entries = ch.gpfifo_entries.max(1);
+        if get >= entries || put >= entries {
+            notes.push(format!(
+                "gr rc history: chid {chid} (exceptType {xid}): USERD GPGet {get} GPPut {put} outside the ring of {entries}"
+            ));
+            return notes;
+        }
+
+        // State is per subchannel.  A scan can begin after SET_OBJECT, especially after a
+        // ring migration; methods unique to the 3D class remain useful in that case and are
+        // labelled as inferred rather than silently discarded.
+        let has_3d = ch.engine_objects.iter().any(|(class, _)| *class == CLASS_3D);
+        let mut classes = [0u32; 8];
+        let mut cb = [(0u32, 0u32, 0u32); 8]; // size, address upper, address lower
+        let mut program_upper = [[0u32; 6]; 8];
+        let count = SCAN_ENTRIES.min(entries);
+        let start = (get + entries - count) % entries;
+        let mut kept = std::collections::VecDeque::with_capacity(KEEP);
+        let (mut decoded, mut unreadable, mut invalid) = (0u32, 0u32, 0u32);
+
+        for step in 0..count {
+            let idx = (start + step) % entries;
+            let mut e = [0u8; 8];
+            if gm
+                .read_va(root, ch.gpfifo_va + 8 * idx as u64, &mut e)
+                .is_err()
+            {
+                unreadable += 1;
+                continue;
+            }
+            let (e0, e1) = (
+                u32::from_le_bytes(e[0..4].try_into().unwrap()),
+                u32::from_le_bytes(e[4..8].try_into().unwrap()),
+            );
+            let length = ((e1 >> 10) & 0x1F_FFFF) as usize;
+            let pb_va = ((e1 as u64 & 0xFF) << 32) | (e0 as u64 & !3);
+            if length == 0 || length > MAX_DWORDS {
+                invalid += 1;
+                continue;
+            }
+            let mut raw = vec![0u8; length * 4];
+            if gm.read_va(root, pb_va, &mut raw).is_err() {
+                unreadable += 1;
+                continue;
+            }
+            decoded += 1;
+            let words: Vec<u32> = raw
+                .chunks_exact(4)
+                .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                .collect();
+            let mut found = Vec::new();
+            let mut i = 0usize;
+            while i < words.len() {
+                let hdr = words[i];
+                i += 1;
+                let (sec_op, n, subch, addr) = (
+                    hdr >> 29,
+                    ((hdr >> 16) & 0x1FFF) as usize,
+                    ((hdr >> 13) & 7) as usize,
+                    (hdr & 0xFFF) << 2,
+                );
+                let methods: Vec<(u32, u32)> = match sec_op {
+                    1 | 3 | 5 => {
+                        let n = n.min(words.len() - i);
+                        let methods = (0..n)
+                            .map(|k| {
+                                let a = if sec_op == 3 || (sec_op == 5 && k > 0) {
+                                    addr
+                                } else {
+                                    addr + 4 * k as u32
+                                };
+                                (a, words[i + k])
+                            })
+                            .collect();
+                        i += n;
+                        methods
+                    }
+                    4 => vec![(addr, (hdr >> 16) & 0x1FFF)],
+                    7 => break,
+                    _ => Vec::new(),
+                };
+                for (a, data) in methods {
+                    if a == 0 {
+                        classes[subch] = data & 0xFFFF;
+                        continue;
+                    }
+                    let class = classes[subch];
+                    let inferred_3d = class == 0 && has_3d;
+                    let is_3d = class == CLASS_3D || inferred_3d;
+                    if !is_3d {
+                        continue;
+                    }
+                    let inferred = if inferred_3d { " (3D inferred)" } else { "" };
+                    match a {
+                        0x2380 => cb[subch].0 = data & 0x1_FFFF,
+                        0x2384 => cb[subch].1 = data & 0xFF,
+                        0x2388 => cb[subch].2 = data,
+                        // One bind group every 0x20 bytes.  The immediate says whether the
+                        // current selector is valid and which shader slot receives it.
+                        a if (0x2410..=0x24F0).contains(&a) && (a - 0x2410) % 0x20 == 0 => {
+                            let group = (a - 0x2410) / 0x20;
+                            let valid = data & 1 != 0;
+                            let slot = (data >> 4) & 0x1F;
+                            let (size, upper, lower) = cb[subch];
+                            let va = ((upper as u64) << 32) | lower as u64;
+                            found.push(format!(
+                                "subch {subch}[{class:#x}] CB bind group {group} slot {slot} valid {valid}: selector va {va:#x} size {size:#x}{inferred}{}",
+                                if valid && va == 0 { " **VALID VA 0**" } else { "" }
+                            ));
+                        }
+                        // Six pipeline shader slots, 0x40 bytes each.  Report the complete
+                        // program VA when its lower half is written.
+                        a if (0x2014..=0x2158).contains(&a)
+                            && (a - 0x2014) % 0x40 == 0 =>
+                        {
+                            let shader = ((a - 0x2014) / 0x40) as usize;
+                            program_upper[subch][shader] = data & 0xFF;
+                        }
+                        a if (0x2018..=0x2158).contains(&a)
+                            && (a - 0x2018) % 0x40 == 0 =>
+                        {
+                            let shader = ((a - 0x2018) / 0x40) as usize;
+                            let va = ((program_upper[subch][shader] as u64) << 32) | data as u64;
+                            found.push(format!(
+                                "subch {subch}[{class:#x}] shader {shader} program va {va:#x}{inferred}"
+                            ));
+                        }
+                        // CALL_MME_MACRO(j), not its interleaved CALL_MME_DATA(j).
+                        a if (0x3800..=0x3FFC).contains(&a) && (a - 0x3800) % 8 == 0 => {
+                            found.push(format!(
+                                "subch {subch}[{class:#x}] MME call {} = {data:#x}{inferred}",
+                                (a - 0x3800) / 8
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            if !found.is_empty() {
+                if kept.len() == KEEP {
+                    kept.pop_front();
+                }
+                kept.push_back(format!(
+                    "gr rc history: chid {chid} gp {idx} pb {pb_va:#x} ({length} dwords): {} [guest memory]",
+                    found.join("; ")
+                ));
+            }
+        }
+
+        notes.push(format!(
+            "gr rc history: chid {chid} (exceptType {xid}) scanned {count} consumed GPFIFO entries ending at GPGet {get} (GPPut {put}); decoded {decoded}, unreadable {unreadable}, invalid/empty {invalid}; engine classes {} [guest memory, RC-only]",
+            ch.engine_objects
+                .iter()
+                .map(|(class, _)| format!("{class:#x}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+        notes.extend(kept);
+        notes
+    }
+
     /// After the host doorbell of a mirrored channel (read-only, nothing is executed
     /// here): poll the channel's USERD GPGet through the FB store for up to 20 ms, then
     /// decode the GPFIFO entry the guest just rang and report every address the physical

@@ -802,6 +802,15 @@ impl BootModel {
                         eprintln!("vfio-user-nvgpu: {line}");
                         notes.push(line);
                     }
+                    // GPGet-1 is often the trailing semaphore rather than the work that
+                    // faulted.  On an MMU fault, retain a bounded history of graphics state
+                    // and MME draws; this runs only after the host has already RC'd the TSG.
+                    if xid == crate::gspmem::XID_MMU_FAULT {
+                        for line in self.ctrl.gr_rc_history_notes(&gm, chid, xid) {
+                            eprintln!("vfio-user-nvgpu: {line}");
+                            notes.push(line);
+                        }
+                    }
                 }
                 // RmLogonRC = 0: no Xid line (gspboot.rs, B3).
                 if self.registry.log_on_rc {
