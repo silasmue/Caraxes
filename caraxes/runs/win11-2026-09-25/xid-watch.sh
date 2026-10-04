@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Live host-Xid watch for the running Windows device (run44.py start): reads the host kernel log
-# read-only (`sudo -n dmesg`) once a second from the moment it starts. At the first NVRM Xid line
+# read-only (`sudo -n dmesg`) once a second since the run's recorded start uptime. At the first NVRM Xid line
 # naming the device's pid (gpu.pid) it stops the device by pid (TERM, then KILL after 2 s) so a
 # fault storm cannot flood the host (C80: 54 Xid 31). Xid lines of other processes are only
 # reported. Log: <current run>/xid-watch.log. Ends when the device exits.
@@ -11,6 +11,31 @@ pid=$(cat "$S/gpu.pid")
 run=$S/$(cat "$S/current")
 log=$run/xid-watch.log
 t0=$(cut -d' ' -f1 /proc/uptime)
+if ! t0=$(python3 - "$run/start.json" "$t0" <<'PY'
+import json
+import math
+import sys
+
+path, now = sys.argv[1], float(sys.argv[2])
+try:
+    with open(path) as f:
+        start = json.load(f)
+    if not isinstance(start, dict):
+        raise ValueError('expected a JSON object')
+    value = start.get('uptime')
+    if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= now:
+        raise ValueError('uptime must be a finite number between zero and current host uptime')
+    print(value)
+except FileNotFoundError:
+    print(f'xid-watch: historical run without {path}; watching from current uptime {now}', file=sys.stderr)
+    print(now)
+except (OSError, ValueError, OverflowError) as e:
+    print(f'xid-watch: cannot use {path}: {e}', file=sys.stderr)
+    sys.exit(1)
+PY
+); then
+    exit 1
+fi
 echo "$(date +%T) watching device pid $pid (run $(basename "$run")) from host uptime $t0" | tee -a "$log"
 while kill -0 "$pid" 2>/dev/null; do
     new=$(sudo -n dmesg | awk -v t="$t0" '
