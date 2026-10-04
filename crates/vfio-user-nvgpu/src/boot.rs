@@ -810,6 +810,12 @@ impl BootModel {
                             eprintln!("vfio-user-nvgpu: {line}");
                             notes.push(line);
                         }
+                        if let Some(mirror) = self.ctrl.mirror.as_ref() {
+                            for line in mirror.gr_capture_notes(chid) {
+                                eprintln!("vfio-user-nvgpu: {line}");
+                                notes.push(line);
+                            }
+                        }
                     }
                 }
                 // RmLogonRC = 0: no Xid line (gspboot.rs, B3).

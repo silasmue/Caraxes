@@ -83,6 +83,7 @@ pub const VARS: &[Var] = &[
     var("CARAXES_LAUNCH_TIMING", Diag, "off", "1: per-step histograms of the ring path"),
     var("CARAXES_SOAK_SECS", Diag, "60", "the soak line's interval, 0 for none"),
     var("CARAXES_MIRROR_DIAG", Diag, "off", "1: the mirror's push diagnostic"),
+    var("CARAXES_GR_CAPTURE", Diag, "off", "1: capture live C597 and MME state before each host doorbell"),
     var("CARAXES_SHADOW_CHANNEL_DIAG", Diag, "off", "1: the shadow channels' coverage queries"),
     var("CARAXES_SEMAPHORE_DIAG", Diag, "off", "1: semaphore diagnostics"),
     var("CARAXES_SEMAPHORE_DIAG_CHID", Diag, "all", "the one ChID of the semaphore diagnostics"),

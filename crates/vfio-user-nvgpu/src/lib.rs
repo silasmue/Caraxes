@@ -43,6 +43,7 @@ pub mod gmcapi;
 pub mod gspboot;
 pub mod gspmem;
 pub mod gsprpc;
+pub mod grcapture;
 pub mod gmmu_v3;
 pub mod guestmem;
 pub mod hostabi;

@@ -1666,6 +1666,9 @@ pub struct HostChannel {
     /// The host error notifier when the guest's could not be mirrored (a guest notifier in
     /// VRAM): the device's own page, read by the RC scan (`Mirror::rc_notifier`).
     rc_page: Option<crate::hostmem::DevicePage>,
+    /// Opt-in exact C597/MME state captured before forwarding each doorbell. Off by
+    /// default: parsing the guest's submitted pushbuffers is investigation overhead.
+    gr_capture: Option<crate::grcapture::Capture>,
 }
 
 impl HostChannel {
@@ -3259,6 +3262,14 @@ impl Mirror {
         self.ring_stats.line(self.held_rings.len())
     }
 
+    /// Exact live C597/MME state retained by the opt-in graphics capture.
+    pub fn gr_capture_notes(&self, chid: u32) -> Vec<String> {
+        self.channels
+            .get(&chid)
+            .and_then(|channel| channel.gr_capture.as_ref())
+            .map_or_else(Vec::new, |capture| capture.notes(chid))
+    }
+
     /// Forward the doorbell of built channel `chid` now: flush the FB store, publish a
     /// shadowed USERD, record the forwarded GPPut, ring the host doorbell, harvest.
     fn ring_now(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
@@ -3275,13 +3286,45 @@ impl Mirror {
                 notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
                 return notes;
             }
-            let put = if crate::launch::fast() {
+            let capture = self
+                .channels
+                .get(&chid)
+                .is_some_and(|hc| hc.gr_capture.is_some());
+            let ring = if capture || !crate::launch::fast() {
+                Self::userd_ring(reg, gm, chid)
+            } else {
+                None
+            };
+            let put = if crate::launch::fast() && !capture {
                 Self::userd_put(reg, gm, chid)
             } else {
-                Self::userd_ring(reg, gm, chid).map(|(_, p, _)| p)
+                ring.map(|(_, put, _)| put)
             };
             mark(Step::Userd);
             let unwaited = self.unwaited;
+            if let (Some((get, put, entries)), Some(ch), Some(root)) = (
+                ring,
+                reg.channel(chid),
+                reg.channel(chid)
+                    .and_then(|ch| reg.vas_key_of(ch))
+                    .and_then(|key| reg.vas_root(key)),
+            ) {
+                if let Some(hc) = self.channels.get_mut(&chid) {
+                    if let Some(capture) = hc.gr_capture.as_mut() {
+                        let start = hc.fwd_put.unwrap_or(get);
+                        if let Some(note) = capture.ring(
+                            gm,
+                            root,
+                            ch.gpfifo_va,
+                            entries,
+                            start,
+                            put,
+                        ) {
+                            notes.push(format!("chid {chid}: {note}"));
+                        }
+                    }
+                }
+            }
             if let Some(hc) = self.channels.get_mut(&chid) {
                 hc.fwd_put = put;
                 hc.fwd_unwaited = unwaited;
@@ -3860,6 +3903,9 @@ impl Mirror {
             built.channel
         ));
         let pages: Vec<u32> = built.owned.iter().copied().filter(|d| *d != built.channel).collect();
+        let gr_capture = (std::env::var(crate::grcapture::ENV).as_deref() == Ok("1")
+            && built.objects.iter().any(|(class, _)| *class == 0xC597))
+            .then(crate::grcapture::Capture::default);
         self.channels.insert(
             chid,
             HostChannel {
@@ -3878,6 +3924,7 @@ impl Mirror {
                 userd: built.shadow_userd.map(|u| UserdSlot::new(u, false)),
                 context_ready: false,
                 rc_page: built.rc_page,
+                gr_capture,
             },
         );
         self.publish_userd_watch();
@@ -4132,6 +4179,9 @@ impl Mirror {
             }
         };
         let pages: Vec<u32> = built.owned.iter().copied().filter(|d| *d != built.channel).collect();
+        let gr_capture = (std::env::var(crate::grcapture::ENV).as_deref() == Ok("1")
+            && built.objects.iter().any(|(class, _)| *class == 0xC597))
+            .then(crate::grcapture::Capture::default);
         self.stats.channels_created += 1;
         let private_userd = built.shadow_userd.is_some();
         self.channels.insert(
@@ -4152,6 +4202,7 @@ impl Mirror {
                 userd: built.shadow_userd.map(|u| UserdSlot::new(u, pb.submit)),
                 context_ready: pb.submit,
                 rc_page: built.rc_page,
+                gr_capture,
             },
         );
         self.publish_userd_watch();
@@ -5483,6 +5534,7 @@ impl Mirror {
                         userd: None,
                         context_ready: true,
                         rc_page,
+                        gr_capture: None,
                     },
                 );
                 Ok((token, notes))

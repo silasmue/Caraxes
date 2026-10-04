@@ -1248,10 +1248,10 @@ impl Dispatcher {
                         let n = count.min(w.len() - i);
                         let m = (0..n)
                             .map(|k| {
-                                let a = if sec_op == 3 || (sec_op == 5 && k > 0) {
-                                    addr
-                                } else {
-                                    addr + 4 * k as u32
+                                let a = match sec_op {
+                                    1 => addr + 4 * k as u32,
+                                    3 => addr,
+                                    _ => addr + if k == 0 { 0 } else { 4 },
                                 };
                                 (a, w[i + k])
                             })
@@ -1402,10 +1402,10 @@ impl Dispatcher {
                     1 | 3 | 5 => {
                         let n = count.min(w.len() - i);
                         for k in 0..n {
-                            let a = if sec_op == 3 || (sec_op == 5 && k > 0) {
-                                addr
-                            } else {
-                                addr + 4 * k as u32
+                            let a = match sec_op {
+                                1 => addr + 4 * k as u32,
+                                3 => addr,
+                                _ => addr + if k == 0 { 0 } else { 4 },
                             };
                             methods.push((subch, a, w[i + k]));
                         }
@@ -1487,13 +1487,10 @@ impl Dispatcher {
         xid: u32,
     ) -> Vec<String> {
         use crate::fb::Target;
-        // A Windows DX12 channel binds C597 near the beginning of the ring and can have
-        // hundreds of entries in flight.  C123 faulted with GPGet 21141: the old 512-entry
-        // window did not contain SET_OBJECT or the selector that established the current
-        // constant-buffer state.  This remains an RC-only walk and is bounded to half of
-        // the largest ring we have observed.
-        const SCAN_3D_ENTRIES: u32 = 32768;
-        const SCAN_OTHER_ENTRIES: u32 = 512;
+        // Only recent entries are trustworthy: C124 proved that Windows reuses old
+        // pushbuffer storage, so a deep post-mortem reinterprets new bytes through stale
+        // GPFIFO references. CARAXES_GR_CAPTURE records exact long-lived state live.
+        const SCAN_ENTRIES: u32 = 512;
         const MAX_DWORDS: usize = 1 << 16;
         const KEEP_CB_EVENTS: usize = 32;
         const KEEP_VALID_BINDS: usize = 24;
@@ -1562,11 +1559,7 @@ impl Dispatcher {
         let mut cb = [(0u32, 0u32, 0u32); 8]; // size, address upper, address lower
         let mut bindings = [[[None::<CbBinding>; 32]; 8]; 8]; // subchannel, group, slot
         let mut program_upper = [[0u32; 6]; 8];
-        let scan_limit = if has_3d {
-            SCAN_3D_ENTRIES
-        } else {
-            SCAN_OTHER_ENTRIES
-        };
+        let scan_limit = SCAN_ENTRIES;
         // Before the first wrap, GPGet is also the exact count of consumed entries.  Do not
         // include the queued range [GPGet, GPPut) in the post-mortem.  At GPGet zero a wrap
         // is possible, so retain the bounded backwards scan.
@@ -1631,10 +1624,10 @@ impl Dispatcher {
                         let n = n.min(words.len() - i);
                         let methods = (0..n)
                             .map(|k| {
-                                let a = if sec_op == 3 || (sec_op == 5 && k > 0) {
-                                    addr
-                                } else {
-                                    addr + 4 * k as u32
+                                let a = match sec_op {
+                                    1 => addr + 4 * k as u32,
+                                    3 => addr,
+                                    _ => addr + if k == 0 { 0 } else { 4 },
                                 };
                                 (a, words[i + k])
                             })
@@ -1989,10 +1982,10 @@ impl Dispatcher {
                     let n = count.min(w.len() - i);
                     let m = (0..n)
                         .map(|k| {
-                            let a = if sec_op == 3 || (sec_op == 5 && k > 0) {
-                                addr
-                            } else {
-                                addr + 4 * k as u32
+                            let a = match sec_op {
+                                1 => addr + 4 * k as u32,
+                                3 => addr,
+                                _ => addr + if k == 0 { 0 } else { 4 },
                             };
                             (a, w[i + k])
                         })
