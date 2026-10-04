@@ -110,6 +110,20 @@
 - C140 uses the new `f1a210b0` binary with detailed lock statistics off, direct completion on, rearm eventfd off, compression off. D3D11 and root/heap-CBV D3D12 pixel gates passed. First Fire Strike: overall 5299, graphics 5064; GT1 19.749294 / GT2 24.884005 FPS. A warm repeat is pending. This single result is slower than C139; it does not isolate statistics overhead from run/boot variability or intervening source changes.
 - Next GPU-side candidate: existing `CARAXES_COMPRESSION=slice`, retaining host coverage, ownership, ZBC and alignment checks. Qualify Windows rendering first, then compare with compression off using the same binary and other settings. Linux SOTTR follows Windows optimization.
 
+## C140 result and diagnostic savings
+
+- Warm repeat: overall 5497, graphics 5453, physics 6905, combined 4419; GT1 19.835596 / GT2 29.468491 FPS. Graphics improved from the first C140 sample but stays below C139; CPU Physics changed substantially. No repeatable statistics-off gain is established. Host memory clock 7000 MHz; graphics boost reached 1860 MHz. The available samples include load/unload periods.
+- C140 stopped cleanly with no host Xid. Available health checks passed; RC/other trace-dependent checks remain unavailable. Full-session backend log: 21 ERROR lines.
+- `17c9c834` skips successful legacy RPC FNV fingerprints and normal receive/control/send descriptions when the device has no trace sink. Failures, reply bytes/cache flags, host calls and queue/continuation ordering are preserved. With lock statistics off, RPC timing/key setup is also skipped. Standalone models retain diagnostics; an initially enabled sink still formats notes if the disk-space guard later stops it.
+- Validation: 885 device tests passed, 1 ignored; both integration tests passed. Release `vfio-user-nvgpu-rpcdiag-17c9c834-cap`, SHA256 `385567ee7e542350c7ebcc2da3eb7dbe9b71c4f4e11b1ce039490214bdaa1bbe`. Graph update completed. GPU qualification of this new binary is pending.
+- C141 compares compression slice against C140 using the unchanged `f1a210b0` binary and other GPU settings. Host granted physically based compression coverage for all 4096 MiB; D3D11 and both D3D12 CBV pixel gates passed. Animated-render and scored comparisons are pending. Coverage does not prove actual compressed PTE use or compression ratio.
+
+## Compatibility follow-up
+
+- ZCULL: guest separate-buffer mode 2 is acknowledged but dropped; measured C139/C140 host mode values remain 1 (no context save/restore). The current comment claiming GLOBAL mode is inaccurate. This is a compatibility discrepancy, without measured FPS causality. The bounded translation needs embedded client/channel ownership, host-sized aligned buffer coverage/access/kind, synchronization and lifetime proof.
+- Internal TU106 memsys reports 8 LTCs × 2 LTS while public/native reference reports 32 total LTS. Reconcile field semantics and counts before changing the table. The full audit and source/trace references are in `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04/zcull-capability-audit.md`.
+- Windows BAR2 memfd stays off for the current comparison. C80 previously faulted on stale PTEs; the documented synchronization fix must be checked against current re-plan paths before another qualification. Its large trap count alone is not sufficient to enable it.
+
 ## External RTX 2070 orientation
 
 - Public valid Fire Strike 1.1 results for desktop RTX 2070: [22409 graphics points](https://www.3dmark.com/fs/31401213) at 1845 MHz peak / 1750 MHz memory; [23663 graphics points](https://www.3dmark.com/fs/30795799) at 1860 MHz peak / 1750 MHz memory. These are independent systems, not a controlled native reference for this host.
