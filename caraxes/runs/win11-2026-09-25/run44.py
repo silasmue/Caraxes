@@ -33,6 +33,7 @@ SERVER = pathlib.Path(os.environ.get('CH_SERVER', str(S / 'P43-build/vfio-user-n
 FB_MIB = int(os.environ.get('CH_FB_MIB', '4096'))
 MEM_GIB = int(os.environ.get('CH_MEM_GIB', '8'))
 VRAM_NEED_MIB = FB_MIB + 1536
+SCORED = os.environ.get('CH_SCORED', '0') == '1'
 env = {k: v for k, v in os.environ.items() if not k.startswith(('CARAXES_', 'WIN_'))}
 # CH_BIN: another Cloud Hypervisor binary (run-ch-gpu.sh WIN_CH), e.g. a fork build with a fix.
 if os.environ.get('CH_BIN'):
@@ -58,6 +59,17 @@ DEV = dict(CARAXES_DEFERRED_CONTEXT='1', CARAXES_SHADOW_USERD='1', CARAXES_FB_ZE
 for kv in os.environ.get('CH_DEV_EXTRA', '').split():
     k, v = kv.split('=', 1)
     DEV[k] = v
+
+# A scored run retains GPU behavior and removes investigation overhead. Instrumented
+# runs remain the default; collect latency/trap distributions in a separate run.
+if SCORED:
+    for key in ('CARAXES_PROFILE', 'CARAXES_GR_CAPTURE', 'CARAXES_LAUNCH_TIMING',
+                'CARAXES_SEMAPHORE_DIAG', 'CARAXES_TRACE_ACCESSES',
+                'CARAXES_MIRROR_DIAG', 'CARAXES_SHADOW_CHANNEL_DIAG',
+                'CARAXES_DEFERRED_API_CAPTURE', 'CARAXES_DUMP_KERNEL'):
+        DEV[key] = '0'
+    DEV.pop('CARAXES_RECORD_HOST', None)
+    DEV['WIN_GPU_TRACE'] = '0'
 
 
 def die(msg):
@@ -207,9 +219,12 @@ def start(name, gpu=True):
     out.mkdir(exist_ok=False)
     e = dict(env, WIN_CH_SERIAL=str(out / 'serial.log'))
     st = {'epoch': int(time.time()), 'hypervisor': 'cloud-hypervisor', 'gpu': gpu, 'mem_gib': MEM_GIB,
+          'scored': SCORED,
           'dmesg_lines': len(dmesg()), 'uptime': uptime()}
     if gpu:
-        e.update(DEV, WIN_GPU_SERVER=str(SERVER), CARAXES_RECORD_HOST=str(out / 'host-controls.tsv'))
+        e.update(DEV, WIN_GPU_SERVER=str(SERVER))
+        if not SCORED:
+            e['CARAXES_RECORD_HOST'] = str(out / 'host-controls.tsv')
         st.update(binary=SERVER.name, sha256=hashlib.sha256(SERVER.read_bytes()).hexdigest())
         src = SERVER.parent / 'source.json'
         if src.exists():

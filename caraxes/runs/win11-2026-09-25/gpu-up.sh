@@ -44,9 +44,14 @@ ROM=${WIN_GPU_ROM:-$REF/rom.bin}
 # no NVIDIA extension image), which the Windows driver scans to the end and then gives up
 # (docs/research/windows-driver-code43.md).
 [[ -n ${WIN_GPU_VBIOS:-} ]] && { [[ -s $WIN_GPU_VBIOS ]] || die "no VBIOS image $WIN_GPU_VBIOS"; args+=(--vbios "$WIN_GPU_VBIOS"); }
-LEA_ROOT=$LEA_ROOT "$SERVER" --socket "$W/gpu.sock" --trace "$W/gpu-trace.log" \
+case ${WIN_GPU_TRACE:-1} in
+    1) args+=(--trace "$W/gpu-trace.log"); trace=$W/gpu-trace.log ;;
+    0) trace=none ;;
+    *) die "WIN_GPU_TRACE must be 0 or 1" ;;
+esac
+LEA_ROOT=$LEA_ROOT "$SERVER" --socket "$W/gpu.sock" \
     --config "$CONFIG" --rom "$ROM" "${args[@]}" > "$W/gpu.log" 2>&1 &
 echo $! > "$W/gpu.pid"
 for _ in $(seq 50); do [[ -S $W/gpu.sock ]] && break; sleep 0.1; done
 [[ -S $W/gpu.sock ]] || { cat "$W/gpu.log"; die "the device did not create $W/gpu.sock"; }
-echo "device up: pid $(cat "$W/gpu.pid"), ${WIN_GPU_EXTRA:-pure emulation}, config $CONFIG, rom $ROM, vbios ${WIN_GPU_VBIOS:-(rom)}, FB ${WIN_GPU_FB_MIB:-1024} MiB, socket $W/gpu.sock, log $W/gpu.log, trace $W/gpu-trace.log"
+echo "device up: pid $(cat "$W/gpu.pid"), ${WIN_GPU_EXTRA:-pure emulation}, config $CONFIG, rom $ROM, vbios ${WIN_GPU_VBIOS:-(rom)}, FB ${WIN_GPU_FB_MIB:-1024} MiB, socket $W/gpu.sock, log $W/gpu.log, trace $trace"
