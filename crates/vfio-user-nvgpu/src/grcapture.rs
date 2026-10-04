@@ -430,6 +430,33 @@ impl Capture {
             .collect()
     }
 
+    /// The last macro calls actually submitted at or before the host's fault cutoff. This
+    /// covers RCs where GPGet-1 is a trailing semaphore rather than the draw that faulted.
+    pub fn consumed_call_notes(&self, chid: u32, cutoff: u64) -> Vec<String> {
+        let calls = self
+            .calls
+            .iter()
+            .filter(|call| call.seq <= cutoff)
+            .rev()
+            .take(32)
+            .collect::<Vec<_>>();
+        calls
+            .into_iter()
+            .rev()
+            .map(|call| format!(
+                "gr live capture: chid {chid}: consumed gp {} capture-seq {} subch {} macro {} params {}/{}: {}{}",
+                call.gp,
+                call.seq,
+                call.subch,
+                call.id,
+                call.params.len(),
+                call.param_count,
+                call.params.iter().map(|word| format!("{word:#x}")).collect::<Vec<_>>().join(" "),
+                if call.params.len() == call.param_count { "" } else { " ..." }
+            ))
+            .collect()
+    }
+
     /// Capture the newly published half-open GPFIFO range `[start, put)` before its host
     /// doorbell is forwarded. `start` and `put` are ring indices and may wrap.
     pub fn ring(
@@ -776,5 +803,9 @@ mod tests {
                 .count(),
             1
         );
+        assert!(c
+            .consumed_call_notes(3, 0)
+            .iter()
+            .all(|line| line.contains("capture-seq 0")));
     }
 }

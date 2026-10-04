@@ -3287,6 +3287,12 @@ impl Mirror {
                 calls.len()
             ));
             notes.extend(calls);
+            let consumed = capture.consumed_call_notes(chid, cutoff);
+            notes.push(format!(
+                "gr live capture: chid {chid}: retained {} recent consumed macro call(s) at or before capture cutoff {cutoff}",
+                consumed.len()
+            ));
+            notes.extend(consumed);
         }
         let Some(root) = channel.shadow_root else { return notes };
         for va in capture.recent_page_aligned_params() {
@@ -3305,7 +3311,13 @@ impl Mirror {
                 ));
             }
         }
-        for (index, gp, va) in capture.constant_buffer_dmem_sources(cutoff) {
+        let dmem_sources = capture.constant_buffer_dmem_sources(cutoff);
+        if dmem_sources.is_empty() {
+            notes.push(format!(
+                "gr live capture: chid {chid}: no direct MME DMA source for constant-buffer dmem 0x56/0x57 at or before capture cutoff {cutoff}"
+            ));
+        }
+        for (index, gp, va) in dmem_sources {
             let mut data = [0u8; 16];
             if let Err(error) = gm.read_va(Target::Fb(root), va, &mut data) {
                 notes.push(format!(
