@@ -106,8 +106,8 @@
 
 - FriendlyName alone displays **Leandro VFIO RTX 2070** in both Device Manager and Task Manager on Windows 26200.8037 / stock NVIDIA 617.14. Screenshots: `C139-devmgr.png` and `C139-taskmgr-gpu.png` in the artifact directory above. DriverDesc remains NVIDIA GeForce RTX 2070; DXGI description has not been rechecked.
 - `tools/windows/display-name.ps1` reports the exact present RTX 2070 and offers backed-up Apply/Restore operations without restarting the driver. The name is a guest property; it may need reapplying after driver installation or devnode recreation.
-- Repeated Restore passed and preserved the original absent FriendlyName. Repeated Apply exposed an atomic backup replacement error; correction and runtime recheck are pending. C139 ended with the original name restored.
-- C140 uses the new `f1a210b0` binary with detailed lock statistics off, direct completion on, rearm eventfd off, compression off. Validation and scoring are in progress. This changes no compression policy or memory isolation.
+- Repeated Apply exposed a Windows PowerShell 5.1 atomic backup replacement error. `5ae5216f` uses an explicit recovery path, validates the published backup and preserves the previous copy on failure. C140 passed Apply, Apply, Restore, Restore, Apply in order; Restore recovered the original absent FriendlyName and DriverDesc stayed unchanged. The final name is Leandro VFIO RTX 2070.
+- C140 uses the new `f1a210b0` binary with detailed lock statistics off, direct completion on, rearm eventfd off, compression off. D3D11 and root/heap-CBV D3D12 pixel gates passed. First Fire Strike: overall 5299, graphics 5064; GT1 19.749294 / GT2 24.884005 FPS. A warm repeat is pending. This single result is slower than C139; it does not isolate statistics overhead from run/boot variability or intervening source changes.
 - Next GPU-side candidate: existing `CARAXES_COMPRESSION=slice`, retaining host coverage, ownership, ZBC and alignment checks. Qualify Windows rendering first, then compare with compression off using the same binary and other settings. Linux SOTTR follows Windows optimization.
 
 ## External RTX 2070 orientation
