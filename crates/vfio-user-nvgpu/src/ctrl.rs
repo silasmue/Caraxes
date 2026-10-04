@@ -126,9 +126,9 @@ fn diagnostic_push_methods(
             1,
         ),
         // Legacy incrementing/non-incrementing formats: TERT_OP must be zero,
-        // The reference decoder's COUNT is 27:18 and ADDRESS is the byte-aligned 12:2 field.
+        // C46F COUNT_OLD is 28:18 and ADDRESS_OLD is the byte-aligned 12:2 field.
         0 | 2 if sec_op == 2 || (hdr >> 16) & 3 == 0 => (
-            ((hdr >> 18) & 0x3FF) as usize,
+            ((hdr >> 18) & 0x7FF) as usize,
             ((hdr >> 13) & 7) as usize,
             hdr & 0x1FFC,
             if sec_op == 0 { 2 } else { 0 },
@@ -3274,7 +3274,7 @@ mod tests {
     #[test]
     fn diagnostic_push_decoder_handles_legacy_and_one_inc_formats() {
         let words = [
-            (1 << 28) | (2 << 18),
+            2 << 18,
             0xC597,
             0x1234,
             (2 << 29) | (2 << 18) | 0x118,
@@ -3295,7 +3295,43 @@ mod tests {
         let hdr = words[i];
         i += 1;
         let (_, third) = diagnostic_push_methods(&words, &mut i, hdr);
-        assert_eq!(third, vec![(0, 0xE0, 0x11), (0, 0xE4, 0x22), (0, 0xE4, 0x33)]);
+        assert_eq!(
+            third,
+            vec![(0, 0xE0, 0x11), (0, 0xE4, 0x22), (0, 0xE4, 0x33)]
+        );
+    }
+
+    #[test]
+    fn diagnostic_legacy_count_bit_28_keeps_header_like_words_in_payload() {
+        for count in [1024usize, 1025] {
+            for sec_op in [0u32, 2] {
+                let hdr = (sec_op << 29) | ((count as u32) << 18) | 0x118;
+                let payload: Vec<u32> = (0..count)
+                    .map(|i| if i % 2 == 0 { 0x20010000 } else { 0x5540 })
+                    .collect();
+                let mut words = vec![hdr];
+                words.extend_from_slice(&payload);
+                words.extend_from_slice(&[0x20010000, 0x1c597]);
+                let mut i = 1;
+                let (end, decoded) = diagnostic_push_methods(&words, &mut i, hdr);
+                assert!(!end);
+                assert_eq!(i, count + 1);
+                assert_eq!(decoded.len(), count);
+                for (offset, &(subch, addr, data)) in decoded.iter().enumerate() {
+                    assert_eq!(subch, 0);
+                    assert_eq!(
+                        addr,
+                        0x118 + if sec_op == 0 { 4 * offset as u32 } else { 0 }
+                    );
+                    assert_eq!(data, payload[offset]);
+                }
+                let next = words[i];
+                i += 1;
+                let (_, binding) = diagnostic_push_methods(&words, &mut i, next);
+                assert_eq!(binding, vec![(0, 0, 0x1c597)]);
+                assert_eq!(i, words.len());
+            }
+        }
     }
 
     #[test]

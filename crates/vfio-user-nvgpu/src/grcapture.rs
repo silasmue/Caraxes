@@ -7,6 +7,8 @@
 //! each newly published entry before forwarding its doorbell and retains only the C597 state
 //! needed to explain a fault: exact `SET_OBJECT` bindings, the MME instruction/start RAM
 //! uploads, direct constant-buffer state, and recent macro calls with their parameters.
+//! These are submitted CPU snapshots; earlier GPU producers and conditional fetching can
+//! make the bytes eventually executed differ from the captured bytes.
 //! Nothing is changed in guest memory and the production path pays only one disabled check.
 
 use std::collections::{BTreeSet, VecDeque};
@@ -31,6 +33,17 @@ const KEEP_DMEM_SOURCES: usize = 64;
 const KEEP_BOOTSTRAP_CALLS: usize = 64;
 const KEEP_MME_UPLOADS: usize = 128;
 const KEEP_ROOT_EVENTS: usize = 256;
+const KEEP_UNEXPECTED_SET_OBJECTS: usize = 8;
+
+struct UnexpectedSetObject {
+    gp: u32,
+    subch: usize,
+    header: u32,
+    dword: usize,
+    data: u32,
+    nearby_start: usize,
+    nearby: Vec<u32>,
+}
 
 #[derive(Clone, Copy, Debug)]
 struct RootEvent {
@@ -133,6 +146,7 @@ pub struct Capture {
     tertiary_headers: u64,
     reserved_headers: u64,
     unexpected_set_objects: u64,
+    unexpected_set_object_provenance: Vec<UnexpectedSetObject>,
     direct_binds: u64,
     direct_unbinds: u64,
 }
@@ -175,6 +189,7 @@ impl Default for Capture {
             tertiary_headers: 0,
             reserved_headers: 0,
             unexpected_set_objects: 0,
+            unexpected_set_object_provenance: Vec::new(),
             direct_binds: 0,
             direct_unbinds: 0,
         }
@@ -240,7 +255,15 @@ impl Capture {
         keep(&mut self.direct, KEEP_DIRECT, event);
     }
 
-    fn method(&mut self, gp: u32, subch: usize, addr: u32, data: u32, open: &mut Option<OpenCall>) {
+    fn method(
+        &mut self,
+        gp: u32,
+        subch: usize,
+        addr: u32,
+        data: u32,
+        open: &mut Option<OpenCall>,
+        provenance: (u32, usize, &[u32]),
+    ) {
         self.methods += 1;
         if addr != 0x0118 {
             if let Some(upload) = self.mme_upload.take() {
@@ -252,6 +275,21 @@ impl Capture {
             let class = data & 0xFFFF;
             if class != 0 && !self.allowed_classes.contains(&class) {
                 self.unexpected_set_objects += 1;
+                if self.unexpected_set_object_provenance.len() < KEEP_UNEXPECTED_SET_OBJECTS {
+                    let (header, dword, words) = provenance;
+                    let nearby_start = dword.saturating_sub(3);
+                    let nearby_end = (nearby_start + 8).min(words.len());
+                    self.unexpected_set_object_provenance
+                        .push(UnexpectedSetObject {
+                            gp,
+                            subch,
+                            header,
+                            dword,
+                            data,
+                            nearby_start,
+                            nearby: words[nearby_start..nearby_end].to_vec(),
+                        });
+                }
                 self.direct_event(format!(
                     "gp {gp} subch {subch} ignored SET_OBJECT {class:#x}: class is not owned by the host channel"
                 ));
@@ -445,7 +483,14 @@ impl Capture {
                             3 => addr,
                             _ => addr + if k == 0 { 0 } else { 4 },
                         };
-                        self.method(gp, subch, addr, words[i + k], &mut open);
+                        self.method(
+                            gp,
+                            subch,
+                            addr,
+                            words[i + k],
+                            &mut open,
+                            (hdr, i + k, words),
+                        );
                     }
                     i += count;
                 }
@@ -455,16 +500,16 @@ impl Capture {
                     (hdr & 0xFFF) << 2,
                     (hdr >> 16) & 0x1FFF,
                     &mut open,
+                    (hdr, i - 1, words),
                 ),
-                // The legacy formats remain valid on C46F. Their accepted count is at 27:18 and
+                // The legacy formats remain valid on C46F. Their count is at 28:18 and
                 // their byte method address is the header's 12:2 field. Treating these
                 // payload dwords as fresh headers desynchronizes the entire push (C125).
                 0 | 2 if sec_op == 2 || (hdr >> 16) & 3 == 0 => {
                     self.legacy_headers += 1;
-                    // Match Mesa's C46F parser: the legacy count accepted by the
-                    // hardware path is the ten-bit field at 27:18. Bit 28 is not part
-                    // of the payload count for these GRP forms.
-                    let count = ((hdr >> 18) & 0x3FF) as usize;
+                    // NVC46F_DMA_METHOD_COUNT_OLD includes bit 28. Dropping that bit
+                    // exposes payload words as headers for packets of 1024+ dwords.
+                    let count = ((hdr >> 18) & 0x7FF) as usize;
                     let subch = ((hdr >> 13) & 7) as usize;
                     let addr = hdr & 0x1FFC;
                     let count = count.min(words.len() - i);
@@ -474,7 +519,14 @@ impl Capture {
                         } else {
                             addr
                         };
-                        self.method(gp, subch, addr, words[i + k], &mut open);
+                        self.method(
+                            gp,
+                            subch,
+                            addr,
+                            words[i + k],
+                            &mut open,
+                            (hdr, i + k, words),
+                        );
                     }
                     i += count;
                 }
@@ -772,6 +824,14 @@ impl Capture {
             self.direct_binds,
             self.direct_unbinds,
         ));
+        for event in &self.unexpected_set_object_provenance {
+            out.push(format!(
+                "gr live capture: chid {chid}: unexpected SET_OBJECT gp {} subch {} raw header {:#010x}, payload dword {}, data {:#010x}, nearby dwords {}..{}: {} [submitted CPU snapshot]",
+                event.gp, event.subch, event.header, event.dword, event.data,
+                event.nearby_start, event.nearby_start + event.nearby.len(),
+                event.nearby.iter().map(|word| format!("{word:08x}")).collect::<Vec<_>>().join(" ")
+            ));
+        }
         // CARAXES_GR_CAPTURE is already an explicit, fault-analysis-only mode. Preserve the
         // complete final MME image here: Windows may install several generations of macros,
         // so bounding a called macro by the next start address can splice a newer start table
@@ -954,6 +1014,61 @@ mod tests {
         let mut out = vec![(2 << 29) | ((data.len() as u32) << 18) | (subch << 13) | addr];
         out.extend_from_slice(data);
         out
+    }
+
+    #[test]
+    fn long_legacy_payloads_do_not_become_set_object_headers() {
+        for count in [1024, 1025] {
+            let payload: Vec<u32> = (0..count)
+                .map(|i| if i % 2 == 0 { 0x20010000 } else { 0x5540 })
+                .collect();
+            let mut words = old_noninc(0, 0x118, &payload);
+            words.extend(inc(0, 0x11c, &[7, 0x112]));
+            let mut capture = Capture::new(&[(CLASS_3D, 1)]);
+            capture.push(23, &words);
+            assert_eq!(capture.mme_writes, count as u64);
+            assert_eq!(
+                capture.mme_words[..count],
+                payload.iter().copied().map(Some).collect::<Vec<_>>()
+            );
+            assert_eq!(capture.unexpected_set_objects, 0);
+            assert!(capture.unexpected_set_object_provenance.is_empty());
+            assert_eq!(capture.classes[0], CLASS_3D);
+            assert_eq!(capture.starts[7], Some(0x112));
+            assert_eq!(capture.start_writes, 1);
+        }
+    }
+
+    #[test]
+    fn first_unexpected_bind_provenance_survives_recent_event_eviction() {
+        let mut words = Vec::new();
+        for class in 0x5540..0x554a {
+            words.extend(inc(0, 0, &[(1 << 16) | class]));
+        }
+        // Evict the recent direct events: provenance must still retain the first
+        // unexpected packets, without retaining entire pushbuffers.
+        for _ in 0..40 {
+            words.extend(inc(0, 0x2410, &[0]));
+        }
+        let mut capture = Capture::new(&[(CLASS_3D, 1)]);
+        capture.push(31, &words);
+        assert_eq!(capture.unexpected_set_objects, 10);
+        assert_eq!(capture.unexpected_set_object_provenance.len(), 8);
+        for (index, event) in capture.unexpected_set_object_provenance.iter().enumerate() {
+            assert_eq!(event.gp, 31);
+            assert_eq!(event.subch, 0);
+            assert_eq!(event.header, 0x20010000);
+            assert_eq!(event.dword, 2 * index + 1);
+            assert_eq!(event.data, 0x15540 + index as u32);
+            assert!(event.nearby.len() <= 8);
+            assert_eq!(event.nearby[event.dword - event.nearby_start], event.data);
+        }
+        let notes = capture.notes(22).join("\n");
+        assert!(
+            notes.contains("raw header 0x20010000, payload dword 1, data 0x00015540"),
+            "{notes}"
+        );
+        assert!(!notes.contains("data 0x00015549"), "{notes}");
     }
 
     #[test]
