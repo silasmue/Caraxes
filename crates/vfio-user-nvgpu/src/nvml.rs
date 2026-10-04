@@ -133,6 +133,20 @@ pub fn answer(
     host: Option<&mut Box<dyn HostRm>>,
     profile: &Profile,
 ) -> Option<Answer> {
+    answer_with_diagnostics(chip, cmd, class, params, host, profile, true)
+}
+
+/// The dispatcher can omit successful legacy trace fingerprints when there is no sink.
+/// Failure notes, host calls and reply bytes remain unchanged.
+pub(crate) fn answer_with_diagnostics(
+    chip: &'static ChipData,
+    cmd: u32,
+    class: u32,
+    params: &[u8],
+    host: Option<&mut Box<dyn HostRm>>,
+    profile: &Profile,
+    diagnostics: bool,
+) -> Option<Answer> {
     let n = params.len();
     let mut host: Host<'_> = host.map(|b| b.as_mut());
     let host = &mut host;
@@ -159,7 +173,9 @@ pub fn answer(
     }
     if HOST_SIZED_LEGACY.contains(&cmd) {
         let mut a = host_sized_legacy(host, crate::hostabi::current(), cmd, params);
-        a.note.push_str(&legacy_hashes(params, &a.params));
+        if diagnostics || a.status != NV_OK {
+            a.note.push_str(&legacy_hashes(params, &a.params));
+        }
         return Some(a);
     }
     if let Some((_, size, name)) = LEGACY.iter().find(|(c, _, _)| *c == cmd) {
@@ -175,7 +191,9 @@ pub fn answer(
             a.note
                 .push_str(&format!(" (params {n} bytes, host trace had {size})"));
         }
-        a.note.push_str(&legacy_hashes(params, &a.params));
+        if diagnostics || a.status != NV_OK {
+            a.note.push_str(&legacy_hashes(params, &a.params));
+        }
         return Some(a);
     }
     if cmd >> 16 == GF100_SUBDEVICE_INFOROM {
@@ -528,6 +546,64 @@ mod tests {
 
     fn size_of<T>() -> usize {
         std::mem::size_of::<T>()
+    }
+
+    /// Fingerprints are trace-only: successful forwarding and cache flags are identical
+    /// without them, while failed forwards retain their complete diagnostic note.
+    #[test]
+    fn legacy_diagnostics_preserve_forwarding_and_failures() {
+        struct LegacyHost {
+            status: u32,
+        }
+        impl HostRm for LegacyHost {
+            fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
+                assert_eq!(class, NV20_SUBDEVICE_0);
+                assert!(matches!(cmd, 0x2080_A612 | 0x2080_A613));
+                p[0] = 0x55;
+                self.status
+            }
+        }
+        for cmd in [0x2080_A612, 0x2080_A613] {
+            let size = LEGACY.iter().find(|(c, _, _)| *c == cmd).unwrap().1;
+            for status in [NV_OK, 0x57] {
+                let mut answers = Vec::new();
+                for diagnostics in [true, false] {
+                    let mut host: Box<dyn HostRm> = Box::new(LegacyHost { status });
+                    answers.push(
+                        answer_with_diagnostics(
+                            chip(),
+                            cmd,
+                            NV20_SUBDEVICE_0,
+                            &vec![0x33; size],
+                            Some(&mut host),
+                            &profile(),
+                            diagnostics,
+                        )
+                        .unwrap(),
+                    );
+                }
+                let (on, off) = (&answers[0], &answers[1]);
+                assert_eq!(
+                    (&on.params, on.status, on.label),
+                    (&off.params, off.status, off.label)
+                );
+                assert_eq!(off.params[0], 0x55, "the host still ran");
+                for cache in [true, false] {
+                    assert_eq!(
+                        legacy_reply_flags_with(cmd, on.status, cache),
+                        legacy_reply_flags_with(cmd, off.status, cache)
+                    );
+                }
+                if status == NV_OK {
+                    assert_eq!(
+                        on.note,
+                        format!("{}{}", off.note, legacy_hashes(&vec![0x33; size], &off.params))
+                    );
+                } else {
+                    assert_eq!(on.note, off.note, "failed forward diagnostics retained");
+                }
+            }
+        }
     }
 
     #[test]

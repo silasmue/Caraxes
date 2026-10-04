@@ -896,7 +896,10 @@ pub fn irqs() -> Vec<IrqInfo> {
 }
 
 impl Device {
-    pub fn new(cfg: ConfigSpace, bar0: Bar0, trace: Trace) -> Self {
+    pub fn new(cfg: ConfigSpace, mut bar0: Bar0, trace: Trace) -> Self {
+        if let Some(boot) = bar0.boot_mut() {
+            boot.set_rpc_diagnostics(trace.records_events());
+        }
         let irq_fds = (0..VFIO_PCI_NUM_IRQS).map(|_| Vec::new()).collect();
         Device {
             cfg_reset: cfg.clone(),
@@ -2599,6 +2602,28 @@ mod tests {
         let mut rom = vec![0x55u8, 0xAA, 0x76];
         rom.resize(512, 0);
         Device::new(cfg, Bar0::new(chip, rom, None), Trace::new(None).unwrap())
+    }
+
+    #[test]
+    fn rpc_diagnostics_follow_the_event_sink_when_the_device_is_created() {
+        let f = crate::fixture::rtx2070();
+        let path = std::env::temp_dir().join(format!(
+            "caraxes-device-rpc-trace-{}",
+            std::process::id()
+        ));
+        for events in [false, true] {
+            let boot = crate::boot::BootModel::new(
+                f.chip,
+                crate::fb::FbLayout::plain(4 << 30),
+                f.identity(4 << 30),
+            );
+            assert!(boot.ctrl.rpc_diagnostics);
+            let bar0 = Bar0::new(f.chip, Vec::new(), None).with_boot_model(boot);
+            let trace = Trace::new(if events { Some(path.as_path()) } else { None }).unwrap();
+            let device = Device::new(rtx2070_device().cfg.clone(), bar0, trace);
+            assert_eq!(device.bar0.boot().unwrap().ctrl.rpc_diagnostics, events);
+        }
+        std::fs::remove_file(path).ok();
     }
 
     /// The MSI re-arm is not a BAR1 pool sync point (sottr-stage.md §11): neither the

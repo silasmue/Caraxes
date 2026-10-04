@@ -28,7 +28,8 @@ fn stats_requested(value: Option<&str>) -> bool {
     !matches!(value.map(str::trim), Some("0"))
 }
 
-fn stats_enabled() -> bool {
+/// Whether detailed lock/work diagnostics are enabled; callers may skip diagnostic setup.
+pub fn stats_enabled() -> bool {
     static ON: OnceLock<bool> = OnceLock::new();
     *ON.get_or_init(|| stats_requested(std::env::var(STATS_ENV).ok().as_deref()))
 }

@@ -1252,10 +1252,18 @@ impl BootModel {
         )
     }
 
+    /// Match normal RPC diagnostics to the device's trace sink. This is a construction-time
+    /// choice: a trace stopped later by the disk-space guard may still format diagnostics.
+    pub(crate) fn set_rpc_diagnostics(&mut self, on: bool) {
+        self.ctrl.rpc_diagnostics = on;
+    }
+
     /// Give the device a host RM connection for the forwardable RPCs.
     pub fn with_host(mut self, host: Box<dyn HostRm>) -> Self {
+        let diagnostics = self.ctrl.rpc_diagnostics;
         self.ctrl = Dispatcher::new(self.chip.data(), &self.identity, Some(host))
             .with_layout(self.layout);
+        self.set_rpc_diagnostics(diagnostics);
         self
     }
 
@@ -1378,6 +1386,7 @@ impl BootModel {
         }
         self.fb.carry_bar1_pool(&fresh.fb);
         self.fb.carry_bar2_area(&mut fresh.fb);
+        fresh.set_rpc_diagnostics(self.ctrl.rpc_diagnostics);
         fresh.ctrl.channels.tokens = tokens;
         // The persistent settings (ECC and MIG mode) survive, and what was pending applies.
         fresh.ctrl.families.after_reset(&self.ctrl.families);
@@ -2334,18 +2343,24 @@ impl BootModel {
                 };
                 let t_rpc = crate::profile::on().then(std::time::Instant::now);
                 // The device lock's work table and the hold's tags (dlock.rs).
-                let t_work = std::time::Instant::now();
-                let work_key = rpc::work_key(h.function, &msg.payload);
-                notes.push(format!(
-                    "rx seq {} {} ({}) sequence {} length {} {integrity} {}: {}",
-                    msg.seq_num,
-                    rpc::function_name(h.function),
-                    h.function,
-                    sequence,
-                    h.length,
-                    if msg.checksum_ok { "ok" } else { "BAD" },
-                    rpc::describe(h.function, &msg.payload)
-                ));
+                let work = crate::dlock::stats_enabled().then(|| {
+                    (
+                        std::time::Instant::now(),
+                        rpc::work_key(h.function, &msg.payload),
+                    )
+                });
+                if self.ctrl.rpc_diagnostics || !msg.checksum_ok {
+                    notes.push(format!(
+                        "rx seq {} {} ({}) sequence {} length {} {integrity} {}: {}",
+                        msg.seq_num,
+                        rpc::function_name(h.function),
+                        h.function,
+                        sequence,
+                        h.length,
+                        if msg.checksum_ok { "ok" } else { "BAD" },
+                        rpc::describe(h.function, &msg.payload)
+                    ));
+                }
                 // B7: a 615 client that did not opt in to the unstable RPC interface
                 // speaks GMCAPI only (gmcapi_system_info.h:200-203; boot-exchange.md
                 // §3.4): its RM RPCs are refused.
@@ -2495,10 +2510,15 @@ impl BootModel {
                                 a.label,
                             );
                         }
-                        notes.push(format!(
-                            "ctrl {cmd:#x}: {} -> status {:#x} [{}]",
-                            a.note, a.status, a.label
-                        ));
+                        if self.ctrl.rpc_diagnostics
+                            || a.status != rpc::NV_OK
+                            || a.label == "unanswered"
+                        {
+                            notes.push(format!(
+                                "ctrl {cmd:#x}: {} -> status {:#x} [{}]",
+                                a.note, a.status, a.label
+                            ));
+                        }
                         if a.label == "unanswered" {
                             self.unanswered.push(a.note.clone());
                         }
@@ -2906,12 +2926,16 @@ impl BootModel {
                         // several queue slots), never an RM continuation series. Preserve
                         // the request's full 64-bit sequence for the kernel's waiter.
                         match queues.send_gmcapi_response(&qm, &g, result, &payload) {
-                            Ok(seq) => notes.push(format!(
-                                "tx seq {seq} reply {} sequence {} result {result:#x} length {}",
-                                crate::gmcapi::command_name(g.id()),
-                                g.sequence,
-                                crate::gmcapi::HEADER_SIZE + payload.len()
-                            )),
+                            Ok(seq) => {
+                                if self.ctrl.rpc_diagnostics || result != rpc::NV_OK {
+                                    notes.push(format!(
+                                        "tx seq {seq} reply {} sequence {} result {result:#x} length {}",
+                                        crate::gmcapi::command_name(g.id()),
+                                        g.sequence,
+                                        crate::gmcapi::HEADER_SIZE + payload.len()
+                                    ));
+                                }
+                            }
                             Err(e) => notes.push(format!("send: {e}")),
                         }
                     } else {
@@ -2921,12 +2945,16 @@ impl BootModel {
                         let first_len = payload.len().min(max_rpc - v::RPC_HEADER_SIZE);
                         let hdr = RpcHeader::reply(&h, result, first_len);
                         match queues.send(&qm, &hdr, &payload[..first_len]) {
-                            Ok(seq) => notes.push(format!(
-                                "tx seq {seq} reply {} sequence {} result {result:#x} length {}",
-                                rpc::function_name(h.function),
-                                h.sequence,
-                                hdr.length
-                            )),
+                            Ok(seq) => {
+                                if self.ctrl.rpc_diagnostics || result != rpc::NV_OK {
+                                    notes.push(format!(
+                                        "tx seq {seq} reply {} sequence {} result {result:#x} length {}",
+                                        rpc::function_name(h.function),
+                                        h.sequence,
+                                        hdr.length
+                                    ));
+                                }
+                            }
                             Err(e) => notes.push(format!("send: {e}")),
                         }
                         let mut sent = first_len;
@@ -2940,10 +2968,14 @@ impl BootModel {
                                 ..RpcHeader::reply(&h, result, chunk)
                             };
                             match queues.send(&qm, &cont, &payload[sent..sent + chunk]) {
-                                Ok(seq) => notes.push(format!(
-                                    "tx seq {seq} continuation sequence {sequence} length {}",
-                                    cont.length
-                                )),
+                                Ok(seq) => {
+                                    if self.ctrl.rpc_diagnostics || result != rpc::NV_OK {
+                                        notes.push(format!(
+                                            "tx seq {seq} continuation sequence {sequence} length {}",
+                                            cont.length
+                                        ));
+                                    }
+                                }
                                 Err(e) => {
                                     notes.push(format!("send continuation: {e}"));
                                     break;
@@ -2953,11 +2985,13 @@ impl BootModel {
                         }
                     }
                 }
-                let spent = t_work.elapsed();
-                if spent >= std::time::Duration::from_millis(1) {
-                    crate::dlock::tag(|| format!("rpc {work_key} {} ms", spent.as_millis()));
+                if let Some((t_work, work_key)) = work {
+                    let spent = t_work.elapsed();
+                    if spent >= std::time::Duration::from_millis(1) {
+                        crate::dlock::tag(|| format!("rpc {work_key} {} ms", spent.as_millis()));
+                    }
+                    crate::dlock::work("rpc", work_key, spent);
                 }
-                crate::dlock::work("rpc", work_key, spent);
                 if let Some(t) = t_rpc {
                     crate::profile::record(
                         crate::profile::Key::Rpc(h.function),
@@ -4483,6 +4517,7 @@ mod tests {
         );
         assert!(response.is_response());
 
+        guest.b.set_rpc_diagnostics(false);
         let malformed = crate::gmcapi::Header {
             sequence: 0x2_0000_0001,
             ..request
@@ -4642,6 +4677,67 @@ mod tests {
         assert_ne!(reply[v::RM_ALLOC_PARAMS + crate::gspmem::BIND_BIND_ID], 0);
         assert!(g.b.gspmem.has_goe_bind());
         c
+    }
+
+    /// Turning trace descriptions off preserves the wire reply, including fragmented
+    /// requests/replies, and retains failed controls and the unanswered summary.
+    #[test]
+    fn rpc_diagnostics_do_not_change_replies_or_hide_failures() {
+        let mut outcomes = Vec::new();
+        for diagnostics in [true, false] {
+            let mut q = Guest615::boot(if diagnostics {
+                "rpcdiag-on"
+            } else {
+                "rpcdiag-off"
+            });
+            assert!(
+                q.b.ctrl.rpc_diagnostics,
+                "standalone default retains diagnostics"
+            );
+            q.b.set_rpc_diagnostics(diagnostics);
+            let (notes, success) = q.rpc(
+                crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT,
+                &vec![0u8; crate::gsprpc::DUMP_FIXED],
+            );
+            assert_eq!(notes.iter().any(|n| n.starts_with("rx seq ")), diagnostics);
+            assert_eq!(notes.iter().any(|n| n.starts_with("tx seq ")), diagnostics);
+            assert_eq!(
+                Guest615::reply(&success, crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT)
+                    .unwrap()
+                    .0,
+                rpc::NV_OK
+            );
+
+            let params = vec![0x5a; 70_000];
+            let request = control_request(
+                crate::ctrl::INTERNAL_CLIENT,
+                crate::ctrl::INTERNAL_SUBDEVICE,
+                0xdead_0001,
+                &params,
+            );
+            let cap = crate::ver::element_layout().max_rpc_size() - v::RPC_HEADER_SIZE;
+            let (_, first) = q.rpc(rpc::FN_GSP_RM_CONTROL, &request[..cap]);
+            assert!(first.is_empty(), "wait for the request's continuation");
+            let (notes, failure) = q.rpc(rpc::FN_CONTINUATION_RECORD, &request[cap..]);
+            assert_eq!(failure.len(), 2, "large reply still publishes a continuation");
+            assert!(
+                notes
+                    .iter()
+                    .any(|n| n.starts_with("ctrl 0xdead0001:") && n.contains("unanswered")),
+                "{notes:?}"
+            );
+            assert!(!q.b.unanswered.is_empty());
+            outcomes.push((success, failure, q.b.unanswered.clone()));
+            q.b.reset();
+            assert_eq!(
+                q.b.ctrl.rpc_diagnostics, diagnostics,
+                "reset preserves the sink choice"
+            );
+        }
+        assert_eq!(
+            outcomes[0], outcomes[1],
+            "identical reply headers, sequences and payloads"
+        );
     }
 
     /// The conditional RPCs through the queue (gsprpc.rs): each gets the answer of

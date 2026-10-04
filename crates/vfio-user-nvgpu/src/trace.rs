@@ -177,6 +177,11 @@ impl Trace {
         }
     }
 
+    /// Whether this trace currently has an event sink, independently of access filters.
+    pub fn records_events(&self) -> bool {
+        self.out.is_some()
+    }
+
     /// Whether a trapped access of `region` at `offset` is written to the trace (the reads
     /// answered without the device lock bypass it, so they are off for such registers;
     /// fastread.rs).
@@ -317,6 +322,22 @@ mod tests {
         t.last_space_check = std::time::Instant::now() - std::time::Duration::from_secs(2);
         t.event("one");
         assert_eq!(t.out.is_some(), free.unwrap() >= super::TRACE_MIN_FREE);
+        std::fs::remove_file(p).ok();
+    }
+
+    #[test]
+    fn event_sink_is_independent_of_access_filter_and_tracks_stop() {
+        let p = std::env::temp_dir().join(format!(
+            "caraxes-trace-events-{}",
+            std::process::id()
+        ));
+        let mut trace = super::Trace::new(Some(&p)).unwrap();
+        trace.accesses = Accesses::parse(Some("0")).unwrap();
+        assert!(trace.records_events());
+        assert!(!trace.records_access(0, 0x110008));
+        trace.out = None;
+        assert!(!trace.records_events());
+        assert!(!super::Trace::new(None).unwrap().records_events());
         std::fs::remove_file(p).ok();
     }
 

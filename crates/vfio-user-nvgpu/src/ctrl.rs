@@ -173,6 +173,8 @@ fn diagnostic_push_methods(
 
 /// What the device knows about the guest's objects and the addresses it was given.
 pub struct Dispatcher {
+    /// Normal RPC trace descriptions/fingerprints. Standalone dispatchers retain diagnostics.
+    pub(crate) rpc_diagnostics: bool,
     host: Option<Box<dyn HostRm>>,
     /// The chip's tables (engines, interrupts, memsys, ...).
     chip: &'static ChipData,
@@ -341,6 +343,7 @@ impl Dispatcher {
         objects.insert((INTERNAL_CLIENT, INTERNAL_DEVICE), NV01_DEVICE_0);
         objects.insert((INTERNAL_CLIENT, INTERNAL_SUBDEVICE), NV20_SUBDEVICE_0);
         Dispatcher {
+            rpc_diagnostics: true,
             host,
             chip,
             objects,
@@ -2849,13 +2852,14 @@ impl Dispatcher {
             return a;
         }
         // nvidia-smi telemetry and identity (docs/caraxes/nvml.md) live in nvml.rs.
-        if let Some(a) = crate::nvml::answer(
+        if let Some(a) = crate::nvml::answer_with_diagnostics(
             self.chip,
             cmd,
             class,
             params,
             self.host.as_mut(),
             &self.profile,
+            self.rpc_diagnostics,
         ) {
             return a;
         }
