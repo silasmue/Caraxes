@@ -20,13 +20,15 @@ const CLASS_3D: u32 = 0xC597;
 const MAX_DWORDS: usize = 1 << 16;
 const MAX_MME_WORDS: usize = 0x4000;
 const MAX_MME_STARTS: usize = 256;
-const KEEP_CALLS: usize = 64;
+const KEEP_CALLS: usize = 16_384;
 const KEEP_DIRECT: usize = 32;
 const KEEP_VALID_ZERO: usize = 8;
 const KEEP_PARAMS: usize = 64;
+const KEEP_DMEM_SOURCES: usize = 64;
 
 #[derive(Clone, Debug)]
 struct MacroCall {
+    seq: u64,
     gp: u32,
     subch: usize,
     id: u32,
@@ -44,6 +46,14 @@ struct CbBinding {
     gp: u32,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct DmemSource {
+    seq: u64,
+    index: u32,
+    gp: u32,
+    va: u64,
+}
+
 /// The live, bounded state of one mirrored C597 channel.
 pub struct Capture {
     allowed_classes: BTreeSet<u32>,
@@ -54,6 +64,10 @@ pub struct Capture {
     mme_words: Vec<Option<u32>>,
     start_pointer: usize,
     starts: [Option<u32>; MAX_MME_STARTS],
+    mme_mem_address: u64,
+    mme_data_ram_address: u32,
+    dmem_sources: VecDeque<DmemSource>,
+    mme_dma_reads: u64,
     cb_selector: [(u32, u32, u32); 8],
     cb: [[[Option<CbBinding>; 32]; 8]; 8],
     calls: VecDeque<MacroCall>,
@@ -86,6 +100,10 @@ impl Default for Capture {
             mme_words: vec![None; MAX_MME_WORDS],
             start_pointer: 0,
             starts: [None; MAX_MME_STARTS],
+            mme_mem_address: 0,
+            mme_data_ram_address: 0,
+            dmem_sources: VecDeque::with_capacity(KEEP_DMEM_SOURCES),
+            mme_dma_reads: 0,
             cb_selector: [(0, 0, 0); 8],
             cb: [[[None; 32]; 8]; 8],
             calls: VecDeque::with_capacity(KEEP_CALLS),
@@ -117,6 +135,11 @@ fn keep<T>(q: &mut VecDeque<T>, capacity: usize, value: T) {
 }
 
 impl Capture {
+    /// Monotonic count of GPFIFO entries captured for fault-bound cutoff calculations.
+    pub fn entries(&self) -> u64 {
+        self.entries
+    }
+
     /// Start a capture with the classes the host channel actually owns. A Windows graphics
     /// context commonly established C597 on subchannel 0 before mirror takeover; seed that
     /// binding as inferred until a captured SET_OBJECT supersedes it.
@@ -171,6 +194,7 @@ impl Capture {
         if mme_call {
             self.finish_call(open);
             *open = Some(OpenCall(MacroCall {
+                seq: self.entries,
                 gp,
                 subch,
                 id: (addr - 0x3800) / 8,
@@ -209,6 +233,29 @@ impl Capture {
                 }
                 self.start_pointer = self.start_pointer.saturating_add(1);
                 self.start_writes += 1;
+            }
+            0x0550 => {
+                self.mme_mem_address =
+                    (self.mme_mem_address & 0xFFFF_FFFF) | ((data as u64 & 0xFF) << 32)
+            }
+            0x0554 => self.mme_mem_address = (self.mme_mem_address & !0xFFFF_FFFF) | data as u64,
+            0x0558 => self.mme_data_ram_address = data,
+            0x055C => {
+                self.mme_dma_reads += 1;
+                for index in [0x56u32, 0x57] {
+                    if index >= self.mme_data_ram_address
+                        && index - self.mme_data_ram_address < data
+                    {
+                        let source = DmemSource {
+                            seq: self.entries,
+                            index,
+                            gp,
+                            va: self.mme_mem_address
+                                + 4 * (index - self.mme_data_ram_address) as u64,
+                        };
+                        keep(&mut self.dmem_sources, KEEP_DMEM_SOURCES, source);
+                    }
+                }
             }
             0x2380 => self.cb_selector[subch].0 = data & 0x1_FFFF,
             0x2384 => self.cb_selector[subch].1 = data & 0xFF,
@@ -341,6 +388,48 @@ impl Capture {
         out
     }
 
+    /// Guest VAs last loaded into the two MME data-RAM words from which the Windows macro
+    /// image emits SET_CONSTANT_BUFFER_SELECTOR_B/C.
+    pub fn constant_buffer_dmem_sources(&self, cutoff: u64) -> Vec<(u32, u32, u64)> {
+        [0x56u32, 0x57]
+            .into_iter()
+            .filter_map(|index| {
+                self.dmem_sources
+                    .iter()
+                    .rev()
+                    .find(|source| source.index == index && source.seq <= cutoff)
+                    .map(|source| (index, source.gp, source.va))
+            })
+            .collect()
+    }
+
+    /// Exact retained macro calls in the GPFIFO entry the PBDMA fetched last. Calls after
+    /// GPGet may already be submitted in large batches and are not fault-proximate.
+    pub fn call_notes_at(&self, chid: u32, gp: u32, cutoff: u64) -> Vec<String> {
+        let Some(seq) = self
+            .calls
+            .iter()
+            .rev()
+            .find(|call| call.gp == gp && call.seq <= cutoff)
+            .map(|call| call.seq)
+        else {
+            return Vec::new();
+        };
+        self.calls
+            .iter()
+            .filter(|call| call.gp == gp && call.seq == seq)
+            .map(|call| format!(
+                "gr live capture: chid {chid}: fault-bound gp {gp} capture-seq {seq} subch {} macro {} params {}/{}: {}{}",
+                call.subch,
+                call.id,
+                call.params.len(),
+                call.param_count,
+                call.params.iter().map(|word| format!("{word:#x}")).collect::<Vec<_>>().join(" "),
+                if call.params.len() == call.param_count { "" } else { " ..." }
+            ))
+            .collect()
+    }
+
     /// Capture the newly published half-open GPFIFO range `[start, put)` before its host
     /// doorbell is forwarded. `start` and `put` are ring indices and may wrap.
     pub fn ring(
@@ -411,7 +500,7 @@ impl Capture {
         let mme_words = self.mme_words.iter().filter(|word| word.is_some()).count();
         let starts = self.starts.iter().filter(|start| start.is_some()).count();
         out.push(format!(
-            "gr live capture: chid {chid}: {} entries, {} pushbuffers, {} methods; unreadable entries {}, pushbuffers {}, invalid {}; legacy headers {}, tertiary {}, reserved {}; SET_OBJECT state {} ({} unexpected ignored); MME words {mme_words} ({} writes), starts {starts} ({} writes); direct CB binds {}, unbinds {} [guest memory, opt-in]",
+            "gr live capture: chid {chid}: {} entries, {} pushbuffers, {} methods; unreadable entries {}, pushbuffers {}, invalid {}; legacy headers {}, tertiary {}, reserved {}; SET_OBJECT state {} ({} unexpected ignored); MME words {mme_words} ({} writes), starts {starts} ({} writes), DMA reads {}; direct CB binds {}, unbinds {} [guest memory, opt-in]",
             self.entries,
             self.pushbuffers,
             self.methods,
@@ -425,6 +514,7 @@ impl Capture {
             self.unexpected_set_objects,
             self.mme_writes,
             self.start_writes,
+            self.mme_dma_reads,
             self.direct_binds,
             self.direct_unbinds,
         ));
@@ -612,6 +702,7 @@ mod tests {
         words.extend(old_inc(0, 0x11C, &[7, 12]));
         words.extend(inc(0, 0x114, &[12]));
         words.extend(old_noninc(0, 0x118, &[0xAA, 0xBB, 0xCC]));
+        words.extend(inc(0, 0x550, &[0, 0x1234_5000, 0x50, 16]));
         words.extend(inc(0, 0x2380, &[0x100, 0, 0]));
         words.extend(inc(0, 0x2410, &[1]));
         words.extend(oneinc(0, 0x3800 + 7 * 8, &[0x11, 0x22, 0x33]));
@@ -653,5 +744,37 @@ mod tests {
             "{notes}"
         );
         assert_eq!(c.recent_page_aligned_params(), vec![0x0412_A000]);
+        assert_eq!(
+            c.constant_buffer_dmem_sources(u64::MAX),
+            vec![(0x56, 9, 0x1234_5018), (0x57, 9, 0x1234_501c)]
+        );
+        assert!(
+            c.call_notes_at(3, 9, u64::MAX)
+                .iter()
+                .any(|line| line.contains("fault-bound gp 9 capture-seq 0 subch 0 macro 48")),
+            "{notes}"
+        );
+
+        // A later submitted reuse of the same ring index must not replace state selected by
+        // the consumed-entry cutoff of an RC.
+        c.entries = 1;
+        let mut later = inc(0, 0x550, &[0, 0x5678_9000, 0x50, 16]);
+        later.extend(oneinc(0, 0x3800 + 49 * 8, &[0xDEAD]));
+        c.push(9, &later);
+        assert_eq!(
+            c.constant_buffer_dmem_sources(0),
+            vec![(0x56, 9, 0x1234_5018), (0x57, 9, 0x1234_501c)]
+        );
+        assert!(c
+            .call_notes_at(3, 9, 0)
+            .iter()
+            .any(|line| line.contains("macro 48")));
+        assert_eq!(
+            c.call_notes_at(3, 9, 1)
+                .iter()
+                .filter(|line| line.contains("macro 49"))
+                .count(),
+            1
+        );
     }
 }

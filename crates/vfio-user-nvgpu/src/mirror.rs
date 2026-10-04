@@ -3265,8 +3265,29 @@ impl Mirror {
     /// Exact live C597/MME state retained by the opt-in graphics capture.
     pub fn gr_capture_notes(&self, gm: &GpuMem, chid: u32) -> Vec<String> {
         let Some(channel) = self.channels.get(&chid) else { return Vec::new() };
+        let ring = channel.with_userd(|userd| {
+            (
+                userd.storage.read_u32(USERD_GP_GET),
+                userd.published_put.unwrap_or_else(|| userd.storage.read_u32(USERD_GP_PUT)),
+                userd.entries,
+            )
+        });
         let Some(capture) = channel.gr_capture.as_ref() else { return Vec::new() };
         let mut notes = capture.notes(chid);
+        let mut cutoff = u64::MAX;
+        if let Some((get, put, entries)) = ring.filter(|(get, put, entries)| {
+            *get < *entries && *put < *entries && *entries != 0
+        }) {
+            let gp = (get + entries - 1) % entries;
+            let pending = (put + entries - get) % entries;
+            cutoff = capture.entries().saturating_sub(pending as u64);
+            let calls = capture.call_notes_at(chid, gp, cutoff);
+            notes.push(format!(
+                "gr live capture: chid {chid}: host USERD GPGet {get} GPPut {put}/{entries}; capture cutoff {cutoff}, retained {} macro call(s) at fault-bound gp {gp}",
+                calls.len()
+            ));
+            notes.extend(calls);
+        }
         let Some(root) = channel.shadow_root else { return notes };
         for va in capture.recent_page_aligned_params() {
             let mut data = [0u8; 256];
@@ -3283,6 +3304,19 @@ impl Mirror {
                     bytes.iter().map(|byte| format!("{byte:02x}")).collect::<Vec<_>>().join(" ")
                 ));
             }
+        }
+        for (index, gp, va) in capture.constant_buffer_dmem_sources(cutoff) {
+            let mut data = [0u8; 16];
+            if let Err(error) = gm.read_va(Target::Fb(root), va, &mut data) {
+                notes.push(format!(
+                    "gr live capture: chid {chid}: MME dmem {index:#x} source from gp {gp} guest VA {va:#x} unreadable: {error}"
+                ));
+                continue;
+            }
+            notes.push(format!(
+                "gr live capture: chid {chid}: MME dmem {index:#x} source from gp {gp} guest VA {va:#x}: {}",
+                data.iter().map(|byte| format!("{byte:02x}")).collect::<Vec<_>>().join(" ")
+            ));
         }
         notes
     }
