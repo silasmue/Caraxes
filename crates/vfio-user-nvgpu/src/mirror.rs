@@ -1194,6 +1194,45 @@ fn publish_ring(storage: &HostUserd, guest: u64, entries: u32, gm: &GpuMem) -> R
 }
 
 impl ShadowUserd {
+    /// Diagnostic publication: capture both sampled rings before either commit word
+    /// reaches the host. The guest may advance again while the capture reads its PBs.
+    fn publish_after_capture(
+        &mut self,
+        gm: &GpuMem,
+        gpfifo_va: u64,
+        mut capture: impl FnMut(u64, u32, u32, u32),
+    ) -> Result<(u32, bool), String> {
+        let sample = |guest: u64, entries: u32| {
+            crate::userd::CpuState::read(entries, |off| {
+                gm.read_u32(Target::Sys(guest.checked_add(off)?))
+            })
+        };
+        let old = sample(self.guest, self.entries);
+        let next = match self.next.as_ref() {
+            Some(n) => Some(sample(n.guest, n.entries)
+                .ok_or("unreadable or invalid new guest USERD submission")?),
+            None if old.is_none() => return Err("unreadable or invalid guest USERD submission".into()),
+            None => None,
+        };
+        if let Some(cpu) = old {
+            capture(gpfifo_va, self.entries, self.published_put.unwrap_or(0), cpu.gp_put());
+        }
+        if let (Some(n), Some(cpu)) = (self.next.as_ref(), next) {
+            capture(n.gpfifo_va, n.entries, n.published_put.unwrap_or(n.initial_get), cpu.gp_put());
+        }
+        if let Some(cpu) = old {
+            cpu.publish(|off, value| self.storage.write_u32(off, value));
+            self.storage.flush();
+            self.published_put = Some(cpu.gp_put());
+        }
+        if let (Some(n), Some(cpu)) = (self.next.as_mut(), next) {
+            cpu.publish(|off, value| n.storage.write_u32(off, value));
+            n.storage.flush();
+            n.published_put = Some(cpu.gp_put());
+        }
+        Ok((self.published_put.unwrap_or_else(|| next.unwrap().gp_put()), old.is_none()))
+    }
+
     /// [`Self::harvest`] with guest RAM only (the words go to the guest's sysmem USERD);
     /// both rings while a migration is in flight.
     fn harvest_sys(&mut self, mem: &GuestMemory) {
@@ -1669,6 +1708,7 @@ pub struct HostChannel {
     /// Opt-in exact C597/MME state captured before forwarding each doorbell. Off by
     /// default: parsing the guest's submitted pushbuffers is investigation overhead.
     gr_capture: Option<crate::grcapture::Capture>,
+    gr_capture_incomplete: Option<String>,
 }
 
 impl HostChannel {
@@ -3270,12 +3310,19 @@ impl Mirror {
                 userd.storage.read_u32(USERD_GP_GET),
                 userd.published_put.unwrap_or_else(|| userd.storage.read_u32(USERD_GP_PUT)),
                 userd.entries,
+                userd.next.is_some(),
             )
         });
         let Some(capture) = channel.gr_capture.as_ref() else { return Vec::new() };
         let mut notes = capture.notes(chid);
         let mut cutoff = u64::MAX;
-        if let Some((get, put, entries)) = ring.filter(|(get, put, entries)| {
+        if let Some(reason) = channel.gr_capture_incomplete.as_ref() {
+            notes.push(format!("gr live capture: chid {chid}: incomplete: {reason}; no exact consumed cutoff"));
+        } else if ring.is_none() {
+            notes.push(format!("gr live capture: chid {chid}: shared guest USERD can publish before capture; no exact consumed cutoff"));
+        } else if ring.is_some_and(|(_, _, _, migrating)| migrating) {
+            notes.push(format!("gr live capture: chid {chid}: ring migration is unsettled; both rings captured before publication, no exact consumed cutoff"));
+        } else if let Some((get, put, entries, _)) = ring.filter(|(get, put, entries, _)| {
             *get < *entries && *put < *entries && *entries != 0
         }) {
             let gp = (get + entries - 1) % entries;
@@ -3295,6 +3342,7 @@ impl Mirror {
             notes.extend(consumed);
         }
         let Some(root) = channel.shadow_root else { return notes };
+        notes.extend(capture.initialization_notes(chid, cutoff));
         for va in capture.recent_page_aligned_params() {
             let mut data = [0u8; 256];
             if let Err(error) = gm.read_va(Target::Fb(root), va, &mut data) {
@@ -3341,56 +3389,72 @@ impl Mirror {
         gm.fb.flush();
         mark(Step::Flush);
         {
-            let published = self
-                .channels
-                .get(&chid)
-                .and_then(|hc| hc.with_userd(|u| u.publish(gm)));
-            if let Some(Err(e)) = published {
-                notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
-                return notes;
-            }
-            let capture = self
-                .channels
-                .get(&chid)
-                .is_some_and(|hc| hc.gr_capture.is_some());
-            let ring = if capture || !crate::launch::fast() {
-                Self::userd_ring(reg, gm, chid)
+            let enabled = self.channels.get(&chid).is_some_and(|hc| hc.gr_capture.is_some());
+            let put = if enabled {
+                let ch = reg.channel(chid);
+                let root = ch.and_then(|ch| reg.vas_key_of(ch)).and_then(|key| reg.vas_root(key));
+                let hc = self.channels.get_mut(&chid).unwrap();
+                let slot = hc.userd.clone();
+                let mut incomplete = None;
+                if root.is_none() || ch.is_none() {
+                    incomplete = Some("guest ring or VAS unavailable during capture".to_string());
+                }
+                let sampled = slot.as_ref().and_then(|slot| slot.with(|u| {
+                    u.publish_after_capture(gm, ch.map_or(0, |ch| ch.gpfifo_va), |va, entries, start, put| {
+                        if let Some(root) = root {
+                            if let Some(note) = hc.gr_capture.as_mut().unwrap().ring(gm, root, va, entries, start, put) {
+                                incomplete = Some(note.clone());
+                                notes.push(format!("chid {chid}: {note}"));
+                            }
+                        }
+                    })
+                }));
+                let put = match sampled {
+                    Some(Ok((put, missing_old))) => {
+                        if missing_old {
+                            incomplete = Some("old guest USERD unreadable during ring migration".into());
+                        }
+                        Some(put)
+                    }
+                    Some(Err(e)) => {
+                        notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
+                        return notes;
+                    }
+                    None => {
+                        incomplete = Some("shared guest USERD can publish before capture".into());
+                        // Retain useful best-effort evidence, with the missing publication
+                        // fence stated explicitly in both this trace and the fault report.
+                        let ring = Self::userd_ring(reg, gm, chid);
+                        if let (Some((_, put, entries)), Some(ch), Some(root)) = (ring, ch, root) {
+                            if let Some(note) = hc.gr_capture.as_mut().unwrap().ring(
+                                gm, root, ch.gpfifo_va, entries, hc.fwd_put.unwrap_or(0), put,
+                            ) {
+                                notes.push(format!("chid {chid}: {note}"));
+                            }
+                        }
+                        ring.map(|(_, put, _)| put)
+                    }
+                };
+                if let Some(reason) = incomplete {
+                    notes.push(format!("gr live capture: chid {chid}: incomplete: {reason}"));
+                    hc.gr_capture_incomplete.get_or_insert(reason);
+                }
+                put
             } else {
-                None
-            };
-            let put = if crate::launch::fast() && !capture {
-                Self::userd_put(reg, gm, chid)
-            } else {
-                ring.map(|(_, put, _)| put)
+                // Preserve the production submission path when capture is disabled.
+                let published = self.channels.get(&chid).and_then(|hc| hc.with_userd(|u| u.publish(gm)));
+                if let Some(Err(e)) = published {
+                    notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
+                    return notes;
+                }
+                if crate::launch::fast() {
+                    Self::userd_put(reg, gm, chid)
+                } else {
+                    Self::userd_ring(reg, gm, chid).map(|(_, put, _)| put)
+                }
             };
             mark(Step::Userd);
             let unwaited = self.unwaited;
-            if let (Some((_get, put, entries)), Some(ch), Some(root)) = (
-                ring,
-                reg.channel(chid),
-                reg.channel(chid)
-                    .and_then(|ch| reg.vas_key_of(ch))
-                    .and_then(|key| reg.vas_root(key)),
-            ) {
-                if let Some(hc) = self.channels.get_mut(&chid) {
-                    if let Some(capture) = hc.gr_capture.as_mut() {
-                        // On the first captured ring, include the consumed prefix too. It
-                        // contains Windows' C597/MME setup immediately before mirror
-                        // takeover; later post-mortem recovery is unsafe after PB reuse.
-                        let start = hc.fwd_put.unwrap_or(0);
-                        if let Some(note) = capture.ring(
-                            gm,
-                            root,
-                            ch.gpfifo_va,
-                            entries,
-                            start,
-                            put,
-                        ) {
-                            notes.push(format!("chid {chid}: {note}"));
-                        }
-                    }
-                }
-            }
             if let Some(hc) = self.channels.get_mut(&chid) {
                 hc.fwd_put = put;
                 hc.fwd_unwaited = unwaited;
@@ -3991,6 +4055,7 @@ impl Mirror {
                 context_ready: false,
                 rc_page: built.rc_page,
                 gr_capture,
+                gr_capture_incomplete: None,
             },
         );
         self.publish_userd_watch();
@@ -4269,6 +4334,7 @@ impl Mirror {
                 context_ready: pb.submit,
                 rc_page: built.rc_page,
                 gr_capture,
+                gr_capture_incomplete: None,
             },
         );
         self.publish_userd_watch();
@@ -4468,6 +4534,11 @@ impl Mirror {
             let Some(hc) = self.channels.get(&chid) else { continue };
             let generation = hc.generation;
             let Some((old, done)) = hc.with_userd(|u| u.settle()).flatten() else { continue };
+            if hc.gr_capture.is_some() && done.old_put != Some(done.old_get) {
+                self.channels.get_mut(&chid).unwrap().gr_capture_incomplete.get_or_insert(
+                    "migration left the old ring before all captured entries were fetched".into(),
+                );
+            }
             let freed = self.hm.lock().unwrap().free_host_userd(old);
             notes.push(format!(
                 "chid {chid}: ring migrated in the host's stream (API {:#x}) after {} ms: {} -> {} entries, left the old ring at GPGet {} ({}), GPFIFO va {:#x}, guest USERD {:#x} -> {:#x}; old private USERD {} [host]",
@@ -5601,6 +5672,7 @@ impl Mirror {
                         context_ready: true,
                         rc_page,
                         gr_capture: None,
+                        gr_capture_incomplete: None,
                     },
                 );
                 Ok((token, notes))
@@ -7412,6 +7484,86 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn capture_publishes_the_sampled_userd_when_the_guest_advances_during_capture() {
+        let (mem, _, base, path) = crate::msgq::tests::queue_fixture("capture-userd-race");
+        let page: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let ptr = page.as_mut_ptr();
+        let guest = base + 0x2000;
+        let mut u = ShadowUserd {
+            storage: crate::hostmem::HostUserd::for_test(page), guest, entries: 16,
+            published_put: Some(2), harvested: None, next: None,
+        };
+        u.storage.write_u32(0x8c, 2);
+        for (off, value) in [(0x40, 0x1234u32), (0x4c, 1), (0x8c, 3)] {
+            assert!(mem.write(guest + off, &value.to_le_bytes()));
+        }
+        let mut fb = crate::fb::FakeFb::new(1 << 20);
+        let mut ranges = Vec::new();
+        let result = u.publish_after_capture(&GpuMem { fb: &mut fb, sys: &mem }, 0x10000, |va, entries, start, put| {
+            // SAFETY: this test alone owns the leaked page. GPPut must still be old.
+            assert_eq!(unsafe { std::ptr::read_volatile(ptr.add(0x8c) as *const u32) }, 2);
+            ranges.push((va, entries, start, put));
+            for (off, value) in [(0x40, 0x5678u32), (0x4c, 2), (0x8c, 4)] {
+                assert!(mem.write(guest + off, &value.to_le_bytes()));
+            }
+        });
+        assert_eq!(result, Ok((3, false)));
+        assert_eq!(ranges, [(0x10000, 16, 2, 3)]);
+        assert_eq!((u.storage.read_u32(0x40), u.storage.read_u32(0x4c), u.storage.read_u32(0x8c)), (0x1234, 1, 3));
+        assert!(u.pending(&mem), "the later guest submission must remain pending");
+        std::mem::forget(u);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn capture_keeps_both_migration_cursors_and_captures_before_either_publication() {
+        let (mem, _, base, path) = crate::msgq::tests::queue_fixture("capture-userd-migration");
+        let old_page: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let new_page: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let (old_ptr, new_ptr) = (old_page.as_mut_ptr(), new_page.as_mut_ptr());
+        let (guest, next_guest) = (base + 0x2000, base + 0x3000);
+        let mut u = ShadowUserd {
+            storage: crate::hostmem::HostUserd::for_test(old_page), guest, entries: 8,
+            published_put: Some(5), harvested: None,
+            next: Some(Box::new(NextRing {
+                storage: crate::hostmem::HostUserd::for_test(new_page), guest: next_guest,
+                entries: 64, published_put: None, harvested: None, initial_get: 0,
+                api: 0x4000_007e, gpfifo_va: 0x20000, since: Instant::now(),
+            })),
+        };
+        u.storage.write_u32(0x8c, 5);
+        assert!(mem.write(guest + 0x8c, &6u32.to_le_bytes()));
+        assert!(mem.write(next_guest + 0x8c, &3u32.to_le_bytes()));
+        let mut fb = crate::fb::FakeFb::new(1 << 20);
+        let mut ranges = Vec::new();
+        assert_eq!(u.publish_after_capture(&GpuMem { fb: &mut fb, sys: &mem }, 0x10000, |va, entries, start, put| {
+            // Both snapshots must precede even the old ring's publication, which
+            // could let the host execute the migration and start fetching the new one.
+            // SAFETY: only this test touches the leaked pages.
+            unsafe {
+                assert_eq!(std::ptr::read_volatile(old_ptr.add(0x8c) as *const u32), 5);
+                assert_eq!(std::ptr::read_volatile(new_ptr.add(0x8c) as *const u32), 0);
+            }
+            ranges.push((va, entries, start, put));
+            assert!(mem.write(next_guest + 0x8c, &4u32.to_le_bytes()));
+        }), Ok((6, false)));
+        assert_eq!(ranges, [(0x10000, 8, 5, 6), (0x20000, 64, 0, 3)]);
+        assert_eq!(u.next.as_ref().unwrap().storage.read_u32(0x8c), 3, "new USERD reuses its original sample");
+        u.storage.write_u32(0x88, 6);
+        u.next.as_ref().unwrap().storage.write_u32(0x88, 1);
+        let (old, _) = u.settle().expect("the host moved to the captured new ring");
+        ranges.clear();
+        assert_eq!(u.publish_after_capture(&GpuMem { fb: &mut fb, sys: &mem }, 0x20000, |va, entries, start, put| {
+            ranges.push((va, entries, start, put));
+        }), Ok((4, false)));
+        assert_eq!(ranges, [(0x20000, 64, 3, 4)], "settlement must not reuse old-ring put 6 or skip the new prefix");
+        assert!(!u.pending(&mem));
+        std::mem::forget(old);
+        std::mem::forget(u);
+        let _ = std::fs::remove_file(path);
+    }
 
     /// The USERD poller's view of one channel without the device lock (execution.md §9.11):
     /// the GPU-owned words go to the guest's USERD when the host's moved, a guest GPPut not

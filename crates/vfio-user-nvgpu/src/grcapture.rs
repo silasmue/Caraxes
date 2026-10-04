@@ -25,6 +25,7 @@ const KEEP_DIRECT: usize = 32;
 const KEEP_VALID_ZERO: usize = 8;
 const KEEP_PARAMS: usize = 64;
 const KEEP_DMEM_SOURCES: usize = 64;
+const KEEP_BOOTSTRAP_CALLS: usize = 64;
 
 #[derive(Clone, Debug)]
 struct MacroCall {
@@ -38,6 +39,23 @@ struct MacroCall {
 
 #[derive(Clone, Debug)]
 struct OpenCall(MacroCall);
+
+#[derive(Clone, Debug)]
+struct BootstrapCall {
+    call: MacroCall,
+    start: Option<u32>,
+    code: Vec<Option<u32>>,
+}
+
+#[derive(Clone, Debug)]
+struct DmaRead {
+    seq: u64,
+    gp: u32,
+    va: u64,
+    index: u32,
+    words: u32,
+    snapshot: Option<Result<Vec<u32>, String>>,
+}
 
 #[derive(Clone, Copy, Debug)]
 struct CbBinding {
@@ -67,10 +85,12 @@ pub struct Capture {
     mme_mem_address: u64,
     mme_data_ram_address: u32,
     dmem_sources: VecDeque<DmemSource>,
+    dma_reads: VecDeque<DmaRead>,
     mme_dma_reads: u64,
     cb_selector: [(u32, u32, u32); 8],
     cb: [[[Option<CbBinding>; 32]; 8]; 8],
     calls: VecDeque<MacroCall>,
+    bootstrap_calls: Vec<BootstrapCall>,
     direct: VecDeque<String>,
     valid_zero: VecDeque<String>,
     entries: u64,
@@ -103,10 +123,12 @@ impl Default for Capture {
             mme_mem_address: 0,
             mme_data_ram_address: 0,
             dmem_sources: VecDeque::with_capacity(KEEP_DMEM_SOURCES),
+            dma_reads: VecDeque::with_capacity(KEEP_DMEM_SOURCES),
             mme_dma_reads: 0,
             cb_selector: [(0, 0, 0); 8],
             cb: [[[None; 32]; 8]; 8],
             calls: VecDeque::with_capacity(KEEP_CALLS),
+            bootstrap_calls: Vec::with_capacity(KEEP_BOOTSTRAP_CALLS),
             direct: VecDeque::with_capacity(KEEP_DIRECT),
             valid_zero: VecDeque::with_capacity(KEEP_VALID_ZERO),
             entries: 0,
@@ -154,6 +176,30 @@ impl Capture {
 
     fn finish_call(&mut self, call: &mut Option<OpenCall>) {
         if let Some(OpenCall(call)) = call.take() {
+            if self.bootstrap_calls.len() < KEEP_BOOTSTRAP_CALLS {
+                let start = self.starts.get(call.id as usize).copied().flatten();
+                let code = start
+                    .and_then(|start| {
+                        let start = start as usize;
+                        let end = self
+                            .starts
+                            .iter()
+                            .flatten()
+                            .map(|x| *x as usize)
+                            .filter(|next| *next > start)
+                            .min()
+                            .unwrap_or(self.mme_words.len())
+                            .min(self.mme_words.len());
+                        self.mme_words.get(start..end)
+                    })
+                    .map(|words| words.iter().copied().take_while(Option::is_some).collect())
+                    .unwrap_or_default();
+                self.bootstrap_calls.push(BootstrapCall {
+                    call: call.clone(),
+                    start,
+                    code,
+                });
+            }
             keep(&mut self.calls, KEEP_CALLS, call);
         }
     }
@@ -242,6 +288,18 @@ impl Capture {
             0x0558 => self.mme_data_ram_address = data,
             0x055C => {
                 self.mme_dma_reads += 1;
+                keep(
+                    &mut self.dma_reads,
+                    KEEP_DMEM_SOURCES,
+                    DmaRead {
+                        seq: self.entries,
+                        gp,
+                        va: self.mme_mem_address,
+                        index: self.mme_data_ram_address,
+                        words: data,
+                        snapshot: None,
+                    },
+                );
                 for index in [0x56u32, 0x57] {
                     if index >= self.mme_data_ram_address
                         && index - self.mme_data_ram_address < data
@@ -403,6 +461,54 @@ impl Capture {
             .collect()
     }
 
+    /// Startup calls with the installed macro image, up to the next known start or hole.
+    /// Windows replaces macro images later; the final image cannot explain initialization.
+    pub fn initialization_notes(&self, chid: u32, cutoff: u64) -> Vec<String> {
+        let mut out = Vec::new();
+        for bootstrap in self.bootstrap_calls.iter().filter(|b| b.call.seq <= cutoff) {
+            let call = &bootstrap.call;
+            out.push(format!(
+                "gr live capture: chid {chid}: initial gp {} capture-seq {} macro {} start {} params {}/{}: {}",
+                call.gp, call.seq, call.id,
+                bootstrap.start.map_or_else(|| "unknown".into(), |start| format!("{start:#x}")),
+                call.params.len(), call.param_count,
+                call.params.iter().map(|word| format!("{word:#x}")).collect::<Vec<_>>().join(" ")
+            ));
+            for (chunk, words) in bootstrap.code.chunks(16).enumerate() {
+                out.push(format!(
+                    "gr live capture: chid {chid}: initial gp {} macro {} code +{:#x}: {}",
+                    call.gp,
+                    call.id,
+                    chunk * 16,
+                    words
+                        .iter()
+                        .map(|word| word
+                            .map_or_else(|| "--------".into(), |word| format!("{word:08x}")))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ));
+            }
+        }
+        for read in self.dma_reads.iter().filter(|read| read.seq <= cutoff) {
+            out.push(format!(
+                "gr live capture: chid {chid}: direct DMA_READ gp {} capture-seq {} guest VA {:#x} -> dmem {:#x}, {} word(s)",
+                read.gp, read.seq, read.va, read.index, read.words
+            ));
+            match &read.snapshot {
+                Some(Ok(words)) => out.push(format!(
+                    "gr live capture: chid {chid}: direct DMA_READ gp {} source snapshot before publication ({} of {} words): {}",
+                    read.gp, words.len(), read.words,
+                    words.iter().map(|word| format!("{word:08x}")).collect::<Vec<_>>().join(" ")
+                )),
+                Some(Err(error)) => out.push(format!(
+                    "gr live capture: chid {chid}: direct DMA_READ gp {} source snapshot unreadable: {error}", read.gp
+                )),
+                None => {},
+            }
+        }
+        out
+    }
+
     /// Exact retained macro calls in the GPFIFO entry the PBDMA fetched last. Calls after
     /// GPGet may already be submitted in large batches and are not fault-proximate.
     pub fn call_notes_at(&self, chid: u32, gp: u32, cutoff: u64) -> Vec<String> {
@@ -501,6 +607,26 @@ impl Capture {
                 .collect();
             self.pushbuffers += 1;
             self.push(gp, &words);
+            // This is a CPU snapshot, not the eventual DMA result: an earlier GPU
+            // producer may still write the source before the macro reads it.
+            for read in self
+                .dma_reads
+                .iter_mut()
+                .rev()
+                .take_while(|r| r.seq == self.entries)
+            {
+                let mut bytes = vec![0u8; read.words.min(64) as usize * 4];
+                read.snapshot = Some(
+                    gm.read_va(root, read.va, &mut bytes)
+                        .map(|()| {
+                            bytes
+                                .chunks_exact(4)
+                                .map(|word| u32::from_le_bytes(word.try_into().unwrap()))
+                                .collect()
+                        })
+                        .map_err(|error| format!("{error}")),
+                );
+            }
         }
         None
     }
@@ -721,6 +847,69 @@ mod tests {
         let mut out = vec![(2 << 29) | ((data.len() as u32) << 18) | (subch << 13) | addr];
         out.extend_from_slice(data);
         out
+    }
+
+    #[test]
+    fn startup_code_survives_replacement_and_call_history_eviction() {
+        let mut capture = Capture::new(&[(CLASS_3D, 1)]);
+        capture.entries = 1;
+        let mut first = inc(0, 0x11c, &[0, 0]);
+        first.extend(inc(0, 0x114, &[0]));
+        first.extend(old_noninc(0, 0x118, &[0xaa, 0xbb, 0xcc]));
+        first.extend(oneinc(0, 0x3800, &[0x56, 0x1234]));
+        first.extend(inc(0, 0x550, &[0, 0x1000, 0x80, 4]));
+        capture.push(0, &first);
+        capture.entries = 2;
+        let mut replacement = inc(0, 0x114, &[0]);
+        replacement.extend(old_noninc(0, 0x118, &[0xdd, 0xee, 0xff]));
+        replacement.extend(oneinc(0, 0x3800, &[0x57, 0x5678]));
+        replacement.extend(inc(0, 0x550, &[0, 0x2000, 0x56, 2]));
+        capture.push(1, &replacement);
+        for i in 0..KEEP_CALLS {
+            capture.entries += 1;
+            capture.push(i as u32 + 2, &oneinc(0, 0x3800, &[0]));
+        }
+        assert!(capture.call_notes_at(3, 0, 1).is_empty());
+        let notes = capture.initialization_notes(3, 1).join("\n");
+        assert!(
+            notes.contains("initial gp 0 capture-seq 1 macro 0 start 0x0 params 2/2: 0x56 0x1234"),
+            "{notes}"
+        );
+        assert!(
+            notes.contains("initial gp 0 macro 0 code +0x0: 000000aa 000000bb 000000cc"),
+            "{notes}"
+        );
+        assert!(
+            notes.contains("guest VA 0x1000 -> dmem 0x80, 4 word(s)"),
+            "{notes}"
+        );
+        assert!(!notes.contains("initial gp 1"), "{notes}");
+        assert!(!notes.contains("guest VA 0x2000"), "{notes}");
+        let later = capture.initialization_notes(3, 2).join("\n");
+        assert!(
+            later.contains("initial gp 1 macro 0 code +0x0: 000000dd 000000ee 000000ff"),
+            "{later}"
+        );
+    }
+
+    #[test]
+    fn startup_image_keeps_initialization_beyond_eight_instructions() {
+        let mut capture = Capture::new(&[(CLASS_3D, 1)]);
+        capture.entries = 1;
+        let image: Vec<u32> = (0..60).map(|i| 0x1000 + i).collect();
+        let mut first = inc(0, 0x11c, &[0, 0]);
+        first.extend(inc(0, 0x114, &[0]));
+        first.extend(old_noninc(0, 0x118, &image));
+        first.extend(oneinc(0, 0x3800, &[0x56, 0x1234]));
+        capture.push(0, &first);
+        // A later image must not replace a startup instruction past the former prefix.
+        let mut replacement = inc(0, 0x114, &[0]);
+        replacement.extend(old_noninc(0, 0x118, &[0xdead; 60]));
+        capture.push(1, &replacement);
+        let bootstrap = &capture.bootstrap_calls[0];
+        assert_eq!(bootstrap.code.len(), 60);
+        assert_eq!(bootstrap.code[30], Some(0x101e));
+        assert_eq!(bootstrap.code[59], Some(0x103b));
     }
 
     #[test]
