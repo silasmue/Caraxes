@@ -74,7 +74,7 @@ pub const VARS: &[Var] = &[
     var("CARAXES_INTR_DIRECT", Open, "off", "1: the event thread completes interrupts itself (no A/B verdict)"),
     var("CARAXES_INTR_GATE_MS", Open, "off", "ms: foreign non-stall events held while idle (no measured change)"),
     var("CARAXES_RPC_IOEVENTFD", Open, "off", "1: the GSP queue head as an ioeventfd (no verdict)"),
-    var("CARAXES_LEGACY_CACHEABLE", Open, "off", "1: CACHEABLE on static GSS-legacy replies (no verdict)"),
+    var("CARAXES_LEGACY_CACHEABLE", Open, "off", "1: experimental CACHEABLE on sampled GSS-legacy candidates"),
     var("CARAXES_EXT_CONFIG", Open, "off", "1: the extended config space in the config region too"),
     // Diagnostics and overrides.
     var("CARAXES_DLOCK_STATS", Diag, "1", "0: skip detailed lock/part statistics; locking and GPU behavior are unchanged"),

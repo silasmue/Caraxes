@@ -186,7 +186,13 @@ What a stock 615 driver can use without modification:
   the device cannot add any.
 - **GSS-legacy answers by the device's reply.** For ids outside the export tables the kernel
   caches the reply when its `rmctrlFlags` carry CACHEABLE and no access right (`rpc.c:10762-10770`
-  read, `:10899-10905` write). The device sets 0 today (`boot.rs:1524`). This is the one lever a
+  read, `:10899-10905` write). The device sets 0 by default; the experimental
+  `CARAXES_LEGACY_CACHEABLE=1` selects measured candidates (`nvml.rs::LEGACY_CACHEABLE`).
+  Original 610-guest sampling does not prove independence from unknown future inputs or
+  other guest versions. GPU8159 is excluded after C144 Windows observed 14 successful
+  calls with 14 distinct request and reply fingerprints; their semantic significance is
+  unknown. The guest cache is keyed by GPU and command, so subsequent inputs bypass the
+  device. Use fresh guest boots for qualification and rollback. This is the one lever a
   stock driver offers the device: 37 ids, the most expensive class (§6).
 - **The static configuration of `GMCAPI_CMD_GSP_INIT`** (gsp-transport-615.md §5.3): read once
   at boot; the kernel reads what it reads, the device cannot extend it.

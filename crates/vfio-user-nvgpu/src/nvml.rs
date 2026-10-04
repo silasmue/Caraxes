@@ -290,8 +290,8 @@ pub(crate) fn answer_with_diagnostics(
 }
 
 /// FNV-1a over `b`: the request and reply fingerprints of a GSS-legacy forward in the
-/// trace, from which [`LEGACY_CACHEABLE`] was proven (byte-identical requests and answers
-/// across calls, processes and load; docs/caraxes/gsp-transport-classes.md §12 question 1).
+/// trace, used to compare sampled legacy requests and answers across calls, processes
+/// and load (docs/vfio/gsp-transport-classes.md §12 question 1).
 pub fn fnv64(b: &[u8]) -> u64 {
     b.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &x| {
         (h ^ u64::from(x)).wrapping_mul(0x0000_0100_0000_01b3)
@@ -307,20 +307,23 @@ fn legacy_hashes(req: &[u8], reply: &[u8]) -> String {
 pub const RMCTRL_FLAGS_NON_PRIVILEGED: u32 = 0x0000_0008;
 pub const RMCTRL_FLAGS_CACHEABLE: u32 = 0x0000_0400;
 
-/// The GSS-legacy commands whose answer is static for the VM's life and independent of
-/// the request, so the guest kernel may answer repeats itself. Proven from the trace
-/// fingerprints (`fnv64`) of the 610 guest on the 615.71.09 host
+/// Experimental GSS-legacy cache candidates from trace fingerprints (`fnv64`) of the
+/// 610 guest on the 615.71.09 host
 /// (caraxes/runs/rpc-path-2026-09-25/cache-before-610, legacy-forwards.txt): one request
 /// and one answer, NV_OK, over 20 `nvidia-smi -q` before and after a CUDA gate, a
-/// 20-sample dmon and the NVML gate, from nvidia-smi, NVML and libcuda alike. Only
-/// tables: a reply of at least 64 bytes (the cuInit query 0x59 has 332). Excluded,
+/// 20-sample dmon and the NVML gate, from nvidia-smi, NVML and libcuda alike. This
+/// sampling does not establish input independence for future requests or other guest
+/// versions: the guest cache uses GPU and command only, bypassing later RPCs. The
+/// option remains off by default. Only table-sized replies (at least 64 bytes). Excluded,
 /// though identical there: the small replies (perf 0x14, 0x60, 0x6e, 0x80, 0x84, clk
 /// 0x01, 0x09, gpu 0x62; 1 to 52 bytes), which could be a live value that only held
 /// still at the states sampled. Never: the commands whose answer changed (clk 0x04,
 /// 0x64, thermal 0x2f, 0x46, perf 0x26, 0x81, 0x97, 0xa8: telemetry or input-keyed) and
 /// every failing one (the guest caches only NV_OK).
+/// GPU 0x59 (0x20808159) is also excluded: the C144 Windows archive has 14 successful
+/// calls with 14 distinct request and reply fingerprints. Their semantic significance
+/// is unknown, so serving the first answer to every request is not established safe.
 pub const LEGACY_CACHEABLE: &[u32] = &[
-    0x2080_8159, // gpu 0x59, 332 bytes (cuInit)
     0x2080_852A, // thermal 0x2a, 1784
     0x2080_852C, // thermal 0x2c, 1440
     0x2080_852E, // thermal 0x2e, 1432 (output only)
@@ -332,9 +335,10 @@ pub const LEGACY_CACHEABLE: &[u32] = &[
     0x2080_A612, // pmgr 0x12, 54352
 ];
 
-/// The switch that turns the CACHEABLE reply flag on (`CARAXES_LEGACY_CACHEABLE=1`); off by
-/// default, where every GSS-legacy reply carries rmctrlFlags 0 as before (the measurement's
-/// "before", and a way back should a cached answer ever be wrong).
+/// The experimental switch that turns the CACHEABLE reply flag on
+/// (`CARAXES_LEGACY_CACHEABLE=1`); off by default, where every GSS-legacy reply carries
+/// rmctrlFlags 0 as before. Disabling it does not invalidate an existing guest cache;
+/// qualification and rollback require a fresh guest boot.
 pub const LEGACY_CACHEABLE_ENV: &str = "CARAXES_LEGACY_CACHEABLE";
 
 /// Whether the CACHEABLE reply flag is switched on (`CARAXES_LEGACY_CACHEABLE=1`; off by
@@ -356,8 +360,8 @@ pub fn legacy_cacheable_enabled() -> bool {
 /// (rmapi/control.c:678-716) checks the stored flags: without NON_PRIVILEGED a user
 /// process would fail the check and the cache would never serve it. So: CACHEABLE |
 /// NON_PRIVILEGED (the `_LEGACY_NON_PRIVILEGED` categories, ctrl2080base.h) for the
-/// proven commands on NV_OK when the switch is on, 0 otherwise (the value the device sent
-/// before).
+/// measured candidates on NV_OK when the experimental switch is on, 0 otherwise (the
+/// value the device sent before).
 pub fn legacy_reply_flags(cmd: u32, status: u32) -> u32 {
     legacy_reply_flags_with(cmd, status, legacy_cacheable_enabled())
 }
@@ -515,11 +519,11 @@ mod tests {
     use super::*;
 
     /// The reply flags the guest kernel caches by (rpc.c:10899-10905 of 615): CACHEABLE |
-    /// NON_PRIVILEGED only for the proven static GSS-legacy tables and only on NV_OK; every
+    /// NON_PRIVILEGED only for the measured GSS-legacy candidates and only on NV_OK; every
     /// entry is a GSS-legacy command of the forwarded list with a table-sized reply, and
     /// never a command whose answer was seen to change.
     #[test]
-    fn cacheable_reply_flags_only_for_proven_static_tables() {
+    fn cacheable_reply_flags_only_for_measured_candidates() {
         assert_eq!(legacy_reply_flags_with(0x2080_A079, NV_OK, true), 0x408);
         assert_eq!(legacy_reply_flags_with(0x2080_A079, NV_OK, false), 0, "off by default");
         assert_eq!(legacy_reply_flags_with(0x2080_A079, NV_ERR_NOT_SUPPORTED, true), 0);
@@ -537,6 +541,14 @@ mod tests {
         assert_eq!(f & 0x0002_0000, 0);
         assert_eq!(fnv64(b""), 0xcbf2_9ce4_8422_2325);
         assert_eq!(fnv64(b"a"), 0xaf63_dc4c_8601_ec8c);
+    }
+
+    /// C144 Windows observed varying request and reply fingerprints for GPU 0x59.
+    /// Keep normal forwarding, but never promise input-independent guest caching.
+    #[test]
+    fn gpu_8159_is_forwarded_without_guest_cache_flags() {
+        assert!(LEGACY.iter().any(|(cmd, _, _)| *cmd == 0x2080_8159));
+        assert_eq!(legacy_reply_flags_with(0x2080_8159, NV_OK, true), 0);
     }
     use crate::ver::common::NV01_DEVICE_0;
 

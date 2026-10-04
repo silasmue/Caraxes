@@ -2625,8 +2625,8 @@ impl BootModel {
                             (cmd & v::CMD_GSS_LEGACY_BIT != 0, frame.rmctrl_flags)
                         {
                             // GSS legacy: the guest caches the reply by its rmctrlFlags
-                            // (rpc.c:10899-10905 of 615): CACHEABLE for the proven static
-                            // answers when CARAXES_LEGACY_CACHEABLE=1, 0 for the rest and
+                            // (rpc.c:10899-10905 of 615): CACHEABLE for the experimental
+                            // candidates when CARAXES_LEGACY_CACHEABLE=1, 0 for the rest and
                             // by default (nvml.rs `legacy_reply_flags`); with the flag the
                             // access right is written 0. A 570 frame has no such field.
                             let flags = crate::nvml::legacy_reply_flags(cmd, a.status);
