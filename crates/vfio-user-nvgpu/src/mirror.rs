@@ -3302,7 +3302,7 @@ impl Mirror {
             };
             mark(Step::Userd);
             let unwaited = self.unwaited;
-            if let (Some((get, put, entries)), Some(ch), Some(root)) = (
+            if let (Some((_get, put, entries)), Some(ch), Some(root)) = (
                 ring,
                 reg.channel(chid),
                 reg.channel(chid)
@@ -3311,7 +3311,10 @@ impl Mirror {
             ) {
                 if let Some(hc) = self.channels.get_mut(&chid) {
                     if let Some(capture) = hc.gr_capture.as_mut() {
-                        let start = hc.fwd_put.unwrap_or(get);
+                        // On the first captured ring, include the consumed prefix too. It
+                        // contains Windows' C597/MME setup immediately before mirror
+                        // takeover; later post-mortem recovery is unsafe after PB reuse.
+                        let start = hc.fwd_put.unwrap_or(0);
                         if let Some(note) = capture.ring(
                             gm,
                             root,
@@ -3905,7 +3908,7 @@ impl Mirror {
         let pages: Vec<u32> = built.owned.iter().copied().filter(|d| *d != built.channel).collect();
         let gr_capture = (std::env::var(crate::grcapture::ENV).as_deref() == Ok("1")
             && built.objects.iter().any(|(class, _)| *class == 0xC597))
-            .then(crate::grcapture::Capture::default);
+            .then(|| crate::grcapture::Capture::new(&built.objects));
         self.channels.insert(
             chid,
             HostChannel {
@@ -4181,7 +4184,7 @@ impl Mirror {
         let pages: Vec<u32> = built.owned.iter().copied().filter(|d| *d != built.channel).collect();
         let gr_capture = (std::env::var(crate::grcapture::ENV).as_deref() == Ok("1")
             && built.objects.iter().any(|(class, _)| *class == 0xC597))
-            .then(crate::grcapture::Capture::default);
+            .then(|| crate::grcapture::Capture::new(&built.objects));
         self.stats.channels_created += 1;
         let private_userd = built.shadow_userd.is_some();
         self.channels.insert(

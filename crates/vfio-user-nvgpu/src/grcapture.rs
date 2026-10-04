@@ -46,8 +46,10 @@ struct CbBinding {
 
 /// The live, bounded state of one mirrored C597 channel.
 pub struct Capture {
+    allowed_classes: BTreeSet<u32>,
     classes: [u32; 8],
     class_gp: [Option<u32>; 8],
+    class_exact: [bool; 8],
     mme_pointer: usize,
     mme_words: Vec<Option<u32>>,
     start_pointer: usize,
@@ -68,6 +70,7 @@ pub struct Capture {
     legacy_headers: u64,
     tertiary_headers: u64,
     reserved_headers: u64,
+    unexpected_set_objects: u64,
     direct_binds: u64,
     direct_unbinds: u64,
 }
@@ -75,8 +78,10 @@ pub struct Capture {
 impl Default for Capture {
     fn default() -> Self {
         Capture {
+            allowed_classes: BTreeSet::new(),
             classes: [0; 8],
             class_gp: [None; 8],
+            class_exact: [false; 8],
             mme_pointer: 0,
             mme_words: vec![None; MAX_MME_WORDS],
             start_pointer: 0,
@@ -97,6 +102,7 @@ impl Default for Capture {
             legacy_headers: 0,
             tertiary_headers: 0,
             reserved_headers: 0,
+            unexpected_set_objects: 0,
             direct_binds: 0,
             direct_unbinds: 0,
         }
@@ -111,6 +117,18 @@ fn keep<T>(q: &mut VecDeque<T>, capacity: usize, value: T) {
 }
 
 impl Capture {
+    /// Start a capture with the classes the host channel actually owns. A Windows graphics
+    /// context commonly established C597 on subchannel 0 before mirror takeover; seed that
+    /// binding as inferred until a captured SET_OBJECT supersedes it.
+    pub fn new(objects: &[(u32, u32)]) -> Self {
+        let mut capture = Self::default();
+        capture.allowed_classes = objects.iter().map(|(class, _)| *class).collect();
+        if capture.allowed_classes.contains(&CLASS_3D) {
+            capture.classes[0] = CLASS_3D;
+        }
+        capture
+    }
+
     fn finish_call(&mut self, call: &mut Option<OpenCall>) {
         if let Some(OpenCall(call)) = call.take() {
             keep(&mut self.calls, KEEP_CALLS, call);
@@ -125,8 +143,17 @@ impl Capture {
         self.methods += 1;
         if addr == 0 {
             self.finish_call(open);
-            self.classes[subch] = data & 0xFFFF;
+            let class = data & 0xFFFF;
+            if class != 0 && !self.allowed_classes.contains(&class) {
+                self.unexpected_set_objects += 1;
+                self.direct_event(format!(
+                    "gp {gp} subch {subch} ignored SET_OBJECT {class:#x}: class is not owned by the host channel"
+                ));
+                return;
+            }
+            self.classes[subch] = class;
             self.class_gp[subch] = Some(gp);
+            self.class_exact[subch] = true;
             return;
         }
         if self.classes[subch] != CLASS_3D {
@@ -336,12 +363,14 @@ impl Capture {
         let classes: Vec<String> = self
             .classes
             .iter()
-            .zip(self.class_gp)
+            .zip(self.class_gp.iter().zip(self.class_exact))
             .enumerate()
             .filter(|(_, (class, _))| **class != 0)
-            .map(|(subch, (class, gp))| {
+            .map(|(subch, (class, (gp, exact)))| {
                 format!(
-                    "{subch}={class:#x}@gp{}",
+                    "{subch}={}{}{class:#x}@gp{}",
+                    if exact { "" } else { "~" },
+                    if exact { "" } else { "inferred:" },
                     gp.map_or_else(|| "?".into(), |gp| gp.to_string())
                 )
             })
@@ -349,7 +378,7 @@ impl Capture {
         let mme_words = self.mme_words.iter().filter(|word| word.is_some()).count();
         let starts = self.starts.iter().filter(|start| start.is_some()).count();
         out.push(format!(
-            "gr live capture: chid {chid}: {} entries, {} pushbuffers, {} methods; unreadable entries {}, pushbuffers {}, invalid {}; legacy headers {}, tertiary {}, reserved {}; exact SET_OBJECT {}; MME words {mme_words} ({} writes), starts {starts} ({} writes); direct CB binds {}, unbinds {} [guest memory, opt-in]",
+            "gr live capture: chid {chid}: {} entries, {} pushbuffers, {} methods; unreadable entries {}, pushbuffers {}, invalid {}; legacy headers {}, tertiary {}, reserved {}; SET_OBJECT state {} ({} unexpected ignored); MME words {mme_words} ({} writes), starts {starts} ({} writes); direct CB binds {}, unbinds {} [guest memory, opt-in]",
             self.entries,
             self.pushbuffers,
             self.methods,
@@ -360,6 +389,7 @@ impl Capture {
             self.tertiary_headers,
             self.reserved_headers,
             if classes.is_empty() { "none".into() } else { classes.join(" ") },
+            self.unexpected_set_objects,
             self.mme_writes,
             self.start_writes,
             self.direct_binds,
@@ -522,12 +552,16 @@ mod tests {
         words.extend(oneinc(0, 0x3800 + 7 * 8, &[0x11, 0x22, 0x33]));
         // The same numerical methods on a software subchannel are never C597 state.
         words.extend(inc(7, 0x3800, &[0xDEAD_BEEF]));
+        // A value that is not one of the host channel's engine classes cannot be a
+        // successful SET_OBJECT and must not destroy the known C597 binding.
+        words.extend(inc(0, 0, &[0x5540]));
         words.extend(inc(0, 0x10F4, &[1 << 8]));
 
-        let mut c = Capture::default();
+        let mut c = Capture::new(&[(CLASS_3D, 1)]);
         c.push(9, &words);
         let notes = c.notes(3).join("\n");
-        assert!(notes.contains("exact SET_OBJECT 0=0xc597@gp9"), "{notes}");
+        assert!(notes.contains("SET_OBJECT state 0=0xc597@gp9"), "{notes}");
+        assert!(notes.contains("1 unexpected ignored"), "{notes}");
         assert!(notes.contains("legacy headers 3"), "{notes}");
         assert!(
             notes.contains("MME words 3") && notes.contains("starts 1"),
