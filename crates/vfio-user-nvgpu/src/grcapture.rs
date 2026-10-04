@@ -1320,7 +1320,12 @@ mod tests {
             notes.contains("macro 7 params 3/3: 0x11 0x22 0x33"),
             "{notes}"
         );
-        assert!(!notes.contains("deadbeef"), "{notes}");
+        // Raw unexpected-bind provenance can include neighboring software-subchannel
+        // words. They must not enter the retained graphics macro calls themselves.
+        assert!(c
+            .calls
+            .iter()
+            .all(|call| call.subch != 7 && !call.params.contains(&0xDEAD_BEEF)));
         assert!(notes.contains("**VALID VA 0**"), "{notes}");
         assert!(notes.contains("final direct CB state none"), "{notes}");
         assert!(
