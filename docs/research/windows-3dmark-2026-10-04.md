@@ -90,3 +90,18 @@
 - Artifacts: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/C138-3dmark-baseline/`. Result SHA256: `ddd20e3799bf5870338f1d222c76aee87ce620d81c2bfd0a103e0e580bf26f75`. Raw result archives contain machine/licensing metadata; publish only selected benchmark fields.
 - Diagnostic fixes `41116bfa` / `151163c1` retain all 11 legacy COUNT_OLD bits and bounded raw provenance for unexpected graphics bindings. Full suite after these changes: **876 passed, 1 ignored; 2 integration tests passed**. C138 uses the unchanged `900b4230` binary for the flag A/B.
 - C139 boots the same binary with direct completion alone. Next comparisons: direct completion, rearm eventfd, then monitoring on/off while preserving SystemInfo scanning. Read-only PMGR controls `0x2080a613`/`0x2080a612` accumulated about 41 s under the Device lock during the entire C138 session; this is a candidate, not yet render-only attribution.
+
+## C139 and rendering checks
+
+- C139 direct completion only completed all four Fire Strike workloads: overall 5941, graphics 5647; GT1 19.866365 FPS, GT2 32.135181 FPS. Compared with C138: about 1% higher graphics score, one sample each. This does not establish a repeatable gain.
+- One host scanout snapshot was requested during GT1 but produced no image. The scored run has no trace explaining the refusal; record this probe as a measurement caveat.
+- A separate DDA/NVENC recording started before another Fire Strike run. The encoder produced 1917 frames over 81.77 seconds, then DDA returned `0x887a0026` when the benchmark changed to exclusive fullscreen. This first clip is not proof of an animated 3D scene. The capture now restarts after display transitions and checks total recorded duration.
+- That recording attempt's Fire Strike workloads still completed (overall 5890); this is a functional run with extra encode overhead, not a scored A/B sample.
+- `f1a210b0` makes detailed Device-lock statistics optional (`CARAXES_DLOCK_STATS=0`), including software-part timers and per-piece aggregation. Default diagnostics stay on. Scored mode defaults off; an explicit `CH_DEV_EXTRA=CARAXES_DLOCK_STATS=1` permits a same-binary A/B. Validation: 881 device tests passed, 1 ignored; 2 integration tests passed. Release SHA256 `f79b419722611f4ec79eb1b340c1be592750c4ba81b943d234fd622064915182`.
+
+## External RTX 2070 orientation
+
+- Public valid Fire Strike 1.1 results for desktop RTX 2070: [22409 graphics points](https://www.3dmark.com/fs/31401213) at 1845 MHz peak / 1750 MHz memory; [23663 graphics points](https://www.3dmark.com/fs/30795799) at 1860 MHz peak / 1750 MHz memory. These are independent systems, not a controlled native reference for this host.
+- C139's 5647 graphics points are about 24–25% of those examples. The current Windows graphics gap is large; direct completion alone did not explain it.
+- A [24650-point result](https://www.3dmark.com/compare/fs/18768236/fs/17442968) reports GT1 117.91 / GT2 98.23 FPS, with higher core and memory clocks (2010 / 2001 MHz); treat it as an overclocked example, not a stock target.
+- Compare the graphics score for optimization; the overall score also includes CPU Physics and Combined. User priority: visible, correct motion and stable completion first. A later provisional goal of 18000–21000 graphics points is an optimization target, not a prediction or a native-speed claim.
