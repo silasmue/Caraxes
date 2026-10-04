@@ -75,3 +75,18 @@
 - Fire Strike's files exist, but 3DMark reports the DLC as not installed. Installation was queued through its UI. Cloud Hypervisor's tap has no host NAT and DNS times out.
 - `M137-3dmark-install` is a QEMU maintenance boot without the synthetic GPU, using the existing user-network NAT to finish Steam's installation. No host firewall/NAT changes. Windows updates paused until `2026-10-11T19:44:53Z`, automatic driver installation excluded, CBS and Windows Update have no pending reboot. Then return to Cloud Hypervisor for GPU measurements.
 - No completed 3DMark score or measured speedup yet. Diagnostic corrections and successful graphics gates establish a narrower, reliable starting point.
+
+## C138 Fire Strike baseline
+
+- Steam completed the Fire Strike installation in M137. The maintenance VM was stopped before the host-backed Cloud Hypervisor boot.
+- C138: same RTX 2070, stock 617.14 driver, 8 vCPUs / 8 GiB RAM / 4 GiB guest VRAM. Binary `900b4230` above; direct completion and rearm eventfd both off.
+- `CH_SCORED=1` disables investigation features. Automatic scanout PNGs were manually disabled before measurement; later harness starts skip arming them in scored runs (`a89a67d9`). No GPU trace file.
+- Fire Strike 1.1, preset P, 1920×1080, fullscreen, VSync off. Executed sets: GT1, GT2, Physics, Combined. The demo toggle was off. SystemInfo scan and monitoring were on.
+- Completed local scores: overall **5888**, graphics **5590**, physics **11531**, combined **4413**. FPS: GT1 **19.665331**, GT2 **31.817068**, physics **36.609074**, combined **20.529837**.
+- The UI warning says the score was not verified online. The guest has no Internet; this is not a failed workload. Do not present this as an online-validated score.
+- D3D11 readback and root/heap-CBV D3D12 graphics gates passed before the benchmark. No host Xid during the run or clean shutdown. Trace-dependent health checks are unavailable in a scored run; `95cec5bc` reports them as SKIP and still rejects missing traces in diagnostic runs.
+- Host samples include loading and unloading. GT1/GT2 mean GPU utilization was about 60%, peaks 97%/95%, boost up to 1860 MHz. Earlier low-utilization snapshots were primarily loading or Physics. These samples do not establish the render-only bottleneck.
+- A separate host build was active before launch. No native Windows baseline exists. This single run establishes a reference, not a repeatable speedup.
+- Artifacts: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/C138-3dmark-baseline/`. Result SHA256: `ddd20e3799bf5870338f1d222c76aee87ce620d81c2bfd0a103e0e580bf26f75`. Raw result archives contain machine/licensing metadata; publish only selected benchmark fields.
+- Diagnostic fixes `41116bfa` / `151163c1` retain all 11 legacy COUNT_OLD bits and bounded raw provenance for unexpected graphics bindings. Full suite after these changes: **876 passed, 1 ignored; 2 integration tests passed**. C138 uses the unchanged `900b4230` binary for the flag A/B.
+- C139 boots the same binary with direct completion alone. Next comparisons: direct completion, rearm eventfd, then monitoring on/off while preserving SystemInfo scanning. Read-only PMGR controls `0x2080a613`/`0x2080a612` accumulated about 41 s under the Device lock during the entire C138 session; this is a candidate, not yet render-only attribution.
