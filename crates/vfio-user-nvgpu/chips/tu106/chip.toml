@@ -113,8 +113,10 @@ compr_page_size = 0x1_0000
 compr_page_shift = 16
 ram_type = "GDDR6"
 ltc_count = 8
-lts_per_ltc_count = 2
-label = "synthesized (TU106: 4 MiB L2, 8 LTC x 2 LTS, GDDR6; E4: host FB_GET_INFO_V2)"
+# Host 615.71.09 FB_GET_INFO_V2: active LTCs 8 (mask 0xff), total active LTS 32.
+# caraxes/reference/rtx2070/kmd-controls-2026-09-26.tsv, indices 0x22/0x23/0x2b.
+lts_per_ltc_count = 4
+label = "synthesized (TU106: 4 MiB L2, 8 LTC x 4 LTS, GDDR6; host 615.71.09 FB_GET_INFO_V2, 2026-09-26)"
 
 # The card's compression, told to the guest only with CARAXES_COMPRESSION=slice
 # (src/compression.rs; without it `disable_compbit_backing` above stands, D16). All values

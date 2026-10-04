@@ -86,6 +86,68 @@ mod tests {
         assert_eq!(c.regmap.len(), 52);
     }
 
+    #[test]
+    fn serialized_memsys_topology_matches_native_active_counts() {
+        use crate::ctrl::{Dispatcher, INTERNAL_CLIENT, INTERNAL_SUBDEVICE, NV_OK};
+        use crate::ver::common as v;
+
+        // Primary ctrl2080fb.h: LTC_COUNT is active LTCs; LTS_COUNT is the total
+        // across active LTCs. Internal ctrl2080internal.h instead exposes LTS per LTC.
+        let capture = include_str!(
+            "../../../../caraxes/reference/rtx2070/kmd-controls-2026-09-26.tsv"
+        );
+        let read32 = |b: &[u8], at: usize| {
+            u32::from_le_bytes(b[at..at + 4].try_into().unwrap())
+        };
+        let mut public_info = std::collections::BTreeMap::new();
+        for line in capture.lines().filter(|line| !line.starts_with('#')) {
+            let fields: Vec<_> = line.split('\t').collect();
+            if fields.len() < 4 || fields[0] != "0x20801303" || fields[1] != "0x0" {
+                continue;
+            }
+            let hex = fields[3];
+            assert_eq!(hex.len() % 2, 0);
+            let bytes: Vec<u8> = (0..hex.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+                .collect();
+            let count = read32(&bytes, 0) as usize;
+            assert!(bytes.len() >= 4 + 8 * count);
+            for entry in bytes[4..4 + 8 * count].chunks_exact(8) {
+                let (index, value) = (read32(entry, 0), read32(entry, 4));
+                if !matches!(index, 0x1b | 0x22 | 0x23 | 0x2b) {
+                    continue;
+                }
+                if let Some(previous) = public_info.insert(index, value) {
+                    assert_eq!(previous, value, "native capture disagrees for index {index:#x}");
+                }
+            }
+        }
+
+        let fixture = crate::fixture::rtx2070();
+        let mut dispatcher = Dispatcher::new(chip(), &fixture.identity(4 << 30), None);
+        let answer = dispatcher.control(
+            INTERNAL_CLIENT,
+            INTERNAL_SUBDEVICE,
+            v::CMD_INTERNAL_MEMSYS_GET_STATIC_CONFIG,
+            &vec![0; v::MEMSYS_SIZE],
+        );
+        assert_eq!(answer.status, NV_OK);
+        assert_eq!(answer.params.len(), v::MEMSYS_SIZE);
+        let ltcs = read32(&answer.params, v::MEMSYS_LTC_COUNT);
+        let lts_per_ltc = read32(&answer.params, v::MEMSYS_LTS_PER_LTC_COUNT);
+        assert_eq!(ltcs, public_info[&0x22]);
+        assert_eq!(ltcs, public_info[&0x2b].count_ones());
+        assert_eq!(ltcs * lts_per_ltc, public_info[&0x23]);
+        assert_eq!(
+            u64::from_le_bytes(
+                answer.params[v::MEMSYS_L2_CACHE_SIZE..v::MEMSYS_L2_CACHE_SIZE + 8]
+                    .try_into().unwrap()
+            ),
+            u64::from(public_info[&0x1b])
+        );
+    }
+
     /// The tables resolve to exactly the numbers the E4/E5a device answered with.
     #[test]
     fn tables_resolve_to_the_milestone_values() {
