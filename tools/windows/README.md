@@ -32,6 +32,17 @@ SYSTEM through the QEMU guest agent; stock Windows and driver components only (P
 | `display-mode.ps1` | the modes EnumDisplaySettings lists, a change to `-Width`x`-Height` and back (signed-in user's session) |
 | `steam-3dmark.ps1` | `-Install` Steam silently, `-Prefer` NVIDIA GPU for 3DMark, `-Collect` result scores |
 | `showcase.ps1` | the screenshots of docs/vfio/showcase.md: Device Manager, the GPU's driver tab, Task Manager's GPU page, dxdiag's display tab; elevated in the signed-in session (caraxes/runs/win-2026-09-30/showcase-hi.sh) |
+| `display-name.ps1` | report the single present PCI NVIDIA RTX 2070; `-Apply` sets its Device Manager FriendlyName to `Leandro VFIO RTX 2070`, with a JSON backup; optional `-DriverDescription` also tests its DriverDesc; `-Restore` restores original values and absence |
+
+Run `display-name.ps1` without switches to report names. Elevated `display-name.ps1 -Apply`
+changes FriendlyName through SetupAPI; `-Apply -DriverDescription` additionally changes only
+the selected device's software-key `DriverDesc`. The backup defaults to
+`C:\ProgramData\Leandro\display-name-backup.json` (`-BackupPath` overrides it); repeated applies
+preserve the original FriendlyName. `-Restore` is repeatable and refuses a different device
+instance or software key. It restores both tracked names, so to keep FriendlyName after an
+unsuccessful DriverDesc experiment, run `-Restore` and then `-Apply` without `-DriverDescription`.
+The script does not restart the GPU. Reopen the UI and check fresh DXGI output; Task Manager
+propagation is unverified. Driver reinstall or device recreation can replace these guest names.
 
 ## Order (stop at the first failure)
 
