@@ -96,7 +96,7 @@ def ssh_user():
 
 def ssh(script, timeout=600, check=False):
     r = subprocess.run(['ssh', *ssh_base(), f'{ssh_user()}@{GUEST_IP}', script], capture_output=True,
-                       text=True, timeout=timeout)
+                       text=True, encoding='utf-8', errors='replace', timeout=timeout)
     if check and r.returncode:
         die(f'ssh exit {r.returncode}: {r.stderr.strip()[:300]}')
     return r
