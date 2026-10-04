@@ -179,12 +179,22 @@ function Save-Backup($backup, [bool]$replaceExisting) {
     $directory = [IO.Path]::GetDirectoryName($BackupPath)
     [IO.Directory]::CreateDirectory($directory) | Out-Null
     $temporary = "$BackupPath.$([Guid]::NewGuid().ToString('N')).tmp"
+    $previous = "$BackupPath.previous.json"
+    if ([IO.File]::Exists($previous)) { throw "Recovery backup exists; inspect it before applying again: $previous" }
+    $published = $false
     try {
         $stream = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
         try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
-        if ($replaceExisting) { [IO.File]::Replace($temporary, $BackupPath, $null) }
+        # PowerShell 5.1 can convert a null string argument to an invalid empty path.
+        if ($replaceExisting) { [IO.File]::Replace($temporary, $BackupPath, $previous) }
         else { [IO.File]::Move($temporary, $BackupPath) }
-    } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
+        Load-Backup | Out-Null
+        $published = $true
+    } finally {
+        if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) }
+        if ($published) { if ([IO.File]::Exists($previous)) { [IO.File]::Delete($previous) } }
+        elseif ([IO.File]::Exists($previous)) { Write-Warning "Previous backup retained for recovery: $previous" }
+    }
 }
 
 "Adapter instance: $instance"
@@ -257,4 +267,4 @@ if ($Apply) {
         $after.DriverDesc.Value -cne $backup.DriverDesc.Value)) { throw 'DriverDesc restore readback did not match.' }
     'PASS: original properties restored; backup retained for repeat restores.'
 }
-'Reopen Device Manager and Task Manager to inspect the name. Task Manager/DXGI propagation is unverified.'
+'Reopen Device Manager and Task Manager to inspect the name. FriendlyName alone renamed both in a measured Windows 11 / stock 617.14 boot; DXGI remains unverified.'

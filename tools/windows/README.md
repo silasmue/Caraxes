@@ -41,8 +41,11 @@ the selected device's software-key `DriverDesc`. The backup defaults to
 preserve the original FriendlyName. `-Restore` is repeatable and refuses a different device
 instance or software key. It restores both tracked names, so to keep FriendlyName after an
 unsuccessful DriverDesc experiment, run `-Restore` and then `-Apply` without `-DriverDescription`.
-The script does not restart the GPU. Reopen the UI and check fresh DXGI output; Task Manager
-propagation is unverified. Driver reinstall or device recreation can replace these guest names.
+Replacement uses a same-directory `.previous.json` recovery copy, removed only after the new
+backup validates; if retained after failure, inspect it before another apply.
+The script does not restart the GPU. On the measured Windows 11 / stock 617.14 boot, FriendlyName
+alone showed `Leandro VFIO RTX 2070` in fresh Device Manager and Task Manager windows. DXGI remains
+unverified. Driver reinstall or device recreation can replace these guest names.
 
 ## Order (stop at the first failure)
 
