@@ -1439,7 +1439,9 @@ impl Dispatcher {
             .any(|(s, a, _)| classes[*s] == compute && (*a == 0x2B4 || *a == 0x2BC));
         let mme = methods
             .iter()
-            .any(|(s, a, _)| classes[*s] != compute && *a >= 0x3800);
+            // Subchannels 5-7 are software subchannels.  Interpreting their payload as
+            // C597 CALL_MME_MACRO was the source of a very large false history in C123.
+            .any(|(s, a, _)| *s <= 4 && classes[*s] != compute && *a >= 0x3800);
         let kind = match (dispatch, mme) {
             (true, true) => "compute dispatch and MME macro call (draw)",
             (true, false) => "compute dispatch",
@@ -1485,10 +1487,39 @@ impl Dispatcher {
         xid: u32,
     ) -> Vec<String> {
         use crate::fb::Target;
-        const SCAN_ENTRIES: u32 = 512;
+        // A Windows DX12 channel binds C597 near the beginning of the ring and can have
+        // hundreds of entries in flight.  C123 faulted with GPGet 21141: the old 512-entry
+        // window did not contain SET_OBJECT or the selector that established the current
+        // constant-buffer state.  This remains an RC-only walk and is bounded to half of
+        // the largest ring we have observed.
+        const SCAN_3D_ENTRIES: u32 = 32768;
+        const SCAN_OTHER_ENTRIES: u32 = 512;
         const MAX_DWORDS: usize = 1 << 16;
-        const KEEP: usize = 16;
+        const KEEP_CB_EVENTS: usize = 32;
+        const KEEP_VALID_BINDS: usize = 24;
+        const KEEP_SHADER_EVENTS: usize = 12;
+        const KEEP_MME_ENTRIES: usize = 24;
+        const KEEP_VALID_ZERO: usize = 8;
         const CLASS_3D: u32 = 0xC597;
+
+        #[derive(Clone, Copy)]
+        struct CbBinding {
+            va: u64,
+            size: u32,
+            gp: u32,
+            inferred: bool,
+        }
+
+        fn keep(
+            q: &mut std::collections::VecDeque<String>,
+            capacity: usize,
+            value: String,
+        ) {
+            if q.len() == capacity {
+                q.pop_front();
+            }
+            q.push_back(value);
+        }
 
         let mut notes = Vec::new();
         let Some(ch) = self.channels.channel(chid) else {
@@ -1521,17 +1552,38 @@ impl Dispatcher {
             return notes;
         }
 
-        // State is per subchannel.  A scan can begin after SET_OBJECT, especially after a
-        // ring migration; methods unique to the 3D class remain useful in that case and are
-        // labelled as inferred rather than silently discarded.
+        // State is per subchannel.  Prefer an exact SET_OBJECT recovered from the deep scan.
+        // If a reused pushbuffer has hidden it, infer C597 only on hardware subchannels 0-4;
+        // 5-7 are software subchannels and treating their arbitrary data as methods caused
+        // the false multi-kilobyte MME line in C123.
         let has_3d = ch.engine_objects.iter().any(|(class, _)| *class == CLASS_3D);
         let mut classes = [0u32; 8];
+        let mut class_gp = [None; 8];
         let mut cb = [(0u32, 0u32, 0u32); 8]; // size, address upper, address lower
+        let mut bindings = [[[None::<CbBinding>; 32]; 8]; 8]; // subchannel, group, slot
         let mut program_upper = [[0u32; 6]; 8];
-        let count = SCAN_ENTRIES.min(entries);
+        let scan_limit = if has_3d {
+            SCAN_3D_ENTRIES
+        } else {
+            SCAN_OTHER_ENTRIES
+        };
+        // Before the first wrap, GPGet is also the exact count of consumed entries.  Do not
+        // include the queued range [GPGet, GPPut) in the post-mortem.  At GPGet zero a wrap
+        // is possible, so retain the bounded backwards scan.
+        let count = if get == 0 {
+            scan_limit.min(entries)
+        } else {
+            get.min(scan_limit).min(entries)
+        };
         let start = (get + entries - count) % entries;
-        let mut kept = std::collections::VecDeque::with_capacity(KEEP);
+        let mut cb_events = std::collections::VecDeque::with_capacity(KEEP_CB_EVENTS);
+        let mut valid_binds = std::collections::VecDeque::with_capacity(KEEP_VALID_BINDS);
+        let mut shader_events = std::collections::VecDeque::with_capacity(KEEP_SHADER_EVENTS);
+        let mut mme_entries = std::collections::VecDeque::with_capacity(KEEP_MME_ENTRIES);
+        let mut valid_zero = std::collections::VecDeque::with_capacity(KEEP_VALID_ZERO);
         let (mut decoded, mut unreadable, mut invalid) = (0u32, 0u32, 0u32);
+        let (mut bind_count, mut unbind_count, mut unbind_all_count) = (0u64, 0u64, 0u64);
+        let mut mme_count = 0u64;
 
         for step in 0..count {
             let idx = (start + step) % entries;
@@ -1563,7 +1615,7 @@ impl Dispatcher {
                 .chunks_exact(4)
                 .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
                 .collect();
-            let mut found = Vec::new();
+            let mut entry_mme = None;
             let mut i = 0usize;
             while i < words.len() {
                 let hdr = words[i];
@@ -1597,10 +1649,11 @@ impl Dispatcher {
                 for (a, data) in methods {
                     if a == 0 {
                         classes[subch] = data & 0xFFFF;
+                        class_gp[subch] = Some(idx);
                         continue;
                     }
                     let class = classes[subch];
-                    let inferred_3d = class == 0 && has_3d;
+                    let inferred_3d = class == 0 && has_3d && subch <= 4;
                     let is_3d = class == CLASS_3D || inferred_3d;
                     if !is_3d {
                         continue;
@@ -1610,18 +1663,57 @@ impl Dispatcher {
                         0x2380 => cb[subch].0 = data & 0x1_FFFF,
                         0x2384 => cb[subch].1 = data & 0xFF,
                         0x2388 => cb[subch].2 = data,
+                        // NVC597_UNBIND_ALL_CONSTANT_BUFFERS is bit 8.  This state change is
+                        // important when deciding whether a later GCC read of VA 0 could be
+                        // caused by a stale direct binding.
+                        0x10F4 if data & (1 << 8) != 0 => {
+                            bindings[subch] = [[None; 32]; 8];
+                            unbind_all_count += 1;
+                            keep(
+                                &mut cb_events,
+                                KEEP_CB_EVENTS,
+                                format!(
+                                    "gp {idx} subch {subch}[{class:#x}] UNBIND_ALL constant buffers{inferred}"
+                                ),
+                            );
+                        }
                         // One bind group every 0x20 bytes.  The immediate says whether the
                         // current selector is valid and which shader slot receives it.
                         a if (0x2410..=0x24F0).contains(&a) && (a - 0x2410) % 0x20 == 0 => {
-                            let group = (a - 0x2410) / 0x20;
+                            let group = ((a - 0x2410) / 0x20) as usize;
                             let valid = data & 1 != 0;
-                            let slot = (data >> 4) & 0x1F;
+                            let slot = ((data >> 4) & 0x1F) as usize;
                             let (size, upper, lower) = cb[subch];
                             let va = ((upper as u64) << 32) | lower as u64;
-                            found.push(format!(
-                                "subch {subch}[{class:#x}] CB bind group {group} slot {slot} valid {valid}: selector va {va:#x} size {size:#x}{inferred}{}",
-                                if valid && va == 0 { " **VALID VA 0**" } else { "" }
-                            ));
+                            let event = format!(
+                                "gp {idx} subch {subch}[{class:#x}] CB group {group} slot {slot} {}{inferred}",
+                                if valid {
+                                    format!("BIND selector va {va:#x} size {size:#x}")
+                                } else {
+                                    "UNBIND".into()
+                                }
+                            );
+                            keep(&mut cb_events, KEEP_CB_EVENTS, event.clone());
+                            if valid {
+                                bind_count += 1;
+                                bindings[subch][group][slot] = Some(CbBinding {
+                                    va,
+                                    size,
+                                    gp: idx,
+                                    inferred: inferred_3d,
+                                });
+                                keep(&mut valid_binds, KEEP_VALID_BINDS, event.clone());
+                                if va == 0 {
+                                    keep(
+                                        &mut valid_zero,
+                                        KEEP_VALID_ZERO,
+                                        format!("{event} **VALID VA 0**"),
+                                    );
+                                }
+                            } else {
+                                unbind_count += 1;
+                                bindings[subch][group][slot] = None;
+                            }
                         }
                         // Six pipeline shader slots, 0x40 bytes each.  Report the complete
                         // program VA when its lower half is written.
@@ -1636,41 +1728,134 @@ impl Dispatcher {
                         {
                             let shader = ((a - 0x2018) / 0x40) as usize;
                             let va = ((program_upper[subch][shader] as u64) << 32) | data as u64;
-                            found.push(format!(
-                                "subch {subch}[{class:#x}] shader {shader} program va {va:#x}{inferred}"
-                            ));
+                            keep(
+                                &mut shader_events,
+                                KEEP_SHADER_EVENTS,
+                                format!(
+                                    "gp {idx} subch {subch}[{class:#x}] shader {shader} program va {va:#x}{inferred}"
+                                ),
+                            );
                         }
                         // CALL_MME_MACRO(j), not its interleaved CALL_MME_DATA(j).
                         a if (0x3800..=0x3FFC).contains(&a) && (a - 0x3800) % 8 == 0 => {
-                            found.push(format!(
-                                "subch {subch}[{class:#x}] MME call {} = {data:#x}{inferred}",
-                                (a - 0x3800) / 8
+                            mme_count += 1;
+                            let mut active = Vec::new();
+                            for group in 0..8 {
+                                for slot in 0..32 {
+                                    if let Some(binding) = bindings[subch][group][slot] {
+                                        active.push(format!(
+                                            "{group}/{slot}={:#x}+{:#x}@gp{}{}",
+                                            binding.va,
+                                            binding.size,
+                                            binding.gp,
+                                            if binding.inferred { "?" } else { "" }
+                                        ));
+                                    }
+                                }
+                            }
+                            let more = active.len().saturating_sub(12);
+                            active.truncate(12);
+                            entry_mme = Some(format!(
+                                "gp {idx} subch {subch}[{class:#x}] last MME call {} = {data:#x}{inferred}; direct CB state {}{}",
+                                (a - 0x3800) / 8,
+                                if active.is_empty() {
+                                    "none".into()
+                                } else {
+                                    active.join(" ")
+                                },
+                                if more == 0 {
+                                    String::new()
+                                } else {
+                                    format!(" (+{more} more)")
+                                }
                             ));
                         }
                         _ => {}
                     }
                 }
             }
-            if !found.is_empty() {
-                if kept.len() == KEEP {
-                    kept.pop_front();
-                }
-                kept.push_back(format!(
-                    "gr rc history: chid {chid} gp {idx} pb {pb_va:#x} ({length} dwords): {} [guest memory]",
-                    found.join("; ")
-                ));
+            if let Some(event) = entry_mme {
+                keep(
+                    &mut mme_entries,
+                    KEEP_MME_ENTRIES,
+                    format!("{event}; pb {pb_va:#x} ({length} dwords)"),
+                );
             }
         }
 
         notes.push(format!(
-            "gr rc history: chid {chid} (exceptType {xid}) scanned {count} consumed GPFIFO entries ending at GPGet {get} (GPPut {put}); decoded {decoded}, unreadable {unreadable}, invalid/empty {invalid}; engine classes {} [guest memory, RC-only]",
+            "gr rc history: chid {chid} (exceptType {xid}) scanned {count} consumed GPFIFO entries from gp {start} to GPGet {get} (GPPut {put}); decoded {decoded}, unreadable {unreadable}, invalid/empty {invalid}; direct CB binds {bind_count}, unbinds {unbind_count}, UNBIND_ALL {unbind_all_count}, MME calls {mme_count}; engine classes {} [guest memory, RC-only]",
             ch.engine_objects
                 .iter()
                 .map(|(class, _)| format!("{class:#x}"))
                 .collect::<Vec<_>>()
                 .join(" ")
         ));
-        notes.extend(kept);
+        let bound: Vec<String> = classes
+            .iter()
+            .zip(class_gp)
+            .enumerate()
+            .filter(|(_, (class, _))| **class != 0)
+            .map(|(subch, (class, gp))| {
+                format!(
+                    "subch {subch}={class:#x}@gp{}",
+                    gp.map_or_else(|| "?".into(), |gp| gp.to_string())
+                )
+            })
+            .collect();
+        notes.push(format!(
+            "gr rc history: chid {chid} final SET_OBJECT state: {} [guest memory]",
+            if bound.is_empty() {
+                "none recovered".into()
+            } else {
+                bound.join(" ")
+            }
+        ));
+
+        if valid_zero.is_empty() {
+            notes.push(format!(
+                "gr rc history: chid {chid} no direct valid constant-buffer bind to VA 0 observed"
+            ));
+        } else {
+            notes.extend(valid_zero.into_iter().map(|event| {
+                format!("gr rc history: chid {chid} CRITICAL {event} [guest memory]")
+            }));
+        }
+
+        let mut active = Vec::new();
+        for (subch, groups) in bindings.iter().enumerate() {
+            for (group, slots) in groups.iter().enumerate() {
+                for (slot, binding) in slots.iter().enumerate() {
+                    if let Some(binding) = binding {
+                        active.push(format!(
+                            "{subch}:{group}/{slot}={:#x}+{:#x}@gp{}{}",
+                            binding.va,
+                            binding.size,
+                            binding.gp,
+                            if binding.inferred { "?" } else { "" }
+                        ));
+                    }
+                }
+            }
+        }
+        notes.push(format!(
+            "gr rc history: chid {chid} final direct CB state: {} [subch:group/slot=va+size@bind-gp; ?=C597 inferred]",
+            if active.is_empty() {
+                "none".into()
+            } else {
+                active.join(" ")
+            }
+        ));
+        for (label, events) in [
+            ("recent valid CB bind", valid_binds),
+            ("recent CB state", cb_events),
+            ("recent shader", shader_events),
+            ("recent MME entry", mme_entries),
+        ] {
+            notes.extend(events.into_iter().map(|event| {
+                format!("gr rc history: chid {chid} {label}: {event} [guest memory]")
+            }));
+        }
         notes
     }
 

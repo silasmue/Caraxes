@@ -6017,6 +6017,10 @@ mod tests {
         pb0.extend(inc(0, 0x2380, &[0x100, 0, 0]));
         pb0.extend(inc(0, 0x2410, &[1]));
         pb0.extend(inc(0, 0x3800, &[0x12]));
+        // Software-subchannel payload is not a C597 MME call.  A later UNBIND_ALL clears
+        // the active direct state but must not erase the earlier valid-VA-zero evidence.
+        pb0.extend(inc(7, 0x3800, &[0xDEAD_BEEF]));
+        pb0.extend(inc(0, 0x10F4, &[1 << 8]));
         entry(&mut fb, 0, 0x1000_1000, &pb0);
         let mut pb1 = inc(1, 0, &[compute]);
         pb1.extend(inc(1, 0x2B4, &[0x40_0000]));
@@ -6036,12 +6040,15 @@ mod tests {
         assert!(n.contains("entry 0 (GPGet-1) pb 0x10001000") && n.contains("MME macro call"), "{n}");
         assert!(n.contains("(1 not fetched)"), "{n}");
         let history = d.gr_rc_history_notes(&mem, 9, 31).join("\n");
-        assert!(history.contains("MME call 0 = 0x12"), "{history}");
+        assert!(history.contains("last MME call 0 = 0x12"), "{history}");
+        assert!(!history.contains("deadbeef"), "{history}");
         assert!(
-            history.contains("CB bind group 0 slot 0 valid true: selector va 0x0 size 0x100")
+            history.contains("CB group 0 slot 0 BIND selector va 0x0 size 0x100")
                 && history.contains("**VALID VA 0**"),
             "{history}"
         );
+        assert!(history.contains("UNBIND_ALL constant buffers"), "{history}");
+        assert!(history.contains("final direct CB state: none"), "{history}");
         // Garbage in USERD is named, not decoded.
         fb.write(0x20_0000 + USERD_GP_GET, &0xFFFF_FFFFu32.to_le_bytes());
         let mem = GpuMem { fb: &mut fb, sys: &sys };
