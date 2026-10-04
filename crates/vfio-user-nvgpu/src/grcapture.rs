@@ -278,12 +278,15 @@ impl Capture {
                     (hdr >> 16) & 0x1FFF,
                     &mut open,
                 ),
-                // The legacy formats remain valid on C46F. Their count is at 28:18 and
+                // The legacy formats remain valid on C46F. Their accepted count is at 27:18 and
                 // their byte method address is the header's 12:2 field. Treating these
                 // payload dwords as fresh headers desynchronizes the entire push (C125).
-                0 | 2 if (hdr >> 16) & 3 == 0 => {
+                0 | 2 if sec_op == 2 || (hdr >> 16) & 3 == 0 => {
                     self.legacy_headers += 1;
-                    let count = ((hdr >> 18) & 0x7FF) as usize;
+                    // Match Mesa's C46F parser: the legacy count accepted by the
+                    // hardware path is the ten-bit field at 27:18. Bit 28 is not part
+                    // of the payload count for these GRP forms.
+                    let count = ((hdr >> 18) & 0x3FF) as usize;
                     let subch = ((hdr >> 13) & 7) as usize;
                     let addr = hdr & 0x1FFC;
                     let count = count.min(words.len() - i);
@@ -297,10 +300,15 @@ impl Capture {
                     }
                     i += count;
                 }
-                // GRP0 tertiary subdevice-mask operations carry no following payload.
+                // GRP0 SET/STORE_SUBDEVICE_MASK carry their data in the header. USE has
+                // one following word in the reference decoder; consume it without
+                // interpreting it as a fresh push header.
                 0 => {
                     self.tertiary_headers += 1;
                     self.finish_call(&mut open);
+                    if (hdr >> 16) & 3 == 3 && i < words.len() {
+                        i += 1;
+                    }
                 }
                 7 => break,
                 _ => {

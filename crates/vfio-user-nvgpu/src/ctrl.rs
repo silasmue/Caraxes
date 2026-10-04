@@ -126,9 +126,9 @@ fn diagnostic_push_methods(
             1,
         ),
         // Legacy incrementing/non-incrementing formats: TERT_OP must be zero,
-        // COUNT is 28:18 and ADDRESS is the byte-aligned 12:2 field.
-        0 | 2 if (hdr >> 16) & 3 == 0 => (
-            ((hdr >> 18) & 0x7FF) as usize,
+        // The reference decoder's COUNT is 27:18 and ADDRESS is the byte-aligned 12:2 field.
+        0 | 2 if sec_op == 2 || (hdr >> 16) & 3 == 0 => (
+            ((hdr >> 18) & 0x3FF) as usize,
             ((hdr >> 13) & 7) as usize,
             hdr & 0x1FFC,
             if sec_op == 0 { 2 } else { 0 },
@@ -143,8 +143,14 @@ fn diagnostic_push_methods(
                 )],
             )
         }
-        // GRP0 tertiary subdevice-mask operations and reserved formats have no method
-        // payload useful to these diagnostics.
+        // GRP0 USE_SUBDEVICE_MASK consumes one following word in Mesa's reference
+        // parser. Its value is not a method useful to these diagnostics.
+        0 if (hdr >> 16) & 3 == 3 => {
+            *i += usize::from(*i < words.len());
+            return (false, Vec::new());
+        }
+        // Other GRP0 tertiary subdevice-mask operations and reserved formats have no
+        // method payload useful to these diagnostics.
         _ => return (false, Vec::new()),
     };
     let count = count.min(words.len().saturating_sub(*i));
@@ -3268,7 +3274,7 @@ mod tests {
     #[test]
     fn diagnostic_push_decoder_handles_legacy_and_one_inc_formats() {
         let words = [
-            (2 << 18),
+            (1 << 28) | (2 << 18),
             0xC597,
             0x1234,
             (2 << 29) | (2 << 18) | 0x118,
