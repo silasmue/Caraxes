@@ -17,6 +17,9 @@ use crate::fb::Target;
 pub const ENV: &str = "CARAXES_GR_CAPTURE";
 
 const CLASS_3D: u32 = 0xC597;
+// This capture decodes C597/Turing MME64 only. Its upload pointer and macro start
+// addresses name 96-bit instruction groups; retained code is indexed by 32-bit dwords.
+const MME64_DWORDS_PER_GROUP: usize = 3;
 const MAX_DWORDS: usize = 1 << 16;
 const MAX_MME_WORDS: usize = 0x4000;
 const MAX_MME_STARTS: usize = 256;
@@ -209,12 +212,12 @@ impl Capture {
                 let start = self.starts.get(call.id as usize).copied().flatten();
                 let code = start
                     .and_then(|start| {
-                        let start = start as usize;
+                        let start = (start as usize).saturating_mul(MME64_DWORDS_PER_GROUP);
                         let end = self
                             .starts
                             .iter()
                             .flatten()
-                            .map(|x| *x as usize)
+                            .map(|x| (*x as usize).saturating_mul(MME64_DWORDS_PER_GROUP))
                             .filter(|next| *next > start)
                             .min()
                             .unwrap_or(self.mme_words.len())
@@ -264,9 +267,8 @@ impl Capture {
         // methods execute against the restored 3D context. Infer C597 only while that
         // subchannel is unbound; an exact binding to another owned class supersedes it.
         // Other subchannels still require an exact binding.
-        let inferred_3d = subch == 0
-            && self.classes[subch] == 0
-            && self.allowed_classes.contains(&CLASS_3D);
+        let inferred_3d =
+            subch == 0 && self.classes[subch] == 0 && self.allowed_classes.contains(&CLASS_3D);
         if self.classes[subch] != CLASS_3D && !inferred_3d {
             self.finish_call(open);
             return;
@@ -315,7 +317,7 @@ impl Capture {
 
         match addr {
             0x0114 => {
-                self.mme_pointer = data as usize;
+                self.mme_pointer = (data as usize).saturating_mul(MME64_DWORDS_PER_GROUP);
                 if self.mme_uploads.len() < KEEP_MME_UPLOADS {
                     self.mme_upload = Some(MmeUpload {
                         seq: self.entries,
@@ -876,19 +878,25 @@ impl Capture {
                 .starts
                 .get(id)
                 .and_then(|start| *start)
-                .map(|x| x as usize)
+                .map(|x| (x as usize).saturating_mul(MME64_DWORDS_PER_GROUP))
             else {
                 out.push(format!(
                     "gr live capture: chid {chid}: macro {id} has no captured start address"
                 ));
                 continue;
             };
+            if start >= self.mme_words.len() {
+                out.push(format!(
+                    "gr live capture: chid {chid}: macro {id} start dword {start} is outside the retained MME image"
+                ));
+                continue;
+            }
             let limit = start.saturating_add(384).min(self.mme_words.len());
             let end = self
                 .starts
                 .iter()
                 .flatten()
-                .map(|x| *x as usize)
+                .map(|x| (*x as usize).saturating_mul(MME64_DWORDS_PER_GROUP))
                 .filter(|next| *next > start)
                 .min()
                 .unwrap_or(self.mme_words.len())
@@ -1078,20 +1086,88 @@ mod tests {
         first.extend(old_noninc(0, 0x118, &[0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]));
         capture.push(0, &first);
         capture.entries = 2;
-        let mut next = inc(0, 0x114, &[2]);
+        let mut next = inc(0, 0x114, &[1]);
         next.extend(old_noninc(0, 0x118, &[0x11, 0x22, 0x33]));
         next.extend(oneinc(0, 0x3800, &[0]));
         capture.push(1, &next);
-        assert_eq!(capture.mme_words[2], Some(0x11));
+        assert_eq!(capture.mme_words[3], Some(0x11));
         let notes = capture.initialization_notes(7, 1).join("\n");
         assert!(notes.contains("pointer 0x0 words 6/6"), "{notes}");
         assert!(
             notes.contains("000000aa 000000bb 000000cc 000000dd 000000ee 000000ff"),
             "{notes}"
         );
-        assert!(!notes.contains("pointer 0x2"), "{notes}");
+        assert!(!notes.contains("pointer 0x1"), "{notes}");
         let notes = capture.initialization_notes(7, 2).join("\n");
-        assert!(notes.contains("pointer 0x2 words 3/3"), "{notes}");
+        assert!(notes.contains("pointer 0x1 words 3/3"), "{notes}");
+    }
+
+    #[test]
+    fn turing_group_addresses_preserve_adjacent_uploads_and_bootstrap_bodies() {
+        // C136's raw C597 uploads: 30 dwords at group 0, six at 0xa, nine at
+        // 0xc, and the two-group DWRITE macro at 0x112. Treating these pointers
+        // as dword addresses overlaps the first three uploads and truncates macro 27.
+        let macro0 = [
+            0x00d6a403, 0x18c00238, 0x318c0300, 0x0034015f, 0x18c00238, 0x71ac7b00, 0x0034015b,
+            0x18c00238, 0xb1ac7b00, 0x007411e3, 0x18c00238, 0xf1a1db00, 0x00000003, 0x18c0011e,
+            0x71915b00, 0x00000003, 0x18c0011e, 0xb190db00, 0x00182393, 0x18c0011e, 0xf1905b00,
+            0x40600003, 0x18c00000, 0x318c0300, 0x20200003, 0x02c00000, 0x303c0301, 0x20200003,
+            0x00c00000, 0x301c0300,
+        ];
+        let macro1 = [
+            0x00d43003, 0x18c00026, 0x31c00301, 0x10740003, 0x18c00427, 0x300c0300,
+        ];
+        let macro2 = [
+            0x00d42003, 0x1d000026, 0x31c08300, 0x1c74426b, 0x18c00143, 0x700c0301, 0x00200003,
+            0x18c00000, 0x301c0300,
+        ];
+        let macro27 = [
+            0x00000003, 0x18c00000, 0x3bcc7f01, 0x00000003, 0x18c00000, 0x318c0300,
+        ];
+        let mut words = inc(0, 0x11c, &[0]);
+        words.extend(old_noninc(0, 0x120, &[0, 0xa, 0xc, 0xf]));
+        words.extend(inc(0, 0x11c, &[27]));
+        words.extend(old_noninc(0, 0x120, &[0x112, 0x114]));
+        for (pointer, body) in [
+            (0, macro0.as_slice()),
+            (0xa, macro1.as_slice()),
+            (0xc, macro2.as_slice()),
+            (0x112, macro27.as_slice()),
+        ] {
+            words.extend(inc(0, 0x114, &[pointer]));
+            words.extend(old_noninc(0, 0x118, body));
+        }
+        for id in [0, 1, 2, 27] {
+            words.extend(oneinc(0, 0x3800 + id * 8, &[0x56, 0x14c50000]));
+        }
+        let mut capture = Capture::new(&[(CLASS_3D, 1)]);
+        capture.push(16, &words);
+        for (bootstrap, expected) in capture.bootstrap_calls.iter().zip([
+            macro0.as_slice(),
+            macro1.as_slice(),
+            macro2.as_slice(),
+            macro27.as_slice(),
+        ]) {
+            assert_eq!(
+                bootstrap.code,
+                expected.iter().copied().map(Some).collect::<Vec<_>>()
+            );
+        }
+        assert_eq!(capture.bootstrap_calls.len(), 4);
+        let notes = capture.notes(22).join("\n");
+        assert!(
+            notes.contains("macro 27 start dword 822, captured 6 dword(s)"),
+            "{notes}"
+        );
+        assert!(
+            notes.contains(
+                "macro 27 code +0x0: 00000003 18c00000 3bcc7f01 00000003 18c00000 318c0300"
+            ),
+            "{notes}"
+        );
+        let raw = capture.initialization_notes(22, u64::MAX).join("\n");
+        assert!(raw.contains("pointer 0xa words 6/6"), "{raw}");
+        assert!(raw.contains("pointer 0x112 words 6/6"), "{raw}");
     }
 
     #[test]
@@ -1138,7 +1214,7 @@ mod tests {
         );
         assert!(notes.contains("complete MME start image: 7=0xc"), "{notes}");
         assert!(
-            notes.contains("complete MME code +0x0: -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- 000000aa 000000bb 000000cc"),
+            notes.contains("complete MME code +0x20: -------- -------- -------- -------- 000000aa 000000bb 000000cc"),
             "{notes}"
         );
         assert_eq!(c.recent_page_aligned_params(), vec![0x0412_A000]);
