@@ -65,3 +65,13 @@
 - The normal 3DMark UI starts through Steam (`steam.exe -applaunch 223850`); direct execution showed a Steam connection error. Initial capability collection exceeded two 15-second timeouts before the UI appeared. This setup delay is separate from benchmark FPS.
 - Scheduled test wrappers now hide their PowerShell windows to avoid obscuring the benchmark. Artifact UI helpers require the 3DMark window to own the foreground before clicking.
 - First scored A/B: baseline versus direct completion only. Audit found coalesced exact-mode rearm writes currently count as one toward the 256-rearm host-hint storm guard; fix and validate that accounting before a rearm-eventfd A/B.
+
+## MSI rearm accounting and installation checkpoint
+
+- `900b4230` adds bounded `rearm_count(writes)`: one MSI decision per wake, actual coalesced write count for the host-hint storm guard, zero no-op, saturating counters. Trapped rearm remains count 1.
+- Six tests cover batched withdrawal, threshold boundaries, real device vectors, zero/overflow, exact-mode direct completion ordering/races, and the exact eventfd callback while the Device mutex is held. Full suite: 873 passed, 1 ignored; both integration tests passed.
+- Release binary `vfio-user-nvgpu-rearm-900b4230-cap`, SHA256 `fddde4fdf5c83815e9ffa5a97aa8448101431dfec88be86fa1436799c2ce5f8a`.
+- C136 stopped cleanly after a D3D11 three-frame readback pass. `check-ch.sh`: all pass; no host Xid, no guest RC, no shadow collision/fence refusal. Host FB returned to 809 MiB used / 6971 MiB free.
+- Fire Strike's files exist, but 3DMark reports the DLC as not installed. Installation was queued through its UI. Cloud Hypervisor's tap has no host NAT and DNS times out.
+- `M137-3dmark-install` is a QEMU maintenance boot without the synthetic GPU, using the existing user-network NAT to finish Steam's installation. No host firewall/NAT changes. Windows updates paused until `2026-10-11T19:44:53Z`, automatic driver installation excluded, CBS and Windows Update have no pending reboot. Then return to Cloud Hypervisor for GPU measurements.
+- No completed 3DMark score or measured speedup yet. Diagnostic corrections and successful graphics gates establish a narrower, reliable starting point.
