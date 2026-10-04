@@ -3172,9 +3172,9 @@ impl Dispatcher {
                 label: "synthesized fallback (no host: sizes unknown)",
                 note: "engine context properties: not supported".into(),
             }),
-            // The zcull save buffer of a guest 3D channel: recorded. The host context of a
-            // mirrored channel keeps its default zcull mode (GLOBAL), which only matters when
-            // the channel is preempted mid-frame (display-e.md, open items).
+            // Guest ZCULL bindings are recorded without host translation. Measured mirrored
+            // contexts use NO_CTXSW (1): tables reset on context switches, without separate
+            // buffer save/restore (ctrl2080gr.h). ZCULL can still operate within a context.
             CMD_GR_CTXSW_ZCULL_BIND => {
                 let g32 = |o: usize| params.get(o..o + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
                 let g64 = |o: usize| params.get(o..o + 8).map_or(0, |b| u64::from_le_bytes(b.try_into().unwrap()));

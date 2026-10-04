@@ -1665,7 +1665,8 @@ impl HostMemory {
     /// `RM_MAP_MEMORY_DMA` (NVOS46) of `h_mem` at `[offset, offset+length)` into `h_dma`
     /// (a virtual reservation, or a VA space) at the **fixed** VA `va`, with the given
     /// `page_size` flag (`nvos46_flags::PAGE_SIZE_*`). Snoop for sysmem, off for vidmem.
-    /// Read/write, GPU-uncached. `defer` sets `NVOS46_FLAGS_DEFER_TLB_INVALIDATION` (nvos.h:2151,
+    /// Read/write; GPU caching inherits the allocation. `defer` sets
+    /// `NVOS46_FLAGS_DEFER_TLB_INVALIDATION` (nvos.h:2151,
     /// bit 31): RM then skips its flush and VAS TLB invalidate after the PTE writes
     /// (`dmaUpdateVASpace_GF100`, virt_mem_allocator_gm107.c:2567-2577), and the caller owes
     /// the VAS one [`Self::invalidate_vas`]. Returns the status.
@@ -1699,7 +1700,7 @@ impl HostMemory {
             })
             | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE)
             | f::DEFER_TLB_INVALIDATION.set(u32::from(defer));
-        // A guest uncompressed kind (shadow.rs `kind_override`): NVOS46_FLAGS_PAGE_KIND_OVERRIDE
+        // A guest kind (shadow.rs `kind_override`): NVOS46_FLAGS_PAGE_KIND_OVERRIDE
         // (nvos.h:2114) with `kindOverride` (nvos.h:2178).
         if let Some(k) = kind {
             p.flags |= f::PAGE_KIND_OVERRIDE.set(1);
