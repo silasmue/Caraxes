@@ -145,3 +145,13 @@
 - Hardware qualification next: new binary with BAR2 memfd off, then a bounded memfd test with `CARAXES_BAR2_FLUSH_PAGE=trap`. Deferred flush is now always enabled; the old `CARAXES_BAR2_MEMFD_DEFER_FLUSH` argument is removed and must not be used as a test control. Do not untrap the flush page for this qualification. Linux SOTTR follows Windows.
 
 - Release after both shared fixes: `vfio-user-nvgpu-bar2lts-aea21d77-cap`, SHA256 `177c299fc1d5572467d3a176f2f17fbee9b81880f2e65d693e4c11ac223b8f55`. Also includes `17c9c834` RPC diagnostic savings. Graph update completed: 38436 nodes / 67343 edges. C142 starts with BAR2 memfd off and the C141 compression/direct/rearm settings for initial hardware qualification.
+
+
+## C142 baseline for the BAR2 comparison
+
+- New `aea21d77` binary, BAR2 memfd off, otherwise C141's direct/compression/scored settings. D3D11 and both D3D12 CBV pixel gates passed; stock Windows 617.14 reports adapter status OK. Interactive desktop and 3DMark UI also verified.
+- Fire Strike: overall **5979**, graphics **5726**, physics **10669**, combined **4503**; GT1 **19.939253** / GT2 **33.133926** FPS. Interval: 23:59:41 CEST Oct 4 to 00:03:33 Oct 5. Result SHA256 `9b7debb9a4c3aa47bb544d18eac846aaf4e12c5f32e7f81b90fafad3d5c69863`. No recording/profiling. This is effectively unchanged from C141's 5700 graphics, not evidence of a significant RPC/topology speedup.
+- Clean shutdown, no observed host Xid; available checks passed, trace-dependent checks skipped. Full-session log: 19 ERROR lines. The main checkout's original WIP is unchanged.
+- A process's `MainWindowHandle=0` from a noninteractive SSH session is insufficient to diagnose a missing desktop window. Interactive `upack` UI checks and screenshots are authoritative for this harness; an SSH readiness loop unnecessarily delayed navigation.
+- C143 uses the same binary with only BAR2 memfd enabled and its flush page trapped. Hardware qualification is pending. Keep it opt-in until pixel tests and a moving scene complete without host faults.
+- Further read-only preparation: `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04/posted-mmio-audit.md` and `linux-sottr-readiness.md`. Current CH still acknowledges every trapped store; mapped reads/eventfds/private USERDs can overtake queued NoReply stores, so a header-only posting change is unsafe. Linux's earlier 34.7 FPS SOTTR gate used patched display-reserve modules despite a stock kernel; use a fresh stock-module boot for vanilla qualification.
