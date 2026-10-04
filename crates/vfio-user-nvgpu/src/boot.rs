@@ -427,20 +427,81 @@ impl BootModel {
 
     /// The USERD poller's rings under the device lock (ctrl.rs `ring_userd_pending`).
     pub fn ring_userd_pending(&mut self, mem: &GuestMemory, chids: &[u32]) -> Vec<String> {
-        self.ctrl.ring_userd_pending(
+        if self.fb.bar2_area().is_none() {
+            return self.ctrl.ring_userd_pending(
+                &mut crate::channel::GpuMem {
+                    fb: &mut self.fb,
+                    sys: mem,
+                },
+                chids,
+            );
+        }
+        // The off-lock poller's candidates are checked under D before any BAR2 scan.
+        let pending = {
+            let mut gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            chids
+                .iter()
+                .copied()
+                .filter(|&chid| {
+                    self.ctrl
+                        .mirror
+                        .as_mut()
+                        .is_some_and(|m| m.userd_pending(&self.ctrl.channels, &mut gm, chid))
+                })
+                .collect::<Vec<_>>()
+        };
+        self.ring_private_userds(mem, &pending, |ctrl, gm, chids| {
+            ctrl.ring_userd_pending(gm, chids)
+        })
+    }
+
+    pub fn poll_shadow_userds(&mut self, mem: &GuestMemory) -> Vec<String> {
+        if self.fb.bar2_area().is_none() {
+            return self.ctrl.poll_shadow_userds(&mut crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            });
+        }
+        let pending = {
+            let mut gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            self.ctrl
+                .mirror
+                .as_mut()
+                .map(|m| m.poll_userds(&self.ctrl.channels, &mut gm))
+                .unwrap_or_default()
+        };
+        self.ring_private_userds(mem, &pending, |ctrl, gm, chids| {
+            ctrl.ring_userd_pending(gm, chids)
+        })
+    }
+
+    /// A private USERD's GPPut publication starts the engine even without a trapped
+    /// doorbell. Complete the normal BAR2 hand-over before submission can publish it.
+    /// Empty polls leave owed flushes to the clock and do not scan live BAR2 pages.
+    fn ring_private_userds(
+        &mut self,
+        mem: &GuestMemory,
+        chids: &[u32],
+        ring: impl FnOnce(&mut Dispatcher, &mut crate::channel::GpuMem, &[u32]) -> Vec<String>,
+    ) -> Vec<String> {
+        if chids.is_empty() {
+            return Vec::new();
+        }
+        self.bar2_before_ring_chids(mem, chids);
+        ring(
+            &mut self.ctrl,
             &mut crate::channel::GpuMem {
                 fb: &mut self.fb,
                 sys: mem,
             },
             chids,
         )
-    }
-
-    pub fn poll_shadow_userds(&mut self, mem: &GuestMemory) -> Vec<String> {
-        self.ctrl.poll_shadow_userds(&mut crate::channel::GpuMem {
-            fb: &mut self.fb,
-            sys: mem,
-        })
     }
 
     /// Send unsolicited messages (events.rs) on the status queue and raise GSP
@@ -1983,13 +2044,24 @@ impl BootModel {
                 self.ctrl.pending_channels(&gm)
             }
         };
+        self.bar2_before_ring_chids(mem, &chids);
+    }
+
+    /// The same hand-over for channels identified by private USERD polling, rather than
+    /// by a doorbell token. The caller has already checked which channels are pending.
+    fn bar2_before_ring_chids(&mut self, mem: &GuestMemory, chids: &[u32]) {
+        let replicas = self
+            .fb
+            .pool_mut()
+            .as_ref()
+            .is_some_and(|p| p.has_replicas());
         // A flush owed is settled by the BAR2 sync below with every replica merged.
         let owed = self.fb.bar2_flush_pending();
         if self.fb.bar2_area().is_some() {
-            self.bar2_doorbell_sync(mem, &chids);
+            self.bar2_doorbell_sync(mem, chids);
         }
         if replicas && !owed {
-            self.pool_before_ring(&chids);
+            self.pool_before_ring(chids);
         }
     }
 
@@ -5092,12 +5164,22 @@ mod tests {
     }
 
     fn memfd_model(defer: bool) -> (BootModel, u64, crate::bar2area::SharedView) {
+        memfd_model_with_store(defer, None)
+    }
+
+    fn memfd_model_with_store(
+        defer: bool,
+        store: Option<Box<dyn crate::fb::FbStore>>,
+    ) -> (BootModel, u64, crate::bar2area::SharedView) {
         use crate::bar2area::{Bar2Area, Config};
         const MIB: u64 = 1 << 20;
         let (base, end) = (0x400_0000u64, 0x800_0000u64);
         let layout = crate::fb::FbLayout::reserved(32 * MIB, 256 * MIB, base, end).unwrap();
         let f = crate::fixture::rtx2070();
         let mut b = BootModel::new(f.chip, layout, f.identity(256 * MIB));
+        if let Some(store) = store {
+            b.fb = b.fb.with_store(store);
+        }
         let vid = |a: u64| ((a >> 12) << 8) | 0b010;
         let pte = |a: u64| ((a >> 12) << 8) | 1;
         let (bar2, _) = layout.bar_roots().unwrap();
@@ -5713,6 +5795,210 @@ mod tests {
         w.b.doorbell_pending(&w.mem);
         assert_eq!(w.vram(x), 0xE1);
         assert_eq!(w.stats().doorbell_syncs, 1);
+    }
+
+    /// The USERD poller's engine start must hand over memfd push/data before the real
+    /// private USERD publishes GPPut. A newer submission between pre-sync and sampling
+    /// is covered by the after-sample fence; empty polls do not scan or settle a flush.
+    #[test]
+    fn private_userd_rings_sync_bar2_data_and_leave_idle_polls_alone() {
+        let (mem, _, base, path) = crate::msgq::tests::queue_fixture("bar2-private-ring");
+        let guest_userd = base + 0x2000;
+        assert!(mem.write(guest_userd, &[0u8; 0x100]));
+        let host: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let host_ptr = host.as_mut_ptr() as usize;
+        let slot = crate::mirror::UserdSlot::for_test(
+            crate::hostmem::HostUserd::for_test(host),
+            guest_userd,
+            32,
+        );
+        for owed in [false, true] {
+            let mut w = doorbell_world(true, false, DB_BASE + 0x50_0000, DB_BASE + 0x60_0000, true);
+            w.guest.store_word(2, 0, 0x1111);
+            if owed {
+                let mut word = [0u8; 4];
+                w.b.bar_access(&mem, 3, 0x1f000, &mut word, false);
+                assert!(w.b.fb.bar2_flush_pending());
+            }
+            let stats = w.stats();
+            assert!(w
+                .b
+                .ring_private_userds(&mem, &[], |_, _, _| panic!("idle poll must not ring"))
+                .is_empty());
+            assert!(
+                w.b.ring_userd_pending(&mem, &[5]).is_empty(),
+                "no mirror: stale poller candidate"
+            );
+            assert!(w.b.poll_shadow_userds(&mem).is_empty());
+            assert_eq!(w.stats().syncs, stats.syncs, "idle/stale polls do not scan");
+            assert_eq!(w.b.fb.bar2_flush_pending(), owed);
+            let put = if owed { 3u32 } else { 1u32 };
+            assert!(mem.write(guest_userd + 0x8c, &put.to_le_bytes()));
+            assert!(
+                slot.poll(&mem),
+                "actual private USERD has a pending submission"
+            );
+            let (x, guest) = (w.x, &w.guest);
+            w.b.ring_private_userds(&mem, &[5], |_, gm, chids| {
+                assert_eq!(chids, [5]);
+                let mut bytes = [0u8; 8];
+                gm.fb.read_raw(x, &mut bytes);
+                assert_eq!(
+                    u64::from_le_bytes(bytes),
+                    0x1111,
+                    "pre-sync copied observed data"
+                );
+                assert!(
+                    !gm.fb.bar2_flush_pending(),
+                    "owed flush settled before submission"
+                );
+                // A newer GPPut and its data arrive after Boot's pre-sync. Publication
+                // must include the matching new Store bytes, not only the new USERD.
+                guest.store_word(2, 0, 0x2222);
+                assert!(mem.write(guest_userd + 0x8c, &(put + 1).to_le_bytes()));
+                assert_eq!(slot.publish_for_test(gm), Ok(put + 1));
+                gm.fb.read_raw(x, &mut bytes);
+                assert_eq!(u64::from_le_bytes(bytes), 0x2222);
+                Vec::new()
+            });
+            // SAFETY: the test owns this leaked page for its whole lifetime.
+            assert_eq!(
+                unsafe { std::ptr::read_volatile((host_ptr + 0x8c) as *const u32) },
+                put + 1
+            );
+            assert!(
+                !slot.poll(&mem),
+                "the exact sampled submission was forwarded"
+            );
+            assert_eq!(
+                w.stats().settled_doorbell - stats.settled_doorbell,
+                u64::from(owed)
+            );
+        }
+        std::fs::remove_file(path).ok();
+    }
+
+    /// Observe the backing Store's flush before either old/new-ring commit word is
+    /// published. Guest GPPut changes during capture must not replace either sample.
+    #[test]
+    fn private_userd_data_is_flushed_before_both_captured_ring_publications() {
+        use crate::fb::FbStore;
+        struct FenceStore {
+            inner: crate::fb::HostRamStore,
+            hosts: [usize; 2],
+            flushes: std::sync::Arc<std::sync::Mutex<Vec<(u64, [u32; 2])>>>,
+        }
+        impl crate::fb::FbStore for FenceStore {
+            fn read(&self, pa: u64, data: &mut [u8]) {
+                self.inner.read(pa, data);
+            }
+            fn write(&mut self, pa: u64, data: &[u8]) {
+                self.inner.write(pa, data);
+            }
+            fn flush(&self) {
+                let mut data = [0u8; 8];
+                self.inner.read(DB_BASE + 0x10_0000, &mut data);
+                // SAFETY: only this test accesses the two leaked host pages.
+                let puts = self
+                    .hosts
+                    .map(|ptr| unsafe { std::ptr::read_volatile((ptr + 0x8c) as *const u32) });
+                self.flushes
+                    .lock()
+                    .unwrap()
+                    .push((u64::from_le_bytes(data), puts));
+            }
+        }
+        let (mem, _, base, path) = crate::msgq::tests::queue_fixture("bar2-private-migrate");
+        let (old_guest, new_guest) = (base + 0x2000, base + 0x3000);
+        for guest in [old_guest, new_guest] {
+            assert!(mem.write(guest, &[0u8; 0x100]));
+        }
+        let old: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let new: &'static mut [u8; 4096] = Box::leak(Box::new([0u8; 4096]));
+        let hosts = [old.as_mut_ptr() as usize, new.as_mut_ptr() as usize];
+        let slot = crate::mirror::UserdSlot::for_test(
+            crate::hostmem::HostUserd::for_test(old),
+            old_guest,
+            32,
+        );
+        slot.next_for_test(crate::hostmem::HostUserd::for_test(new), new_guest, 64);
+        let flushes = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (mut b, x, guest) = memfd_model_with_store(
+            true,
+            Some(Box::new(FenceStore {
+                inner: crate::fb::HostRamStore::default(),
+                hosts,
+                flushes: flushes.clone(),
+            })),
+        );
+        assert!(mem.write(old_guest + 0x8c, &1u32.to_le_bytes()));
+        assert!(mem.write(new_guest + 0x8c, &2u32.to_le_bytes()));
+        guest.store_word(2, 0, 0x3333);
+        let mut word = [0u8; 4];
+        b.bar_access(&mem, 3, 0x1f000, &mut word, false);
+        assert!(b.fb.bar2_flush_pending());
+        flushes.lock().unwrap().clear();
+        let mut captures = Vec::new();
+        assert_eq!(
+            slot.capture_for_test(
+                &mut crate::channel::GpuMem {
+                    fb: &mut b.fb,
+                    sys: &mem
+                },
+                |va, _, _, put| {
+                    captures.push((va, put));
+                    if va == 0x10000 {
+                        // Both ring snapshots already exist. These later submissions remain
+                        // pending even though this sync can conservatively copy their data.
+                        assert!(mem.write(old_guest + 0x8c, &3u32.to_le_bytes()));
+                        assert!(mem.write(new_guest + 0x8c, &4u32.to_le_bytes()));
+                        guest.store_word(2, 0, 0x4444);
+                    }
+                }
+            ),
+            Ok((1, false))
+        );
+        assert_eq!(captures, [(0x10000, 1), (0x20000, 2)]);
+        assert_eq!(vram_u64(&b, x), 0x4444);
+        let observed = flushes.lock().unwrap();
+        assert!(!observed.is_empty(), "Store was flushed before publication");
+        assert!(observed
+            .iter()
+            .all(|&(bytes, puts)| bytes == 0x4444 && puts == [0, 0]));
+        drop(observed);
+        // SAFETY: only this test accesses its leaked host pages.
+        assert_eq!(
+            hosts.map(|ptr| unsafe { std::ptr::read_volatile((ptr + 0x8c) as *const u32) }),
+            [1, 2]
+        );
+        assert!(
+            slot.poll(&mem),
+            "later puts 3/4 were not accidentally forwarded"
+        );
+        assert!(!b.fb.bar2_flush_pending());
+        assert_eq!(b.fb.bar2_area().unwrap().stats().settled_doorbell, 1);
+        // Without a memfd, production publication retains its existing old/new-ring
+        // path and does not add a backing-store data scan or flush.
+        flushes.lock().unwrap().clear();
+        let mut plain = crate::fb::FakeFb::new(1 << 20).with_store(Box::new(FenceStore {
+            inner: crate::fb::HostRamStore::default(),
+            hosts,
+            flushes: flushes.clone(),
+        }));
+        assert_eq!(
+            slot.publish_for_test(&mut crate::channel::GpuMem {
+                fb: &mut plain,
+                sys: &mem
+            }),
+            Ok(3)
+        );
+        assert!(flushes.lock().unwrap().is_empty());
+        // SAFETY: only this test accesses its leaked host pages.
+        assert_eq!(
+            hosts.map(|ptr| unsafe { std::ptr::read_volatile((ptr + 0x8c) as *const u32) }),
+            [3, 4]
+        );
+        std::fs::remove_file(path).ok();
     }
 
     /// vm10-boot8's failure: a channel whose USERD page is behind the BAR2 memfd (the guest

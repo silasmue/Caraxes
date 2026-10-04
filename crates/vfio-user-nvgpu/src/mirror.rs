@@ -1147,6 +1147,57 @@ impl UserdSlot {
     }
 }
 
+#[cfg(test)]
+impl UserdSlot {
+    pub(crate) fn for_test(storage: HostUserd, guest: u64, entries: u32) -> Arc<Self> {
+        Self::new(
+            ShadowUserd {
+                storage,
+                guest,
+                entries,
+                published_put: Some(0),
+                harvested: None,
+                next: None,
+            },
+            true,
+        )
+    }
+
+    pub(crate) fn next_for_test(&self, storage: HostUserd, guest: u64, entries: u32) {
+        self.with(|u| {
+            u.next = Some(Box::new(NextRing {
+                storage,
+                guest,
+                entries,
+                published_put: Some(0),
+                harvested: None,
+                initial_get: 0,
+                api: 0,
+                gpfifo_va: 0x20000,
+                since: Instant::now(),
+            }))
+        })
+        .unwrap();
+    }
+
+    pub(crate) fn publish_for_test(&self, gm: &mut GpuMem) -> Result<u32, String> {
+        self.with(|u| u.publish(gm)).unwrap()
+    }
+
+    pub(crate) fn capture_for_test(
+        &self,
+        gm: &mut GpuMem,
+        mut capture: impl FnMut(u64, u32, u32, u32),
+    ) -> Result<(u32, bool), String> {
+        self.with(|u| {
+            u.publish_after_capture(gm, 0x10000, |_, va, entries, start, put| {
+                capture(va, entries, start, put)
+            })
+        })
+        .unwrap()
+    }
+}
+
 /// The private USERDs the poller watches, by mirror (one per device model; a model rebuilt
 /// at a reset publishes under a new id and the old one's entries go when it is dropped).
 type UserdWatch = Vec<(u64, u32, Arc<UserdSlot>)>;
@@ -1193,14 +1244,34 @@ fn publish_ring(storage: &HostUserd, guest: u64, entries: u32, gm: &GpuMem) -> R
     Ok(cpu.gp_put())
 }
 
+/// The data fence after sampling a private submission, before publishing either ring.
+/// This scans only at an actual publication. PTE changes still require the guest's
+/// invalidate/plan barriers; this does not follow new BAR2 mappings or validate them.
+fn sync_private_userd_data(gm: &mut GpuMem) {
+    if gm.fb.bar2_area().is_none() {
+        return;
+    }
+    let owed = gm.fb.bar2_flush_pending().then(Instant::now);
+    gm.fb.bar2_sync(None, Some(gm.sys));
+    if let (Some(t0), Some(a)) = (owed, gm.fb.bar2_area_mut()) {
+        a.count_point(
+            crate::bar2area::Point::Doorbell,
+            t0.elapsed().as_nanos() as u64,
+        );
+    }
+    crate::bar1pool::sync_untracked(gm.fb);
+    gm.fb.bar2_flush_settled(crate::bar2area::Settle::Doorbell);
+    gm.fb.flush();
+}
+
 impl ShadowUserd {
-    /// Diagnostic publication: capture both sampled rings before either commit word
-    /// reaches the host. The guest may advance again while the capture reads its PBs.
+    /// Sample both rings before either commit word reaches the host. The guest may
+    /// advance again during capture or the data sync; publish only these samples.
     fn publish_after_capture(
         &mut self,
-        gm: &GpuMem,
+        gm: &mut GpuMem,
         gpfifo_va: u64,
-        mut capture: impl FnMut(u64, u32, u32, u32),
+        mut capture: impl FnMut(&GpuMem, u64, u32, u32, u32),
     ) -> Result<(u32, bool), String> {
         let sample = |guest: u64, entries: u32| {
             crate::userd::CpuState::read(entries, |off| {
@@ -1215,11 +1286,14 @@ impl ShadowUserd {
             None => None,
         };
         if let Some(cpu) = old {
-            capture(gpfifo_va, self.entries, self.published_put.unwrap_or(0), cpu.gp_put());
+            capture(gm, gpfifo_va, self.entries, self.published_put.unwrap_or(0), cpu.gp_put());
         }
         if let (Some(n), Some(cpu)) = (self.next.as_ref(), next) {
-            capture(n.gpfifo_va, n.entries, n.published_put.unwrap_or(n.initial_get), cpu.gp_put());
+            capture(gm, n.gpfifo_va, n.entries, n.published_put.unwrap_or(n.initial_get), cpu.gp_put());
         }
+        // A private USERD can start fetching without another guest doorbell. Its
+        // sampled GPPut must precede the memfd data hand-over, not follow it.
+        sync_private_userd_data(gm);
         if let Some(cpu) = old {
             cpu.publish(|off, value| self.storage.write_u32(off, value));
             self.storage.flush();
@@ -1254,7 +1328,11 @@ impl ShadowUserd {
     /// Publish the guest's submission. While a migration is in flight the new ring is
     /// published too, and the old one only as long as the guest still reads well there
     /// (the guest may free the old ring once it moved on).
-    fn publish(&mut self, gm: &GpuMem) -> Result<u32, String> {
+    fn publish(&mut self, gm: &mut GpuMem) -> Result<u32, String> {
+        if gm.fb.bar2_area().is_some() {
+            return self.publish_after_capture(gm, 0, |_, _, _, _, _| {})
+                .map(|(put, _)| put);
+        }
         let old = publish_ring(&self.storage, self.guest, self.entries, gm);
         let Some(n) = self.next.as_mut() else {
             let put = old?;
@@ -3400,7 +3478,7 @@ impl Mirror {
                     incomplete = Some("guest ring or VAS unavailable during capture".to_string());
                 }
                 let sampled = slot.as_ref().and_then(|slot| slot.with(|u| {
-                    u.publish_after_capture(gm, ch.map_or(0, |ch| ch.gpfifo_va), |va, entries, start, put| {
+                    u.publish_after_capture(gm, ch.map_or(0, |ch| ch.gpfifo_va), |gm, va, entries, start, put| {
                         if let Some(root) = root {
                             if let Some(note) = hc.gr_capture.as_mut().unwrap().ring(gm, root, va, entries, start, put) {
                                 incomplete = Some(note.clone());
@@ -3443,14 +3521,16 @@ impl Mirror {
             } else {
                 // Preserve the production submission path when capture is disabled.
                 let published = self.channels.get(&chid).and_then(|hc| hc.with_userd(|u| u.publish(gm)));
-                if let Some(Err(e)) = published {
-                    notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
-                    return notes;
-                }
-                if crate::launch::fast() {
-                    Self::userd_put(reg, gm, chid)
-                } else {
-                    Self::userd_ring(reg, gm, chid).map(|(_, put, _)| put)
+                match published {
+                    Some(Err(e)) => {
+                        notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
+                        return notes;
+                    }
+                    // The guest may have advanced again during the memfd scan. Keep
+                    // the actual publication cutoff, not a later USERD re-read.
+                    Some(Ok(put)) if gm.fb.bar2_area().is_some() => Some(put),
+                    _ if crate::launch::fast() => Self::userd_put(reg, gm, chid),
+                    _ => Self::userd_ring(reg, gm, chid).map(|(_, put, _)| put),
                 }
             };
             mark(Step::Userd);
@@ -7501,7 +7581,7 @@ mod tests {
         }
         let mut fb = crate::fb::FakeFb::new(1 << 20);
         let mut ranges = Vec::new();
-        let result = u.publish_after_capture(&GpuMem { fb: &mut fb, sys: &mem }, 0x10000, |va, entries, start, put| {
+        let result = u.publish_after_capture(&mut GpuMem { fb: &mut fb, sys: &mem }, 0x10000, |_gm, va, entries, start, put| {
             // SAFETY: this test alone owns the leaked page. GPPut must still be old.
             assert_eq!(unsafe { std::ptr::read_volatile(ptr.add(0x8c) as *const u32) }, 2);
             ranges.push((va, entries, start, put));
@@ -7538,7 +7618,7 @@ mod tests {
         assert!(mem.write(next_guest + 0x8c, &3u32.to_le_bytes()));
         let mut fb = crate::fb::FakeFb::new(1 << 20);
         let mut ranges = Vec::new();
-        assert_eq!(u.publish_after_capture(&GpuMem { fb: &mut fb, sys: &mem }, 0x10000, |va, entries, start, put| {
+        assert_eq!(u.publish_after_capture(&mut GpuMem { fb: &mut fb, sys: &mem }, 0x10000, |_gm, va, entries, start, put| {
             // Both snapshots must precede even the old ring's publication, which
             // could let the host execute the migration and start fetching the new one.
             // SAFETY: only this test touches the leaked pages.
@@ -7555,7 +7635,7 @@ mod tests {
         u.next.as_ref().unwrap().storage.write_u32(0x88, 1);
         let (old, _) = u.settle().expect("the host moved to the captured new ring");
         ranges.clear();
-        assert_eq!(u.publish_after_capture(&GpuMem { fb: &mut fb, sys: &mem }, 0x20000, |va, entries, start, put| {
+        assert_eq!(u.publish_after_capture(&mut GpuMem { fb: &mut fb, sys: &mem }, 0x20000, |_gm, va, entries, start, put| {
             ranges.push((va, entries, start, put));
         }), Ok((4, false)));
         assert_eq!(ranges, [(0x20000, 64, 3, 4)], "settlement must not reuse old-ring put 6 or skip the new prefix");
@@ -7645,14 +7725,14 @@ mod tests {
         assert!(mem.write(old_guest + 0x8c, &6u32.to_le_bytes()));
         assert!(mem.write(new_guest + 0x8c, &0u32.to_le_bytes()));
         assert!(u.pending(&mem));
-        assert_eq!(u.publish(&GpuMem { fb: &mut fb, sys: &mem }), Ok(6));
+        assert_eq!(u.publish(&mut GpuMem { fb: &mut fb, sys: &mem }), Ok(6));
         assert_eq!(u.storage.read_u32(0x8c), 6);
         assert_eq!(u.next.as_ref().unwrap().storage.read_u32(0x8c), 0);
         assert!(!u.pending(&mem));
         // The guest goes on on the new ring before the host reached the method.
         assert!(mem.write(new_guest + 0x8c, &3u32.to_le_bytes()));
         assert!(u.pending(&mem), "new-ring entries are pending");
-        u.publish(&GpuMem { fb: &mut fb, sys: &mem }).unwrap();
+        u.publish(&mut GpuMem { fb: &mut fb, sys: &mem }).unwrap();
         assert_eq!(u.next.as_ref().unwrap().storage.read_u32(0x8c), 3);
         assert_eq!(u.storage.read_u32(0x8c), 6, "the old ring stays where the method is");
         // The host consumed the old ring up to the method: not settled yet.
