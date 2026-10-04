@@ -77,6 +77,7 @@ pub const VARS: &[Var] = &[
     var("CARAXES_LEGACY_CACHEABLE", Open, "off", "1: CACHEABLE on static GSS-legacy replies (no verdict)"),
     var("CARAXES_EXT_CONFIG", Open, "off", "1: the extended config space in the config region too"),
     // Diagnostics and overrides.
+    var("CARAXES_DLOCK_STATS", Diag, "1", "0: skip detailed lock/part statistics; locking and GPU behavior are unchanged"),
     var("CARAXES_PROFILE", Diag, "off", "1: the per-device profile (SIGUSR2 and exit dumps)"),
     var("CARAXES_PROFILE_OUT", Diag, "beside the trace", "the profile's dump prefix"),
     var("CARAXES_TRACE_ACCESSES", Diag, "1", "0, 1 or bar0:<lo>-<hi>: which trapped accesses the trace lists"),

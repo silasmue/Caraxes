@@ -63,6 +63,9 @@ for kv in os.environ.get('CH_DEV_EXTRA', '').split():
 # A scored run retains GPU behavior and removes investigation overhead. Instrumented
 # runs remain the default; collect latency/trap distributions in a separate run.
 if SCORED:
+    # Default off; CH_DEV_EXTRA="CARAXES_DLOCK_STATS=1" permits a same-binary A/B
+    # with detailed lock statistics alone. Other scored diagnostics stay off.
+    DEV.setdefault('CARAXES_DLOCK_STATS', '0')
     for key in ('CARAXES_PROFILE', 'CARAXES_GR_CAPTURE', 'CARAXES_LAUNCH_TIMING',
                 'CARAXES_SEMAPHORE_DIAG', 'CARAXES_TRACE_ACCESSES',
                 'CARAXES_MIRROR_DIAG', 'CARAXES_SHADOW_CHANNEL_DIAG',

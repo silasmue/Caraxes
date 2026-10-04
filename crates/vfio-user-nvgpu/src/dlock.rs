@@ -13,11 +13,25 @@
 //! What a hold did: the work under it tags the hold ([`tag`]: an RPC, a mirror build, a
 //! channel's doorbell), and a long hold keeps its tags as detail. The GSP RPCs are also timed
 //! by function and command or class ([`work`]), for the exit summary's work table.
+//! `CARAXES_DLOCK_STATS=0` skips this diagnostic work and software-part timers; it does
+//! not change the mutex, its guard, or functional submission/reply ordering.
 
 use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
+
+/// Lock diagnostics remain on unless explicitly disabled for a scored run.
+pub const STATS_ENV: &str = "CARAXES_DLOCK_STATS";
+
+fn stats_requested(value: Option<&str>) -> bool {
+    !matches!(value.map(str::trim), Some("0"))
+}
+
+fn stats_enabled() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| stats_requested(std::env::var(STATS_ENV).ok().as_deref()))
+}
 
 /// Log2 microsecond buckets: bucket k holds holds in [2^(k-1), 2^k) us (bucket 0: < 1 us).
 const BUCKETS: usize = 32;
@@ -39,6 +53,13 @@ thread_local! {
 /// Tag the device-lock hold this thread is in with what it does now (computed only inside a
 /// hold, and only for the first [`TAGS`] tags).
 pub fn tag(f: impl FnOnce() -> String) {
+    tag_with_stats(stats_enabled(), f);
+}
+
+fn tag_with_stats(on: bool, f: impl FnOnce() -> String) {
+    if !on {
+        return;
+    }
     if DEPTH.with(|d| d.get()) == 0 {
         return;
     }
@@ -96,6 +117,13 @@ pub struct Spend {
 
 impl Spend {
     pub fn new(part: Part) -> Self {
+        Self::new_with_stats(part, stats_enabled())
+    }
+
+    fn new_with_stats(part: Part, on: bool) -> Self {
+        if !on {
+            return Spend { part, t0: None };
+        }
         let outer = SPENT.with(|s| {
             let mut s = s.borrow_mut();
             !std::mem::replace(&mut s.1[part as usize], true)
@@ -118,7 +146,8 @@ impl Drop for Spend {
             s.0[self.part as usize] += d.as_nanos() as u64;
             s.1[self.part as usize] = false;
         });
-        work("software", self.part.name().to_string(), d);
+        // An active timer is diagnostic-enabled even in explicit-mode tests.
+        work_with_stats(true, "software", self.part.name().to_string(), d);
     }
 }
 
@@ -143,6 +172,13 @@ static WORK: Mutex<Option<WorkTable>> = Mutex::new(None);
 
 /// Record `d` of work `kind`/`key` under the device lock (a GSP RPC by function and command).
 pub fn work(kind: &'static str, key: String, d: Duration) {
+    work_with_stats(stats_enabled(), kind, key, d);
+}
+
+fn work_with_stats(on: bool, kind: &'static str, key: String, d: Duration) {
+    if !on {
+        return;
+    }
     let ns = d.as_nanos() as u64;
     let mut w = WORK.lock().unwrap_or_else(PoisonError::into_inner);
     let row = w.get_or_insert_with(Default::default).entry((kind, key)).or_default();
@@ -181,6 +217,13 @@ fn bucket(d: Duration) -> usize {
 
 /// Record one hold of `d` by `label` (`detail` computed only for a long one).
 pub fn record(label: &'static str, d: Duration, detail: impl FnOnce() -> String) {
+    record_with_stats(stats_enabled(), label, d, detail);
+}
+
+fn record_with_stats(on: bool, label: &'static str, d: Duration, detail: impl FnOnce() -> String) {
+    if !on {
+        return;
+    }
     let ns = d.as_nanos() as u64;
     let mut st = STATS.lock().unwrap_or_else(PoisonError::into_inner);
     let row = match st.rows.iter().position(|(l, _)| *l == label) {
@@ -223,6 +266,13 @@ fn quantile(r: &Row, q: f64) -> Duration {
 /// The exit summary's lines: holds by label (count, total, p50/p99 bucket bounds, max), most
 /// total time first, and the longest holds.
 pub fn summary() -> Vec<String> {
+    summary_with_stats(stats_enabled())
+}
+
+fn summary_with_stats(on: bool) -> Vec<String> {
+    if !on {
+        return vec![format!("device lock statistics disabled ({STATS_ENV}=0)")];
+    }
     let st = STATS.lock().unwrap_or_else(PoisonError::into_inner);
     let mut rows = st.rows.clone();
     rows.sort_by(|a, b| b.1.total_ns.cmp(&a.1.total_ns));
@@ -282,45 +332,54 @@ pub struct Held<'a, T> {
     label: &'static str,
     detail: Option<Box<dyn FnOnce() -> String + 'a>>,
     t0: Instant,
+    stats_on: bool,
 }
 
 /// Take `m` for `label`.
 pub fn lock<'a, T>(m: &'a Mutex<T>, label: &'static str) -> Held<'a, T> {
+    lock_with_stats(m, label, stats_enabled())
+}
+
+fn lock_with_stats<'a, T>(m: &'a Mutex<T>, label: &'static str, on: bool) -> Held<'a, T> {
     let guard = m.lock().unwrap_or_else(PoisonError::into_inner);
-    if DEPTH.with(|d| d.replace(d.get() + 1)) == 0 {
-        HOLD_TAGS.with(|t| t.borrow_mut().clear());
-    }
-    Held {
-        guard: Some(guard),
-        label,
-        detail: None,
-        t0: Instant::now(),
-    }
+    Held::new(guard, label, on)
 }
 
 /// Take `m` for `label` if nobody holds it; `None` while it is held (the display clock
 /// then ticks without it, display/core_path.rs).
 pub fn try_lock<'a, T>(m: &'a Mutex<T>, label: &'static str) -> Option<Held<'a, T>> {
+    try_lock_with_stats(m, label, stats_enabled())
+}
+
+fn try_lock_with_stats<'a, T>(m: &'a Mutex<T>, label: &'static str, on: bool) -> Option<Held<'a, T>> {
     let guard = match m.try_lock() {
         Ok(g) => g,
         Err(std::sync::TryLockError::Poisoned(p)) => p.into_inner(),
         Err(std::sync::TryLockError::WouldBlock) => return None,
     };
-    if DEPTH.with(|d| d.replace(d.get() + 1)) == 0 {
-        HOLD_TAGS.with(|t| t.borrow_mut().clear());
-    }
-    Some(Held {
-        guard: Some(guard),
-        label,
-        detail: None,
-        t0: Instant::now(),
-    })
+    Some(Held::new(guard, label, on))
 }
 
 impl<'a, T> Held<'a, T> {
+    fn new(guard: MutexGuard<'a, T>, label: &'static str, on: bool) -> Self {
+        if on && DEPTH.with(|d| d.replace(d.get() + 1)) == 0 {
+            HOLD_TAGS.with(|t| t.borrow_mut().clear());
+        }
+        Held {
+            guard: Some(guard),
+            label,
+            detail: None,
+            // Retain the public held_for duration even when aggregation is disabled.
+            t0: Instant::now(),
+            stats_on: on,
+        }
+    }
+
     /// The detail a long hold keeps (the register of a trapped access), computed only then.
     pub fn detail(&mut self, f: impl FnOnce() -> String + 'a) {
-        self.detail = Some(Box::new(f));
+        if self.stats_on {
+            self.detail = Some(Box::new(f));
+        }
     }
 
     /// How long the lock has been held so far.
@@ -344,6 +403,10 @@ impl<T> DerefMut for Held<'_, T> {
 
 impl<T> Drop for Held<'_, T> {
     fn drop(&mut self) {
+        if !self.stats_on {
+            drop(self.guard.take());
+            return;
+        }
         let d = self.t0.elapsed();
         drop(self.guard.take());
         let outer = DEPTH.with(|n| n.replace(n.get().saturating_sub(1))) == 1;
@@ -353,7 +416,7 @@ impl<T> Drop for Held<'_, T> {
             Vec::new()
         };
         let detail = self.detail.take();
-        record(self.label, d, || {
+        record_with_stats(true, self.label, d, || {
             let mut s = detail.map_or_else(String::new, |f| f());
             if !tags.is_empty() {
                 if !s.is_empty() {
@@ -371,19 +434,108 @@ mod tests {
     use super::*;
 
     #[test]
+    fn statistics_default_on_and_only_explicit_zero_disables_them() {
+        for value in [None, Some(""), Some("1"), Some("unexpected")] {
+            assert!(stats_requested(value), "{value:?}");
+        }
+        assert!(!stats_requested(Some("0")));
+        assert!(!stats_requested(Some(" 0 ")));
+    }
+
+    #[test]
+    fn disabled_guards_still_lock_mutate_try_lock_and_unlock() {
+        let m = Mutex::new(7u32);
+        let depth = DEPTH.with(Cell::get);
+        {
+            let mut g = lock_with_stats(&m, "test: disabled hold", false);
+            *g += 3;
+            g.detail(|| unreachable!("disabled detail must not run"));
+            tag_with_stats(false, || unreachable!("disabled tag must not run"));
+            assert!(try_lock_with_stats(&m, "test: disabled busy", false).is_none());
+            assert!(matches!(m.try_lock(), Err(std::sync::TryLockError::WouldBlock)));
+            assert_eq!(DEPTH.with(Cell::get), depth);
+            assert!(!g.stats_on);
+        }
+        {
+            let mut g = try_lock_with_stats(&m, "test: disabled try", false).unwrap();
+            assert_eq!(*g, 10);
+            *g = 12;
+        }
+        assert_eq!(*m.lock().unwrap(), 12);
+        assert_eq!(DEPTH.with(Cell::get), depth);
+        assert!(STATS.lock().unwrap().rows.iter().all(|(l, _)| !l.starts_with("test: disabled")));
+    }
+
+    #[test]
+    fn disabled_guards_preserve_poison_recovery() {
+        let m = Mutex::new(0u32);
+        assert!(std::panic::catch_unwind(|| {
+            let mut g = lock_with_stats(&m, "test: disabled poison", false);
+            *g = 4;
+            panic!("poison the real mutex");
+        }).is_err());
+        assert!(m.is_poisoned());
+        {
+            let mut g = lock_with_stats(&m, "test: disabled recovery", false);
+            assert_eq!(*g, 4);
+            *g += 1;
+        }
+        let g = try_lock_with_stats(&m, "test: disabled poisoned try", false).unwrap();
+        assert_eq!(*g, 5);
+    }
+
+    #[test]
+    fn disabled_record_and_work_do_not_aggregate_or_build_details() {
+        record_with_stats(false, "test: disabled record", Duration::from_secs(1), || {
+            unreachable!("disabled record detail must not run")
+        });
+        work_with_stats(false, "test-disabled-work", "key".into(), Duration::from_secs(1));
+        assert!(STATS.lock().unwrap().rows.iter().all(|(l, _)| *l != "test: disabled record"));
+        let work = WORK.lock().unwrap();
+        assert!(work.as_ref().is_none_or(|w| !w.contains_key(&("test-disabled-work", "key".into()))));
+        assert_eq!(summary_with_stats(false), vec!["device lock statistics disabled (CARAXES_DLOCK_STATS=0)"]);
+    }
+
+    #[test]
+    fn disabled_spend_has_no_timer_or_part_state() {
+        take_spent();
+        {
+            let g = Spend::new_with_stats(Part::Copy, false);
+            let nested = Spend::new_with_stats(Part::Copy, false);
+            assert!(g.t0.is_none() && nested.t0.is_none());
+            SPENT.with(|s| assert_eq!(s.borrow().1, [false; PARTS]));
+        }
+        assert_eq!(take_spent(), [Duration::ZERO; PARTS]);
+        // A disabled nested scope must neither reserve nor clear an enabled timer's part.
+        {
+            let outer = Spend::new_with_stats(Part::Copy, true);
+            {
+                let disabled = Spend::new_with_stats(Part::Copy, false);
+                assert!(disabled.t0.is_none());
+            }
+            SPENT.with(|s| assert!(s.borrow().1[Part::Copy as usize]));
+            let nested = Spend::new_with_stats(Part::Copy, true);
+            assert!(outer.t0.is_some() && nested.t0.is_none());
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(take_spent()[Part::Copy as usize] >= Duration::from_millis(1));
+        SPENT.with(|s| assert_eq!(s.borrow().1, [false; PARTS]));
+    }
+
+    #[test]
     fn holds_are_recorded_by_label_with_the_longest_kept() {
         let m = Mutex::new(0u32);
         {
-            let mut g = lock(&m, "test: short");
+            let mut g = lock_with_stats(&m, "test: short", true);
             *g += 1;
         }
         {
-            let mut g = lock(&m, "test: long");
+            let mut g = lock_with_stats(&m, "test: long", true);
             g.detail(|| "bar0 W 0xb830b0".into());
             std::thread::sleep(Duration::from_millis(6));
         }
         assert_eq!(*m.lock().unwrap(), 1);
-        let s = summary();
+        let s = summary_with_stats(true);
         assert!(s[0].contains("test: long 1 hold(s)"), "{s:?}");
         assert!(s[0].contains("test: short 1 hold(s)"), "{s:?}");
         let longest = s.iter().find(|l| l.starts_with("device lock: longest")).unwrap();
@@ -410,13 +562,13 @@ mod tests {
         // fixed bound, so a thread descheduled under parallel load does not fail the test.
         let t = std::time::Instant::now();
         {
-            let _outer = Spend::new(Part::Copy);
-            let _inner = Spend::new(Part::Copy);
+            let _outer = Spend::new_with_stats(Part::Copy, true);
+            let _inner = Spend::new_with_stats(Part::Copy, true);
             std::thread::sleep(Duration::from_millis(3));
         }
         let block = t.elapsed();
         {
-            let _t = Spend::new(Part::Translate);
+            let _t = Spend::new_with_stats(Part::Translate, true);
             std::thread::sleep(Duration::from_millis(1));
         }
         let [translate, copy, ..] = take_spent();
@@ -429,17 +581,17 @@ mod tests {
     /// work table sums by kind and key.
     #[test]
     fn a_long_hold_keeps_its_tags_and_work_is_summed_by_key() {
-        tag(|| unreachable!("no hold on this thread"));
+        tag_with_stats(true, || unreachable!("no hold on this thread"));
         let m = Mutex::new(0u32);
         {
-            let _g = lock(&m, "test: tagged");
-            tag(|| "rpc GSP_RM_CONTROL 0x90f10106".into());
-            tag(|| "build chid 4".into());
+            let _g = lock_with_stats(&m, "test: tagged", true);
+            tag_with_stats(true, || "rpc GSP_RM_CONTROL 0x90f10106".into());
+            tag_with_stats(true, || "build chid 4".into());
             std::thread::sleep(Duration::from_millis(6));
         }
-        work("test-rpc", "GSP_RM_ALLOC class 0xc46f".into(), Duration::from_millis(3));
-        work("test-rpc", "GSP_RM_ALLOC class 0xc46f".into(), Duration::from_millis(5));
-        let s = summary();
+        work_with_stats(true, "test-rpc", "GSP_RM_ALLOC class 0xc46f".into(), Duration::from_millis(3));
+        work_with_stats(true, "test-rpc", "GSP_RM_ALLOC class 0xc46f".into(), Duration::from_millis(5));
+        let s = summary_with_stats(true);
         let longest = s.iter().find(|l| l.starts_with("device lock: longest")).unwrap();
         assert!(
             longest.contains("test: tagged (rpc GSP_RM_CONTROL 0x90f10106, build chid 4)"),
