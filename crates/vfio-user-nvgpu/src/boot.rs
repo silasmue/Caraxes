@@ -1326,6 +1326,12 @@ impl BootModel {
         self.chip
     }
 
+    /// Retained graphics capture on request; no RC or GPU-state change is needed.
+    pub fn gr_capture_lines(&mut self, mem: &GuestMemory, chid: u32) -> Vec<String> {
+        let gm = crate::channel::GpuMem { fb: &mut self.fb, sys: mem };
+        self.ctrl.mirror.as_ref().map_or_else(Vec::new, |m| m.gr_capture_notes(&gm, chid))
+    }
+
     /// The FB address space the guest is told (the profile size without a reservation).
     pub fn fb_bytes(&self) -> u64 {
         self.layout.addr_space

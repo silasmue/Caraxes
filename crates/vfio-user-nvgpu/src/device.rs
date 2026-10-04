@@ -1647,6 +1647,11 @@ impl Device {
         out
     }
 
+    /// Read retained opt-in graphics capture for the local diagnostic control channel.
+    pub fn gr_capture_dump(&mut self, chid: u32) -> Vec<String> {
+        self.bar0.boot_mut().map_or_else(Vec::new, |b| b.gr_capture_lines(&self.mem, chid))
+    }
+
     /// The software channels whose blocked semaphore acquire is satisfied now continue
     /// (channel.rs `AcquireWait`), on the `ce-slices` clock of main.rs.
     pub fn recheck_acquires(&mut self) {

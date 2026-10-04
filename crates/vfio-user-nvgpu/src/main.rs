@@ -1745,6 +1745,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     };
     // A live state dump on request: `echo state > <state dir>/device-ctl` prints every
     // channel, host object and the interrupt state into this log (device.rs `state_dump`).
+    // `gr <chid>` prints retained opt-in graphics capture without causing an RC.
     let device_ctl = {
         let d = device.clone();
         let stop = soak_stop.clone();
@@ -1760,21 +1761,31 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                     std::thread::sleep(std::time::Duration::from_millis(200));
                     let Ok(cmd) = std::fs::read_to_string(&path) else { continue };
                     let _ = std::fs::remove_file(&path);
-                    if cmd.trim() != "state" {
-                        eprintln!("vfio-user-nvgpu: device-ctl: unknown command {:?} (known: state)", cmd.trim());
+                    let gr = cmd.trim().strip_prefix("gr ").and_then(|s| s.trim().parse::<u32>().ok());
+                    if cmd.trim() != "state" && gr.is_none() {
+                        eprintln!("vfio-user-nvgpu: device-ctl: unknown command {:?} (known: state, gr <chid>)", cmd.trim());
                         continue;
                     }
                     n += 1;
                     let t0 = std::time::Instant::now();
-                    let mut lines = d.lock().unwrap_or_else(PoisonError::into_inner).state_dump();
-                    if let Some(p) = &page {
-                        lines.push(p.state_line());
+                    let mut lines = {
+                        let mut device = d.lock().unwrap_or_else(PoisonError::into_inner);
+                        match gr {
+                            Some(chid) => device.gr_capture_dump(chid),
+                            None => device.state_dump(),
+                        }
+                    };
+                    if gr.is_none() {
+                        if let Some(p) = &page {
+                            lines.push(p.state_line());
+                        }
                     }
+                    let label = if gr.is_some() { "gr snapshot" } else { "state" };
                     for l in &lines {
-                        eprintln!("vfio-user-nvgpu: state {n}: {l}");
+                        eprintln!("vfio-user-nvgpu: {label} {n}: {l}");
                     }
                     eprintln!(
-                        "vfio-user-nvgpu: state {n}: {} line(s) in {} us",
+                        "vfio-user-nvgpu: {label} {n}: {} line(s) in {} us",
                         lines.len(),
                         t0.elapsed().as_micros()
                     );
