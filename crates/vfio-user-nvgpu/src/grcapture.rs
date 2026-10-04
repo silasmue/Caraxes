@@ -408,6 +408,38 @@ impl Capture {
             self.direct_binds,
             self.direct_unbinds,
         ));
+        // CARAXES_GR_CAPTURE is already an explicit, fault-analysis-only mode. Preserve the
+        // complete final MME image here: Windows may install several generations of macros,
+        // so bounding a called macro by the next start address can splice a newer start table
+        // onto older instruction RAM and hide the code that actually emitted faulting state.
+        let start_image = self
+            .starts
+            .iter()
+            .enumerate()
+            .filter_map(|(id, start)| start.map(|start| format!("{id}={start:#x}")))
+            .collect::<Vec<_>>();
+        out.push(format!(
+            "gr live capture: chid {chid}: complete MME start image: {}",
+            if start_image.is_empty() {
+                "none".into()
+            } else {
+                start_image.join(" ")
+            }
+        ));
+        if let Some(last) = self.mme_words.iter().rposition(Option::is_some) {
+            for (chunk, words) in self.mme_words[..=last].chunks(16).enumerate() {
+                out.push(format!(
+                    "gr live capture: chid {chid}: complete MME code +{:#x}: {}",
+                    chunk * 16,
+                    words
+                        .iter()
+                        .map(|word| word
+                            .map_or_else(|| "--------".into(), |word| format!("{word:08x}")))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ));
+            }
+        }
         if self.valid_zero.is_empty() {
             out.push(format!(
                 "gr live capture: chid {chid}: no direct valid constant-buffer bind to VA 0 observed"
@@ -592,6 +624,11 @@ mod tests {
         assert!(notes.contains("final direct CB state none"), "{notes}");
         assert!(
             notes.contains("macro 7 code +0x0: 000000aa 000000bb 000000cc"),
+            "{notes}"
+        );
+        assert!(notes.contains("complete MME start image: 7=0xc"), "{notes}");
+        assert!(
+            notes.contains("complete MME code +0x0: -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- 000000aa 000000bb 000000cc"),
             "{notes}"
         );
     }
