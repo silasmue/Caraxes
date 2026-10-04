@@ -811,7 +811,7 @@ impl BootModel {
                             notes.push(line);
                         }
                         if let Some(mirror) = self.ctrl.mirror.as_ref() {
-                            for line in mirror.gr_capture_notes(chid) {
+                            for line in mirror.gr_capture_notes(&gm, chid) {
                                 eprintln!("vfio-user-nvgpu: {line}");
                                 notes.push(line);
                             }

@@ -3263,11 +3263,28 @@ impl Mirror {
     }
 
     /// Exact live C597/MME state retained by the opt-in graphics capture.
-    pub fn gr_capture_notes(&self, chid: u32) -> Vec<String> {
-        self.channels
-            .get(&chid)
-            .and_then(|channel| channel.gr_capture.as_ref())
-            .map_or_else(Vec::new, |capture| capture.notes(chid))
+    pub fn gr_capture_notes(&self, gm: &GpuMem, chid: u32) -> Vec<String> {
+        let Some(channel) = self.channels.get(&chid) else { return Vec::new() };
+        let Some(capture) = channel.gr_capture.as_ref() else { return Vec::new() };
+        let mut notes = capture.notes(chid);
+        let Some(root) = channel.shadow_root else { return notes };
+        for va in capture.recent_page_aligned_params() {
+            let mut data = [0u8; 256];
+            if let Err(error) = gm.read_va(Target::Fb(root), va, &mut data) {
+                notes.push(format!(
+                    "gr live capture: chid {chid}: recent aligned macro parameter {va:#x}: guest VA snapshot unreadable: {error}"
+                ));
+                continue;
+            }
+            for (line, bytes) in data.chunks(16).enumerate() {
+                notes.push(format!(
+                    "gr live capture: chid {chid}: guest VA {va:#x}+{:#x}: {}",
+                    line * 16,
+                    bytes.iter().map(|byte| format!("{byte:02x}")).collect::<Vec<_>>().join(" ")
+                ));
+            }
+        }
+        notes
     }
 
     /// Forward the doorbell of built channel `chid` now: flush the FB store, publish a

@@ -321,6 +321,26 @@ impl Capture {
         self.finish_call(&mut open);
     }
 
+    /// Recent page-aligned, non-zero macro parameters that may be GPU virtual addresses.
+    /// This deliberately returns only a few candidates: the RC path can snapshot them from
+    /// the guest VA space, while ordinary scalar macro parameters are excluded by alignment.
+    pub fn recent_page_aligned_params(&self) -> Vec<u64> {
+        let mut seen = BTreeSet::new();
+        let mut out = Vec::new();
+        for call in self.calls.iter().rev() {
+            for &param in call.params.iter().rev() {
+                let va = param as u64;
+                if va != 0 && va & 0xfff == 0 && seen.insert(va) {
+                    out.push(va);
+                    if out.len() == 4 {
+                        return out;
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// Capture the newly published half-open GPFIFO range `[start, put)` before its host
     /// doorbell is forwarded. `start` and `put` are ring indices and may wrap.
     pub fn ring(
@@ -602,6 +622,7 @@ mod tests {
         words.extend(inc(0, 0, &[0x5540]));
         words.extend(inc(0, 0, &[0]));
         words.extend(oneinc(0, 0x3800 + 8 * 8, &[0x44, 0x55]));
+        words.extend(oneinc(0, 0x3800 + 48 * 8, &[0, 0, 0x0412_A000]));
         words.extend(inc(0, 0x10F4, &[1 << 8]));
 
         let mut c = Capture::new(&[(CLASS_3D, 1)]);
@@ -631,5 +652,6 @@ mod tests {
             notes.contains("complete MME code +0x0: -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- -------- 000000aa 000000bb 000000cc"),
             "{notes}"
         );
+        assert_eq!(c.recent_page_aligned_params(), vec![0x0412_A000]);
     }
 }
