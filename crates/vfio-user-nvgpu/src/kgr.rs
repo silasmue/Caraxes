@@ -181,17 +181,21 @@ fn floorsweeping(
     put32(&mut b, fs.gpc_mask, gpc_mask);
     put32(&mut b, fs.phys_gpc_mask, gpc_mask);
     let mut tpcs = Vec::new();
-    // The host indexes every per-GPC query by 0..popcount(gpcMask) (kgr.c:3544-3585).
-    for g in 0..(gpc_mask.count_ones() as usize).min(v::FS_MAX_GPC) {
+    // Non-MIG TPC/ZCULL/PES masks use physical GPC IDs; only TPC counts use
+    // logical IDs (615 ctrl2080internal.h:306-325, kgr.c:3590-3674).
+    // Limit shifts to the u32 mask width and writes to the guest's array bound.
+    let physical_gpcs = (0..v::FS_MAX_GPC.min(u32::BITS as usize))
+        .filter(|&g| gpc_mask & (1u32 << g) != 0);
+    for (logical, g) in physical_gpcs.enumerate() {
         let mut p = vec![0u8; v::GR_ROUTED_SIZE];
         put32(&mut p, v::GR_ROUTED_ARG, g as u32);
         host_ok(host, v::CMD_GR_GET_TPC_MASK, &mut p)?;
         let tpc_mask = get32(&p, v::GR_ROUTED_OUT);
         put32(&mut b, fs.tpc_mask + 4 * g, tpc_mask);
         let mut p = [0u8; 8];
-        put32(&mut p, 0, g as u32);
+        put32(&mut p, 0, logical as u32);
         host_ok(host, v::CMD_GR_GET_NUM_TPCS_FOR_GPC, &mut p)?;
-        put32(&mut b, fs.tpc_count + 4 * g, get32(&p, 4));
+        put32(&mut b, fs.tpc_count + 4 * logical, get32(&p, 4));
         tpcs.push(format!("{tpc_mask:#x}/{}", get32(&p, 4)));
         // NOT_SUPPORTED means the host holds NV_U32_MAX there (kgr.c:3840-3842).
         let mut p = [0u8; 8];
@@ -210,9 +214,10 @@ fn floorsweeping(
             fs.num_pes_per_gpc + 4 * g,
             get32(&p, hl.pes_info_num_pes),
         );
-        if g == 0 {
-            // One map in the internal struct; the host fills it from GPC 0's
-            // (subdevice_ctrl_gpu_kernel.c:2021-2028 serves it for any gpcId).
+        if logical == 0 {
+            // One shared map in the internal struct, returned for any physical
+            // gpcId (615 subdevice_ctrl_gpu_kernel.c:2018-2020). Copy it even
+            // when physical GPC 0 is disabled.
             let (src, dst) = (hl.pes_info_tpc_to_pes_map, fs.tpc_to_pes_map);
             let len = 4 * fs.tpc_to_pes_map_len.min(hl.pes_info_map_len);
             b[dst..dst + len].copy_from_slice(&p[src..src + len]);
@@ -1283,6 +1288,168 @@ mod tests {
         );
         assert!(p[fs.elem..].iter().all(|&x| x == 0));
         assert!(a.label.starts_with("host"));
+    }
+
+    /// Non-MIG sparse physical IDs must not become logical IDs in mask/PES
+    /// queries or output arrays. TPC counts alone use dense logical IDs.
+    #[test]
+    fn floorsweeping_sparse_physical_and_logical_gpcs() {
+        use crate::hostabi::{HOST_610, HOST_615};
+        use crate::ver::common as v;
+
+        struct Gr {
+            mask: u32,
+            layout: &'static HostLayouts,
+            calls: Vec<(u32, u32)>,
+        }
+
+        fn physical_ids(mask: u32) -> Vec<u32> {
+            (0..32).filter(|&g| mask & (1u32 << g) != 0).collect()
+        }
+
+        fn num_tpcs(physical: u32) -> u32 {
+            1 + physical % 6
+        }
+
+        impl HostRm for Gr {
+            fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
+                assert_eq!(class, NV20_SUBDEVICE_0);
+                match cmd {
+                    v::CMD_GR_GET_GPC_MASK => put32(p, v::GR_ROUTED_ARG, self.mask),
+                    v::CMD_GR_GET_TPC_MASK | v::CMD_GR_GET_ZCULL_MASK | v::CMD_GPU_GET_PES_INFO => {
+                        let g = get32(
+                            p,
+                            if cmd == v::CMD_GR_GET_TPC_MASK {
+                                v::GR_ROUTED_ARG
+                            } else {
+                                0
+                            },
+                        );
+                        assert!(
+                            g < 32 && self.mask & (1u32 << g) != 0,
+                            "physical query {cmd:#x} for disabled/out-of-range GPC {g}"
+                        );
+                        self.calls.push((cmd, g));
+                        match cmd {
+                            v::CMD_GR_GET_TPC_MASK => {
+                                put32(p, v::GR_ROUTED_OUT, (1u32 << num_tpcs(g)) - 1)
+                            }
+                            v::CMD_GR_GET_ZCULL_MASK => put32(p, 4, 0x100 + g),
+                            _ => {
+                                assert_eq!(p.len(), self.layout.pes_info_size);
+                                put32(p, self.layout.pes_info_num_pes, 1 + g % 3);
+                                for i in 0..self.layout.pes_info_map_len {
+                                    put32(
+                                        p,
+                                        self.layout.pes_info_tpc_to_pes_map + 4 * i,
+                                        0x80 + i as u32,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    v::CMD_GR_GET_NUM_TPCS_FOR_GPC => {
+                        let logical = get32(p, 0);
+                        let ids = physical_ids(self.mask);
+                        assert!(
+                            (logical as usize) < ids.len(),
+                            "invalid logical GPC {logical}"
+                        );
+                        self.calls.push((cmd, logical));
+                        put32(p, 4, num_tpcs(ids[logical as usize]));
+                    }
+                    v::CMD_GR_GET_GFX_GPC_AND_TPC_INFO => {
+                        put32(p, v::GR_ROUTED_ARG, self.mask);
+                        put32(
+                            p,
+                            v::GR_ROUTED_OUT,
+                            physical_ids(self.mask).into_iter().map(num_tpcs).sum(),
+                        );
+                    }
+                    c => panic!("unexpected {c:#x}"),
+                }
+                NV_OK
+            }
+        }
+
+        assert!(
+            v::FS_MAX_GPC >= 32,
+            "all u32 mask bits fit the guest arrays"
+        );
+        for guest in [GuestAbi::V610, GuestAbi::V615] {
+            let _guest = TestGuest::set(guest);
+            let fs = &crate::ver::layouts().fs;
+            for layout in [&HOST_610, &HOST_615] {
+                for mask in [0b101, 0x7, 1u32 << 31, 0x8000_0005, u32::MAX, 0] {
+                    let ids = physical_ids(mask);
+                    let mut h = Gr {
+                        mask,
+                        layout,
+                        calls: Vec::new(),
+                    };
+                    let (p, _) = {
+                        let mut host: Host<'_> = Some(&mut h);
+                        floorsweeping(&mut host, layout).unwrap()
+                    };
+                    let expected_calls: Vec<_> = ids
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(logical, &g)| {
+                            [
+                                (v::CMD_GR_GET_TPC_MASK, g),
+                                (v::CMD_GR_GET_NUM_TPCS_FOR_GPC, logical as u32),
+                                (v::CMD_GR_GET_ZCULL_MASK, g),
+                                (v::CMD_GPU_GET_PES_INFO, g),
+                            ]
+                        })
+                        .collect();
+                    assert_eq!(h.calls, expected_calls, "{guest:?} mask {mask:#x}");
+                    assert_eq!(p.len(), fs.params);
+                    assert_eq!(get32(&p, fs.gpc_mask), mask);
+                    assert_eq!(get32(&p, fs.phys_gpc_mask), mask);
+                    for g in 0..v::FS_MAX_GPC {
+                        let physical = ids.contains(&(g as u32));
+                        assert_eq!(
+                            get32(&p, fs.tpc_mask + 4 * g),
+                            if physical {
+                                (1u32 << num_tpcs(g as u32)) - 1
+                            } else {
+                                0
+                            }
+                        );
+                        assert_eq!(
+                            get32(&p, fs.zcull_mask + 4 * g),
+                            if physical { 0x100 + g as u32 } else { 0 }
+                        );
+                        assert_eq!(
+                            get32(&p, fs.num_pes_per_gpc + 4 * g),
+                            if physical { 1 + g as u32 % 3 } else { 0 }
+                        );
+                        assert_eq!(
+                            get32(&p, fs.tpc_count + 4 * g),
+                            ids.get(g).map_or(0, |&physical| num_tpcs(physical))
+                        );
+                    }
+                    let copied = fs.tpc_to_pes_map_len.min(layout.pes_info_map_len);
+                    for i in 0..fs.tpc_to_pes_map_len {
+                        assert_eq!(
+                            get32(&p, fs.tpc_to_pes_map + 4 * i),
+                            if mask != 0 && i < copied {
+                                0x80 + i as u32
+                            } else {
+                                0
+                            }
+                        );
+                    }
+                    assert_eq!(get32(&p, fs.phys_gfx_gpc_mask), mask);
+                    assert_eq!(
+                        get32(&p, fs.num_gfx_tpc),
+                        ids.into_iter().map(num_tpcs).sum::<u32>()
+                    );
+                    assert!(p[fs.elem..].iter().all(|&x| x == 0));
+                }
+            }
+        }
     }
 
     /// The public mask queries a GSP client without static GR info sends (nouveau's r570
