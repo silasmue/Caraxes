@@ -313,10 +313,17 @@ impl Recorded {
 pub const RECORD_HOST_ENV: &str = "CARAXES_RECORD_HOST";
 
 fn hex_trim(b: &[u8]) -> String {
-    let h: String = b.iter().map(|x| format!("{x:02x}")).collect();
-    let t = h.trim_end_matches('0');
-    let t = if t.len() % 2 == 1 { format!("{t}0") } else { t.to_string() };
-    if t.len() == h.len() { h } else { format!("{}:{t}", b.len()) }
+    // Drop whole zero bytes before encoding. Large legacy queries often send all-zero
+    // input; formatting each byte first made recording dominate the measured control.
+    let kept = b.iter().rposition(|&x| x != 0).map_or(0, |i| i + 1);
+    let mut out = if kept == b.len() { String::new() } else { format!("{}:", b.len()) };
+    out.reserve(kept * 2);
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for &x in &b[..kept] {
+        out.push(HEX[(x >> 4) as usize] as char);
+        out.push(HEX[(x & 0xf) as usize] as char);
+    }
+    out
 }
 
 pub fn record_host(cmd: u32, status: u32, req: &[u8], ans: &[u8]) {
@@ -692,6 +699,24 @@ mod tests {
         assert_eq!(hex_trim(&[1, 2, 0, 0]), "4:0102");
         assert_eq!(hex_trim(&[1, 2]), "0102");
         assert_eq!(unhex(&hex_trim(&[0x10, 0, 0])).unwrap(), vec![0x10, 0, 0]);
+    }
+
+    #[test]
+    fn recording_preserves_zero_tails_and_both_hex_nibbles() {
+        assert_eq!(hex_trim(&[]), "");
+        assert_eq!(hex_trim(&[0, 0]), "2:");
+        assert_eq!(hex_trim(&[0x10]), "10");
+        assert_eq!(hex_trim(&[0x10, 0]), "2:10");
+        assert_eq!(hex_trim(&[0, 1, 0]), "3:0001");
+        // Preserve every byte value, including a final low zero nibble, through the
+        // actual table parser; a large all-zero request keeps its announced length.
+        for last in 0u8..=255 {
+            let bytes = [0, 0xa5, last, 0, 0];
+            assert_eq!(unhex(&hex_trim(&bytes)).unwrap(), bytes);
+        }
+        let zeros = vec![0; 54352];
+        assert_eq!(hex_trim(&zeros), "54352:");
+        assert_eq!(unhex(&hex_trim(&zeros)).unwrap(), zeros);
     }
 
     #[test]
