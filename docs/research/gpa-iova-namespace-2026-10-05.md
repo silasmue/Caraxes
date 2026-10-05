@@ -18,6 +18,11 @@ pages, range boundaries, reset, unmap, disconnect, and shadow refusal after an
 unmap whose address still equals another page's host IOVA. Async registration
 retains the existing pending/applied lifecycle.
 
-Hardware validation and polling comparisons are pending. Subsequent host
-registrations may use high IOVAs after the GPU switches its DMA mask; a later
-successful boot alone cannot prove that the low-IOVA case was exercised again.
+Commit `514be02c` passed independent review, 927 unit tests, two integration tests
+and a release build; one unit test remains ignored. Stock Windows C173/C174/C175
+booted with Problem Code 0 and passed three fresh D3D11 readbacks each. C173 also
+completed two locally validated Fire Strike runs; later polling attempts did not
+complete every workload and are excluded from performance comparisons.
+
+Subsequent registrations used high IOVAs. Successful boots do not prove that the
+low-IOVA case was exercised again. See [the overnight qualification](night-performance-2026-10-06.md).

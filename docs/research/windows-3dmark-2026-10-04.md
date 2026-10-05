@@ -609,3 +609,20 @@ FMSIScan presence is not a rendering boundary. The archive places the benchmark 
 Fresh three-frame D3D11 readback and pre/post guest health passed: stock driver 617.14, adapter OK/problem 0, readable System log, no Display 4101 since boot. Monitoring/scanning restored on through observed UI. Owned VM and both collectors stopped before the original bound; NVIDIA stayed bound, no new host Xid, 6838 MiB FB/231 MiB BAR1 free. Available checks passed; trace/guest RC checks skipped, 18 ERROR notes retained. No new recording. Work paused at the user's request; no further test launched.
 
 Next: controlled hybrid versus spin with the same explicit CPU placement, then GPU work/state and memory traffic. See [the prioritized measurements](windows-performance-next-2026-10-05.md). Private evidence: `C169-scheduler-parent-root-qualification.json`, complete archive/sidecar/marker, CPU/clock data, independent cross-checks, health, closeout and final Claude handoff.
+
+## C170–C176B: resumed overnight investigation
+
+Work resumed after the pause. C170 exposed a GPA/IOVA namespace collision during
+initialization, fixed in `514be02c`. The immutable candidate booted C173/C174/C175
+with stock Windows and fresh D3D11 readbacks. Subsequent high IOVAs did not
+recreate C170's collision on hardware; regression tests cover it.
+
+C173 completed two hybrid Fire Strike runs, graphics 5472/5570. Combined FPS
+fell from 20.1561 to 10.9797. C174 spin and C175 hybrid control both produced
+incomplete archives rejected by strict validation. There is no qualified polling
+comparison or accepted performance improvement. A GPU-free maintenance boot
+confirmed that the rejected result bytes were not subsequently rewritten; it
+found no matching current 3DMark crash or Display 4101 in the searched interval.
+
+See [the overnight report](night-performance-2026-10-06.md) for CPU placement,
+clock observations, qualification gaps and the stock Linux timing investigation.
