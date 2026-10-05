@@ -415,6 +415,10 @@ pub struct RemapTable {
     live: HashMap<u64, Live>,
     /// Bumped whenever a page enters or leaves `live` ([`Self::generation`]).
     generation: u64,
+    /// Membership only: rebuilt at most once per generation for full scans. Default's
+    /// empty cache is valid; retained keys are bounded by a previous live set, not scans.
+    full_scan_generation: u64,
+    full_scan_keys: Vec<u64>,
 }
 
 impl RemapTable {
@@ -571,13 +575,25 @@ impl RemapTable {
         // Allocated at the first page that differs: a scan of clean pages is one memcmp
         // per BAR2 page and nothing else.
         let mut bufs: Option<(Box<PageBuf>, Box<PageBuf>)> = None;
-        let mut keys: Vec<u64> = match only {
-            Some(k) => k.iter().copied().filter(|k| self.live.contains_key(k)).collect(),
-            None => self.live.keys().copied().collect(),
+        let mut partial: Vec<u64>;
+        let keys: &[u64] = match only {
+            Some(k) => {
+                partial = k.iter().copied().filter(|k| self.live.contains_key(k)).collect();
+                partial.sort_unstable();
+                partial.dedup();
+                &partial
+            }
+            None => {
+                // set() bumps generation for membership changes, including retargets
+                // and reused keys. Aliases and shared bytes are read anew below.
+                if self.full_scan_generation != self.generation {
+                    self.full_scan_keys = self.live_keys();
+                    self.full_scan_generation = self.generation;
+                }
+                &self.full_scan_keys
+            }
         };
-        keys.sort_unstable();
-        keys.dedup();
-        for key in keys {
+        for &key in keys {
             let l = self.live.get_mut(&key).expect("listed");
             let mut merged: Option<Box<PageBuf>> = None;
             let mut cleared = false;
@@ -700,6 +716,8 @@ impl RemapTable {
         self.va.clear();
         self.live.clear();
         self.generation += 1;
+        self.full_scan_keys = Vec::new();
+        self.full_scan_generation = self.generation;
     }
 }
 
@@ -2302,6 +2320,136 @@ mod tests {
         a.remap.set(3, None, &a.mem.view, &mut |_| filled(0));
         assert_ne!(a.live_generation(), g1);
         assert_eq!(a.live_keys(), vec![0x100, 0x101, sys]);
+    }
+
+    #[test]
+    fn a_cached_full_scan_reads_external_bytes_and_current_aliases() {
+        let area = MemfdArea::create(16 * PAGE).unwrap();
+        let guest = area.map_again().unwrap();
+        let mem = area.view();
+        let mut t = RemapTable::default();
+        t.set(2, Some(0x40), mem, &mut |_| filled(0));
+        t.set(7, Some(0x20), mem, &mut |_| filled(0));
+        assert_eq!(t.scan(mem, &mut |_, _, _| panic!()), Scan { compared: 2, ..Scan::default() });
+        assert_eq!(t.full_scan_keys, vec![0x20, 0x40]);
+        let generation = t.generation();
+        let cached = t.full_scan_keys.as_ptr();
+        assert_eq!(t.scan(mem, &mut |_, _, _| panic!()).compared, 2);
+        assert_eq!(t.full_scan_keys.as_ptr(), cached);
+
+        // A key cache hit still compares a write made through another mapping.
+        guest.write(2 * PAGE + 8, &[0xAA]);
+        let mut wb = Vec::new();
+        let s = t.scan(mem, &mut |k, off, b| wb.push((k, off, b.to_vec())));
+        assert_eq!(s, Scan { compared: 2, dirty: vec![0x40], bytes: 1, conflicts: 0 });
+        assert_eq!(wb, vec![(0x40, 8, vec![0xAA])]);
+
+        // Alias changes do not change membership: the newly lower alias must win a
+        // conflicting byte, while a disjoint byte from the other alias survives.
+        t.set(1, Some(0x40), mem, &mut |_| panic!("alias must not load"));
+        assert_eq!(t.generation(), generation);
+        assert_eq!(t.aliases(0x40), &[1, 2]);
+        assert_eq!(t.max_aliases(), 2);
+        guest.write(PAGE + 16, &[0xA1]);
+        guest.write(2 * PAGE + 16, &[0xB2, 0xC3]);
+        let mut backing = vec![0; PAGE as usize];
+        backing[20] = 0xEE; // An unrelated GPU-written byte must not be overwritten.
+        wb.clear();
+        let s = t.scan(mem, &mut |k, off, b| {
+            wb.push((k, off, b.to_vec()));
+            backing[off..off + b.len()].copy_from_slice(b);
+        });
+        assert_eq!(s, Scan { compared: 3, dirty: vec![0x40], bytes: 2, conflicts: 1 });
+        assert_eq!(wb, vec![(0x40, 16, vec![0xA1, 0xC3])]);
+        assert_eq!(backing[20], 0xEE);
+        assert_eq!((mem.load_word(1, 2), mem.load_word(2, 2)), (0xC3A1, 0xC3A1));
+
+        t.set(1, None, mem, &mut |_| panic!());
+        assert_eq!(t.generation(), generation, "a nonfinal alias removal changes no key");
+        assert_eq!(t.aliases(0x40), &[2]);
+        assert_eq!(t.max_aliases(), 1);
+        guest.write(PAGE + 16, &[0xFF]); // Former alias is now unrelated.
+        guest.write(2 * PAGE + 24, &[0xD4]);
+        wb.clear();
+        let s = t.scan(mem, &mut |k, off, b| wb.push((k, off, b.to_vec())));
+        assert_eq!(s, Scan { compared: 2, dirty: vec![0x40], bytes: 1, conflicts: 0 });
+        assert_eq!(wb, vec![(0x40, 24, vec![0xD4])]);
+        assert!(t.device_write(mem, 0x40 * PAGE + 32, &[0xE5]));
+        assert_eq!(t.scan(mem, &mut |_, _, _| panic!()), Scan { compared: 2, ..Scan::default() });
+        assert_eq!(t.full_scan_keys.as_ptr(), cached, "membership cache survived byte/alias changes");
+    }
+
+    #[test]
+    fn cached_membership_tracks_retarget_reuse_reset_and_partial_selection() {
+        let area = MemfdArea::create(16 * PAGE).unwrap();
+        let guest = area.map_again().unwrap();
+        let mem = area.view();
+        let mut t = RemapTable::default();
+        assert_eq!(t.full_scan_generation, t.generation(), "initial empty cache is valid");
+        assert_eq!(t.scan(mem, &mut |_, _, _| panic!()), Scan::default());
+        let sys = key_of(Target::Sys(0x40 * PAGE)).unwrap();
+        for (va, key) in [(6, sys), (7, 0x60), (9, 0x40)] {
+            t.set(va, Some(key), mem, &mut |_| filled(0));
+        }
+        assert_eq!(t.scan(mem, &mut |_, _, _| panic!()).compared, 3);
+        assert_eq!(t.full_scan_keys, vec![0x40, 0x60, sys]);
+        guest.write(6 * PAGE + 1, &[0x51]);
+        guest.write(7 * PAGE + 2, &[0x61]);
+        guest.write(9 * PAGE, &[0x41]);
+        let mut wb = Vec::new();
+        // Unsorted/duplicated/unmapped partial keys still filter, dedup and sort,
+        // leaving the same-address FB page's bytes for the full scan.
+        let s = t.scan_keys(mem, Some(&[sys, 0xDEAD, 0x60, sys]), &mut |k, off, b| {
+            wb.push((k, off, b.to_vec()));
+        });
+        assert_eq!(s, Scan { compared: 2, dirty: vec![0x60, sys], bytes: 2, conflicts: 0 });
+        assert_eq!(wb, vec![(0x60, 2, vec![0x61]), (sys, 1, vec![0x51])]);
+        wb.clear();
+        let s = t.scan(mem, &mut |k, off, b| wb.push((k, off, b.to_vec())));
+        assert_eq!(s, Scan { compared: 3, dirty: vec![0x40], bytes: 1, conflicts: 0 });
+        assert_eq!(wb, vec![(0x40, 0, vec![0x41])]);
+
+        let generation = t.generation();
+        assert_eq!(t.set(7, None, mem, &mut |_| panic!()).left, Some(0x60));
+        assert_ne!(t.generation(), generation);
+        assert_eq!(t.scan(mem, &mut |_, _, _| panic!()).compared, 2);
+        assert_eq!(t.full_scan_keys, vec![0x40, sys]);
+        // Retarget to an existing key removes the old member, but uses current
+        // aliases of the remaining key without loading or carrying old snapshots.
+        let ch = t.set(9, Some(sys), mem, &mut |_| panic!("existing key must not load"));
+        assert_eq!((ch.left, ch.entered, ch.loaded), (Some(0x40), Some(sys), false));
+        assert_eq!(t.aliases(sys), &[6, 9]);
+        guest.write(9 * PAGE + 3, &[0x52]);
+        wb.clear();
+        let s = t.scan(mem, &mut |k, off, b| wb.push((k, off, b.to_vec())));
+        assert_eq!(s, Scan { compared: 2, dirty: vec![sys], bytes: 1, conflicts: 0 });
+        assert_eq!(wb, vec![(sys, 3, vec![0x52])]);
+        assert_eq!(t.full_scan_keys, vec![sys]);
+
+        assert!(t.set(10, Some(0x40), mem, &mut |_| filled(0)).loaded);
+        assert_eq!(mem.load_word(10, 0), 0, "reused key gets a fresh snapshot");
+        guest.write(10 * PAGE + 4, &[0x42]);
+        wb.clear();
+        let s = t.scan(mem, &mut |k, off, b| wb.push((k, off, b.to_vec())));
+        assert_eq!(s, Scan { compared: 3, dirty: vec![0x40], bytes: 1, conflicts: 0 });
+        assert_eq!(wb, vec![(0x40, 4, vec![0x42])]);
+        assert_eq!(t.full_scan_keys, vec![0x40, sys]);
+
+        t.clear();
+        assert_eq!((t.mapped(), t.live_pages(), t.full_scan_keys.capacity()), (0, 0, 0));
+        assert_eq!(t.full_scan_generation, t.generation());
+        guest.write(6 * PAGE, &[0xFF]);
+        assert_eq!(t.scan(mem, &mut |_, _, _| panic!()), Scan::default());
+        for (va, key) in [(6, 0x40), (9, sys)] {
+            t.set(va, Some(key), mem, &mut |_| filled(0));
+        }
+        guest.write(9 * PAGE, &[0x53]);
+        guest.write(6 * PAGE, &[0x43]);
+        wb.clear();
+        let s = t.scan(mem, &mut |k, off, b| wb.push((k, off, b.to_vec())));
+        assert_eq!(s, Scan { compared: 2, dirty: vec![0x40, sys], bytes: 2, conflicts: 0 });
+        assert_eq!(wb, vec![(0x40, 0, vec![0x43]), (sys, 0, vec![0x53])]);
+        assert_eq!(t.full_scan_keys, vec![0x40, sys]);
     }
 
     #[test]
