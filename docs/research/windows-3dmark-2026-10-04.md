@@ -539,3 +539,25 @@
 - The automatic clock recorder raced the VMM's initial process rename and exited before creating output. Root restarted the identical frozen recorder after identity checks, before both benchmark windows. Neither completed window has a sampling gap over two seconds. The detached session owner retained the original locks/deadline and exited with status zero.
 - Read-only research prioritizes submission/completion tails, exact interrupt transport and unused trace formatting. USERD cadence/CPU placement and resource state remain hypotheses. See [the next performance measurements](windows-performance-next-2026-10-05.md). D3D12 Xid 31 remains unfixed; no exact-FE promotion.
 - Private evidence: `C166-full-boost-root-qualification.json`, complete archives/sidecars, guest health, closeout, frozen runtime/owner records, clock CSV and per-run analysis, and `windows-performance-research-2026-10-05.md`. Raw archives and logs remain private.
+
+
+## C167: trace consumer candidate, no performance gain
+
+Source `efc62e17` skips trace output formatting without an event sink. Notes still drain; USERD execution, FLR, MSI, counters and enabled tracing keep their behavior. Independent source review found no blockers. Root qualified 924 unit tests (one ignored), two integration tests, release build and AST update. See [trace consumers](trace-consumers.md).
+
+Fresh stock Windows 617.14 / Cloud Hypervisor session, same 4 GiB FB, 8 GiB RAM, eight vCPUs, full regular VM boost policy and FE off as C166. Backend diagnostics/capture were off; read-only physical clocks sampled at 1 Hz. Both complete local Fire Strike P archives passed strict configuration/completion checks:
+
+| Case | Graphics score | GT1 FPS | GT2 FPS | Physics FPS |
+| --- | ---: | ---: | ---: | ---: |
+| C166 parent 1 | 6015 | 20.8006 | 35.2223 | 37.2305 |
+| C166 parent 2 | 6040 | 20.9198 | 35.2792 | 35.9844 |
+| C167 candidate 1 | 5917 | 20.3863 | 34.8658 | 35.3144 |
+| C167 candidate 2 | 5150 | 18.6792 | 27.9536 | 31.4410 |
+
+Performance is **not accepted**. The second candidate repetition loses 13.0% graphics score relative to its first run. No cause is established. Both high-utilization subsets had 1830 MHz SM median, memory stayed at 7000 MHz, all global-window samples were P0, maximum temperatures were 78/79 C, and no hardware thermal slowdown appeared. The archive has no reliable individual workload boundaries; physical utilization includes host work.
+
+Whole-session doorbell-to-host p99 rose from 2250 to 3025 us, maximum from 50.5 to 160.0 ms; boost RM-call maximum rose from 68.5 to 305.3 ms. These are not phase-correlated. Poller CPU placement differed (15 versus 11), and automatic pinning does not guarantee isolation from later vCPU migration or SMT siblings. A post-benchmark process snapshot cannot attribute contention during rendering. Repeat the unchanged parent before another code candidate.
+
+Three D3D11 frames verified. Guest adapter status OK/problem 0, no Display 4101 since boot. Monitoring restored, owned processes stopped, NVIDIA stayed bound, no host Xid; 6797 MiB FB/231 MiB BAR1 free. Nineteen backend ERROR notes retained; trace/guest RC checks skipped. D3D12 Xid 31 remains unresolved. No new recording.
+
+Private root qualification: `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04/C167-trace-consumers-root-qualification.json`. Candidate SHA256 `92734242c61b421c410bd6586709ed3f7f6a3008b15df85491e3fd74335b5534`. C168 now repeats the pinned pre-change parent; its result is pending.
