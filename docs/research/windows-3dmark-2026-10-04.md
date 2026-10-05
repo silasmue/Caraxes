@@ -331,3 +331,19 @@
 - Fresh Windows boot and three-frame D3D11 pixel gate passed: create 512 ms / render 21 ms. The diagnostic depth probe passed four full-image controls, actual IA/VS/PS statistics and timestamp completion. Its timing is not scored evidence.
 - Probe channel 44 / client `c1d000ac` retains 46 observations without eviction through capture sequence 87. At sequence 17, direct MME shadow control is 0 (TRACK), followed by initial depth-test/write zeros and function 1, then shadow control 1 (TRACK_WITH_FILTER). All C597 bindings are inferred; tracked values, macro-emitted methods and effective GPU state remain unknown. This closes an observation gap, not the depth-performance diagnosis.
 - C153 stopped cleanly at 04:36 CEST. Available harness checks passed, no observed host Xid or guest RC note; 15 backend ERROR notes. Probe-only evidence: `C153-probe-depth-scalar-summary.json`. Aggregate capture count includes desktop channels. A manifest-name preflight refusal occurred before any VM started and was retained separately.
+
+
+## C154: same Vulkan code and shaders on Windows
+
+- Ported the owned native probe to Windows outside the repository. Only the monotonic CPU clock and Windows include/macros differ; Vulkan commands, SPIR-V, image/statistics gates and timestamp scopes are unchanged. Cross-build with warnings-as-errors, POSIX CPU self-test and Windows CPU self-test passed. PE SHA256 `6d7749009e7550a29005976b8c4cf529f67dd7806839d59c634753b5942a73ae`; no guest helper or host package installation.
+- Scored diagnostics off; backend `86a31e85` / SHA256 `14d39849...`. The 256² qualification and 1024² instance sweep passed all four full-image controls, actual separate statistics and eight measured samples per arm. Windows Vulkan exposes `Leandro VFIO RTX 2070-4G`, hardware 10de:1f02, NVIDIA driver 617.14. This is Vulkan's reported name, not a new Device Manager/Task Manager check.
+
+| Nearest-first instances, 1024² | Windows guest Vulkan median us | Native Linux Vulkan median us |
+| --- | ---: | ---: |
+| 1 | 6.448 | 6.448 |
+| 16 | 13.696 | 13.056 |
+| 64 | 35.056 | 35.136 |
+
+- IA/VS are 3N, primitives N, FS 294912. Readback memory is cached/coherent/host-visible, type 4 / heap 1 on both observed platforms. Windows finite differences are 0.483/0.445 us per added instance. Same-session unchanged D3D11 N64 repeats at **76.832 us**, with matching image and IA/VS/PS gates. This substantially weakens a general emulator-wide depth-rejection slowdown hypothesis. API/compiler/state, OS and driver differences still remain; no native Windows D3D11 control exists.
+- These microtests do not establish Fire Strike performance, native game speed or the cause of D3D11's difference. The last complete scored Fire Strike graphics result remains **5740**. Next diagnostic compares submitted Vulkan versus D3D11 state and BIND requests without rewriting commands.
+- C154 stopped cleanly; available harness checks passed, trace checks skipped, no observed host Xid, 15 backend ERROR notes. Packets: `C154-vk-depth/`, `C154-d3d64-control-summary.json`, `owned-vk-instanced/depth/windows-port/` and its independent read-only review.
