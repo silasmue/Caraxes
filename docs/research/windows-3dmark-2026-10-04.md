@@ -301,3 +301,17 @@
 - C151 stopped cleanly at 03:57 CEST; available harness checks passed, no observed host Xid, 15 backend ERROR notes. Detailed probe-only scalars and bind evidence: `C151-probe-depth-scalar-summary.json` / `C151-probe-zcull-bind-evidence.txt` in the artifact directory. Earlier controller aggregate observation counts include desktop channels and must not be attributed to the probe.
 - Next discriminator: an unchanged-probe nearest-first instance sweep at 1/16/64 layers. Safe ZCULL translation needs validated owned-channel identity, buffer sizing and mapping lifetime; a mode setter alone is insufficient. Windows optimization remains first; Linux SOTTR follows.
 - Fixed malformed ZCULL BIND handling separately: require the SDK's 24-byte payload and documented modes 0–2. Short/oversized payloads and invalid modes return INVALID_ARGUMENT rather than a successful zero-filled diagnostic. Valid payload echoes, embedded-client handling and host translation behavior are preserved. Regression checks all short lengths, an oversized request, invalid modes, 64-bit VA and padding preservation, with generic host forwarding forbidden. Full validation: **894 device tests passed / 1 ignored**, both integration tests and release build passed. This is input validation, not ZCULL save/restore support.
+
+## C152: depth rejection versus instance count
+
+- Scored diagnostic flags all off; separate binary from `7ae5a130`, SHA256 `d9be5b0bb9d7b9e4d2c081f42a1adca35a9849bcea8eeadff58a13e99922e6af`. Stock Windows 617.14 on host 615.71.09. Unchanged Windows/native probes, no helper, no clock changes. Native sweep completed under the shared slot-A lock before Windows started. Each arm passed four image controls, actual separate statistics, two warmups and eight timing samples.
+
+| Nearest-first instances, 1024² | Windows guest D3D11 median us | Native Linux Vulkan median us | Observed ratio |
+| --- | ---: | ---: | ---: |
+| 1 | 7.088 | 6.448 | 1.099 |
+| 16 | 22.736 | 13.056 | 1.741 |
+| 64 | 77.216 | 35.136 | 2.198 |
+
+- IA vertices/VS invocations are 3N, primitives N, selected PS/FS invocations 294912 throughout. Increment per added instance: Windows **1.043/1.135 us**, native **0.441/0.460 us** for 1→16 / 16→64. These are finite differences within each measured pipeline, not a general linear performance model. Windows CPU issue medians remain 15.95/15.80/13.65 us, separate from GPU timestamps.
+- The difference grows with submitted instances rather than staying at a fixed entry cost. It still does not distinguish coarse-Z behavior, context retention, primitive processing or compiler/driver state. Windows 617 D3D11 versus Linux 615 Vulkan is not a same-OS native control; per-draw clocks are unmeasured. No specific emulator defect or Fire Strike improvement is proved by these ratios.
+- Detailed packets: `C152-depth-sweep/` and `owned-vk-instanced/depth/native/depth-sweep/`. Native returned to its 6937 MiB free baseline after every arm. Windows D3D11 three-frame gate passed, create 506 ms / render 21 ms. C152 stopped cleanly at 04:15 CEST; available checks passed, trace-dependent checks skipped, no observed host Xid, 15 backend ERROR notes.
