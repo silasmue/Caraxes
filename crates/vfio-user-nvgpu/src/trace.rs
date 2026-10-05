@@ -228,11 +228,17 @@ impl Trace {
     }
 
     pub fn event(&mut self, text: &str) {
+        if !self.records_events() {
+            return;
+        }
         self.line(&format!("E {text}"));
     }
 
     /// Several events with one flush at the end (the fast ring path, launch.rs).
     pub fn events(&mut self, texts: &[String]) {
+        if !self.records_events() {
+            return;
+        }
         let t = self.start.elapsed().as_micros();
         self.space_guard();
         if let Some(out) = &mut self.out {
@@ -338,6 +344,54 @@ mod tests {
         trace.out = None;
         assert!(!trace.records_events());
         assert!(!super::Trace::new(None).unwrap().records_events());
+        std::fs::remove_file(p).ok();
+    }
+
+    #[test]
+    fn events_keep_order_and_flush_when_accesses_are_filtered() {
+        let p = std::env::temp_dir().join(format!(
+            "caraxes-trace-event-order-{}", std::process::id()
+        ));
+        let mut trace = super::Trace::new(Some(&p)).unwrap();
+        trace.accesses = Accesses::None;
+        trace.access(super::Dir::Write, 0, 0x110008, &[0; 4], None);
+        trace.event("first");
+        assert_eq!(std::fs::read_to_string(&p).unwrap().trim_start()
+            .split_once(' ').unwrap().1, "E first\n");
+        trace.events(&["second".into(), "ERROR third".into()]);
+        // Read before dropping the writer: both event methods must flush.
+        let contents = std::fs::read_to_string(&p).unwrap();
+        let lines: Vec<_> = contents.lines()
+            .map(|line| line.trim_start().split_once(' ').unwrap().1)
+            .collect();
+        assert_eq!(lines, ["E first", "E second", "E ERROR third"]);
+        assert!(trace.summary().contains("bar0: 0 reads, 1 writes"));
+        std::fs::remove_file(p).ok();
+    }
+
+    #[test]
+    fn absent_or_stopped_event_sink_preserves_access_counts() {
+        let p = std::env::temp_dir().join(format!(
+            "caraxes-trace-event-stop-{}", std::process::id()
+        ));
+        for stopped in [false, true] {
+            let mut trace = super::Trace::new(if stopped { Some(&p) } else { None }).unwrap();
+            trace.out = None;
+            trace.access(super::Dir::Read, 1, 0x20_0000, &[0; 4], None);
+            trace.access(super::Dir::Write, 0, 0x9400, &[0; 4], None);
+            let before = trace.summary();
+            trace.last_space_check = std::time::Instant::now()
+                - std::time::Duration::from_secs(2);
+            let check = trace.last_space_check;
+            let flush = trace.last_flush;
+            trace.event("unused");
+            trace.events(&["unused batch".into(), "ERROR unused".into()]);
+            assert_eq!(trace.summary(), before);
+            assert_eq!(trace.last_space_check, check);
+            assert_eq!(trace.last_flush, flush);
+            assert!(!trace.records_events());
+        }
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "");
         std::fs::remove_file(p).ok();
     }
 

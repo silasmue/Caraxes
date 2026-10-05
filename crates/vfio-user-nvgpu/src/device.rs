@@ -1667,8 +1667,10 @@ impl Device {
             Some(b) => b.ring_userd_pending(&self.mem, &chids),
             None => return,
         };
-        for n in notes {
-            self.trace.event(&format!("boot: {n}"));
+        if self.trace.records_events() {
+            for n in notes {
+                self.trace.event(&format!("boot: {n}"));
+            }
         }
         crate::dlock::work("shadow USERD", "rings of the poller".into(), t0.elapsed());
     }
@@ -2500,13 +2502,11 @@ impl Device {
     /// and one flush per line was one write syscall per line on the guest's trap
     /// (docs/research/vkmark-frame-2026-09-28.md, trace artefact).
     fn after_write(&mut self) {
-        let notes: Vec<String> = self
-            .bar0
-            .take_notes()
-            .into_iter()
-            .map(|n| format!("boot: {n}"))
-            .collect();
-        self.trace.events(&notes);
+        let notes = self.bar0.take_notes();
+        if self.trace.records_events() {
+            let notes: Vec<String> = notes.into_iter().map(|n| format!("boot: {n}")).collect();
+            self.trace.events(&notes);
+        }
         if self.cfg.take_flr() {
             self.trace
                 .event("flr: function-level reset, device model back to its initial state");
@@ -2678,6 +2678,78 @@ mod tests {
             let trace = Trace::new(if events { Some(path.as_path()) } else { None }).unwrap();
             let device = Device::new(rtx2070_device().cfg.clone(), bar0, trace);
             assert_eq!(device.bar0.boot().unwrap().ctrl.rpc_diagnostics, events);
+        }
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn after_write_without_trace_drains_notes_and_preserves_msi_and_flr() {
+        use std::os::fd::AsRawFd;
+        let f = crate::fixture::rtx2070();
+        let base = f.chip.data().registers.intr_tree;
+        let path = std::env::temp_dir().join(format!(
+            "caraxes-device-after-write-{}", std::process::id()
+        ));
+        for events in [false, true] {
+            for reset in [false, true] {
+                let boot = crate::boot::BootModel::new(
+                    f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30),
+                );
+                let trace = Trace::new(if events { Some(path.as_path()) } else { None }).unwrap();
+                let shared = IntrShared::new();
+                let mut d = Device::new(
+                    rtx2070_device().cfg.clone(),
+                    Bar0::new(f.chip, Vec::new(), None).with_boot_model(boot),
+                    trace,
+                ).with_intr_shared(shared.clone());
+                let fd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
+                assert!(fd >= 0);
+                let reader = unsafe { File::from_raw_fd(fd) };
+                d.set_irqs(VFIO_PCI_MSI_IRQ_INDEX,
+                    VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
+                    0, 1, vec![reader.try_clone().unwrap()]).unwrap();
+                // RTX 2070's captured MSI and PCIe capability offsets.
+                d.cfg.write(0x6a, &[1]);
+                let tree = &mut d.bar0.boot_mut().unwrap().intr;
+                tree.write32(base + crate::intr::LEAF_EN_SET + 16, 2);
+                tree.write32(base + crate::intr::TOP_EN_SET, 4);
+                assert_eq!(d.bar0.write(&mut d.cfg, &d.mem,
+                    base + crate::intr::LEAF_TRIGGER, &129u32.to_le_bytes()), WriteEffect::Model);
+                d.trace.access(Dir::Write, 0, 0x9400, &[0; 4], None);
+                let counts = d.trace.summary();
+                if reset {
+                    d.cfg.write(0x80, &0x8000u16.to_le_bytes());
+                }
+                d.after_write();
+                assert!(d.bar0.take_notes().is_empty());
+                assert!(!d.cfg.take_flr());
+                assert!(!d.bar0.boot_mut().unwrap().take_msi());
+                assert_eq!(d.bar0.boot_mut().unwrap().intr.read32(base + crate::intr::TOP),
+                    if reset { 0 } else { 4 });
+                assert_eq!(d.trace.summary(), counts);
+                let mut value = 0u64;
+                let read = unsafe { libc::read(reader.as_raw_fd(), (&mut value as *mut u64).cast(), 8) };
+                if reset {
+                    assert_eq!(read, -1, "FLR retires the old model's pending MSI");
+                    assert_eq!(std::io::Error::last_os_error().raw_os_error(), Some(libc::EAGAIN));
+                } else {
+                    assert_eq!(read, 8);
+                    assert_eq!(value, 1);
+                }
+                assert!(shared.signal_msi(), "after_write must publish MSI enable");
+                assert_eq!(unsafe { libc::read(reader.as_raw_fd(), (&mut value as *mut u64).cast(), 8) }, 8);
+                assert_eq!(value, 1);
+                d.cfg.write(0x6a, &[0]);
+                d.after_write();
+                assert!(!shared.signal_msi(), "after_write must publish MSI disable");
+                assert!(d.bar0.take_notes().is_empty());
+                assert_eq!(d.trace.summary(), counts);
+                if events {
+                    let log = std::fs::read_to_string(&path).unwrap();
+                    assert!(log.contains("E boot: intr trigger vector 129"));
+                    assert_eq!(log.contains("E flr:"), reset);
+                }
+            }
         }
         std::fs::remove_file(path).ok();
     }
