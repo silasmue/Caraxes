@@ -14,6 +14,14 @@ These are P-state hints, not a global MHz lock. NVIDIA 615 `ctrl2080perf.h:53–
 
 Termination stops further renewals. Every accepted request asks to expire within 3 seconds of that request; driver-side expiry remains a runtime qualification requirement, and other clients may keep the GPU boosted afterward. There is no permanent/infinite request left by this policy.
 
-Source-only implementation and deterministic tests do not prove hardware behavior or a score improvement. Root separately observed actual 1830–1860 MHz physical boost during old C164 rendering; the new policy addresses lease and guest-command consistency rather than establishing that old rendering never boosted. Root owns build/tests, new-policy clock sampling, short image-correctness gate, health checks and ordinary benchmark comparison. No new-policy hardware qualification is claimed here.
+Root observed actual physical boost during old C164 rendering: at utilization >=90%, graphics/SM clocks were 1815–1860 MHz, median 1845 MHz. The new policy makes requests consistent through the backend lifetime; the old rendering path already boosted.
+
+## Qualification, 2026-10-05
+
+- Source `eb573dec`: 13 host-boost tests and the registry test passed; the full device suite passed 921 tests with one ignored, plus two integration tests. Release build, independent source review and AST refresh passed. The finished backend rejected five invalid policy values before socket or host setup.
+- C165 used the immutable backend `27800eef...`, stock Windows 617.14, host NVIDIA 615.71.09 and FE mode off. The first flags-2, three-second request was accepted immediately; 518 renewals, including 31 guest requests, had zero refusals. These counters prove accepted requests, not achieved clocks.
+- All three D3D11 frame readbacks passed. Present adapter status OK/problem zero; the readable System log had zero Display 4101 events since boot. Fifteen quiet-desktop samples showed P0/1410 MHz at 2–3% physical utilization. No loaded benchmark or FPS improvement was measured.
+- The bounded session stopped cleanly: owned PIDs absent, NVIDIA binding retained, 7037 MiB FB and 231 MiB BAR1 free, no observed host Xid. Fifteen backend ERROR notes remain; trace and guest-RC checks were unavailable. Driver-side lease expiry and hardware handling of guest downgrades remain unqualified.
+- Private evidence: `C165-boost-qualification.json`, `C165-invalid-policy-cli.json`, `C165-vm-boost-smoke-root-qualification.json`, guest health, quiet clock samples and closeout under `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04`. Raw logs remain private.
 
 Primary local NVIDIA 615 checkout: `/mnt/vmstore/caraxes/ogkm-615.71.09`, commit `61dcc93722ecb418bb5f2e00923f05b4b8051dd1`. Historical activity design: [host-boost-2026-09-28.md](host-boost-2026-09-28.md). Implementation: `crates/vfio-user-nvgpu/src/hostboost.rs`, early policy/startup wiring: `src/main.rs`, registry: `src/settings.rs`.
