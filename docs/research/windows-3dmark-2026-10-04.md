@@ -477,3 +477,10 @@
 - Root guards checked process/config identities, resources and Xids within bounded collection/sampling. The complete-archive marker uses atomic create-only publication. An initial UI wait was too short and a window task failed before sampling; both are retained and corrected, with one observed Run click. Monitoring/scanning restored on; present NVIDIA adapter OK/problem zero, qualified System log reports zero Display 4101 since boot. Existing FriendlyName remains Leandro VFIO RTX 2070.
 - Clean stop: owned processes absent, host NVIDIA remains bound, **6843 MiB FB / 232 MiB BAR1 free**, no observed host Xid. Available checks passed; trace/guest RC checks skipped; **18 ERROR notes** retained. No new moving-render recording was included. Main and Leandro v1 remain untouched.
 - Evidence: `C162-trap-report.{md,json}`, `C162-closeout.json`, `C162-guest-health.json`, `C162-runtime-freeze.json`, completed run's sampler/summary/validation files, `C162-controller-critical-review.md`, and `exact-readonly-fe-implementation-plan.md`. Raw archives and logs remain private.
+
+
+## Next-work priorities
+
+- Windows display performance first, then stock Linux Wayland/SOTTR, then CUDA. Keep host-backed GPUs and vanilla guests.
+- Record new video or screenshot measurement runs only after a clear application performance improvement. Short readback correctness checks and comparable benchmarks still precede qualification. The prepared C160 recording is deferred; no new footage is owed for an unchanged result.
+- CUDA follow-up includes tiny or irregular kernels, CUDA Graphs, multiple streams/events, pinned asynchronous copies and overlap, allocation/reuse, and concurrent guests including NVENC. Verify output/order first and compare matched native and guest latency distributions. No external benchmark copying.
