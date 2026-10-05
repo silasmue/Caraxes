@@ -57,6 +57,7 @@ pub const VARS: &[Var] = &[
     var("CARAXES_DISPLAY_PAGE", Open, "off", "1: legacy tagged FE page; exact-ro: ordinary FE values, requires read-only VMM mapping (unqualified)"),
     var("CARAXES_ALLOC_LAZY", Open, "off", "1: shadow plans deferred to the next doorbell (Linux B)"),
     var("CARAXES_ALLOC_LAZY_MS", Open, "20", "the lazy plans' deadline in ms"),
+    var("CARAXES_HOST_BOOST_POLICY", Open, "vm", "vm: finite highest-P-state hints throughout host-exec backend lifetime; activity: prior activity policy; no MHz guarantee"),
     var("CARAXES_HOST_BAR1_FLOOR_MIB", Open, "96", "host BAR1 the pool must leave free (Linux wrappers 64, Windows 96)"),
     var("CARAXES_SHADOW_USERD", Open, "off", "1: private USERD (Windows)"),
     var("CARAXES_DEFERRED_CONTEXT", Open, "off", "1: deferred context execution (Windows)"),

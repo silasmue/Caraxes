@@ -590,6 +590,9 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
             for l in log {
                 eprintln!("vfio-user-nvgpu: hostmem: {l}");
             }
+            if let Some(line) = vfio_user_nvgpu::hostboost::summary() {
+                eprint!("{line}");
+            }
             if let Some(why) = closed {
                 eprintln!("vfio-user-nvgpu: exit 3: teardown failed closed ({why})");
                 std::process::exit(FAIL_CLOSED_EXIT);
@@ -600,6 +603,12 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
 }
 
 fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
+    // Strict policy validation precedes threads and every host RM/VRAM allocation.
+    let boost_policy = vfio_user_nvgpu::hostboost::requested_policy().map_err(anyhow::Error::msg)?;
+    if !a.host_exec {
+        vfio_user_nvgpu::hostboost::set_off(boost_policy, "no host execution");
+        eprintln!("vfio-user-nvgpu: host boost policy={}: inactive without --host-exec", boost_policy.name());
+    }
     // The environment against the settings table (settings.rs): a removed variable that is
     // still set is named at once, so an old wrapper is noticed; the whole configuration
     // follows in one block before the server starts (`config_block`).
@@ -1030,19 +1039,24 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 wlen >> 20,
                 (wlen >> 20) * wn
             );
-            // The host clock boost (hostboost.rs): the host card does the guest's work, so
-            // it leaves its idle P-state while the VM is active.
+            // Highest-P-state hints only (hostboost.rs), not a fixed MHz request.
+            // The default lease is renewed throughout backend lifetime.
             use vfio_user_nvgpu::hostboost;
             let flags = vfio_user_nvgpu::hostabi::current().perf_boost_flags;
-            match hostboost::start(flags) {
+            match hostboost::start(flags, boost_policy) {
                 Ok(()) => eprintln!(
-                    "vfio-user-nvgpu: host boost on: PERF_BOOST {{BOOST_TO_MAX, {} s}} on the subdevice of its own unprivileged host RM client, renewed at most every {} ms while the VM rings or its host engines raise events, then left to lapse; the guest's PERF_BOOST passes its command (host flag bits {flags:#x}), never its CUDA bits or duration (docs/research/host-boost-2026-09-28.md)",
+                    "vfio-user-nvgpu: host boost on: policy={} ({}) finite PERF_BOOST hints ({} s) on its own unprivileged RM client, renewed at most every {} ms with refusal backoff; P-state hints only, no MHz guarantee; no CUDA/shared hint or guest duration; finite lease after backend termination (docs/research/host-boost-vm-policy.md)",
+                    boost_policy.name(),
+                    match boost_policy {
+                        hostboost::Policy::Vm => "continuous backend lifetime; guest command/flags cannot lower the request",
+                        hostboost::Policy::Activity => "activity-driven; guest command/permitted MULTIMEDIA preserved",
+                    },
                     hostboost::DURATION_S,
                     hostboost::RENEW.as_millis(),
                 ),
                 Err(e) => {
-                    eprintln!("vfio-user-nvgpu: WARNING host boost: {e}; running without it");
-                    hostboost::set_off(&format!("failed to start: {e}"));
+                    eprintln!("vfio-user-nvgpu: WARNING host boost policy={}: {e}; running without it", boost_policy.name());
+                    hostboost::set_off(boost_policy, &format!("failed to start: {e}"));
                 }
             }
         }

@@ -10,26 +10,23 @@
 //!
 //! What the device does:
 //!
-//! - It holds a short boost of its own: `PERF_BOOST` {BOOST_TO_MAX, [`DURATION_S`] s} on
-//!   the subdevice of a second unprivileged host RM client (hostrm.rs), renewed at most
-//!   every [`RENEW`] while the VM is active. One renewal interval without activity ends the
-//!   renewals, and the boost lapses on the host by itself: no cleanup, and a crashed device
-//!   leaves nothing behind.
-//! - Activity is every guest doorbell (ctrl.rs `doorbell_chid`: trapped, token pool,
-//!   token-less eventfd, usermode page), every host non-stall event of the VM's mirrored
-//!   channels (mirror.rs `event_loop`) and the guest's own PERF_BOOST (cuda.rs).
-//! - The guest's request keeps its command (and MULTIMEDIA on a 615 host). Its CUDA,
-//!   CUDA_PRIORITY and ASYNC bits are dropped, and its duration is never forwarded, so a
-//!   guest cannot pin the host clocks. CUDA boosts share one reference-counted hint in the
-//!   host RM's model (615 tree: src/nvidia/inc/kernel/gpu/perf/kern_perf_boost.h:37-40,
-//!   :69-73); the device's short renewals stay out of it.
-//! - [`activity`] is the whole hot path: one relaxed load when off or while a mark is set
-//!   already, one compare-exchange for the first activity after each look of the worker
-//!   (two looks per renewal interval), and an unpark (one futex wake) for the first
-//!   activity after the worker went idle. The RM call runs on the `host-boost` thread,
-//!   never under the device mutex.
-//! - On with host execution (the default since 78d4b0fd, 2026-09-28; its off switch
-//!   `CARAXES_HOST_BOOST=0` went on 2026-09-30). The exit summary prints one line.
+//! - With host execution, `CARAXES_HOST_BOOST_POLICY=vm` (default) requests the
+//!   highest P-state immediately and throughout the backend process's lifetime.
+//!   `activity` retains the earlier doorbell/event-driven policy. Every request is
+//!   finite ([`DURATION_S`] seconds), renewed at most every [`RENEW`], with refusal
+//!   backoff. Process termination stops renewals; the last accepted hint is requested
+//!   to expire after at most three seconds, subject to the host driver's semantics.
+//! - `PERF_BOOST` requests a P-state, not a frequency. Other host limits and dynamic
+//!   frequency policy still apply; NV_OK is not proof of achieved clocks.
+//! - VM policy always sends BOOST_TO_MAX without optional guest flags. Activity policy
+//!   keeps the guest's command (and permitted MULTIMEDIA). Both drop CUDA, priority,
+//!   ASYNC and guest duration, avoiding the shared reference-counted CUDA hint.
+//! - Activity comes from guest doorbells, mirrored non-stall events and guest boost
+//!   requests. [`activity`] retains its existing bounded atomic hot path. The RM call
+//!   runs on the separate `host-boost` worker, never under the device mutex.
+//!
+//! See docs/research/host-boost-vm-policy.md for the policy/lifecycle contract and
+//! docs/research/host-boost-2026-09-28.md for the historical activity-policy research.
 
 use core::mem::{offset_of, size_of};
 use std::sync::atomic::{
@@ -68,8 +65,8 @@ pub const DURATION_INFINITE: u32 = 0xFFFF_FFFF;
 
 /// The duration of every boost the device sends, in seconds.
 pub const DURATION_S: u32 = 3;
-/// A renewal at most this often while the VM is active; one interval without activity
-/// and the renewals stop.
+/// Renewal cadence. VM policy keeps renewing while the backend lives; activity
+/// policy stops after a quiet interval.
 pub const RENEW: Duration = Duration::from_secs(1);
 /// After a refusal: no call for this long, doubling per refusal up to [`BACKOFF_MAX`].
 pub const BACKOFF_FIRST: Duration = Duration::from_secs(5);
@@ -78,7 +75,7 @@ pub const BACKOFF_MAX: Duration = Duration::from_secs(300);
 pub const DEFAULT_FLAGS: u32 = CMD_BOOST_TO_MAX;
 
 // A boost outlives two renewal intervals: one late renewal (a busy host) never lets the
-// clocks drop between two active intervals.
+// finite hint expire between those active intervals; this is not a MHz guarantee.
 const _: () = assert!(DURATION_S as u64 > 2 * RENEW.as_secs());
 const _: () = assert!(DURATION_S < DURATION_MAX);
 
@@ -117,6 +114,40 @@ pub fn forwarded(guest: u32, host_flags: u32) -> Option<u32> {
     Some(cmd | (guest & keep))
 }
 
+/// Explicit renewal policy; the environment is validated before host allocation.
+pub const POLICY_ENV: &str = "CARAXES_HOST_BOOST_POLICY";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Policy {
+    Vm,
+    Activity,
+}
+
+impl Policy {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Vm => "vm",
+            Self::Activity => "activity",
+        }
+    }
+}
+
+pub fn parse_policy(value: Option<&str>) -> Result<Policy, String> {
+    match value {
+        None | Some("vm") => Ok(Policy::Vm),
+        Some("activity") => Ok(Policy::Activity),
+        Some(value) => Err(format!("{POLICY_ENV}={value:?}: vm or activity (canonical spelling)")),
+    }
+}
+
+pub fn requested_policy() -> Result<Policy, String> {
+    match std::env::var(POLICY_ENV) {
+        Ok(value) => parse_policy(Some(&value)),
+        Err(std::env::VarError::NotPresent) => parse_policy(None),
+        Err(std::env::VarError::NotUnicode(_)) => Err(format!("{POLICY_ENV} must be UTF-8: vm or activity")),
+    }
+}
+
 // ---------------------------------------------------------------------------------
 // The signal between the hot path and the worker.
 
@@ -144,6 +175,7 @@ pub enum GuestNews {
 /// "mark, and wake if parked" are ordered by the word alone.
 pub struct Signal {
     state: AtomicU8,
+    policy: AtomicU8,
     guest: AtomicU32,
 }
 
@@ -157,17 +189,27 @@ impl Signal {
     pub const fn new() -> Self {
         Signal {
             state: AtomicU8::new(OFF),
+            policy: AtomicU8::new(Policy::Activity as u8),
             guest: AtomicU32::new(0),
         }
     }
 
     /// Whether a worker takes the activity.
     pub fn on(&self) -> bool {
-        self.state.load(Relaxed) != OFF
+        self.state.load(std::sync::atomic::Ordering::Acquire) != OFF
     }
 
-    fn arm(&self) {
+    fn arm(&self, policy: Policy) {
+        self.policy.store(policy as u8, Release);
         self.state.store(ARMED, Release);
+    }
+
+    fn policy(&self) -> Policy {
+        if self.policy.load(std::sync::atomic::Ordering::Acquire) == Policy::Vm as u8 {
+            Policy::Vm
+        } else {
+            Policy::Activity
+        }
     }
 
     /// Mark activity; true when the worker is parked and must be woken. Off, or with a
@@ -272,8 +314,9 @@ pub enum Tick {
 
 pub struct Renewer {
     epoch: Instant,
+    policy: Policy,
     host_flags: u32,
-    /// The flags of every renewal: the guest's last request, or [`DEFAULT_FLAGS`].
+    /// VM uses only DEFAULT_FLAGS; activity uses the last permitted guest request.
     flags: u32,
     /// Activity since the last renewal.
     owed: bool,
@@ -290,9 +333,10 @@ pub struct Renewer {
 }
 
 impl Renewer {
-    pub fn new(host_flags: u32, epoch: Instant) -> Self {
+    pub fn new(host_flags: u32, epoch: Instant, policy: Policy) -> Self {
         Renewer {
             epoch,
+            policy,
             host_flags,
             flags: DEFAULT_FLAGS,
             owed: false,
@@ -308,19 +352,31 @@ impl Renewer {
 
     /// Fold in what happened since the last tick and decide. A renewal is due for owed
     /// activity when none was sent, the last is [`RENEW`] old, or the flags changed.
+    /// VM policy is always owed, including its very first quiet worker step.
     pub fn tick(&mut self, now: Instant, active: bool, guest: GuestNews) -> Tick {
-        match guest {
-            GuestNews::Boost(f) => {
-                if let Some(flags) = forwarded(f, self.host_flags) {
-                    self.flags = flags;
-                    self.owed = true;
-                    self.owed_guest = true;
-                }
+        match self.policy {
+            Policy::Vm => {
+                // Backend lifetime is the lease owner, regardless of activity or a
+                // guest's downgrade/clear. Optional guest flags are not forwarded.
+                self.flags = DEFAULT_FLAGS;
+                self.owed = true;
+                self.owed_guest |= matches!(guest, GuestNews::Boost(_));
             }
-            GuestNews::Clear => self.flags = DEFAULT_FLAGS,
-            GuestNews::None => {}
+            Policy::Activity => {
+                match guest {
+                    GuestNews::Boost(f) => {
+                        if let Some(flags) = forwarded(f, self.host_flags) {
+                            self.flags = flags;
+                            self.owed = true;
+                            self.owed_guest = true;
+                        }
+                    }
+                    GuestNews::Clear => self.flags = DEFAULT_FLAGS,
+                    GuestNews::None => {}
+                }
+                self.owed |= active;
+            }
         }
-        self.owed |= active;
         if let Some(t) = self.retry_at {
             if now < t {
                 return Tick::Wait(t - now);
@@ -344,7 +400,7 @@ impl Renewer {
 
     /// The host's answer to the [`Tick::Boost`] issued at `now`; a line to log for the
     /// first renewal and the first refusal, nothing after.
-    pub fn done(&mut self, now: Instant, status: u32, took: Duration) -> Option<String> {
+    pub fn done(&mut self, now: Instant, status: u32, took: Duration, completed: Instant) -> Option<String> {
         let (flags, guest) = self.inflight.take()?;
         let ns = took.as_nanos() as u64;
         self.counts.calls += 1;
@@ -370,7 +426,9 @@ impl Renewer {
             ));
         }
         self.counts.refused += 1;
-        self.retry_at = Some(now + self.backoff);
+        // Use actual completion, including any scheduling delay before control().
+        // A slow refused ioctl must not consume its own bounded retry pause.
+        self.retry_at = Some(completed + self.backoff);
         let line = (self.counts.refused == 1).then(|| {
             format!(
                 "host boost: {what} refused with status {status:#x}; no call for {} s, the pause doubling up to {} s; later refusals are only counted",
@@ -398,7 +456,8 @@ pub fn step(
         let mut b = p.bytes();
         let t0 = Instant::now();
         let status = host.control(NV20_SUBDEVICE_0, CMD_PERF_BOOST, &mut b);
-        line = r.done(now, status, t0.elapsed());
+        let completed = Instant::now();
+        line = r.done(now, status, completed.saturating_duration_since(t0), completed);
     }
     (tick, line)
 }
@@ -411,8 +470,25 @@ static WORKER: OnceLock<std::thread::Thread> = OnceLock::new();
 
 #[derive(Clone)]
 enum Report {
-    Off(String),
-    On { epoch: Instant, counts: Counts },
+    Off { policy: Policy, why: String },
+    On { policy: Policy, epoch: Instant, counts: Counts },
+}
+
+impl Report {
+    fn line(&self) -> String {
+        match self {
+            Self::Off { policy, why } => format!("host boost policy={}: off ({why})\n", policy.name()),
+            Self::On { policy, epoch, counts } => format!(
+                "host boost policy={}: {}; P-state hints only, no MHz guarantee; finite {DURATION_S} s lease\n{}",
+                policy.name(),
+                match policy {
+                    Policy::Vm => "continuous BOOST_TO_MAX",
+                    Policy::Activity => "activity-driven guest command/permitted MULTIMEDIA",
+                },
+                counts.line(*epoch)
+            ),
+        }
+    }
 }
 
 static REPORT: Mutex<Option<Report>> = Mutex::new(None);
@@ -461,6 +537,9 @@ fn request(sig: &Signal, flags: u32, what: &str) -> String {
         return format!("{what}: nothing boosted (host boost off: no host execution, or it failed to start)");
     }
     sig.post_guest(flags);
+    if sig.policy() == Policy::Vm {
+        return format!("{what}: policy vm keeps BOOST_TO_MAX while the backend lives ({DURATION_S} s per renewal; guest command, flags and duration are not forwarded)");
+    }
     if flags & FLAGS_CMD == CMD_CLEAR {
         // Not activity: the renewals go back to the default flags, and the boost lapses
         // once the VM is idle.
@@ -474,24 +553,25 @@ fn request(sig: &Signal, flags: u32, what: &str) -> String {
 
 /// Start the worker with its own host RM client; `host_flags` is the host's
 /// `HostLayouts::perf_boost_flags`.
-pub fn start(host_flags: u32) -> Result<(), String> {
+pub fn start(host_flags: u32, policy: Policy) -> Result<(), String> {
     let host = crate::hostrm::HostRmClient::open().map_err(|e| format!("host RM client: {e:#}"))?;
-    spawn(Box::new(host), host_flags).map_err(|e| format!("spawn the host-boost thread: {e}"))
+    spawn(Box::new(host), host_flags, policy).map_err(|e| format!("spawn the host-boost thread: {e}"))
 }
 
 /// Start the worker on `host`.
-pub fn spawn(host: Box<dyn HostRm>, host_flags: u32) -> std::io::Result<()> {
+pub fn spawn(host: Box<dyn HostRm>, host_flags: u32, policy: Policy) -> std::io::Result<()> {
     let epoch = Instant::now();
     *REPORT.lock().unwrap_or_else(|p| p.into_inner()) = Some(Report::On {
+        policy,
         epoch,
         counts: Counts::default(),
     });
     // Armed before the thread runs: arming after it could overwrite the worker's PARKED
     // and leave it asleep while activity only marks itself.
-    SIGNAL.arm();
+    SIGNAL.arm(policy);
     let spawned = std::thread::Builder::new()
         .name("host-boost".into())
-        .spawn(move || run(host, host_flags, epoch));
+        .spawn(move || run(host, host_flags, epoch, policy));
     if spawned.is_err() {
         SIGNAL.state.store(OFF, Release);
     }
@@ -499,13 +579,13 @@ pub fn spawn(host: Box<dyn HostRm>, host_flags: u32) -> std::io::Result<()> {
 }
 
 /// Record why the booster does not run, for the exit summary.
-pub fn set_off(why: &str) {
-    *REPORT.lock().unwrap_or_else(|p| p.into_inner()) = Some(Report::Off(why.to_string()));
+pub fn set_off(policy: Policy, why: &str) {
+    *REPORT.lock().unwrap_or_else(|p| p.into_inner()) = Some(Report::Off { policy, why: why.to_string() });
 }
 
-fn run(mut host: Box<dyn HostRm>, host_flags: u32, epoch: Instant) {
+fn run(mut host: Box<dyn HostRm>, host_flags: u32, epoch: Instant, policy: Policy) {
     let _ = WORKER.set(std::thread::current());
-    let mut r = Renewer::new(host_flags, epoch);
+    let mut r = Renewer::new(host_flags, epoch, policy);
     loop {
         let (tick, line) = step(&SIGNAL, &mut r, host.as_mut(), Instant::now());
         if let Some(l) = line {
@@ -515,6 +595,7 @@ fn run(mut host: Box<dyn HostRm>, host_flags: u32, epoch: Instant) {
             Tick::Boost(_) => {
                 if let Ok(mut rep) = REPORT.lock() {
                     *rep = Some(Report::On {
+                        policy,
                         epoch,
                         counts: r.counts,
                     });
@@ -532,11 +613,7 @@ fn run(mut host: Box<dyn HostRm>, host_flags: u32, epoch: Instant) {
 
 /// The exit summary line, `None` when the device never decided about a host boost.
 pub fn summary() -> Option<String> {
-    let rep = REPORT.lock().unwrap_or_else(|p| p.into_inner()).clone()?;
-    Some(match rep {
-        Report::Off(why) => format!("host boost: off ({why})\n"),
-        Report::On { epoch, counts } => counts.line(epoch),
-    })
+    REPORT.lock().unwrap_or_else(|p| p.into_inner()).as_ref().map(Report::line)
 }
 
 #[cfg(test)]
@@ -559,7 +636,7 @@ mod tests {
 
     fn armed() -> Signal {
         let s = Signal::new();
-        s.arm();
+        s.arm(Policy::Activity);
         s
     }
 
@@ -598,12 +675,154 @@ mod tests {
         duration: DURATION_S,
     };
 
+    #[test]
+    fn policy_parse_is_strict_and_defaults_to_vm() {
+        assert_eq!(parse_policy(None).unwrap(), Policy::Vm);
+        assert_eq!(parse_policy(Some("vm")).unwrap(), Policy::Vm);
+        assert_eq!(parse_policy(Some("activity")).unwrap(), Policy::Activity);
+        for value in ["", "off", "1", "VM", " vm", "vm ", "activity\n", "\u{a0}vm", "always"] {
+            assert!(parse_policy(Some(value)).is_err(), "{value:?}");
+        }
+    }
+
+    #[test]
+    fn vm_policy_starts_quiet_and_renews_without_activity() {
+        let (sig, t0) = (Signal::new(), Instant::now());
+        sig.arm(Policy::Vm);
+        let mut host = FakeHost::default();
+        let mut r = Renewer::new(FLAGS_CMD, t0, Policy::Vm);
+        let (sent, last) = drive(&sig, &mut r, &mut host, t0, 0, 5000, 10, false);
+        assert_eq!(sent, [0, 1000, 2000, 3000, 4000]);
+        assert!(matches!(last, Tick::Wait(_)), "VM policy must not idle/park between leases");
+        assert_eq!((r.counts.renewals, r.counts.from_guest), (5, 0));
+        assert!(host.calls.iter().all(|call| *call == (NV20_SUBDEVICE_0, CMD_PERF_BOOST, P.bytes().to_vec())));
+        // Identical quiet input retains the prior activity-policy idle behavior.
+        let sig = armed();
+        let mut host = FakeHost::default();
+        let mut r = Renewer::new(FLAGS_CMD, t0, Policy::Activity);
+        let (sent, last) = drive(&sig, &mut r, &mut host, t0, 0, 5000, 10, false);
+        assert!(sent.is_empty());
+        assert_eq!(last, Tick::Idle);
+        sig.note();
+        assert_eq!(step(&sig, &mut r, &mut host, t0 + Duration::from_secs(5)).0, Tick::Boost(P));
+    }
+
+    #[test]
+    fn vm_policy_guest_downgrade_clear_and_flags_cannot_break_cadence() {
+        let (sig, t0) = (Signal::new(), Instant::now());
+        sig.arm(Policy::Vm);
+        let mut host = FakeHost::default();
+        let mut r = Renewer::new(u32::MAX, t0, Policy::Vm);
+        assert_eq!(step(&sig, &mut r, &mut host, t0).0, Tick::Boost(P));
+        for (ms, flags) in [
+            (100, CMD_BOOST_1LEVEL | FLAG_MULTIMEDIA | FLAG_CUDA | FLAG_ASYNC | FLAG_CUDA_PRIORITY),
+            (200, CMD_CLEAR),
+            (300, 0xff),
+            (400, FLAG_CUDA),
+        ] {
+            let note = request(&sig, flags, "guest");
+            assert!(note.contains("policy vm keeps BOOST_TO_MAX"));
+            assert!(!note.contains("once the VM is idle"));
+            assert_eq!(
+                step(&sig, &mut r, &mut host, t0 + Duration::from_millis(ms)).0,
+                Tick::Wait(Duration::from_millis(1000 - ms)),
+                "guest updates must not cause extra within-interval requests"
+            );
+        }
+        assert_eq!(step(&sig, &mut r, &mut host, t0 + RENEW).0, Tick::Boost(P));
+        // Even a quiet clear after a successful renewal cannot stop the next lease.
+        request(&sig, CMD_CLEAR, "clear");
+        assert_eq!(step(&sig, &mut r, &mut host, t0 + RENEW * 2).0, Tick::Boost(P));
+        assert_eq!(host.calls.len(), 3);
+        assert!(host.calls.iter().all(|call| call.2 == P.bytes().to_vec()));
+        assert_eq!(r.counts.from_guest, 1, "the included request is counted, not forwarded as flags");
+    }
+
+    #[test]
+    fn vm_policy_quiet_refusal_backoff_and_clear_preserve_retry_then_reset() {
+        let t0 = Instant::now();
+        let mut r = Renewer::new(FLAGS_CMD, t0, Policy::Vm);
+        assert_eq!(r.tick(t0, false, GuestNews::None), Tick::Boost(P));
+        assert!(r.done(t0, 0x56, Duration::ZERO, t0).unwrap().contains("5 s"));
+        assert_eq!(r.tick(t0 + Duration::from_secs(1), false, GuestNews::Clear), Tick::Wait(Duration::from_secs(4)));
+        let t = t0 + Duration::from_secs(5);
+        assert_eq!(r.tick(t, false, GuestNews::None), Tick::Boost(P));
+        assert!(r.done(t, 0x56, Duration::ZERO, t).is_none());
+        assert_eq!(r.tick(t0 + Duration::from_secs(14), false, GuestNews::None), Tick::Wait(Duration::from_secs(1)));
+        let t = t0 + Duration::from_secs(15);
+        assert_eq!(r.tick(t, false, GuestNews::None), Tick::Boost(P));
+        assert!(r.done(t, NV_OK, Duration::ZERO, t).unwrap().contains("first renewal"));
+        let t = t0 + Duration::from_secs(16);
+        assert_eq!(r.tick(t, false, GuestNews::None), Tick::Boost(P));
+        r.done(t, 0x56, Duration::ZERO, t);
+        assert_eq!((r.counts.renewals, r.counts.refused, r.counts.calls), (1, 3, 4));
+        assert_eq!(r.tick(t0 + Duration::from_secs(20), false, GuestNews::None), Tick::Wait(Duration::from_secs(1)));
+        assert_eq!(r.tick(t0 + Duration::from_secs(21), false, GuestNews::None), Tick::Boost(P));
+        r.done(t0 + Duration::from_secs(21), NV_OK, Duration::ZERO, t0 + Duration::from_secs(21));
+        assert_eq!(r.backoff, BACKOFF_FIRST);
+    }
+
+    #[test]
+    fn vm_policy_slow_refusal_gets_full_completion_pause_and_caps_backoff() {
+        let t0 = Instant::now();
+        let mut r = Renewer::new(FLAGS_CMD, t0, Policy::Vm);
+        assert_eq!(r.tick(t0, false, GuestNews::None), Tick::Boost(P));
+        r.done(t0, 0x56, Duration::from_secs(7), t0 + Duration::from_secs(9));
+        assert_eq!(r.tick(t0 + Duration::from_secs(9), false, GuestNews::Clear), Tick::Wait(BACKOFF_FIRST));
+        let mut due = t0 + Duration::from_secs(14);
+        for pause in [10, 20, 40, 80, 160, 300, 300] {
+            assert_eq!(r.tick(due, false, GuestNews::None), Tick::Boost(P));
+            r.done(due, 0x56, Duration::from_secs(2), due + Duration::from_secs(2));
+            let completed = due + Duration::from_secs(2);
+            assert_eq!(r.tick(completed, false, GuestNews::None), Tick::Wait(Duration::from_secs(pause)));
+            due = completed + Duration::from_secs(pause);
+        }
+        assert_eq!(r.tick(due, false, GuestNews::None), Tick::Boost(P));
+        r.done(due, NV_OK, Duration::ZERO, due);
+        assert_eq!(r.backoff, BACKOFF_FIRST);
+        // Activity also gets a full completion-based pause; its guest flags remain.
+        let mut old = Renewer::new(FLAGS_CMD, t0, Policy::Activity);
+        let one = PerfBoostParams { flags: CMD_BOOST_1LEVEL, duration: DURATION_S };
+        assert_eq!(old.tick(t0, false, GuestNews::Boost(CMD_BOOST_1LEVEL)), Tick::Boost(one));
+        old.done(t0, 0x56, Duration::from_secs(7), t0 + Duration::from_secs(7));
+        assert_eq!(old.tick(t0 + Duration::from_secs(7), true, GuestNews::None), Tick::Wait(BACKOFF_FIRST));
+        assert_eq!(old.tick(t0 + Duration::from_secs(12), true, GuestNews::None), Tick::Boost(one));
+    }
+
+    #[test]
+    fn vm_policy_step_serializes_finite_request_and_records_real_refusal_status() {
+        let sig = Signal::new();
+        sig.arm(Policy::Vm);
+        let t0 = Instant::now();
+        let mut r = Renewer::new(FLAGS_CMD, t0, Policy::Vm);
+        let mut host = FakeHost { answers: [0x56].into(), ..Default::default() };
+        let (tick, line) = step(&sig, &mut r, &mut host, t0);
+        assert_eq!(tick, Tick::Boost(P));
+        assert_eq!(host.calls, [(NV20_SUBDEVICE_0, CMD_PERF_BOOST, P.bytes().to_vec())]);
+        assert!(line.unwrap().contains("refused with status 0x56"));
+        assert_eq!((r.counts.calls, r.counts.refused, r.counts.renewals), (1, 1, 0));
+        assert!(r.retry_at.is_some());
+    }
+
+    #[test]
+    fn policy_reports_name_and_finite_pstate_contract_without_global_state() {
+        let t0 = Instant::now();
+        for policy in [Policy::Vm, Policy::Activity] {
+            let line = Report::On { policy, epoch: t0, counts: Counts::default() }.line();
+            assert!(line.contains(&format!("policy={}", policy.name())));
+            assert!(line.contains("no MHz guarantee; finite 3 s lease"));
+            assert!(line.contains("first at never"));
+            let off = Report::Off { policy, why: "startup refused".into() }.line();
+            assert!(off.contains(&format!("policy={}", policy.name())) && off.contains("startup refused"));
+        }
+    }
+
     /// Continuous activity renews once per interval, each on the host's subdevice with
     /// {BOOST_TO_MAX, 3 s}.
     #[test]
     fn active_renews_at_most_once_per_interval() {
         let (sig, mut host, t0) = (armed(), FakeHost::default(), Instant::now());
-        let mut r = Renewer::new(FLAGS_CMD, t0);
+        let mut r = Renewer::new(FLAGS_CMD, t0, Policy::Activity);
         let (sent, _) = drive(&sig, &mut r, &mut host, t0, 0, 5000, 10, true);
         assert_eq!(sent, [0, 1000, 2000, 3000, 4000]);
         assert_eq!(r.counts.renewals, 5);
@@ -619,7 +838,7 @@ mod tests {
     #[test]
     fn idle_stops_and_first_activity_boosts_at_once() {
         let (sig, mut host, t0) = (armed(), FakeHost::default(), Instant::now());
-        let mut r = Renewer::new(FLAGS_CMD, t0);
+        let mut r = Renewer::new(FLAGS_CMD, t0, Policy::Activity);
         let (sent, _) = drive(&sig, &mut r, &mut host, t0, 0, 2500, 10, true);
         assert_eq!(sent, [0, 1000, 2000]);
         let (sent, last) = drive(&sig, &mut r, &mut host, t0, 2500, 10_000, 10, false);
@@ -659,7 +878,7 @@ mod tests {
     #[test]
     fn guest_infinite_request_is_clamped() {
         let (sig, mut host, t0) = (armed(), FakeHost::default(), Instant::now());
-        let mut r = Renewer::new(crate::hostabi::HOST_615.perf_boost_flags, t0);
+        let mut r = Renewer::new(crate::hostabi::HOST_615.perf_boost_flags, t0, Policy::Activity);
         let mut g = vec![0u8; v::PERF_BOOST_2X_SIZE];
         g[v::PERF_BOOST_2X_FLAGS] = (CMD_BOOST_TO_MAX | FLAG_CUDA) as u8;
         g[v::PERF_BOOST_2X_DURATION..][..4].copy_from_slice(&DURATION_INFINITE.to_le_bytes());
@@ -710,51 +929,27 @@ mod tests {
     /// A refusal is logged once and backs off 5 s, then 10 s; a success resets the pause.
     #[test]
     fn a_refusal_backs_off() {
-        let (sig, t0) = (armed(), Instant::now());
-        let mut host = FakeHost {
-            answers: [0x56, 0x56, NV_OK, 0x56].into(),
-            ..Default::default()
-        };
-        let mut r = Renewer::new(FLAGS_CMD, t0);
-        sig.note();
-        let (tick, line) = step(&sig, &mut r, &mut host, t0);
-        assert_eq!(tick, Tick::Boost(P));
-        let line = line.unwrap();
-        assert!(
-            line.contains("refused with status 0x56") && line.contains("5 s"),
-            "{line}"
-        );
-        let (sent, _) = drive(&sig, &mut r, &mut host, t0, 10, 20_000, 10, true);
-        // 5 s after the first refusal (refused again), 10 s after that (taken), then the
-        // interval again, where the fourth answer refuses once more (5 s, reset).
-        assert_eq!(sent, [5000, 15_000, 16_000]);
-        assert_eq!((r.counts.renewals, r.counts.refused), (1, 3));
-        assert_eq!(r.counts.calls, 4);
-        // Only the first refusal logged; the first renewal logs once.
-        let mut quiet = FakeHost {
-            answers: [0x56, 0x56].into(),
-            ..Default::default()
-        };
-        let mut r = Renewer::new(FLAGS_CMD, t0);
-        sig.note();
-        assert!(step(&sig, &mut r, &mut quiet, t0).1.is_some());
-        sig.note();
-        assert!(step(&sig, &mut r, &mut quiet, t0 + BACKOFF_FIRST)
-            .1
-            .is_none());
-        sig.note();
-        let first = step(&sig, &mut r, &mut quiet, t0 + BACKOFF_FIRST * 3)
-            .1
-            .unwrap();
-        assert!(
-            first.starts_with("host boost: first renewal at +15.000 s"),
-            "{first}"
-        );
+        // Explicit fake elapsed time keeps deadlines independent of control() wall time.
+        let t0 = Instant::now();
+        let mut r = Renewer::new(FLAGS_CMD, t0, Policy::Activity);
+        assert_eq!(r.tick(t0, true, GuestNews::None), Tick::Boost(P));
+        let line = r.done(t0, 0x56, Duration::from_secs(2), t0 + Duration::from_secs(2)).unwrap();
+        assert!(line.contains("refused with status 0x56") && line.contains("5 s"), "{line}");
+        assert_eq!(r.tick(t0 + Duration::from_secs(6), true, GuestNews::None), Tick::Wait(Duration::from_secs(1)));
+        let t = t0 + Duration::from_secs(7);
+        assert_eq!(r.tick(t, true, GuestNews::None), Tick::Boost(P));
+        assert!(r.done(t, 0x56, Duration::ZERO, t).is_none());
+        let t = t0 + Duration::from_secs(17);
+        assert_eq!(r.tick(t, true, GuestNews::None), Tick::Boost(P));
+        let first = r.done(t, NV_OK, Duration::ZERO, t).unwrap();
+        assert!(first.starts_with("host boost: first renewal at +17.000 s"), "{first}");
+        let t = t0 + Duration::from_secs(18);
+        assert_eq!(r.tick(t, true, GuestNews::None), Tick::Boost(P));
+        assert!(r.done(t, 0x56, Duration::ZERO, t).is_none());
+        assert_eq!(r.tick(t0 + Duration::from_secs(22), true, GuestNews::None), Tick::Wait(Duration::from_secs(1)));
+        assert_eq!((r.counts.renewals, r.counts.refused, r.counts.calls), (1, 3, 4));
         let line = r.counts.line(t0);
-        assert!(
-            line.starts_with("host boost: 1 renewals (0 from guest requests), 2 refused, first at +15.000 s; RM call mean"),
-            "{line}"
-        );
+        assert!(line.starts_with("host boost: 1 renewals (0 from guest requests), 3 refused, first at +17.000 s; RM call mean"), "{line}");
         assert!(Counts::default().line(t0).contains("first at never"));
     }
 
