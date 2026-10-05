@@ -100,8 +100,37 @@ microsecond GPU intervals. No performance change was made or promoted. D stopped
 cleanly in 26.25 seconds; all owned processes exited, NVIDIA remained bound and
 no new host Xid appeared.
 
-Next: hybrid/spin controls with identical explicit CPU placement, more samples
-and the same stock guest. Host activity remains possible on those cores.
+## Linux polling controls
+
+E hybrid, F spin and G hybrid control each passed 512 measured samples per case,
+eight warmups, stock-module/no-helper checks, image validation and exact CPU-mask
+checks before/after measured cases. All three stopped cleanly without a new Xid.
+The immutable backend and VMM were unchanged. The separately pinned probe raises
+only its CLI repetition ceilings and matching help text; shader and timing code
+are unchanged.
+
+Reader CPU 11, host-events CPU 10 and the eight vCPU masks were identical across
+these sessions. Observed other backend workers allowed CPUs 0–15. Host tasks and
+IRQs remain unreserved. Native and guest images match byte for byte in every case.
+
+Guest CPU submit-plus-fence medians in microseconds:
+
+| Size:draws | E hybrid | F spin | G hybrid control |
+| --- | ---: | ---: | ---: |
+| 256:1 | 123.220 | 168.315 | 127.370 |
+| 256:64 | 142.240 | 155.310 | 146.520 |
+| 1024:64 | 733.995 | 749.290 | 718.341 |
+
+For 256:1, empirical nearest-rank p99 is 1183.940/2590.911/1174.250 us;
+GPU render-plus-copy medians are 28.672/29.152/28.672 us. Full spinning did
+not improve these trials. Retain hybrid; do not promote spin as an optimization.
+This does not establish a universal spin regression or Windows FPS effect.
+There is one spin session, two hybrid sessions and no system-wide CPU isolation.
+
+The longer GPU intervals change as the physical GPU boosts: before/after snapshots
+reach 1860–1875 MHz, while the actual microsecond clock intervals remain unknown.
+Native samples also contain CPU-wait outliers. Obtain phase-aligned submission,
+completion and scheduling observations before changing production behavior.
 
 Private evidence is under
 `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04`: C170/C173/C174/C175 root
@@ -109,4 +138,6 @@ qualifications, strict archive checks, C173 global analysis, C176B maintenance
 collection, result hash recheck and `linux-night-oct06-root-closeout.json`.
 Completed Linux evidence: `linux-night-oct06d-root-qualification.json`,
 `linux-night-oct06d-analysis.json`, pinned D packet, six logs and image pairs.
+Polling evidence: E/F/G root qualifications, `linux-night-oct06efg-analysis.json`,
+pinned packets/probe, placement records and native/guest logs/images.
 Raw archives and logs contain private machine data and remain local.
