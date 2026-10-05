@@ -610,41 +610,150 @@ pub const ROUTES: [&str; 5] = [
     "display FE page",
     "display status",
 ];
-static ROUTE_N: [AtomicU64; 2 * ROUTES.len()] = [DB_ZERO; 2 * ROUTES.len()];
-static ROUTE_NS: [AtomicU64; 2 * ROUTES.len()] = [DB_ZERO; 2 * ROUTES.len()];
+// Engine::handles: three eight-head FE groups, four FE scalars and three
+// eight-head status groups. The private Engine HEAD_STRIDE is 0x800; the coverage
+// regression below checks the complete address set against Engine::handles.
+const DISPLAY_GROUPS: [(u64, u64); 6] = {
+    use crate::display::engine::*;
+    [
+        (FE_EVT_STAT_HEAD_TIMING, 4),
+        (FE_RM_INTR_STAT_HEAD_TIMING, 4),
+        (FE_RM_INTR_EN_HEAD_TIMING, 4),
+        (FE_CORE_HEAD_STATE, 0x800),
+        (RG_DPCA, 0x800),
+        (POSTCOMP_HEAD_LOADV_COUNTER, 0x800),
+    ]
+};
+const DISPLAY_SCALARS: [u64; 4] = {
+    use crate::display::engine::*;
+    [FE_RM_INTR_DISPATCH, FE_RM_INTR_STAT_CTRL_DISP, FE_EVT_STAT_AWAKEN_WIN, FE_EVT_STAT_AWAKEN_OTHER]
+};
+const DISPLAY_HEADS: usize = crate::display::engine::MAX_HEADS;
+const DISPLAY_REGS: usize = 6 * DISPLAY_HEADS + 4;
+const DISPLAY_SLOTS: usize = DISPLAY_REGS + 1; // Last: unsupported address/width.
+const DISPLAY_COUNTERS: usize = 2 * DISPLAY_SLOTS * 2; // FE/status parents, R/W.
 
-/// Count one routed trapped access of route `route` (an index of [`ROUTES`]).
-#[inline]
-pub fn routed(route: usize, write: bool, dur: Duration) {
-    let i = route.min(ROUTES.len() - 1) * 2 + write as usize;
-    ROUTE_N[i].fetch_add(1, Ordering::Relaxed);
-    ROUTE_NS[i].fetch_add(dur.as_nanos() as u64, Ordering::Relaxed);
+fn display_register(slot: usize) -> u64 {
+    if slot < 6 * DISPLAY_HEADS {
+        let (base, stride) = DISPLAY_GROUPS[slot / DISPLAY_HEADS];
+        base + stride * (slot % DISPLAY_HEADS) as u64
+    } else {
+        DISPLAY_SCALARS[slot - 6 * DISPLAY_HEADS]
+    }
 }
 
-/// The window rows of [`routed`] (a [`Source`]): "routed trap: <route> R|W" counts the
-/// accesses, "routed trap ns: <route> R|W" their device time in nanoseconds.
-pub fn routed_rows() -> Vec<(&'static str, u64)> {
-    static NAMES: std::sync::OnceLock<Vec<(&'static str, &'static str)>> = std::sync::OnceLock::new();
-    let names = NAMES.get_or_init(|| {
-        (0..2 * ROUTES.len())
-            .map(|i| {
-                let (r, d) = (ROUTES[i / 2], if i % 2 == 1 { 'W' } else { 'R' });
-                (
-                    &*Box::leak(format!("routed trap: {r} {d}").into_boxed_str()),
-                    &*Box::leak(format!("routed trap ns: {r} {d}").into_boxed_str()),
-                )
-            })
-            .collect()
-    });
-    let mut rows = Vec::new();
-    for (i, (n, ns)) in names.iter().enumerate() {
-        let c = ROUTE_N[i].load(Ordering::Relaxed);
-        if c > 0 {
-            rows.push((*n, c));
-            rows.push((*ns, ROUTE_NS[i].load(Ordering::Relaxed)));
+fn display_slot(offset: u64, width: usize) -> usize {
+    if width == 4 {
+        for (group, &(base, stride)) in DISPLAY_GROUPS.iter().enumerate() {
+            if let Some(delta) = offset.checked_sub(base) {
+                if delta < stride * DISPLAY_HEADS as u64 && delta % stride == 0 {
+                    return group * DISPLAY_HEADS + (delta / stride) as usize;
+                }
+            }
+        }
+        if let Some(slot) = DISPLAY_SCALARS.iter().position(|&reg| reg == offset) {
+            return 6 * DISPLAY_HEADS + slot;
         }
     }
-    rows
+    DISPLAY_REGS
+}
+
+/// Fixed storage only. A successful route's existing duration is shared by its parent
+/// and display subrow; neither is an ordinary Access/gap observation. Relaxed loads at
+/// dump are not a transactional snapshot across concurrent writers.
+struct RoutedCounters {
+    count: [AtomicU64; 2 * ROUTES.len()],
+    ns: [AtomicU64; 2 * ROUTES.len()],
+    display_count: [AtomicU64; DISPLAY_COUNTERS],
+    display_ns: [AtomicU64; DISPLAY_COUNTERS],
+}
+
+impl RoutedCounters {
+    const fn new() -> Self {
+        Self {
+            count: [DB_ZERO; 2 * ROUTES.len()],
+            ns: [DB_ZERO; 2 * ROUTES.len()],
+            display_count: [DB_ZERO; DISPLAY_COUNTERS],
+            display_ns: [DB_ZERO; DISPLAY_COUNTERS],
+        }
+    }
+
+    fn record(&self, enabled: bool, route: usize, write: bool, offset: u64, width: usize, dur: Duration) {
+        if !enabled {
+            return;
+        }
+        let route = route.min(ROUTES.len() - 1);
+        let i = route * 2 + write as usize;
+        let ns = dur.as_nanos() as u64;
+        self.count[i].fetch_add(1, Ordering::Relaxed);
+        self.ns[i].fetch_add(ns, Ordering::Relaxed);
+        if route == 3 || route == 4 {
+            let slot = display_slot(offset, width);
+            let i = ((route - 3) * DISPLAY_SLOTS + slot) * 2 + write as usize;
+            self.display_count[i].fetch_add(1, Ordering::Relaxed);
+            self.display_ns[i].fetch_add(ns, Ordering::Relaxed);
+        }
+    }
+
+    fn rows(&self) -> Vec<(&'static str, u64)> {
+        static NAMES: std::sync::OnceLock<Vec<(&'static str, &'static str)>> = std::sync::OnceLock::new();
+        let names = NAMES.get_or_init(|| {
+            let mut names = Vec::new();
+            for i in 0..2 * ROUTES.len() {
+                let (r, d) = (ROUTES[i / 2], if i % 2 == 1 { 'W' } else { 'R' });
+                names.push((
+                    &*Box::leak(format!("routed trap: {r} {d}").into_boxed_str()),
+                    &*Box::leak(format!("routed trap ns: {r} {d}").into_boxed_str()),
+                ));
+            }
+            for i in 0..DISPLAY_COUNTERS {
+                let route = ROUTES[3 + i / (DISPLAY_SLOTS * 2)];
+                let slot = (i / 2) % DISPLAY_SLOTS;
+                let direction = if i % 2 == 1 { 'W' } else { 'R' };
+                let register = if slot == DISPLAY_REGS {
+                    "overflow (unsupported address/width)".to_string()
+                } else {
+                    format!("{:#08x}", display_register(slot))
+                };
+                names.push((
+                    &*Box::leak(format!("routed display register (nonadditive to parent): {route} {direction} {register}").into_boxed_str()),
+                    &*Box::leak(format!("routed display register ns (nonadditive to parent): {route} {direction} {register}").into_boxed_str()),
+                ));
+            }
+            names
+        });
+        let mut rows = Vec::new();
+        for (i, (n, ns)) in names.iter().take(2 * ROUTES.len()).enumerate() {
+            let count = self.count[i].load(Ordering::Relaxed);
+            if count > 0 {
+                rows.push((*n, count));
+                rows.push((*ns, self.ns[i].load(Ordering::Relaxed)));
+            }
+        }
+        for (i, (n, ns)) in names.iter().skip(2 * ROUTES.len()).enumerate() {
+            let count = self.display_count[i].load(Ordering::Relaxed);
+            if count > 0 {
+                rows.push((*n, count));
+                rows.push((*ns, self.display_ns[i].load(Ordering::Relaxed)));
+            }
+        }
+        rows
+    }
+}
+
+static ROUTED: RoutedCounters = RoutedCounters::new();
+
+/// Count one successful route with its existing timer. Width/address classify display
+/// observations only; no payload, lock, allocation or additional timer is involved.
+#[inline]
+pub fn routed(route: usize, write: bool, offset: u64, width: usize, dur: Duration) {
+    ROUTED.record(on(), route, write, offset, width, dur);
+}
+
+/// Original aggregate rows plus bounded display subrows explicitly nonadditive to their
+/// parents. As with aggregate "routed trap ns", subrow ns live in the count column.
+pub fn routed_rows() -> Vec<(&'static str, u64)> {
+    ROUTED.rows()
 }
 
 /// Runlists and ChIDs of the trapped-doorbell rows ([`doorbell_token`]); a ChID at or above
@@ -799,17 +908,83 @@ mod tests {
     }
 
     #[test]
-    fn routed_traps_by_route_and_direction() {
-        routed(1, true, Duration::from_micros(3));
-        routed(1, true, Duration::from_micros(5));
-        routed(99, false, Duration::from_nanos(10));
-        let rows = routed_rows();
+    fn routed_display_covers_engine_handles_and_rejects_partial_registers() {
+        assert_eq!(DISPLAY_REGS, 52);
+        let registers: std::collections::BTreeSet<_> = (0..DISPLAY_REGS).map(display_register).collect();
+        assert_eq!(registers.len(), 52);
+        // Independently use the engine's predicate for every byte in its register span,
+        // including holes and unaligned neighbors, rather than duplicating the mapper.
+        for offset in 0x610000..0x61a000 {
+            assert_eq!(display_slot(offset, 4) < DISPLAY_REGS, crate::display::engine::Engine::handles(offset), "{offset:#x}");
+        }
+        for offset in registers {
+            for width in [0, 1, 2, 3, 8] {
+                assert_eq!(display_slot(offset, width), DISPLAY_REGS);
+            }
+        }
+        assert_eq!(display_slot(u64::MAX, 4), DISPLAY_REGS);
+        assert_eq!(display_slot(0, 4), DISPLAY_REGS);
+    }
+
+    #[test]
+    fn routed_display_reconciles_parent_counts_and_shared_duration_with_overflow() {
+        let counters = RoutedCounters::new();
+        for slot in 0..DISPLAY_REGS {
+            let offset = display_register(slot);
+            let route = if (0x611000..0x612000).contains(&offset) { 3 } else { 4 };
+            for write in [false, true] {
+                counters.record(true, route, write, offset, 4, Duration::from_nanos((slot + 1) as u64));
+            }
+        }
+        // The FE page can route partial/unknown words; these must not be mislabeled
+        // as one of the modeled dwords, even when the starting address is modeled.
+        counters.record(true, 3, false, display_register(0), 1, Duration::from_nanos(71));
+        counters.record(true, 3, false, display_register(0) + 1, 4, Duration::from_nanos(73));
+        counters.record(true, 4, true, 0xdead, 4, Duration::from_nanos(79));
+        // Preserve the aggregate hook's past-table clamp to the last route.
+        counters.record(true, 99, false, 0, 4, Duration::from_nanos(10));
+        counters.record(true, 1, true, 0xb81200, 4, Duration::from_micros(3));
+        counters.record(true, 1, true, 0xb81200, 4, Duration::from_micros(5));
+        let rows = counters.rows();
         let get = |n: &str| rows.iter().find(|r| r.0 == n).map(|r| r.1);
-        assert!(get("routed trap: intr tree page W").is_some_and(|c| c >= 2), "{rows:?}");
-        assert!(get("routed trap ns: intr tree page W").is_some_and(|ns| ns >= 8000), "{rows:?}");
-        // A route index past the table is the last route.
-        assert!(get("routed trap: display status R").is_some_and(|c| c >= 1), "{rows:?}");
+        assert_eq!(get("routed trap: intr tree page W"), Some(2));
+        assert_eq!(get("routed trap ns: intr tree page W"), Some(8000));
         assert_eq!(get("routed trap: MSI re-arm (NV_PCFG) W"), None);
+        for route in 3..5 {
+            for write in 0..2 {
+                let first = (route - 3) * DISPLAY_SLOTS * 2 + write;
+                let count: u64 = (first..first + DISPLAY_SLOTS * 2).step_by(2)
+                    .map(|i| counters.display_count[i].load(Ordering::Relaxed)).sum();
+                let ns: u64 = (first..first + DISPLAY_SLOTS * 2).step_by(2)
+                    .map(|i| counters.display_ns[i].load(Ordering::Relaxed)).sum();
+                assert_eq!(count, counters.count[route * 2 + write].load(Ordering::Relaxed));
+                assert_eq!(ns, counters.ns[route * 2 + write].load(Ordering::Relaxed));
+            }
+        }
+        assert_eq!(get("routed trap: display FE page R"), Some(30));
+        assert_eq!(get("routed trap: display status W"), Some(25));
+        assert_eq!(get("routed trap: display status R"), Some(25));
+        assert_eq!(get("routed display register (nonadditive to parent): display FE page R overflow (unsupported address/width)"), Some(2));
+        assert_eq!(get("routed display register ns (nonadditive to parent): display FE page R overflow (unsupported address/width)"), Some(144));
+        assert_eq!(get("routed display register (nonadditive to parent): display status W overflow (unsupported address/width)"), Some(1));
+    }
+
+    #[test]
+    fn routed_profile_disabled_changes_neither_parent_nor_display_storage() {
+        let counters = RoutedCounters::new();
+        for route in 0..ROUTES.len() {
+            for write in [false, true] {
+                counters.record(false, route, write, display_register(0), 4, Duration::from_micros(5));
+                counters.record(false, route, write, 0xdead, 1, Duration::from_micros(7));
+            }
+        }
+        assert!(counters.rows().is_empty());
+        // Same local hook becomes observable when enabled; no global env mutation.
+        counters.record(true, 4, false, display_register(0), 4, Duration::from_nanos(11));
+        assert_eq!(counters.count[8].load(Ordering::Relaxed), 1);
+        assert_eq!(counters.ns[8].load(Ordering::Relaxed), 11);
+        assert_eq!(counters.display_count[DISPLAY_SLOTS * 2].load(Ordering::Relaxed), 1);
+        assert_eq!(counters.display_ns[DISPLAY_SLOTS * 2].load(Ordering::Relaxed), 11);
     }
 
     #[test]

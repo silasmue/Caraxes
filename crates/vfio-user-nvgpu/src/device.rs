@@ -601,7 +601,7 @@ impl ServerBackend for SharedDevice {
         let t0 = crate::profile::on().then(std::time::Instant::now);
         if self.routes.read(region, offset, data) {
             if let Some(t0) = t0 {
-                crate::profile::routed(self.route_class(offset), false, t0.elapsed());
+                crate::profile::routed(self.route_class(offset), false, offset, data.len(), t0.elapsed());
             }
             return Ok(());
         }
@@ -649,7 +649,7 @@ impl ServerBackend for SharedDevice {
         let t0 = crate::profile::on().then(std::time::Instant::now);
         if self.routes.write(region, offset, data) {
             if let Some(t0) = t0 {
-                crate::profile::routed(self.route_class(offset), true, t0.elapsed());
+                crate::profile::routed(self.route_class(offset), true, offset, data.len(), t0.elapsed());
             }
             return Ok(());
         }
