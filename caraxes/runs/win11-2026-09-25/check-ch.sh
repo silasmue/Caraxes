@@ -19,8 +19,16 @@ done
 trace_available=0
 if [[ -s $T ]]; then
     trace_available=1
-elif python3 -c 'import json,sys; sys.exit(not json.load(open(sys.argv[1])).get("scored", False))' "$R/start.json"; then
-    say SKIP "trace-dependent checks: scored run intentionally omits gpu-trace.log"
+elif python3 - "$R" <<'PY'
+import json, pathlib, sys
+run = pathlib.Path(sys.argv[1])
+start = json.loads((run / 'start.json').read_text())
+env_path = run / 'env.json'
+env = json.loads(env_path.read_text()) if env_path.is_file() else {}
+sys.exit(not (start.get('scored', False) or env.get('WIN_GPU_TRACE') == '0'))
+PY
+then
+    say SKIP "trace-dependent checks: saved launch configuration disables gpu-trace.log"
 else
     say FAIL "missing or empty gpu-trace.log in a diagnostic run"
 fi
