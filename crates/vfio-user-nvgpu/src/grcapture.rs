@@ -7,8 +7,8 @@
 //! each newly published entry before forwarding its doorbell and retains only the C597 state
 //! needed to explain a fault: exact `SET_OBJECT` bindings, the MME instruction/start RAM
 //! uploads, direct constant-buffer state, and recent macro calls with their parameters.
-//! A separate bounded history retains direct depth/ZCULL methods, without interpreting
-//! macro-generated methods or claiming the GPU's effective state.
+//! A separate bounded history retains direct depth/ZCULL methods and MME shadow control,
+//! without interpreting macro-generated methods or claiming the GPU's effective state.
 //! These are submitted CPU snapshots; earlier GPU producers and conditional fetching can
 //! make the bytes eventually executed differ from the captured bytes.
 //! Nothing is changed in guest memory and the production path pays only one disabled check.
@@ -40,8 +40,12 @@ const KEEP_DEPTH_EVENTS: usize = 96;
 
 // Byte method addresses verified against NVIDIA 615.71.09 class/clc597.h. Retain
 // only these scalar observations; neither register fields nor GPU state are inferred.
+// MME shadow control is a dependency of method-literal interpretation, not depth state.
 fn depth_method_name(method: u32) -> Option<&'static str> {
     Some(match method {
+        // MODE bits 1:0: TRACK=0, TRACK_WITH_FILTER=1, PASSTHROUGH=2, REPLAY=3.
+        // Preserve the raw word; tracked values and effective shadow state are unknown.
+        0x0124 => "SET_MME_SHADOW_RAM_CONTROL",
         0x02bc => "SET_ZCULL_VISIBLE_PRIM_OPTIMIZATION",
         0x02e4 => "SET_ZCULL_ROP_BYPASS",
         0x02e8 => "SET_ZCULL_SUBREGION",
@@ -688,7 +692,7 @@ impl Capture {
             format!("at/before capture cutoff {cutoff}")
         };
         out.push(format!(
-            "gr live capture: chid {chid}: CPU-submitted depth/ZCULL direct-only history: {retained_depth} retained {cutoff_label}; capacity {KEEP_DEPTH_EVENTS}, {} evicted across whole capture; unseen and macro-generated values unknown, effective GPU state unknown",
+            "gr live capture: chid {chid}: CPU-submitted depth/ZCULL direct-only history: {retained_depth} retained {cutoff_label}; capacity {KEEP_DEPTH_EVENTS}, {} evicted across whole capture; includes MME shadow control as a scalar dependency; raw values uninterpreted; unseen and macro-generated values unknown, effective GPU state unknown, effective GPU shadow state unknown",
             self.depth_observations.saturating_sub(self.depth_events.len() as u64)
         ));
         for event in self.depth_events.iter().filter(|event| event.seq <= cutoff) {
@@ -1142,6 +1146,7 @@ mod tests {
         let mut graphics = inc(3, 0, &[(2 << 16) | CLASS_3D]);
         // All allowlisted offsets are real direct C597 methods, including a valid zero.
         for (method, data) in [
+            (0x0124, 1),
             (0x02bc, 1),
             (0x02e4, 0),
             (0x02e8, 0x10),
@@ -1176,7 +1181,7 @@ mod tests {
         graphics.extend(inc(7, 0x02e4, &[0xdead]));
         graphics.extend(inc(3, 0x2388, &[0xbeef]));
         capture.push(63, &graphics);
-        assert_eq!(capture.depth_events.len(), 27);
+        assert_eq!(capture.depth_events.len(), 28);
 
         capture.entries = 2;
         let mut other_classes = inc(3, 0, &[(1 << 16) | 0xc5c0]);
@@ -1185,7 +1190,7 @@ mod tests {
         other_classes.extend(inc(3, 0x12cc, &[0xdead_902d]));
         other_classes.extend(inc(3, 0x07e8, &[0xdead_07e8]));
         capture.push(0, &other_classes);
-        assert_eq!(capture.depth_events.len(), 27);
+        assert_eq!(capture.depth_events.len(), 28);
 
         capture.entries = 3;
         let mut rebound = inc(3, 0, &[(1 << 16) | CLASS_3D]);
@@ -1217,6 +1222,72 @@ mod tests {
             "direct depth/ZCULL gp 1 capture-seq 3 subch 3 SET_DEPTH_WRITE(0x12e8)=0x00000000"
         ));
         assert!(latest.contains("binding SET_OBJECT 0x0001c597@gp1 capture-seq 3"));
+    }
+
+    #[test]
+    fn shadow_control_history_preserves_interleaved_literals_class_and_cutoff() {
+        let mut capture = Capture::new(&[(CLASS_3D, 1), (0xc5c0, 2)]);
+        capture.entries = 1;
+        let mut tracked = inc(2, 0, &[(2 << 16) | CLASS_3D]);
+        // Repeated depth literals under different shadow modes must stay ordered,
+        // rather than becoming one alleged effective depth state.
+        for (method, data) in [
+            (0x0124, 0),
+            (0x12cc, 0),
+            (0x0124, 2),
+            (0x12cc, 0),
+            (0x0124, 3),
+            (0x12cc, 0),
+        ] {
+            tracked.extend(inc(2, method, &[data]));
+        }
+        capture.push(63, &tracked);
+
+        capture.entries = 2;
+        let mut compute = inc(2, 0, &[(1 << 16) | 0xc5c0]);
+        compute.extend(inc(2, 0x0124, &[0xdead]));
+        capture.push(0, &compute);
+
+        capture.entries = 3;
+        let mut rebound = inc(2, 0, &[(1 << 16) | CLASS_3D]);
+        rebound.extend(inc(2, 0x0124, &[1]));
+        capture.push(1, &rebound);
+        assert_eq!(capture.depth_observations, 7);
+        let earlier: Vec<_> = capture
+            .depth_events
+            .iter()
+            .filter(|event| event.seq <= 1)
+            .map(|event| {
+                assert!(event.exact_3d);
+                assert_eq!((event.gp, event.subch), (63, 2));
+                assert_eq!(event.binding.unwrap().data, 0x2c597);
+                (event.method, event.data)
+            })
+            .collect();
+        assert_eq!(
+            earlier,
+            [
+                (0x0124, 0),
+                (0x12cc, 0),
+                (0x0124, 2),
+                (0x12cc, 0),
+                (0x0124, 3),
+                (0x12cc, 0)
+            ]
+        );
+        let notes = capture.initialization_notes(54, 2).join("\n");
+        assert_eq!(
+            notes.matches("SET_MME_SHADOW_RAM_CONTROL(0x0124)=").count(),
+            3
+        );
+        assert!(!notes.contains("0x0000dead"));
+        assert!(!notes.contains("binding SET_OBJECT 0x0001c597"));
+        assert!(notes.contains("includes MME shadow control as a scalar dependency"));
+        assert!(notes.contains("raw values uninterpreted"));
+        assert!(notes.contains("effective GPU shadow state unknown"));
+        let all = capture.initialization_notes(54, 3).join("\n");
+        assert!(all.contains("capture-seq 3 subch 2 SET_MME_SHADOW_RAM_CONTROL(0x0124)=0x00000001"));
+        assert!(all.contains("binding SET_OBJECT 0x0001c597@gp1 capture-seq 3"));
     }
 
     #[test]
