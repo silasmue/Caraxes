@@ -7,6 +7,8 @@
 //! each newly published entry before forwarding its doorbell and retains only the C597 state
 //! needed to explain a fault: exact `SET_OBJECT` bindings, the MME instruction/start RAM
 //! uploads, direct constant-buffer state, and recent macro calls with their parameters.
+//! A separate bounded history retains direct depth/ZCULL methods, without interpreting
+//! macro-generated methods or claiming the GPU's effective state.
 //! These are submitted CPU snapshots; earlier GPU producers and conditional fetching can
 //! make the bytes eventually executed differ from the captured bytes.
 //! Nothing is changed in guest memory and the production path pays only one disabled check.
@@ -34,6 +36,60 @@ const KEEP_BOOTSTRAP_CALLS: usize = 64;
 const KEEP_MME_UPLOADS: usize = 128;
 const KEEP_ROOT_EVENTS: usize = 256;
 const KEEP_UNEXPECTED_SET_OBJECTS: usize = 8;
+const KEEP_DEPTH_EVENTS: usize = 96;
+
+// Byte method addresses verified against NVIDIA 615.71.09 class/clc597.h. Retain
+// only these scalar observations; neither register fields nor GPU state are inferred.
+fn depth_method_name(method: u32) -> Option<&'static str> {
+    Some(match method {
+        0x02bc => "SET_ZCULL_VISIBLE_PRIM_OPTIMIZATION",
+        0x02e4 => "SET_ZCULL_ROP_BYPASS",
+        0x02e8 => "SET_ZCULL_SUBREGION",
+        0x02f8 => "SET_ZCULL_SUBREGION_ALLOCATION",
+        0x02fc => "ASSIGN_ZCULL_SUBREGIONS",
+        0x07c0 => "SET_ZCULL_REGION_SIZE_A",
+        0x07c4 => "SET_ZCULL_REGION_SIZE_B",
+        0x07c8 => "SET_ZCULL_REGION_SIZE_C",
+        0x07cc => "SET_ZCULL_REGION_PIXEL_OFFSET_C",
+        0x07e0 => "SET_ZCULL_REGION_LOCATION",
+        0x07e4 => "SET_ZCULL_REGION_ALIQUOTS",
+        0x07e8 => "SET_ZCULL_STORAGE_A",
+        0x07ec => "SET_ZCULL_STORAGE_B",
+        0x07f0 => "SET_ZCULL_STORAGE_C",
+        0x07f4 => "SET_ZCULL_STORAGE_D",
+        0x0da8 => "SET_ZCULL_SERIALIZATION",
+        0x0fe0 => "SET_ZT_A",
+        0x0fe4 => "SET_ZT_B",
+        0x0fe8 => "SET_ZT_FORMAT",
+        0x0fec => "SET_ZT_BLOCK_SIZE",
+        0x1214 => "DRAW_VERTEX_ARRAY_BEGIN_END_INSTANCE_FIRST",
+        0x12c8 => "CLEAR_ZCULL_REGION",
+        0x12cc => "SET_DEPTH_TEST",
+        0x12e8 => "SET_DEPTH_WRITE",
+        0x130c => "SET_DEPTH_FUNC",
+        0x1968 => "SET_ZCULL",
+        0x19d0 => "CLEAR_SURFACE",
+        _ => return None,
+    })
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SubmittedBinding {
+    seq: u64,
+    gp: u32,
+    data: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DepthEvent {
+    seq: u64,
+    gp: u32,
+    subch: usize,
+    method: u32,
+    data: u32,
+    exact_3d: bool,
+    binding: Option<SubmittedBinding>,
+}
 
 struct UnexpectedSetObject {
     gp: u32,
@@ -115,6 +171,7 @@ pub struct Capture {
     classes: [u32; 8],
     class_gp: [Option<u32>; 8],
     class_exact: [bool; 8],
+    submitted_bindings: [Option<SubmittedBinding>; 8],
     mme_pointer: usize,
     mme_version: Option<u32>,
     mme_words: Vec<Option<u32>>,
@@ -133,6 +190,8 @@ pub struct Capture {
     bootstrap_calls: Vec<BootstrapCall>,
     direct: VecDeque<String>,
     root_events: VecDeque<RootEvent>,
+    depth_events: VecDeque<DepthEvent>,
+    depth_observations: u64,
     valid_zero: VecDeque<String>,
     entries: u64,
     pushbuffers: u64,
@@ -158,6 +217,7 @@ impl Default for Capture {
             classes: [0; 8],
             class_gp: [None; 8],
             class_exact: [false; 8],
+            submitted_bindings: [None; 8],
             mme_pointer: 0,
             mme_version: None,
             mme_words: vec![None; MAX_MME_WORDS],
@@ -176,6 +236,8 @@ impl Default for Capture {
             bootstrap_calls: Vec::with_capacity(KEEP_BOOTSTRAP_CALLS),
             direct: VecDeque::with_capacity(KEEP_DIRECT),
             root_events: VecDeque::new(),
+            depth_events: VecDeque::with_capacity(KEEP_DEPTH_EVENTS),
+            depth_observations: 0,
             valid_zero: VecDeque::with_capacity(KEEP_VALID_ZERO),
             entries: 0,
             pushbuffers: 0,
@@ -298,6 +360,11 @@ impl Capture {
             self.classes[subch] = class;
             self.class_gp[subch] = Some(gp);
             self.class_exact[subch] = true;
+            self.submitted_bindings[subch] = Some(SubmittedBinding {
+                seq: self.entries,
+                gp,
+                data,
+            });
             return;
         }
         // Windows uses subchannel 0 for the channel's C597 object. A context captured
@@ -339,6 +406,26 @@ impl Capture {
             }
         }
         self.finish_call(open);
+
+        // The existing owned-class gate above applies before numerical offsets are
+        // classified. Snapshot binding provenance now: a later rebind cannot relabel
+        // this observation, and the subchannel-0 fallback remains explicitly inferred.
+        if depth_method_name(addr).is_some() {
+            self.depth_observations += 1;
+            keep(
+                &mut self.depth_events,
+                KEEP_DEPTH_EVENTS,
+                DepthEvent {
+                    seq: self.entries,
+                    gp,
+                    subch,
+                    method: addr,
+                    data,
+                    exact_3d: self.classes[subch] == CLASS_3D && self.class_exact[subch],
+                    binding: self.submitted_bindings[subch],
+                },
+            );
+        }
 
         if (0x0240..=0x025c).contains(&addr) || matches!(addr, 0x0504 | 0x0508) {
             keep(
@@ -590,6 +677,38 @@ impl Capture {
     /// Windows replaces macro images later; the final image cannot explain initialization.
     pub fn initialization_notes(&self, chid: u32, cutoff: u64) -> Vec<String> {
         let mut out = Vec::new();
+        let retained_depth = self
+            .depth_events
+            .iter()
+            .filter(|event| event.seq <= cutoff)
+            .count();
+        let cutoff_label = if cutoff == u64::MAX {
+            "with no finite capture cutoff".into()
+        } else {
+            format!("at/before capture cutoff {cutoff}")
+        };
+        out.push(format!(
+            "gr live capture: chid {chid}: CPU-submitted depth/ZCULL direct-only history: {retained_depth} retained {cutoff_label}; capacity {KEEP_DEPTH_EVENTS}, {} evicted across whole capture; unseen and macro-generated values unknown, effective GPU state unknown",
+            self.depth_observations.saturating_sub(self.depth_events.len() as u64)
+        ));
+        for event in self.depth_events.iter().filter(|event| event.seq <= cutoff) {
+            let binding = event.binding.map_or_else(
+                || "no retained SET_OBJECT".into(),
+                |binding| {
+                    format!(
+                        "SET_OBJECT {:#010x}@gp{} capture-seq {}",
+                        binding.data, binding.gp, binding.seq
+                    )
+                },
+            );
+            out.push(format!(
+                "gr live capture: chid {chid}: direct depth/ZCULL gp {} capture-seq {} subch {} {}({:#06x})={:#010x}; C597 classification {}, binding {binding} [CPU-submitted observation, direct-only]",
+                event.gp, event.seq, event.subch,
+                depth_method_name(event.method).expect("retained allowlisted method"),
+                event.method, event.data,
+                if event.exact_3d { "exact" } else { "inferred" }
+            ));
+        }
         for event in self.root_events.iter().filter(|event| event.seq <= cutoff) {
             out.push(format!(
                 "gr live capture: chid {chid}: root table gp {} capture-seq {} method {:#x}={:#x}",
@@ -1014,6 +1133,153 @@ mod tests {
         let mut out = vec![(2 << 29) | ((data.len() as u32) << 18) | (subch << 13) | addr];
         out.extend_from_slice(data);
         out
+    }
+
+    #[test]
+    fn direct_depth_history_preserves_exact_binding_across_owned_class_rebinds() {
+        let mut capture = Capture::new(&[(CLASS_3D, 1), (0xc5c0, 2), (0x902d, 3)]);
+        capture.entries = 1;
+        let mut graphics = inc(3, 0, &[(2 << 16) | CLASS_3D]);
+        // All allowlisted offsets are real direct C597 methods, including a valid zero.
+        for (method, data) in [
+            (0x02bc, 1),
+            (0x02e4, 0),
+            (0x02e8, 0x10),
+            (0x02f8, 0xf000000),
+            (0x02fc, 1),
+            (0x07c0, 1024),
+            (0x07c4, 1024),
+            (0x07c8, 1),
+            (0x07cc, 0),
+            (0x07e0, 0x20001),
+            (0x07e4, 0x1000),
+            (0x07e8, 0x7f),
+            (0x07ec, 0xffff0000),
+            (0x07f0, 0x80),
+            (0x07f4, 0x1234),
+            (0x0da8, 3),
+            (0x0fe0, 0x20),
+            (0x0fe4, 0xff000000),
+            (0x0fe8, 0xa),
+            (0x0fec, 0x1000),
+            (0x1214, 0x40030000),
+            (0x12c8, 0),
+            (0x12cc, 1),
+            (0x12e8, 1),
+            (0x130c, 2),
+            (0x1968, 1),
+            (0x19d0, 1),
+        ] {
+            graphics.extend(inc(3, method, &[data]));
+        }
+        // An unbound software subchannel and an unrelated C597 method are excluded.
+        graphics.extend(inc(7, 0x02e4, &[0xdead]));
+        graphics.extend(inc(3, 0x2388, &[0xbeef]));
+        capture.push(63, &graphics);
+        assert_eq!(capture.depth_events.len(), 27);
+
+        capture.entries = 2;
+        let mut other_classes = inc(3, 0, &[(1 << 16) | 0xc5c0]);
+        other_classes.extend(inc(3, 0x02e4, &[0xdead_c5c0]));
+        other_classes.extend(inc(3, 0, &[0x902d]));
+        other_classes.extend(inc(3, 0x12cc, &[0xdead_902d]));
+        other_classes.extend(inc(3, 0x07e8, &[0xdead_07e8]));
+        capture.push(0, &other_classes);
+        assert_eq!(capture.depth_events.len(), 27);
+
+        capture.entries = 3;
+        let mut rebound = inc(3, 0, &[(1 << 16) | CLASS_3D]);
+        rebound.extend(inc(3, 0x12e8, &[0]));
+        capture.push(1, &rebound);
+        let first = capture.depth_events.front().unwrap();
+        assert!(first.exact_3d);
+        assert_eq!((first.seq, first.gp, first.subch), (1, 63, 3));
+        let binding = first.binding.unwrap();
+        assert_eq!((binding.seq, binding.gp, binding.data), (1, 63, 0x2c597));
+        let last = capture.depth_events.back().unwrap();
+        assert_eq!((last.seq, last.gp, last.data), (3, 1, 0));
+        assert_eq!(last.binding.unwrap().data, 0x1c597);
+
+        let earlier = capture.initialization_notes(54, 1).join("\n");
+        assert!(earlier.contains("SET_ZCULL_ROP_BYPASS(0x02e4)=0x00000000"));
+        assert!(earlier.contains("SET_ZCULL_STORAGE_B(0x07ec)=0xffff0000"));
+        assert!(earlier.contains("CLEAR_ZCULL_REGION(0x12c8)=0x00000000"));
+        assert!(earlier.contains("CLEAR_SURFACE(0x19d0)=0x00000001"));
+        assert!(earlier.contains("DRAW_VERTEX_ARRAY_BEGIN_END_INSTANCE_FIRST(0x1214)=0x40030000"));
+        assert!(earlier.contains(
+            "C597 classification exact, binding SET_OBJECT 0x0002c597@gp63 capture-seq 1"
+        ));
+        assert!(!earlier.contains("binding SET_OBJECT 0x0001c597"));
+        assert!(!earlier.contains("dead"));
+        assert!(!earlier.contains("beef"));
+        let latest = capture.initialization_notes(54, 3).join("\n");
+        assert!(latest.contains(
+            "direct depth/ZCULL gp 1 capture-seq 3 subch 3 SET_DEPTH_WRITE(0x12e8)=0x00000000"
+        ));
+        assert!(latest.contains("binding SET_OBJECT 0x0001c597@gp1 capture-seq 3"));
+    }
+
+    #[test]
+    fn direct_depth_history_is_bounded_and_filters_capture_sequence_not_wrapped_gp() {
+        let mut capture = Capture::new(&[(CLASS_3D, 1)]);
+        capture.entries = 1;
+        capture.push(3, &inc(0, 0, &[CLASS_3D]));
+        for seq in 1..=104 {
+            capture.entries = seq;
+            // Repeated GP indices must not make future submissions fault-bound.
+            capture.push((seq % 4) as u32, &inc(0, 0x02e4, &[seq as u32]));
+        }
+        assert_eq!(capture.depth_observations, 104);
+        assert_eq!(capture.depth_events.len(), 96);
+        assert_eq!(capture.depth_events.front().unwrap().seq, 9);
+        assert_eq!(capture.depth_events.back().unwrap().seq, 104);
+        let notes = capture.initialization_notes(54, 100);
+        let direct: Vec<_> = notes
+            .iter()
+            .filter(|line| line.contains(": direct depth/ZCULL gp "))
+            .collect();
+        assert_eq!(direct.len(), 92);
+        assert!(direct.first().unwrap().contains("capture-seq 9 "));
+        assert!(direct.last().unwrap().contains("capture-seq 100 "));
+        assert!(notes[0].contains("capacity 96, 8 evicted across whole capture"));
+        assert!(notes[0].contains("effective GPU state unknown"));
+        let evicted = capture.initialization_notes(54, 8).join("\n");
+        assert!(evicted.contains("0 retained at/before capture cutoff 8"));
+        assert!(!evicted.contains(": direct depth/ZCULL gp "));
+    }
+
+    #[test]
+    fn direct_depth_history_keeps_inference_and_unbind_provenance_explicit() {
+        let mut capture = Capture::new(&[(CLASS_3D, 1), (0xc5c0, 2)]);
+        capture.entries = 1;
+        capture.push(5, &inc(0, 0x1968, &[1]));
+        capture.entries = 2;
+        let mut compute = inc(0, 0, &[0xc5c0]);
+        compute.extend(inc(0, 0x1968, &[0xdead]));
+        capture.push(6, &compute);
+        capture.entries = 3;
+        let mut unbound = inc(0, 0, &[0]);
+        unbound.extend(inc(0, 0x1968, &[0]));
+        capture.push(7, &unbound);
+        capture.entries = 4;
+        let mut exact = inc(0, 0, &[(2 << 16) | CLASS_3D]);
+        exact.extend(inc(0, 0x1968, &[1]));
+        capture.push(0, &exact);
+        assert_eq!(capture.depth_events.len(), 3);
+        assert!(!capture.depth_events[0].exact_3d);
+        assert!(capture.depth_events[0].binding.is_none());
+        assert!(!capture.depth_events[1].exact_3d);
+        assert_eq!(capture.depth_events[1].binding.unwrap().data, 0);
+        assert!(capture.depth_events[2].exact_3d);
+        let older = capture.initialization_notes(54, 3).join("\n");
+        assert!(older.contains("C597 classification inferred, binding no retained SET_OBJECT"));
+        assert!(older.contains(
+            "C597 classification inferred, binding SET_OBJECT 0x00000000@gp7 capture-seq 3"
+        ));
+        assert!(!older.contains("classification exact"));
+        let all = capture.initialization_notes(54, u64::MAX).join("\n");
+        assert!(all.contains("no finite capture cutoff"));
+        assert!(all.contains("unseen and macro-generated values unknown"));
     }
 
     #[test]
