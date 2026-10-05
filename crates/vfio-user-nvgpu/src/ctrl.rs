@@ -3176,8 +3176,27 @@ impl Dispatcher {
             // contexts use NO_CTXSW (1): tables reset on context switches, without separate
             // buffer save/restore (ctrl2080gr.h). ZCULL can still operate within a context.
             CMD_GR_CTXSW_ZCULL_BIND => {
-                let g32 = |o: usize| params.get(o..o + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
-                let g64 = |o: usize| params.get(o..o + 8).map_or(0, |b| u64::from_le_bytes(b.try_into().unwrap()));
+                // The fixed SDK ABI includes four trailing alignment bytes. A short
+                // payload must not become a successful all-zero binding in the log.
+                if params.len() != std::mem::size_of::<nvrm_sys::NV2080_CTRL_GR_CTXSW_ZCULL_BIND_PARAMS>() {
+                    return Answer {
+                        status: v::NV_ERR_INVALID_ARGUMENT,
+                        params: params.to_vec(),
+                        label: "guest (invalid ZCULL binding)",
+                        note: format!("gr ctxsw zcull bind: expected 24 bytes, received {}", params.len()),
+                    };
+                }
+                let g32 = |o: usize| u32::from_le_bytes(params[o..o + 4].try_into().unwrap());
+                let g64 = |o: usize| u64::from_le_bytes(params[o..o + 8].try_into().unwrap());
+                let mode = g32(16);
+                if mode > 2 {
+                    return Answer {
+                        status: v::NV_ERR_INVALID_ARGUMENT,
+                        params: params.to_vec(),
+                        label: "guest (invalid ZCULL binding)",
+                        note: format!("gr ctxsw zcull bind: invalid mode {mode:#x}"),
+                    };
+                }
                 Answer::ok(
                     params.to_vec(),
                     "guest (recorded; not applied to the host context)",
@@ -3186,7 +3205,7 @@ impl Dispatcher {
                         g32(0),
                         g32(4),
                         g64(8),
-                        g32(16)
+                        mode
                     ),
                 )
             }
@@ -3273,6 +3292,61 @@ mod tests {
     fn dispatcher(host: Option<Box<dyn HostRm>>) -> Dispatcher {
         let f = crate::fixture::rtx2070();
         Dispatcher::new(f.chip.data(), &f.identity(4 << 30), host)
+    }
+
+    #[test]
+    fn zcull_binding_validates_fixed_abi_and_modes_before_acknowledging() {
+        // Embedded handles can belong to a different client than the kernel caller.
+        // Keep the existing valid-request echo; this test does not qualify translation.
+        struct NoForward;
+        impl HostRm for NoForward {
+            fn control(&mut self, _: u32, _: u32, _: &mut [u8]) -> u32 {
+                panic!("a modeled ZCULL binding must not reach generic host forwarding");
+            }
+        }
+        assert_eq!(
+            std::mem::size_of::<nvrm_sys::NV2080_CTRL_GR_CTXSW_ZCULL_BIND_PARAMS>(),
+            24
+        );
+        let mut d = dispatcher(Some(Box::new(NoForward)));
+        let call = |d: &mut Dispatcher, p: &[u8]| {
+            d.control(
+                INTERNAL_CLIENT,
+                INTERNAL_SUBDEVICE,
+                CMD_GR_CTXSW_ZCULL_BIND,
+                p,
+            )
+        };
+        let mut p = vec![0u8; 24];
+        put32(&mut p, 0, 0xc1d000c4);
+        put32(&mut p, 4, 0xff040029);
+        p[8..16].copy_from_slice(&0x1234000bf000u64.to_le_bytes());
+        p[20..24].copy_from_slice(&[0x11, 0x22, 0x33, 0x44]); // ABI padding is preserved.
+        for mode in 0..=2 {
+            put32(&mut p, 16, mode);
+            let a = call(&mut d, &p);
+            assert_eq!(a.status, NV_OK, "{}", a.note);
+            assert_eq!(a.params, p);
+            assert!(a
+                .note
+                .contains("client 0xc1d000c4 channel 0xff040029 va 0x1234000bf000"));
+            assert!(a.note.ends_with(&format!("mode {mode}")));
+            assert!(a.label.contains("not applied to the host context"));
+        }
+        for n in 0..24 {
+            let a = call(&mut d, &p[..n]);
+            assert_eq!(a.status, v::NV_ERR_INVALID_ARGUMENT, "length {n}");
+            assert_eq!(a.params, p[..n]);
+        }
+        let mut long = p.clone();
+        long.push(0);
+        assert_eq!(call(&mut d, &long).status, v::NV_ERR_INVALID_ARGUMENT);
+        for mode in [3, u32::MAX] {
+            put32(&mut p, 16, mode);
+            let a = call(&mut d, &p);
+            assert_eq!(a.status, v::NV_ERR_INVALID_ARGUMENT, "{}", a.note);
+            assert_eq!(a.params, p);
+        }
     }
 
     #[test]
