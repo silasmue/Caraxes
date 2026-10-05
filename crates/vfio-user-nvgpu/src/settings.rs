@@ -54,7 +54,7 @@ pub const VARS: &[Var] = &[
     var("CARAXES_DOORBELL_TOKENS", Open, "off", "N: the doorbell token pool (Linux B, nouveau: 64; Windows A/B open)"),
     var("CARAXES_BAR2_MEMFD", Open, "off", "1: guest BAR2 as a memfd (Linux B, nouveau; Windows A/B open)"),
     var("CARAXES_MSI_REARM_IOEVENTFD", Open, "off", "1: the MSI re-arm as an ioeventfd (Linux B, nouveau; Windows A/B open)"),
-    var("CARAXES_DISPLAY_PAGE", Open, "off", "1: the display front-end page as memory (Linux B; Windows A/B open)"),
+    var("CARAXES_DISPLAY_PAGE", Open, "off", "1: legacy tagged FE page; exact-ro: ordinary FE values, requires read-only VMM mapping (unqualified)"),
     var("CARAXES_ALLOC_LAZY", Open, "off", "1: shadow plans deferred to the next doorbell (Linux B)"),
     var("CARAXES_ALLOC_LAZY_MS", Open, "20", "the lazy plans' deadline in ms"),
     var("CARAXES_HOST_BAR1_FLOOR_MIB", Open, "96", "host BAR1 the pool must leave free (Linux wrappers 64, Windows 96)"),

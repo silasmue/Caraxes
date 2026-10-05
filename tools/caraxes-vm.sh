@@ -181,6 +181,10 @@ do_ssh() {
 }
 
 up() {
+    # Windows' reviewed launcher currently owns the exact-ro read-only FE/tree
+    # contract (0007+0008 or equivalent). Never offer exact FE writable here.
+    [[ ${CARAXES_DISPLAY_PAGE:-0} != exact-ro ]] ||
+        error "exact-ro FE is not supported by this launcher; use the reviewed Windows read-only contract"
     local trace=()
     case ${CARAXES_TRACE:-1} in
         0) ;;

@@ -204,7 +204,7 @@ pub struct Ticker {
     /// The display page (`CARAXES_DISPLAY_PAGE=1`, fe_page.rs): the guest's reads no
     /// longer trap, so the clock advances the engine itself at every tick through this
     /// (main.rs: lock the device, `Device::display_tick`) before it raises the vector.
-    driver: Mutex<Option<Arc<Driver>>>,
+    driver: Mutex<Option<Arc<ScopedDriver>>>,
     /// Ticks handed to the driver.
     pub driven: AtomicU64,
     /// When the ticks fired against when they were due, and how long the driver took
@@ -286,6 +286,16 @@ pub struct TickTiming {
 /// to now and returns whether the display interrupt line is asserted afterwards.
 pub type Driver = dyn Fn() -> bool + Send + Sync;
 
+/// Exact-page delivery completed inside Device/current-engine ownership. The ticker
+/// must not raise again after that guard has been released (notably across reset).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DriverOutcome {
+    Pending(bool),
+    Delivered,
+}
+
+pub type ScopedDriver = dyn Fn() -> DriverOutcome + Send + Sync;
+
 static TICKER: OnceLock<Arc<Ticker>> = OnceLock::new();
 
 pub fn ticker() -> &'static Arc<Ticker> {
@@ -318,6 +328,10 @@ impl Ticker {
 
     /// Advance the engine at every tick from now on (the display page, fe_page.rs).
     pub fn set_driver(&self, driver: Arc<Driver>) {
+        self.set_scoped_driver(Arc::new(move || DriverOutcome::Pending(driver())));
+    }
+
+    pub fn set_scoped_driver(&self, driver: Arc<ScopedDriver>) {
         *self.driver.lock().unwrap() = Some(driver);
     }
 
@@ -339,18 +353,18 @@ impl Ticker {
     /// the guest's trapped status read advances the engine (`Display::read32_io`).
     fn fire(&self) {
         let d = self.driver.lock().unwrap().clone();
-        let asserted = match d {
+        let outcome = match d {
             Some(d) => {
                 self.driven.fetch_add(1, Ordering::Relaxed);
                 let t0 = now_ns();
-                let asserted = d();
+                let outcome = d();
                 let us = now_ns().saturating_sub(t0) / 1000;
                 self.timing.lock().unwrap().driver.add(us);
-                asserted
+                outcome
             }
-            None => true,
+            None => DriverOutcome::Pending(true),
         };
-        if asserted {
+        if outcome == DriverOutcome::Pending(true) {
             self.raise();
         }
     }
@@ -912,6 +926,22 @@ impl Engine {
     /// Whether the status lives in the display page.
     pub fn paged(&self) -> bool {
         matches!(self.irq, IrqHome::Page(_))
+    }
+
+    pub fn exact_page(&self) -> bool {
+        matches!(&self.irq, IrqHome::Page(page) if page.exact_readonly())
+    }
+
+    pub fn has_exact_page(&self, page: &Arc<FePage>) -> bool {
+        matches!(&self.irq, IrqHome::Page(current) if current.exact_readonly() && Arc::ptr_eq(current, page))
+    }
+
+    /// Called under the current-engine/reset guard, with the engine lock held.
+    pub fn write_exact_page(&mut self, page: &Arc<FePage>, off: u64, data: &[u8]) -> bool {
+        if !self.has_exact_page(page) || !page.covers_range(off, data.len()) { return false; }
+        page.write(off, data);
+        self.sync_ticker();
+        true
     }
 
     /// The interrupt status (a copy).
@@ -2309,6 +2339,119 @@ mod tests {
         e.core_update(&armed, 70, &mut fb, &mem);
         assert!(!e.heads[0].active);
         assert_eq!(e.read32(FE_CORE_HEAD_STATE, 0), Some(0));
+    }
+
+    #[test]
+    fn exact_ro_page_matches_engine_values_across_ticks_and_acknowledgments() {
+        use crate::display::fe_page::{FePage, Mode, FE_PAGE};
+        let intr = crate::intr_page::IntrPage::create(
+            16 << 20, 0xb8_1000, crate::fixture::rtx2070().chip.data().identity,
+            IntrShared::new(), crate::intr_page::Config::default(),
+        ).unwrap();
+        let page = FePage::create_with_mode(&intr, Mode::ExactReadOnly, Box::new(|| {})).unwrap();
+        let mut a_fb = FakeFb::new(16 << 20);
+        let mut b_fb = FakeFb::new(16 << 20);
+        let mut ordinary = engine_with_head(&mut a_fb);
+        let mut exact = engine_with_head(&mut b_fb);
+        exact.attach_page(page.clone());
+        let mem = GuestMemory::new();
+        let parity = |a: &Engine, b: &Engine| {
+            assert_eq!(a.irq(), b.irq());
+            for off in (FE_PAGE..FE_PAGE + crate::intr_page::PAGE).step_by(4).filter(|off| Engine::handles(*off)) {
+                assert_eq!(a.read32(off, 0), Some(page.read32(off)), "{off:#x}");
+            }
+        };
+        parity(&ordinary, &exact);
+        for (off, value) in [
+            (FE_EVT_STAT_AWAKEN_OTHER, 1),
+            (FE_RM_INTR_EN_HEAD_TIMING, LAST_DATA),
+            (FE_RM_INTR_EN_HEAD_TIMING + 4, LAST_DATA),
+        ] {
+            ordinary.write32(off, value);
+            assert!(exact.write_exact_page(&page, off, &value.to_le_bytes()));
+            parity(&ordinary, &exact);
+        }
+        for step in 1..=3 {
+            let t = ordinary.heads[0].t0_ns + step * ordinary.heads[0].period_ns;
+            ordinary.catch_up(t, &mut a_fb, &mem);
+            exact.catch_up(t, &mut b_fb, &mem);
+            parity(&ordinary, &exact);
+            // Keep independent head/window/core causes pending during a head ack.
+            ordinary.with_irq(|irq| { irq.evt[1] |= LAST_DATA; irq.awaken_win |= 3; irq.awaken_other |= 1; });
+            exact.with_irq(|irq| { irq.evt[1] |= LAST_DATA; irq.awaken_win |= 3; irq.awaken_other |= 1; });
+            for (off, value) in [(FE_EVT_STAT_HEAD_TIMING, LAST_DATA), (FE_EVT_STAT_AWAKEN_OTHER, 1), (FE_EVT_STAT_AWAKEN_WIN, 1)] {
+                ordinary.write32(off, value);
+                assert!(exact.write_exact_page(&page, off, &value.to_le_bytes()));
+                parity(&ordinary, &exact);
+            }
+        }
+        assert_eq!(ordinary.heads[0].loadv, exact.heads[0].loadv);
+        assert_eq!(ordinary.heads[0].frames, exact.heads[0].frames);
+        assert!(ordinary.heads[0].frames > 0, "exact mode must retain normal ticks");
+    }
+
+    #[test]
+    fn exact_ro_reset_drains_paused_callback_and_delivered_has_no_late_raise() {
+        use crate::device::{DisplayRoute, DisplaySlot};
+        use crate::display::fe_page::{FePage, Mode, FE_PAGE};
+        use std::sync::mpsc;
+        let intr = IntrShared::new();
+        let intr_page = crate::intr_page::IntrPage::create(
+            16 << 20, 0xb8_1000, crate::fixture::rtx2070().chip.data().identity,
+            intr.clone(), crate::intr_page::Config::default(),
+        ).unwrap();
+        let page = FePage::create_with_mode(&intr_page, Mode::ExactReadOnly, Box::new(|| {})).unwrap();
+        let old = Arc::new(Mutex::new(Engine::new(4, 8)));
+        lock(&old).attach_page(page.clone());
+        let slot: DisplaySlot = Arc::new(std::sync::RwLock::new(Some(old.clone())));
+        let mut mem = GuestMemory::new();
+        let route = DisplayRoute { slot: slot.clone(), mem: mem.view() };
+        let clock = Arc::new(Ticker::default());
+        *clock.intr.lock().unwrap() = Some(intr.clone());
+        let weak_clock = Arc::downgrade(&clock);
+        let (entered_tx, entered_rx) = mpsc::sync_channel(0);
+        let (resume_tx, resume_rx) = mpsc::sync_channel(0);
+        let resume_rx = Mutex::new(resume_rx);
+        let (done_tx, done_rx) = mpsc::sync_channel(0);
+        let (return_tx, return_rx) = mpsc::sync_channel(0);
+        let return_rx = Mutex::new(return_rx);
+        clock.set_scoped_driver(Arc::new(move || {
+            let _ = route.with_current(|engine, _| {
+                let mut engine = lock(engine);
+                entered_tx.send(()).unwrap();
+                resume_rx.lock().unwrap().recv_timeout(Duration::from_secs(5)).unwrap();
+                engine.with_irq(|irq| { irq.evt[0] = LAST_DATA; irq.en[0] = LAST_DATA; });
+                assert!(engine.pending());
+                weak_clock.upgrade().unwrap().raise();
+            });
+            // Deliberately pause after releasing current ownership. Reset may now
+            // complete, but fire() must not deliver any old interrupt afterward.
+            done_tx.send(()).unwrap();
+            return_rx.lock().unwrap().recv_timeout(Duration::from_secs(5)).unwrap();
+            DriverOutcome::Delivered
+        }));
+        let firing = clock.clone();
+        let worker = std::thread::spawn(move || firing.fire());
+        entered_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(matches!(slot.try_write(), Err(std::sync::TryLockError::WouldBlock)), "reset must wait through mutation/publication/raise");
+        resume_tx.send(()).unwrap();
+        done_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(page.read32(FE_RM_INTR_DISPATCH), 1);
+        assert_eq!(clock.raised.load(Ordering::Relaxed), 1);
+        {
+            let mut current = slot.write().unwrap();
+            *current = None;
+            let fresh = Arc::new(Mutex::new(Engine::new(4, 8)));
+            lock(&fresh).attach_page(page.clone());
+            intr.reset_pending();
+            *current = Some(fresh);
+        }
+        return_tx.send(()).unwrap();
+        worker.join().unwrap();
+        assert_eq!(clock.raised.load(Ordering::Relaxed), 1, "Delivered forbids an unprotected post-reset outer raise");
+        assert_eq!(clock.driven.load(Ordering::Relaxed), 1);
+        for off in (FE_PAGE..FE_PAGE + crate::intr_page::PAGE).step_by(4) { assert_eq!(page.read32(off), 0); }
+        assert!(!Arc::ptr_eq(slot.read().unwrap().as_ref().unwrap(), &old), "reset published a new engine while the stale Arc remains live");
     }
 
     /// The display page (fe_page.rs): the clock's catch-up writes the vblank and the

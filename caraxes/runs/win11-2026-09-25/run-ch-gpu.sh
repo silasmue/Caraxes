@@ -40,6 +40,16 @@ else
 fi
 ip link show "$TAP" >/dev/null 2>&1 || die "no tap $TAP (created by the operator, owned by this user)"
 gpu=()
+exact_fe=0
+# Exact mode uses canonical spelling; backend rejects even Unicode surrounding
+# whitespace, so a launcher parsing mismatch cannot leave exact FE writable.
+case ${CARAXES_DISPLAY_PAGE:-0} in
+    exact-ro)
+        exact_fe=1
+        [[ ${WIN_GPU:-1} != 0 && ${WIN_HOST_MODE:-rm} == exec && ${WIN_GPU_DISPLAY:-0} == 1 ]] ||
+            die "exact-ro FE needs GPU display and host execution"
+        ;;
+esac
 if [[ ${WIN_GPU:-1} == 0 ]]; then
     echo "WIN_GPU=0: memfd RAM, no device"
 else
@@ -52,7 +62,12 @@ else
         help=$("$CH" --help 2>&1)
         [[ $help == *x_readonly_mmap_areas* ]] ||
             die "the interrupt page (host execution) needs Cloud Hypervisor with read-only vfio-user mmap areas"
-        dev+=",x_readonly_mmap_areas=[0:${WIN_INTR_TREE:-0xb81000}:0x1000]"
+        # Exact FE additionally requires patches 0007+0008 (or equivalent): guest
+        # read-only slots AND retained protection after BAR relocation. Capability help
+        # alone cannot prove that contract; the hardware packet pins/qualifies CH bytes.
+        readonly_areas="0:${WIN_INTR_TREE:-0xb81000}:0x1000"
+        if (( exact_fe )); then readonly_areas+=",0:0x611000:0x1000"; fi
+        dev+=",x_readonly_mmap_areas=[$readonly_areas]"
     fi
     gpu=(--user-device "$dev")
 fi

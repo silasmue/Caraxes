@@ -13,6 +13,11 @@
 //! [`FePage::scan`] as the interrupt page does for the tree. With a read-only guest
 //! mapping, trapped writes instead apply synchronously through [`FePage::write`].
 //!
+//! `exact-ro` instead publishes ordinary register values and applies every guest write
+//! synchronously through a read-only VMM slot. It never scans shared bytes, inserts
+//! tags/markers, or retriggers a watchdog; current-engine ownership protects reset.
+//! The tagged mode below remains the behavior of `1`/`on`.
+//!
 //! What a memory word cannot report: a store of the value it already holds. So
 //! - `FE_EVT_STAT_HEAD_TIMING(h)` shows `TAG` (bit 31, no field) beside the pending bits;
 //!   the guest writes constants (`LAST_DATA_RESET`, the RG line and VBLANK resets), never
@@ -52,32 +57,53 @@ pub const AWAKEN_CORE: u32 = 1;
 /// a second display pass could read the shown bits again is one reactor iteration).
 pub const MARKER_SPIN: Duration = Duration::from_millis(20);
 
-/// `CARAXES_DISPLAY_PAGE`: off, or on with the interrupt page and the display engine.
+/// Immutable FE mapping contract; neither mode is enabled by default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    LegacyTagged,
+    ExactReadOnly,
+}
+
+impl Mode {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::LegacyTagged => "1",
+            Self::ExactReadOnly => "exact-ro",
+        }
+    }
+
+    pub fn automatic_kicks(self) -> bool {
+        self == Self::LegacyTagged
+    }
+}
+
 pub fn requested(intr_page: bool, display: bool) -> Result<bool, String> {
-    parse(
-        std::env::var(DISPLAY_PAGE_ENV).ok().as_deref(),
-        intr_page,
-        display,
-    )
+    requested_mode(intr_page, display).map(|mode| mode.is_some())
+}
+
+pub fn requested_mode(intr_page: bool, display: bool) -> Result<Option<Mode>, String> {
+    parse_mode(std::env::var(DISPLAY_PAGE_ENV).ok().as_deref(), intr_page, display)
 }
 
 pub fn parse(v: Option<&str>, intr_page: bool, display: bool) -> Result<bool, String> {
-    let on = match v.map(str::trim).filter(|v| !v.is_empty()).unwrap_or("0") {
-        "0" | "off" => false,
-        "1" | "on" => true,
-        v => return Err(format!("{DISPLAY_PAGE_ENV}={v:?}: 0 or 1")),
+    parse_mode(v, intr_page, display).map(|mode| mode.is_some())
+}
+
+pub fn parse_mode(v: Option<&str>, intr_page: bool, display: bool) -> Result<Option<Mode>, String> {
+    let mode = match v.map(str::trim).filter(|v| !v.is_empty()).unwrap_or("0") {
+        "0" | "off" => None,
+        "1" | "on" => Some(Mode::LegacyTagged),
+        "exact-ro" if v == Some("exact-ro") => Some(Mode::ExactReadOnly),
+        "exact-ro" => return Err(format!("{DISPLAY_PAGE_ENV}: exact-ro requires canonical spelling without whitespace")),
+        v => return Err(format!("{DISPLAY_PAGE_ENV}={v:?}: 0, 1 or exact-ro")),
     };
-    if on && !intr_page {
-        return Err(format!(
-            "{DISPLAY_PAGE_ENV}=1 needs the interrupt page, which host execution runs: the page is a third area of its memfd and the interrupt page's reactor scans it"
-        ));
+    if mode.is_some() && !intr_page {
+        return Err(format!("{DISPLAY_PAGE_ENV} needs the interrupt page (host execution)"));
     }
-    if on && !display {
-        return Err(format!(
-            "{DISPLAY_PAGE_ENV}=1 needs --display (CARAXES_DISPLAY=1)"
-        ));
+    if mode.is_some() && !display {
+        return Err(format!("{DISPLAY_PAGE_ENV} needs --display (CARAXES_DISPLAY=1)"));
     }
-    Ok(on)
+    Ok(mode)
 }
 
 /// The display's interrupt status, as the trapped path models it (engine.rs).
@@ -217,6 +243,7 @@ type Raise = Box<dyn Fn() + Send + Sync>;
 
 /// The page, the display's interrupt status and the counters.
 pub struct FePage {
+    mode: Mode,
     map: Mapping,
     state: Mutex<State>,
     expected: [AtomicU32; WATCHED],
@@ -234,12 +261,21 @@ impl FePage {
     /// Map [`FE_PAGE`] from the interrupt page's memfd; raises go through the display
     /// clock (engine.rs `Ticker::raise`).
     pub fn create(intr: &IntrPage) -> Result<Arc<Self>, String> {
-        Self::create_with(intr, Box::new(|| super::engine::ticker().raise()))
+        Self::create_mode(intr, Mode::LegacyTagged)
+    }
+
+    pub fn create_mode(intr: &IntrPage, mode: Mode) -> Result<Arc<Self>, String> {
+        Self::create_with_mode(intr, mode, Box::new(|| super::engine::ticker().raise()))
     }
 
     pub fn create_with(intr: &IntrPage, raise: Raise) -> Result<Arc<Self>, String> {
+        Self::create_with_mode(intr, Mode::LegacyTagged, raise)
+    }
+
+    pub fn create_with_mode(intr: &IntrPage, mode: Mode, raise: Raise) -> Result<Arc<Self>, String> {
         let map = intr.map_page(FE_PAGE)?;
         let page = FePage {
+            mode,
             map,
             state: Mutex::new(State {
                 irq: FeIrq::default(),
@@ -258,6 +294,19 @@ impl FePage {
         };
         page.attach(FeIrq::default());
         Ok(Arc::new(page))
+    }
+
+    pub fn mode(&self) -> Mode {
+        self.mode
+    }
+
+    pub fn exact_readonly(&self) -> bool {
+        self.mode == Mode::ExactReadOnly
+    }
+
+    pub fn covers_range(&self, off: u64, len: usize) -> bool {
+        len > 0 && off >= FE_PAGE
+            && off.checked_add(len as u64).is_some_and(|end| end <= FE_PAGE + PAGE)
     }
 
     /// The sparse area of region 0: (offset, size).
@@ -336,6 +385,7 @@ impl FePage {
 
     /// A trapped read of the page (a client that did not map it): the memory.
     pub fn read32(&self, off: u64) -> u32 {
+        if self.exact_readonly() && !self.covers(off & !3) { return 0; }
         self.word(off).load(Ordering::Acquire)
     }
 
@@ -347,6 +397,11 @@ impl FePage {
     /// poll (device.rs `Routes`, docs/research/vblank-path-2026-09-29.md). The cost is the
     /// lock, a scan of the 28 watched words and at most one raise (an eventfd write).
     pub fn write(&self, off: u64, data: &[u8]) {
+        if self.exact_readonly() {
+            if !self.covers_range(off, data.len()) { return; }
+            self.write_exact(off, data);
+            return;
+        }
         let raise = {
             let mut st = self.lock();
             let (mut signal, seen) = self.sync(&mut st);
@@ -416,8 +471,55 @@ impl FePage {
         }
     }
 
+    /// Exact trapped lanes, under the current-engine guard held by Routes. Publication
+    /// completes before the reply/raise; the callback runs after releasing FE state.
+    fn write_exact(&self, off: u64, data: &[u8]) {
+        let raise = {
+            let mut st = self.lock();
+            let mut signal = false;
+            let mut i = 0;
+            while i < data.len() {
+                let o = off + i as u64;
+                let byte = (o & 3) as usize;
+                let n = (4 - byte).min(data.len() - i);
+                let mut value = 0u32;
+                let mut mask = 0u32;
+                for j in 0..n {
+                    value |= u32::from(data[i + j]) << ((byte + j) * 8);
+                    mask |= 0xff << ((byte + j) * 8);
+                }
+                match (0..WATCHED).find(|&w| watched_offset(w) == o & !3) {
+                    Some(w) if w < W_AWAKEN_WIN => {
+                        st.irq.evt[w] &= !value;
+                        self.note_evt_ack();
+                        signal = true;
+                    }
+                    Some(W_AWAKEN_WIN) => { st.irq.awaken_win &= !value; signal = true; }
+                    Some(W_AWAKEN_OTHER) => { st.irq.awaken_other &= !value; signal = true; }
+                    Some(w) if (W_EN..W_STAT).contains(&w) => {
+                        let h = w - W_EN;
+                        st.irq.en[h] = (st.irq.en[h] & !mask) | value;
+                        super::engine::ticker().set_vblank(h, st.irq.en[h] & LAST_DATA != 0);
+                        bump(&self.stats.en_stores);
+                        signal = true;
+                    }
+                    Some(_) => { self.odd(&mut st, Odd::ReadOnlyStore); signal = true; }
+                    None => {
+                        self.word(o).fetch_update(Ordering::AcqRel, Ordering::Acquire,
+                            |old| Some((old & !mask) | value)).expect("unconditional lane update");
+                    }
+                }
+                i += n;
+            }
+            self.publish_exact(&st);
+            signal && st.irq.pending()
+        };
+        if raise { self.raise_now(); }
+    }
+
     /// The fast check of one reactor iteration.
     pub fn dirty(&self) -> bool {
+        if self.exact_readonly() { return false; }
         (0..WATCHED).any(|i| {
             self.watched(i).load(Ordering::Relaxed) != self.expected[i].load(Ordering::Relaxed)
         })
@@ -426,6 +528,7 @@ impl FePage {
     /// Whether the reactor should keep spinning: a marker is outstanding and recent, so
     /// the guest's `CORE_RESET` is seen within one iteration.
     pub fn busy(&self, now: Instant) -> bool {
+        if self.exact_readonly() { return false; }
         let m = self.marker_ns.load(Ordering::Relaxed);
         m != 0
             && now.saturating_duration_since(self.epoch + Duration::from_nanos(m - 1)) < MARKER_SPIN
@@ -475,6 +578,12 @@ impl FePage {
     /// the guest's stores first, then `f`, then the page. A level still pending after
     /// guest acks raises the vector again (the trapped path's `Engine::write32`).
     pub fn update<R>(&self, f: impl FnOnce(&mut FeIrq) -> R) -> R {
+        if self.exact_readonly() {
+            let mut st = self.lock();
+            let result = f(&mut st.irq);
+            self.publish_exact(&st);
+            return result;
+        }
         let (r, raise) = {
             let mut st = self.lock();
             let (acked, seen) = self.sync(&mut st);
@@ -491,10 +600,12 @@ impl FePage {
     /// The reactor's scan: apply the guest's stores, rewrite the page, raise again when
     /// the line is still asserted after an ack. Returns whether there was work.
     pub fn scan(&self) -> bool {
+        if self.exact_readonly() { return false; }
         self.scan_racing(&mut || {})
     }
 
     fn scan_racing(&self, between: &mut dyn FnMut()) -> bool {
+        if self.exact_readonly() { return false; }
         if !self.dirty() {
             return false;
         }
@@ -615,6 +726,7 @@ impl FePage {
     /// (what `sync` read and applied): a guest store that landed since is kept for the
     /// next scan.
     fn publish(&self, st: &mut State, seen: &[u32; WATCHED]) {
+        if self.exact_readonly() { self.publish_exact(st); return; }
         if st.marker.is_none() && (st.irq.awaken_win != 0 || st.irq.awaken_other != 0) {
             st.shown = st.irq.awaken_win;
             let now = Instant::now();
@@ -638,9 +750,29 @@ impl FePage {
         }
     }
 
+    /// Ordinary Engine::read32 values, details before summaries and DISPATCH last.
+    /// A mapped reader gets ordered publication, not an atomic multi-register snapshot.
+    fn publish_exact(&self, st: &State) {
+        for i in 0..WATCHED {
+            let value = match i {
+                i if i < W_AWAKEN_WIN => st.irq.evt[i - W_EVT],
+                W_AWAKEN_WIN => st.irq.awaken_win,
+                W_AWAKEN_OTHER => st.irq.awaken_other,
+                i if i < W_STAT => st.irq.en[i - W_EN],
+                i if i < W_CTRL => st.irq.rm_stat(i - W_STAT),
+                W_CTRL => st.irq.ctrl_disp(),
+                _ => st.irq.dispatch(),
+            };
+            self.watched(i).store(value, Ordering::Release);
+            self.expected[i].store(value, Ordering::Relaxed);
+        }
+        std::sync::atomic::fence(Ordering::SeqCst);
+    }
+
     /// The watchdog, about every millisecond: a marker outstanding for the retrigger
     /// period raises the vector again (late, not lost), at most once per period.
     pub fn tick(&self, now: Instant) -> bool {
+        if self.exact_readonly() { return false; }
         let Some(period) = self.retrigger else {
             return false;
         };
@@ -676,7 +808,10 @@ impl FePage {
             .filter(|(_, n)| l(n) > 0)
             .map(|(what, n)| format!("{} x {what}", l(n)))
             .collect();
-        format!(
+        let mode_note = if self.exact_readonly() {
+            "display page mode=exact-ro: ordinary values; no markers, shared-byte scanning or watchdog\n"
+        } else { "" };
+        mode_note.to_owned() + &format!(
             "display page: {} scan(s) with work; guest stores applied: {} EVT_STAT ack(s), {} RM_INTR_EN store(s); {} awaken marker(s), {} acked by CORE_RESET (longest {:.1} ms); {} raise(s) after an ack, {} by the watchdog; {} compare-and-swap(s) lost to a guest store; {} trapped access(es) served without the device mutex; inconsistencies: {}\n",
             l(&s.scans),
             l(&s.evt_acks),
@@ -704,6 +839,10 @@ mod tests {
     use crate::intr_page::Config;
 
     fn page() -> (Arc<IntrPage>, Arc<FePage>, Arc<AtomicU64>) {
+        page_mode(Mode::LegacyTagged)
+    }
+
+    fn page_mode(mode: Mode) -> (Arc<IntrPage>, Arc<FePage>, Arc<AtomicU64>) {
         let intr = IntrPage::create(
             16 << 20,
             0x00B8_1000,
@@ -714,8 +853,9 @@ mod tests {
         .unwrap();
         let n = Arc::new(AtomicU64::new(0));
         let c = n.clone();
-        let fe = FePage::create_with(
+        let fe = FePage::create_with_mode(
             &intr,
+            mode,
             Box::new(move || {
                 c.fetch_add(1, Ordering::Relaxed);
             }),
@@ -723,6 +863,125 @@ mod tests {
         .unwrap();
         fe.attach(FeIrq::new(4));
         (intr, fe, n)
+    }
+
+    #[test]
+    fn exact_ro_mode_requires_dependencies_and_never_adds_kicks() {
+        assert_eq!(parse_mode(None, false, false).unwrap(), None);
+        assert_eq!(parse_mode(Some("off"), true, true).unwrap(), None);
+        assert_eq!(parse_mode(Some("exact-ro"), true, true).unwrap(), Some(Mode::ExactReadOnly));
+        assert!(parse_mode(Some(" exact-ro "), true, true).is_err());
+        assert!(parse_mode(Some("\u{a0}exact-ro\u{a0}"), true, true).is_err());
+        assert!(parse_mode(Some("exact-ro"), false, true).is_err());
+        assert!(parse_mode(Some("exact-ro"), true, false).is_err());
+        assert!(parse_mode(Some("exact"), true, true).is_err());
+        assert!(!Mode::ExactReadOnly.automatic_kicks());
+        assert!(Mode::LegacyTagged.automatic_kicks());
+        assert_eq!(parse_mode(Some("1"), true, true).unwrap(), Some(Mode::LegacyTagged));
+    }
+
+    #[test]
+    fn exact_ro_narrow_writes_preserve_independent_causes_and_latched_lanes() {
+        let (_intr, p, raised) = page_mode(Mode::ExactReadOnly);
+        p.update(|irq| {
+            irq.evt[0] = 0x8001_0203;
+            irq.evt[1] = LAST_DATA;
+            irq.en[0] = 0x8001_ffff;
+            irq.en[1] = LAST_DATA;
+            irq.awaken_win = 3;
+            irq.awaken_other = AWAKEN_CORE | 2;
+        });
+        // A byte W1C clears only that supplied lane, including the ordinary bit 31.
+        p.write(FE_EVT_STAT_HEAD_TIMING + 1, &[2]);
+        assert_eq!(p.irq().evt[0], 0x8001_0003);
+        p.write(FE_EVT_STAT_HEAD_TIMING + 3, &[0x80]);
+        assert_eq!(p.irq().evt[0], 0x0001_0003);
+        p.write(FE_RM_INTR_EN_HEAD_TIMING + 1, &[0x12]);
+        assert_eq!(p.irq().en[0], 0x8001_12ff);
+        p.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
+        assert_eq!((p.irq().awaken_win, p.irq().awaken_other), (3, 2));
+        p.write(FE_EVT_STAT_AWAKEN_WIN, &1u32.to_le_bytes());
+        p.update(|irq| irq.awaken_win |= 4);
+        p.write(FE_EVT_STAT_AWAKEN_WIN, &1u32.to_le_bytes());
+        assert_eq!(p.irq().awaken_win, 6, "old echoes cannot acknowledge a new cause");
+        let before = p.irq();
+        p.write(FE_RM_INTR_DISPATCH, &u32::MAX.to_le_bytes());
+        p.write(FE_RM_INTR_STAT_HEAD_TIMING, &u32::MAX.to_le_bytes());
+        assert_eq!(p.irq(), before, "derived words are read-only");
+        assert_eq!(p.read32(FE_RM_INTR_DISPATCH), 3);
+        p.write(FE_PAGE + 0x21, &[0xaa, 0xbb, 0xcc, 0xdd]);
+        assert_eq!(p.read32(FE_PAGE + 0x20), 0xccbb_aa00);
+        assert_eq!(p.read32(FE_PAGE + 0x24), 0xdd);
+        assert!(raised.load(Ordering::Relaxed) > 0);
+        let before = p.irq();
+        for (off, bytes) in [(FE_PAGE - 1, &[1, 2][..]), (FE_PAGE + PAGE - 1, &[3, 4][..]), (u64::MAX, &[5][..]), (FE_PAGE, &[][..])] {
+            assert!(!p.covers_range(off, bytes.len()));
+            p.write(off, bytes);
+        }
+        assert_eq!(p.irq(), before);
+        assert_eq!(p.read32(FE_PAGE + PAGE - 4), 0);
+        // A single transaction spanning adjacent head words applies every supplied lane.
+        p.write(FE_EVT_STAT_HEAD_TIMING, &[3, 0, 1, 0, LAST_DATA as u8]);
+        assert_eq!(p.irq().evt[0], 0);
+        assert_eq!(p.irq().evt[1], 0);
+        assert_eq!(p.read32(FE_RM_INTR_DISPATCH), 0);
+    }
+
+    #[test]
+    fn exact_ro_scans_cannot_interpret_shared_bytes_and_reset_clears_page() {
+        let (_intr, p, raised) = page_mode(Mode::ExactReadOnly);
+        p.update(|irq| { irq.evt[0] = LAST_DATA; irq.en[0] = LAST_DATA; irq.awaken_win = 5; });
+        let before = p.irq();
+        store(&p, FE_EVT_STAT_HEAD_TIMING, 0);
+        store(&p, FE_EVT_STAT_AWAKEN_OTHER, TAG | AWAKEN_CORE);
+        assert!(!p.scan());
+        assert!(!p.scan_racing(&mut || panic!("exact scan must not enter legacy synchronization")));
+        assert!(!p.dirty());
+        assert!(!p.busy(Instant::now()));
+        assert!(!p.tick(Instant::now() + Duration::from_secs(60)));
+        assert_eq!(p.irq(), before);
+        assert_eq!(raised.load(Ordering::Relaxed), 0);
+        p.update(|_| {});
+        assert_eq!(load(&p, FE_EVT_STAT_HEAD_TIMING), LAST_DATA);
+        assert_eq!(load(&p, FE_EVT_STAT_AWAKEN_OTHER), 0);
+        assert_eq!(load(&p, FE_EVT_STAT_AWAKEN_WIN), 5);
+        p.write(FE_PAGE + 0x20, &[0x55; 4]);
+        p.attach(FeIrq::new(4));
+        for off in (FE_PAGE..FE_PAGE + PAGE).step_by(4) { assert_eq!(p.read32(off), 0, "{off:#x}"); }
+        assert_eq!(p.stats.scans.load(Ordering::Relaxed), 0);
+        assert_eq!(p.stats.markers.load(Ordering::Relaxed), 0);
+        assert_eq!(p.stats.watchdog.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn exact_ro_publication_is_complete_before_raise() {
+        let (intr, _unused, _) = page();
+        let current = Arc::new(Mutex::new(None::<std::sync::Weak<FePage>>));
+        let view = current.clone();
+        let raised = Arc::new(AtomicU64::new(0));
+        let calls = raised.clone();
+        let p = FePage::create_with_mode(&intr, Mode::ExactReadOnly, Box::new(move || {
+            let p = view.lock().unwrap().as_ref().unwrap().upgrade().unwrap();
+            // irq() also proves the callback is outside FE state ownership.
+            let irq = p.irq();
+            for i in 0..MAX_HEADS {
+                assert_eq!(p.read32(FE_EVT_STAT_HEAD_TIMING + 4 * i as u64), irq.evt[i]);
+                assert_eq!(p.read32(FE_RM_INTR_EN_HEAD_TIMING + 4 * i as u64), irq.en[i]);
+                assert_eq!(p.read32(FE_RM_INTR_STAT_HEAD_TIMING + 4 * i as u64), irq.rm_stat(i));
+            }
+            assert_eq!(p.read32(FE_EVT_STAT_AWAKEN_WIN), irq.awaken_win);
+            assert_eq!(p.read32(FE_EVT_STAT_AWAKEN_OTHER), irq.awaken_other);
+            assert_eq!(p.read32(FE_RM_INTR_STAT_CTRL_DISP), irq.ctrl_disp());
+            assert_eq!(p.read32(FE_RM_INTR_DISPATCH), irq.dispatch());
+            calls.fetch_add(1, Ordering::Relaxed);
+        })).unwrap();
+        *current.lock().unwrap() = Some(Arc::downgrade(&p));
+        p.attach(FeIrq::new(4));
+        p.update(|irq| { irq.evt[0] = LAST_DATA; irq.evt[1] = LAST_DATA; irq.awaken_win = 4; });
+        p.write(FE_RM_INTR_EN_HEAD_TIMING, &LAST_DATA.to_le_bytes());
+        p.write(FE_RM_INTR_EN_HEAD_TIMING + 4, &LAST_DATA.to_le_bytes());
+        p.write(FE_EVT_STAT_HEAD_TIMING, &LAST_DATA.to_le_bytes());
+        assert_eq!(raised.load(Ordering::Relaxed), 3);
     }
 
     fn store(p: &FePage, off: u64, v: u32) {

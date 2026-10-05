@@ -218,7 +218,7 @@ pub fn read32(engine: &Mutex<Engine>, mem: &GuestMemory, off: u64) -> Option<u32
         return None;
     }
     let mut e = engine::lock(engine);
-    if e.paged() {
+    if e.paged() && (!e.exact_page() || (super::fe_page::FE_PAGE..super::fe_page::FE_PAGE + crate::intr_page::PAGE).contains(&off)) {
         return None;
     }
     e.routed_reads += 1;
@@ -240,7 +240,7 @@ pub fn write32(engine: &Mutex<Engine>, mem: &GuestMemory, off: u64, v: u32) -> b
         return false;
     }
     let mut e = engine::lock(engine);
-    if e.paged() {
+    if e.paged() && (!e.exact_page() || (super::fe_page::FE_PAGE..super::fe_page::FE_PAGE + crate::intr_page::PAGE).contains(&off)) {
         return false;
     }
     e.routed_writes += 1;

@@ -484,3 +484,12 @@
 - Windows display performance first, then stock Linux Wayland/SOTTR, then CUDA. Keep host-backed GPUs and vanilla guests.
 - Record new video or screenshot measurement runs only after a clear application performance improvement. Short readback correctness checks and comparable benchmarks still precede qualification. The prepared C160 recording is deferred; no new footage is owed for an unchanged result.
 - CUDA follow-up includes tiny or irregular kernels, CUDA Graphs, multiple streams/events, pinned asynchronous copies and overlap, allocation/reuse, and concurrent guests including NVENC. Verify output/order first and compare matched native and guest latency distributions. No external benchmark copying.
+
+## Exact read-only FE candidate, 2026-10-05
+
+- New opt-in `CARAXES_DISPLAY_PAGE=exact-ro` publishes ordinary values in the existing FE page. Guest reads use the read-only mapping; trapped writes preserve W1C and partial-lane semantics. Independent AWAKEN causes remain independent. No markers, FE watchdog or automatic kick page.
+- Exact operations retain current-engine ownership through publication and interrupt delivery. Reset drains them; the ticker cannot deliver an old result after releasing that ownership. Non-FE display status and clock progress retain their routed paths.
+- Windows launcher configures both tree and FE read-only areas. The pinned VMM must retain protection after BAR relocation. Linux launcher explicitly rejects this mode until it supports that contract. Defaults and legacy mode remain unchanged.
+- Independent source review found no remaining blocker. Root ran all eight new regressions, the full suite (**914 passed, one ignored, two integration tests passed**), release build and AST update. A subsequent rebuild removed one unused main.rs binding; library and tests stayed byte-identical. Final build has no warning.
+- Windows pixel/desktop/benchmark qualification is pending. Callback reduction and FPS improvement are unproved. New recordings remain deferred until a clear performance gain.
+- Evidence: `exact-readonly-fe-independent-review.md`, `C163-exact-fe-qualification.json`, `C163-exact-fe-final-qualification.json`, `C163-launcher-contract-offline.json`, and final source manifest in the private artifact directory.

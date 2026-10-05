@@ -703,8 +703,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     )
     .map_err(anyhow::Error::msg)?;
     // The display front-end page (display/fe_page.rs): a third area of the same memfd.
-    let display_page =
-        fe_page::requested(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
+    let display_page_mode =
+        fe_page::requested_mode(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
     if ["CARAXES_SHADOW_USERD", "CARAXES_DEFERRED_API_CAPTURE", "CARAXES_DEFERRED_CONTEXT"].iter()
         .any(|key| std::env::var(key).as_deref() == Ok("1"))
         && !a.host_exec
@@ -1185,14 +1185,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         None => None,
     };
-    let fe = match (&intr_page, display_page) {
-        (Some(page), true) => {
-            let fe = FePage::create(page)
-                .map_err(|e| anyhow::anyhow!("{}=1: {e}", fe_page::DISPLAY_PAGE_ENV))?;
+    let fe = match (&intr_page, display_page_mode) {
+        (Some(page), Some(mode)) => {
+            let fe = FePage::create_mode(page, mode)
+                .map_err(|e| anyhow::anyhow!("{}={}: {e}", fe_page::DISPLAY_PAGE_ENV, mode.name()))?;
             FePage::check(&vfio_user_nvgpu::display::engine::Engine::handles, &|off| {
                 bar0.boot().is_some_and(|b| b.owns_register(off))
             })
-            .map_err(|e| anyhow::anyhow!("{}=1: {e}", fe_page::DISPLAY_PAGE_ENV))?;
+            .map_err(|e| anyhow::anyhow!("{}={}: {e}", fe_page::DISPLAY_PAGE_ENV, mode.name()))?;
             // Every display engine from now on keeps its status in the page; the one the
             // boot model already made takes it now.
             vfio_user_nvgpu::display::set_fe_page(fe.clone());
@@ -1214,17 +1214,21 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             match bar0.boot_mut() {
                 Some(b) if b.ctrl.display.enabled => b.ctrl.display.eng().attach_page(fe.clone()),
                 _ => bail!(
-                    "{}=1: the display engine is not present",
-                    fe_page::DISPLAY_PAGE_ENV
+                    "{}={}: the display engine is not present",
+                    fe_page::DISPLAY_PAGE_ENV, mode.name()
                 ),
             }
             bar0 = bar0.with_fe_page(fe.clone());
+            if fe.exact_readonly() {
+                eprintln!("vfio-user-nvgpu: display page mode=exact-ro: BAR0 [{:#x}, {:#x}) ordinary FE values; synchronous trapped W1C/enables; requires read-only VMM mapping; no markers/watchdog/kick page", fe_page::FE_PAGE, fe_page::FE_PAGE + intr_page::PAGE);
+            } else {
             eprintln!(
                 "vfio-user-nvgpu: display page: BAR0 [{:#x}, {:#x}) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, window AWAKENs are acknowledged by the CORE marker ({}=1, docs/caraxes/intr-page.md §10)",
                 fe_page::FE_PAGE,
                 fe_page::FE_PAGE + intr_page::PAGE,
                 fe_page::DISPLAY_PAGE_ENV
             );
+            }
             Some(fe)
         }
         _ => None,
@@ -1254,7 +1258,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     };
     // The display kick page (display/chan_page.rs, docs/caraxes/intr-page.md §12.3), on with
     // the display page: the window channels' USERD pages.
-    let kicks = if fe.is_some() {
+    let kicks = if fe.as_ref().is_some_and(|p| p.mode().automatic_kicks()) {
         let page = intr_page.as_ref().expect("the display page needs the interrupt page");
         let k = vfio_user_nvgpu::display::chan_page::ChanPage::create(page)
             .map_err(|e| anyhow::anyhow!("display kick page: {e}"))?;
@@ -1582,12 +1586,27 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         // reach waits for the next tick that gets the mutex.
         let d = device.clone();
         let route = display_route.clone();
-        vfio_user_nvgpu::display::engine::ticker().set_driver(Arc::new(move || {
-            match vfio_user_nvgpu::dlock::try_lock(&d, "display clock tick") {
-                Some(mut g) => g.display_tick(),
-                None => route.as_ref().is_some_and(|r| r.tick()),
-            }
-        }));
+        if fe.as_ref().is_some_and(|page| page.exact_readonly()) {
+            use vfio_user_nvgpu::display::engine::{ticker, DriverOutcome};
+            ticker().set_scoped_driver(Arc::new(move || {
+                match vfio_user_nvgpu::dlock::try_lock(&d, "display clock tick") {
+                    Some(mut g) => {
+                        // catch_up already signals changed causes; keep the ordinary
+                        // level re-raise, but complete it while Device owns the engine.
+                        if g.display_tick() { ticker().raise(); }
+                    }
+                    None => { if let Some(route) = route.as_ref() { route.tick_exact_and_raise(); } }
+                }
+                DriverOutcome::Delivered
+            }));
+        } else {
+            vfio_user_nvgpu::display::engine::ticker().set_driver(Arc::new(move || {
+                match vfio_user_nvgpu::dlock::try_lock(&d, "display clock tick") {
+                    Some(mut g) => g.display_tick(),
+                    None => route.as_ref().is_some_and(|r| r.tick()),
+                }
+            }));
+        }
     }
     // The held-ring completer (ringgate.rs, docs/caraxes/execution.md §9.1): while doorbells
     // are held for their root's shadow jobs, it waits for the worker's progress without the

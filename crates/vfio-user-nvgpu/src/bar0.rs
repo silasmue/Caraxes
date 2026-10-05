@@ -439,7 +439,16 @@ impl Bar0 {
             p.write(offset, data);
             return WriteEffect::Model;
         }
-        if let Some(p) = self.fe_page.as_ref().filter(|p| p.covers(offset)) {
+        if let Some(p) = self.fe_page.as_ref().filter(|p| {
+            p.covers(offset) || (p.exact_readonly() && !data.is_empty()
+                && offset < p.area().0 + p.area().1
+                && offset.checked_add(data.len() as u64).is_some_and(|end| end > p.area().0))
+        }) {
+            // Exact accesses must fit wholly inside the FE mapping. Do not partially
+            // apply a crossing access or report a rejected write as a model update.
+            if p.exact_readonly() && !p.covers_range(offset, data.len()) {
+                return WriteEffect::Dropped;
+            }
             p.write(offset, data);
             return WriteEffect::Model;
         }
@@ -528,6 +537,28 @@ mod tests {
     fn parts() -> (Bar0, ConfigSpace) {
         let f = crate::fixture::rtx2070();
         (Bar0::new(f.chip, vec![0x55, 0xAA, 0x7F], None), f.config())
+    }
+
+    #[test]
+    fn exact_ro_fallback_drops_whole_crossing_access_without_partial_mutation() {
+        use crate::display::fe_page::{FePage, Mode, FE_PAGE};
+        let intr = crate::intr_page::IntrPage::create(
+            16 << 20, 0xb8_1000, crate::fixture::rtx2070().chip.data().identity,
+            crate::intr::IntrShared::new(), crate::intr_page::Config::default(),
+        ).unwrap();
+        let page = FePage::create_with_mode(&intr, Mode::ExactReadOnly, Box::new(|| {})).unwrap();
+        let (bar0, mut cfg) = parts();
+        let mut bar0 = bar0.with_fe_page(page.clone());
+        let mem = GuestMemory::new();
+        for (off, data) in [(FE_PAGE - 1, &[7, 8][..]), (FE_PAGE + crate::intr_page::PAGE - 1, &[9, 10][..]), (FE_PAGE, &[][..])] {
+            assert_eq!(bar0.write(&mut cfg, &mem, off, data), WriteEffect::Dropped);
+            assert_eq!(page.read32(FE_PAGE), 0);
+            assert_eq!(page.read32(FE_PAGE + crate::intr_page::PAGE - 4), 0);
+            assert!(!bar0.latched.contains_key(&(off & !3)), "no fragment of a crossing access may be latched");
+        }
+        assert_eq!(bar0.write(&mut cfg, &mem, FE_PAGE + 1, &[0x12, 0x34]), WriteEffect::Model);
+        assert_eq!(page.read32(FE_PAGE), 0x0034_1200);
+        assert_eq!(bar0.write(&mut cfg, &mem, FE_PAGE + crate::intr_page::PAGE, &[0x55; 4]), WriteEffect::Latched, "non-FE behavior unchanged");
     }
 
     #[test]

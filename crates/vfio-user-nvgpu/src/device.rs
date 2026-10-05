@@ -358,6 +358,26 @@ impl DisplayRoute {
         self.mem.read().unwrap_or_else(PoisonError::into_inner).clone()
     }
 
+    /// Keep the slot read guard through mutation, publication and delivery. Reset's
+    /// slot writer drains the complete operation, not merely selection of an Arc.
+    /// Exact callers follow slot -> engine -> FE and never acquire Device here.
+    pub fn with_current<R>(&self, f: impl FnOnce(&Arc<Mutex<crate::display::engine::Engine>>, &GuestMemory) -> R) -> Option<R> {
+        let slot = self.slot.read().unwrap_or_else(PoisonError::into_inner);
+        let engine = slot.as_ref()?;
+        let mem = self.mem();
+        Some(f(engine, &mem))
+    }
+
+    /// Exact clock fallback: any normal catch-up raise and the level re-raise finish
+    /// before releasing current ownership. Ticker::fire must return Delivered.
+    pub fn tick_exact_and_raise(&self) {
+        let _ = self.with_current(|engine, mem| {
+            if crate::display::core_path::tick(engine, mem) {
+                crate::display::engine::ticker().raise();
+            }
+        });
+    }
+
     /// The display clock's tick when the device mutex is taken: advance the engine
     /// without it. Returns whether the display interrupt line is asserted.
     pub fn tick(&self) -> bool {
@@ -392,20 +412,40 @@ impl Routes {
     fn fe_page_for(&self, region: u32, offset: u64, len: usize) -> Option<&Arc<crate::display::fe_page::FePage>> {
         self.fe_page.as_ref().filter(|p| {
             region == VFIO_PCI_BAR0_REGION_INDEX
-                && p.covers(offset)
-                && p.covers(offset + len.max(1) as u64 - 1)
+                && if p.exact_readonly() {
+                    p.covers_range(offset, len)
+                } else {
+                    p.covers(offset)
+                        && offset.checked_add(len.max(1) as u64 - 1).is_some_and(|end| p.covers(end))
+                }
         })
     }
 
     /// Serve a trapped write without the device mutex; false when it is not routed.
     pub fn write(&self, region: u32, offset: u64, data: &[u8]) -> bool {
         if let Some(p) = self.fe_page_for(region, offset, data.len()) {
+            if p.exact_readonly() {
+                return self.display.as_ref().is_some_and(|route| {
+                    route.with_current(|engine, _| {
+                        let mut engine = crate::display::engine::lock(engine);
+                        if engine.write_exact_page(p, offset, data) {
+                            p.stats.routed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            true
+                        } else { false }
+                    }).unwrap_or(false)
+                });
+            }
             p.stats.routed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             p.write(offset, data);
             return true;
         }
         if region == VFIO_PCI_BAR0_REGION_INDEX && data.len() == 4 && offset % 4 == 0 {
-            if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
+            if self.fe_page.as_ref().is_some_and(|p| p.exact_readonly()) {
+                let v = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+                if self.display.as_ref().is_some_and(|route| route.with_current(|engine, mem| {
+                    crate::display::core_path::write32(engine, mem, offset, v)
+                }).unwrap_or(false)) { return true; }
+            } else if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
                 let v = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
                 if crate::display::core_path::write32(&e.1, &e.0.mem(), offset, v) {
                     return true;
@@ -433,15 +473,31 @@ impl Routes {
     /// Serve a trapped read without the device mutex; false when it is not routed.
     pub fn read(&self, region: u32, offset: u64, data: &mut [u8]) -> bool {
         if let Some(p) = self.fe_page_for(region, offset, data.len()) {
-            p.stats.routed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            for (i, b) in data.iter_mut().enumerate() {
-                let o = offset + i as u64;
-                *b = (p.read32(o & !3) >> ((o & 3) * 8)) as u8;
+            let read = |data: &mut [u8]| {
+                p.stats.routed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                for (i, b) in data.iter_mut().enumerate() {
+                    let o = offset + i as u64;
+                    *b = (p.read32(o & !3) >> ((o & 3) * 8)) as u8;
+                }
+            };
+            if p.exact_readonly() {
+                return self.display.as_ref().is_some_and(|route| route.with_current(|engine, _| {
+                    let engine = crate::display::engine::lock(engine);
+                    if !engine.has_exact_page(p) || !p.covers_range(offset, data.len()) { return false; }
+                    read(data);
+                    true
+                }).unwrap_or(false));
             }
+            read(data);
             return true;
         }
         if region == VFIO_PCI_BAR0_REGION_INDEX && data.len() == 4 && offset % 4 == 0 {
-            if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
+            if self.fe_page.as_ref().is_some_and(|p| p.exact_readonly()) {
+                let value = self.display.as_ref().and_then(|route| route.with_current(|engine, mem| {
+                    crate::display::core_path::read32(engine, mem, offset)
+                }).flatten());
+                if let Some(v) = value { data.copy_from_slice(&v.to_le_bytes()); return true; }
+            } else if let Some(e) = self.display.as_ref().and_then(|d| d.engine().map(|e| (d, e))) {
                 if let Some(v) = crate::display::core_path::read32(&e.1, &e.0.mem(), offset) {
                     data.copy_from_slice(&v.to_le_bytes());
                     return true;
@@ -1723,9 +1779,9 @@ impl Device {
     /// A device reset (FLR or the client's reset): the interrupt vectors raised before it
     /// and not yet delivered go first, then the model and the guest aliases.
     fn reset_model(&mut self) {
-        // The display clock and the routed registers stop reaching the old engine; a tick
-        // still running on it finishes (its lock) before the reset, and the old engine's FB
-        // record windows go with the old FB store.
+        // Exact operations retain the slot reader through publication and raise; this
+        // writer drains them before reattaching the shared FE page/resetting pending IRQs.
+        // No new exact operation reaches an engine until publish_display below.
         *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
         // What the old model's FB store, mirror and display did goes with it; the exit
         // summary would only show the fresh model's (C65: the software channel's costs
@@ -2992,6 +3048,58 @@ mod tests {
         let e = engine::lock(&e);
         assert_eq!((e.routed_reads, e.routed_writes), (2, 1));
         assert!(e.notes.iter().any(|n| n.contains("vblank (LAST_DATA) interrupt enabled")), "{:?}", e.notes);
+    }
+
+    #[test]
+    fn exact_ro_routes_keep_non_fe_status_trapped_and_reject_stale_engine_or_ranges() {
+        use crate::display::engine::{self, Engine, FE_RM_INTR_DISPATCH, FE_RM_INTR_EN_HEAD_TIMING};
+        use crate::display::fe_page::{FePage, Mode, FE_PAGE};
+        let intr = crate::intr_page::IntrPage::create(
+            16 << 20, 0xb8_1000, crate::fixture::rtx2070().chip.data().identity,
+            crate::intr::IntrShared::new(), crate::intr_page::Config::default(),
+        ).unwrap();
+        let page = FePage::create_with_mode(&intr, Mode::ExactReadOnly, Box::new(|| {})).unwrap();
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let e = Arc::new(Mutex::new(Engine::new(4, 8)));
+        engine::lock(&e).attach_page(page.clone());
+        let slot: DisplaySlot = Arc::new(std::sync::RwLock::new(Some(e.clone())));
+        let mut mem = GuestMemory::new();
+        let routes = Routes { fe_page: Some(page.clone()), display: Some(DisplayRoute { slot: slot.clone(), mem: mem.view() }), ..Routes::default() };
+        let held = lock(&device);
+        // The exact fallback clock completes under current ownership even while
+        // Device is held. Real active-head tick parity is checked in engine tests.
+        routes.display.as_ref().unwrap().tick_exact_and_raise();
+        assert!(routes.write(0, FE_RM_INTR_EN_HEAD_TIMING + 1, &[0x12]));
+        let mut b = [0u8; 4];
+        assert!(routes.read(0, FE_RM_INTR_EN_HEAD_TIMING, &mut b));
+        assert_eq!(u32::from_le_bytes(b), 0x1200);
+        assert!(routes.read(0, FE_RM_INTR_DISPATCH + 1, &mut b[..1]));
+        // Head state, scanline and LOADV remain ordinary routed registers, not mmap.
+        for base in [engine::FE_CORE_HEAD_STATE, engine::RG_DPCA, engine::POSTCOMP_HEAD_LOADV_COUNTER] {
+            for h in 0..engine::MAX_HEADS {
+                let off = base + 0x800 * h as u64;
+                assert!(!page.covers(off));
+                assert!(routes.read(0, off, &mut b), "{off:#x}");
+                assert!(!routes.read(0, off, &mut b[..1]));
+            }
+        }
+        assert!(!routes.read(1, FE_RM_INTR_DISPATCH, &mut b));
+        assert!(!routes.write(0, FE_PAGE - 1, &[1, 2]));
+        assert!(!routes.write(0, FE_PAGE + crate::intr_page::PAGE - 1, &[1, 2]));
+        assert!(!routes.read(0, u64::MAX, &mut b));
+        assert!(!routes.write(0, FE_PAGE, &[]));
+        // Reset first unpublishes the old engine; an old Arc alone grants no access.
+        *slot.write().unwrap() = None;
+        assert!(!routes.write(0, FE_RM_INTR_EN_HEAD_TIMING, &0u32.to_le_bytes()));
+        assert!(!routes.read(0, FE_RM_INTR_DISPATCH, &mut b));
+        assert_eq!(page.irq().en[0], 0x1200);
+        // A current engine which does not own this exact page is also excluded.
+        *slot.write().unwrap() = Some(Arc::new(Mutex::new(Engine::new(4, 8))));
+        assert!(!routes.write(0, FE_RM_INTR_EN_HEAD_TIMING, &0u32.to_le_bytes()));
+        assert_eq!(page.irq().en[0], 0x1200);
+        drop(held);
+        assert_eq!(engine::lock(&e).routed_reads, 3 * engine::MAX_HEADS as u64);
+        assert_eq!(page.stats.routed.load(std::sync::atomic::Ordering::Relaxed), 3);
     }
 
     #[test]
