@@ -519,3 +519,23 @@
 - Immutable backend `27800eef...`, same VMM and stock drivers, FE off. Three D3D11 frame readbacks passed; adapter OK/problem zero, readable System log with zero Display 4101 since boot. First boost request accepted at +0.000 s; **518 renewals / zero refused**. Quiet samples were P0/1410 MHz at 2–3% utilization. This is a boot/image/request smoke test, not an application performance result. `CH_SCORED=1` only stripped diagnostics; no Fire Strike was run.
 - Clean stop: owned PIDs absent, NVIDIA bound, **7037 MiB FB / 231 MiB BAR1 free**, no observed host Xid. Available checks passed; trace/guest RC skipped; **15 ERROR notes** retained. No new recording, no FPS gain or driver-side expiry claim.
 - Evidence: `C165-vm-boost-smoke-root-qualification.json`, offline qualification, invalid-policy CLI checks, immutable binary/runtime manifests, guest health, quiet clock samples and closeout. Windows trap/performance qualification remains next, then stock Linux display and CUDA.
+
+## C166: full regular boost, two complete Windows runs
+
+- Same qualified `eb573dec` / `27800eef...` backend and VMM, stock drivers and resources, FE off. Explicit VM policy keeps finite flags-2 BOOST_TO_MAX requests active throughout backend lifetime. No fixed MHz, memory, power or voltage policy was written. Backend scored diagnostics/capture off; separate read-only physical clock sampling makes this a monitored diagnostic comparison.
+
+| Fire Strike P | Run 1 | Run 2 |
+| --- | ---: | ---: |
+| Graphics score | 6015 | 6040 |
+| GT1 FPS | 20.800571 | 20.919754 |
+| GT2 FPS | 35.222275 | 35.279179 |
+| Physics FPS | 37.230495 | 35.984425 |
+| Combined FPS | 22.113710 | 20.964476 |
+| Global benchmark seconds | 197.177185 | 200.631248 |
+
+- Both archives passed strict local validation for all four workloads. Graphics mean **6027.5**, within-boot range **0.415% of the mean**. This is descriptively **4.94% above C158's 5743.5 mean**; different boot grouping, clock policy and monitoring prevent a causal boost-policy estimate. No matched old-policy control or new moving-render footage.
+- Global benchmark windows contain **188 / 190 P0 samples**, memory **7000 MHz** throughout. At physical utilization >=90%, **82 / 78 samples** have graphics/SM **1770–1860 MHz**, median **1830 MHz** in both runs. Maximum temperatures 78/79 C, zero sampled hardware thermal slowdown, intermittent software power limiting. These are physical-device/global-window observations, not guest-only or individual GT clocks. A pre-run guest/host timestamp bracket was recorded; precise continuous alignment remains unavailable.
+- Host boost: **1338 accepted renewals / zero refused**, first at +0.000 s. Three D3D11 readbacks passed; present adapter OK/problem zero, readable System log with zero Display 4101 since boot. Monitoring/scanning restored on. Clean stop before the original 30-minute bound: owned processes absent, NVIDIA bound, **7034 MiB FB / 231 MiB BAR1 free**, no observed host Xid. Available checks passed; trace/guest RC skipped; **19 ERROR notes** retained.
+- The automatic clock recorder raced the VMM's initial process rename and exited before creating output. Root restarted the identical frozen recorder after identity checks, before both benchmark windows. Neither completed window has a sampling gap over two seconds. The detached session owner retained the original locks/deadline and exited with status zero.
+- Read-only research prioritizes submission/completion tails, exact interrupt transport and unused trace formatting. USERD cadence/CPU placement and resource state remain hypotheses. See [the next performance measurements](windows-performance-next-2026-10-05.md). D3D12 Xid 31 remains unfixed; no exact-FE promotion.
+- Private evidence: `C166-full-boost-root-qualification.json`, complete archives/sidecars, guest health, closeout, frozen runtime/owner records, clock CSV and per-run analysis, and `windows-performance-research-2026-10-05.md`. Raw archives and logs remain private.
