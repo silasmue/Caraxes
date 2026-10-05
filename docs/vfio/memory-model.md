@@ -63,6 +63,12 @@ roots in the non-WPR heap.
 
 ## 2. Guest RAM and the DMA table
 
+Host execution uses guest physical addresses without a guest helper. `GuestMemory`
+keeps that namespace separate from the registered host IOVAs: CPU accesses select
+the guest pages, and shadow leaves select their host IOVAs. The numeric ranges may
+overlap. Unregistered pages remain refused. The alias rules below apply to the
+legacy guest-module path, which supplies IOVAs.
+
 **Registration** (`hostmem.rs` `register`, called from `Device::dma_map`). For each
 memory zone Cloud Hypervisor maps (`[0, 3 GiB)` and `[4 GiB, 5 GiB)` for 4 GiB), the
 device:

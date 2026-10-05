@@ -1156,6 +1156,7 @@ impl Device {
     /// RAM). Call before [`Device::with_guest_ram`].
     pub fn with_guest_dma_gpa(mut self, on: bool) -> Self {
         self.guest_dma_gpa = on;
+        self.mem.set_gpa_mode(on);
         self
     }
 
@@ -1341,12 +1342,6 @@ impl Device {
         } else {
             DmaTable::new(self.ranges.clone())
         }.map_err(std::io::Error::other)?;
-        let aliases = if self.guest_dma_gpa {
-            let identity = DmaTable::for_gpa_guest(table.ranges().iter().map(|r|
-                DmaRange { gpa: r.gpa, iova: r.gpa, size: r.size }).collect())
-                .map_err(std::io::Error::other)?;
-            Some(table.aliases_of(&identity).map_err(std::io::Error::other)?)
-        } else { None };
         let param = table.module_param();
         let what = format!(
             "dma table: {} range(s), {}; ranges={param}",
@@ -1367,11 +1362,10 @@ impl Device {
         }
         // Commit only after validation and publication succeed. An empty GPA-mode
         // table refuses DMA; it must not fall back to unregistered identity access.
+        self.mem.set_gpa_mode(self.guest_dma_gpa);
         self.mem.set_table(if table.is_empty() && !self.guest_dma_gpa { None } else { Some(table) });
-        if let Some(aliases) = aliases {
-            let n = aliases.len();
-            self.mem.set_aliases(aliases);
-            self.note(&format!("dma table: guest speaks GPA (host execution): {n} identity alias range(s)"));
+        if self.guest_dma_gpa {
+            self.note("dma table: guest speaks GPA; host IOVAs are separate");
         }
         Ok(())
     }
@@ -1384,41 +1378,9 @@ impl Device {
     /// device"). Read at every reset, checked against the device's own table
     /// (dmamap.rs `aliases_of`); a missing file means no alias, a table that fails the check
     /// is refused with an ERROR line and the aliases stay off.
-    /// GPA mode (host execution): a guest without caraxes_dma_range hands the device
-    /// guest physical addresses, which under QEMU's vfio-user client without a vIOMMU are the
-    /// DMA_MAP addresses. The guest's table is then the identity of the registered guest RAM:
-    /// every GPA is an alias of its registered IOVA (checked by dmamap.rs `aliases_of`, so an
-    /// alias can name only this VM's registered pages), and the shadow maps and the device's
-    /// own accesses translate it (guestmem.rs `host_iova`, `translate`). Returns whether it
-    /// applied.
-    fn gpa_aliases(&mut self) -> bool {
-        if !self.guest_dma_gpa {
-            return false;
-        }
-        let Some(table) = self.mem.table().cloned() else {
-            return true;
-        };
-        let ident: Vec<DmaRange> = table
-            .ranges()
-            .iter()
-            .map(|r| DmaRange { gpa: r.gpa, iova: r.gpa, size: r.size })
-            .collect();
-        match DmaTable::for_gpa_guest(ident).and_then(|g| table.aliases_of(&g)) {
-            Ok(aliases) => {
-                let n = aliases.len();
-                self.mem.set_aliases(aliases);
-                self.note(&format!("dma table: guest speaks GPA (host execution): {n} identity alias range(s)"));
-            }
-            Err(e) => {
-                self.mem.set_aliases(Vec::new());
-                self.note(&format!("ERROR dma table: GPA aliases refused: {e}"));
-            }
-        }
-        true
-    }
-
     fn load_guest_aliases(&mut self) {
-        if self.gpa_aliases() {
+        if self.guest_dma_gpa {
+            self.mem.set_gpa_mode(true);
             return;
         }
         let (Some(path), Some(table)) = (self.dma_ranges.clone(), self.mem.table().cloned()) else {
@@ -2530,6 +2492,34 @@ mod tests {
         let f = unsafe { File::from_raw_fd(fd) };
         f.set_len(32 << 20).unwrap();
         f
+    }
+
+    #[test]
+    fn gpa_publication_accepts_low_host_iovas_and_survives_reset() {
+        let mut d = rtx2070_device()
+            .with_guest_dma_gpa(true)
+            .with_guest_ram(GuestRam::Identity, None);
+        let f = guest_ram_file();
+        d.dma_map(DmaMapFlags::READ_WRITE, 0, 0, 0x1000, Some(f.try_clone().unwrap())).unwrap();
+        d.dma_map(DmaMapFlags::READ_WRITE, 0x1000, 0x100000, 0x1000, Some(f)).unwrap();
+        d.ranges = vec![
+            DmaRange { gpa: 0, iova: 0x100000, size: 0x1000 },
+            DmaRange { gpa: 0x100000, iova: 0x7f00_0000_0000, size: 0x1000 },
+        ];
+        d.publish_table().unwrap();
+        assert_eq!(d.mem.host_iova(0, 0x1000), Some(0x100000));
+        assert_eq!(d.mem.host_iova(0x100000, 0x1000), Some(0x7f00_0000_0000));
+        assert_eq!(d.mem.translate(0x100000, 4), Some(0x100000));
+        d.reset_model();
+        assert_eq!(d.mem.translate(0x100000, 4), Some(0x100000));
+        assert_eq!(d.mem.host_iova(0x100000, 0x1000), Some(0x7f00_0000_0000));
+        assert!(!d.mem.covers(0x2000, 1));
+        d.dma_unmap(DmaUnmapFlags::empty(), 0x100000, 0x1000).unwrap();
+        assert_eq!(d.mem.host_iova(0x100000, 1), None);
+        assert!(!d.mem.covers(0x100000, 1));
+        assert_eq!(d.mem.host_iova(0, 0x1000), Some(0x100000));
+        d.client_gone().unwrap();
+        assert_eq!(d.mem.translate(0, 1), None);
     }
 
     #[test]

@@ -334,6 +334,7 @@ mod tests {
         let mut m = GuestMemory::new();
         m.map(0, 0x20_0000, 0, &f).unwrap();
         // GPA mode: an empty table refuses everything not registered.
+        m.set_gpa_mode(true);
         m.set_table(Some(crate::dmamap::DmaTable::default()));
         assert!(!m.write(0x1000, &[1, 2, 3, 4]));
         let (r, go, worker) = gated();
@@ -370,20 +371,7 @@ mod tests {
         assert_eq!(done.len(), 1);
         let ranges = done[0].1.as_ref().unwrap().0.clone();
         let table = crate::dmamap::DmaTable::for_gpa_guest(ranges.clone()).unwrap();
-        let ident = crate::dmamap::DmaTable::for_gpa_guest(
-            ranges
-                .iter()
-                .map(|x| DmaRange {
-                    gpa: x.gpa,
-                    iova: x.gpa,
-                    size: x.size,
-                })
-                .collect(),
-        )
-        .unwrap();
-        let aliases = table.aliases_of(&ident).unwrap();
         m.set_table(Some(table));
-        m.set_aliases(aliases);
         assert!(!r.unsettled(0x1000, 4));
         assert_eq!(m.host_iova(0x1000, 0x1000), Some(IOVA + 0x1000));
         assert_eq!(m.read_u32(0x1000), Some(0x0403_0201));

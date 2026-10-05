@@ -6,11 +6,10 @@
 //! descriptors, the FWSEC command, later the libos arguments and the message
 //! queues (docs/caraxes/gsp-boot-turing.md §3).
 //!
-//! Every address the device takes from the guest is a DMA address. Once guest RAM is
-//! registered with the host RM and the guest module `caraxes_dma_range` installed the
-//! table (E5b, docs/caraxes/memory-model.md), those are host IOVAs, not guest physical
-//! addresses. [`GuestMemory::translate`] is the one place that maps them back: every
-//! read and write goes through it. Without a table it is the identity.
+//! Host execution takes guest physical addresses and translates shadow leaves to
+//! registered host IOVAs. The legacy `caraxes_dma_range` guest instead supplies IOVAs.
+//! [`GuestMemory::translate`] resolves the chosen namespace for every CPU access.
+//! Without a table it is the identity.
 
 use std::fs::File;
 use std::os::fd::AsRawFd;
@@ -56,6 +55,8 @@ pub struct GuestMemory {
     regions: Vec<Region>,
     /// The active DMA table; `None` is the identity (no registration, E0-E5a).
     table: Option<DmaTable>,
+    /// Guest addresses are GPAs; host IOVAs remain a separate namespace.
+    gpa_mode: bool,
     /// The guest's other DMA addresses for some of that RAM: the swiotlb alias of its
     /// installed table, validated against `table` (dmamap.rs `aliases_of`). Only
     /// consulted for an address `table` does not cover.
@@ -80,6 +81,7 @@ impl GuestMemory {
         GuestMemory {
             regions: self.regions.clone(),
             table: self.table.clone(),
+            gpa_mode: self.gpa_mode,
             aliases: self.aliases.clone(),
             misses: AtomicU64::new(0),
             first_misses: Mutex::new(Vec::new()),
@@ -155,19 +157,16 @@ impl GuestMemory {
             None => Some(addr),
             Some(t) => {
                 let len = len.max(1);
-                let gpa = t
-                    .iova_to_gpa(addr, len)
-                    .or_else(|| {
-                        self.aliases
-                            .iter()
-                            .find(|r| {
-                                addr >= r.iova
-                                    && addr - r.iova < r.size
-                                    && len <= r.size - (addr - r.iova)
-                            })
-                            .map(|r| r.gpa + (addr - r.iova))
+                let gpa = if self.gpa_mode {
+                    t.covers_gpa(addr, len).then_some(addr)
+                } else {
+                    t.iova_to_gpa(addr, len).or_else(|| {
+                        self.aliases.iter().find(|r| {
+                            addr >= r.iova && addr - r.iova < r.size
+                                && len <= r.size - (addr - r.iova)
+                        }).map(|r| r.gpa + (addr - r.iova))
                     })
-                    .or_else(|| {
+                }.or_else(|| {
                         // GPA mode: guest RAM still being registered is this VM's own, mapped
                         // here; the device's access goes through (registrar.rs).
                         self.registrar
@@ -194,6 +193,17 @@ impl GuestMemory {
     /// Whether the DMA address range is guest RAM the device can reach.
     pub fn covers(&self, pa: u64, len: u64) -> bool {
         self.locate(pa, len).is_some()
+    }
+
+    /// Select the guest address namespace before registration. Numeric overlap with
+    /// host IOVAs does not make a GPA an alias of another guest page.
+    pub fn set_gpa_mode(&mut self, on: bool) {
+        if self.gpa_mode == on {
+            return;
+        }
+        self.gpa_mode = on;
+        self.aliases.clear();
+        self.republish();
     }
 
     /// Make `table` the translation for every later access (or the identity). The
@@ -223,16 +233,21 @@ impl GuestMemory {
         self.republish();
     }
 
-    /// The host IOVA of `len` bytes at the guest's DMA address `addr`: the address itself
-    /// when the device's table covers it (the usual case, guest and host agree), the
-    /// registered IOVA of the same guest pages for an alias, `None` when neither covers
-    /// the whole range in one piece. Counts nothing: the shadow filter reports its own
-    /// refusals.
+    /// The registered host IOVA of a guest GPA, or the validated translation of an
+    /// IOVA-speaking guest's address. The whole range must fit one host entry.
+    /// Counts nothing: the shadow filter reports its own refusals.
     pub fn host_iova(&self, addr: u64, len: u64) -> Option<u64> {
         let Some(t) = &self.table else {
             return Some(addr);
         };
         let len = len.max(1);
+        if self.gpa_mode {
+            if let Some(host) = t.gpa_to_iova(addr) {
+                return (t.iova_to_gpa(host, len) == Some(addr)).then_some(host);
+            }
+            let r = self.registrar.as_ref().filter(|r| r.gpa_mode())?.range_of(addr, len)?;
+            return Some(r.iova + (addr - r.gpa));
+        }
         if t.iova_to_gpa(addr, len).is_some() {
             return Some(addr);
         }
@@ -340,6 +355,43 @@ mod tests {
         m.unmap(0x1000_0000, 4096);
         assert!(!m.covers(0x1000_0000, 4));
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn gpa_guest_keeps_low_host_iovas_in_a_separate_namespace() {
+        use std::os::fd::FromRawFd;
+        let name = std::ffi::CString::new("caraxes-gpa-namespace-test").unwrap();
+        let fd = unsafe { libc::memfd_create(name.as_ptr(), libc::MFD_CLOEXEC) };
+        assert!(fd >= 0);
+        let f = unsafe { File::from_raw_fd(fd) };
+        f.set_len(0x4000).unwrap();
+        let mut m = GuestMemory::new();
+        m.set_gpa_mode(true);
+        m.map(0, 0x4000, 0, &f).unwrap();
+        let view = m.view();
+        // The first chunk's host IOVA equals the second chunk's guest GPA.
+        m.set_table(Some(DmaTable::for_gpa_guest(vec![
+            DmaRange { gpa: 0, iova: 0x2000, size: 0x2000 },
+            DmaRange { gpa: 0x2000, iova: 0x7f00_0000_0000, size: 0x2000 },
+        ]).unwrap()));
+        assert!(m.write(0, &[1, 0, 0, 0]));
+        assert!(m.write(0x2000, &[2, 0, 0, 0]));
+        assert_eq!(m.read_u32(0), Some(1));
+        assert_eq!(m.read_u32(0x2000), Some(2));
+        assert_eq!(view.read().unwrap().read_u32(0x2000), Some(2));
+        assert_eq!(m.translate(0x2000, 4), Some(0x2000));
+        assert_eq!(m.host_iova(0, 0x1000), Some(0x2000));
+        assert_eq!(m.host_iova(0x2000, 0x1000), Some(0x7f00_0000_0000));
+        // A shadow leaf must fit one registered host range.
+        assert_eq!(m.host_iova(0x1000, 0x2000), None);
+        assert_eq!(m.translate(0x4000, 1), None);
+        assert_eq!(m.translate(u64::MAX, 2), None);
+        assert_eq!(m.host_iova(0x7f00_0000_0000, 1), None);
+        assert_eq!(m.read_u32(0x7f00_0000_0000), None);
+        m.set_table(Some(DmaTable::default()));
+        assert_eq!(m.read_u32(0), None);
+        assert_eq!(m.host_iova(0, 1), None);
+        assert_eq!(view.read().unwrap().read_u32(0x2000), None);
     }
 
     #[test]

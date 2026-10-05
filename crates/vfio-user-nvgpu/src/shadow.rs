@@ -498,16 +498,15 @@ fn resolve_leaf(
 }
 
 /// The target a guest leaf resolves by: a sysmem leaf at the guest's DMA address becomes
-/// the registered host IOVA of the same guest pages. The two differ only for the swiotlb
-/// alias of the guest's table (guestmem.rs `host_iova`, memory-model.md §2), whose rounding
-/// also covers ordinary guest RAM; a leaf nothing covers keeps its address and is refused
-/// by [`resolve_leaf`]. The leaf's identity for the diff stays the guest's address.
-fn host_target(sys_mem: &GuestMemory, t: &Target, size: u64) -> Target {
+/// the registered host IOVA of the same guest pages. A failed translation is refused;
+/// its numeric address may equal another page's host IOVA. The leaf's identity for
+/// the diff stays the guest's address.
+fn host_target(sys_mem: &GuestMemory, t: &Target, size: u64) -> Option<Target> {
     match t {
         Target::Sys(iova) => sys_mem
             .host_iova(*iova, size)
-            .map_or(*t, Target::Sys),
-        _ => *t,
+            .map(Target::Sys),
+        _ => Some(*t),
     }
 }
 
@@ -956,7 +955,10 @@ impl ShadowFront {
                     None if matches!(t, Target::Fb(pa) if fb.private_overlaps(*pa, *size)) => {
                         Resolved::Refused("the device's private pages")
                     }
-                    None => resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs, comp.as_deref()),
+                    None => host_target(sys_mem, t, *size).map_or(
+                        Resolved::Refused("sysmem guest address outside registered RAM"),
+                        |host| resolve_leaf(&host, *size, *kind, base, end, descs, comp.as_deref()),
+                    ),
                 };
                 // The kind the leaf is mapped with (D16b: the allowlist, compslice.rs).
                 let outcome = match resolved {
@@ -2576,6 +2578,37 @@ mod tests {
     /// aliases the filter refuses those leaves, the shadow has no PTE there and the copy
     /// engine faults (FAULT_PTE); with them the leaf maps from the registered descriptor
     /// at the page's own offset, and a leaf outside every range stays refused.
+    #[test]
+    fn gpa_shadow_refuses_unmapped_addresses_equal_to_host_iovas() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let sys = |a: u64| ((a >> 12) << 8) | 0b101 | (6u64 << 56);
+        let (root, pd2, pd1, pd0, pt) = (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000, BASE + 0x4000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        fb.write_u64(pt + 8, sys(0));
+        fb.write_u64(pt + 16, sys(0x100000));
+        fb.write_u64(pt + 24, sys(0x7f00_0000_0000));
+        let low = crate::dmamap::DmaRange { gpa: 0, iova: 0x100000, size: 0x1000 };
+        let high = crate::dmamap::DmaRange { gpa: 0x100000, iova: 0x7f00_0000_0000, size: 0x1000 };
+        let mut mem = GuestMemory::new();
+        mem.set_gpa_mode(true);
+        mem.set_table(Some(crate::dmamap::DmaTable::for_gpa_guest(vec![low, high]).unwrap()));
+        let want = |p: &Plan| p.units.iter().flat_map(|(_, w)|
+            w.iter().map(|m| (m.va, m.h_mem, m.off))).collect::<Vec<_>>();
+        let descs = [(7, low.iova, low.size), (8, high.iova, high.size)];
+        let p = ShadowFront::new(root).plan(&fb, &mem, BASE, END, 1, &[], &descs).unwrap();
+        assert_eq!(want(&p), vec![(0x1000, 7, 0), (0x2000, 8, 0)]);
+        assert_eq!(p.refused_now, 1);
+        // GPA 0x100000 is gone, while GPA 0 still uses that host IOVA.
+        mem.set_table(Some(crate::dmamap::DmaTable::for_gpa_guest(vec![low]).unwrap()));
+        let p = ShadowFront::new(root).plan(&fb, &mem, BASE, END, 1, &[], &descs[..1]).unwrap();
+        assert_eq!(want(&p), vec![(0x1000, 7, 0)]);
+        assert_eq!(p.refused_now, 2);
+    }
+
     #[test]
     fn a_leaf_at_the_guest_alias_maps_from_the_registered_descriptor() {
         let mut fb = FakeFb::new(END + (64 << 20));
