@@ -579,8 +579,33 @@ The unchanged parent also falls below C166's 6015/6040. The trace consumer chang
 
 The global window contains 191 P0 clock samples with memory at 7000 MHz. At physical utilization >=90%, 77 samples have SM clocks 1800–1845 MHz, median 1845 MHz. Maximum temperature 79 C, power 160.56 W, 19 software power-cap samples and zero sampled hardware thermal slowdown. These are physical/global observations. Boost reaches high clocks while performance is weaker.
 
-A second attempt remained in SystemInfo scanning. It was stopped before the original 30-minute deadline, with no complete archive or accepted score. Monitoring restoration and guest post-health were not collected; verify both on the next boot. The armed marker and failed collection evidence remain private. Do not count this as a second benchmark result.
+A second attempt was stopped before the original 30-minute deadline, with no complete archive or accepted score. Its rendering phase remains unqualified. Earlier notes inferred a scan-only phase from the FMSIScan process name; C169 shows that this process can remain alive during rendering, so that interpretation is withdrawn. Monitoring restoration and guest post-health were not collected. The armed marker and failed collection evidence remain private. Do not count this as a second benchmark result.
 
 Owned VM, backend and clock sampler stopped; NVIDIA stayed bound, no new host Xid, 6895 MiB FB/231 MiB BAR1 free. Available checks passed; trace/guest RC checks skipped, 19 ERROR notes retained. No new recording. Whole-session rearm and doorbell timing totals remain unqualified for individual workloads. Next: a separate bounded parent diagnostic of thread scheduling, SMT placement and interrupt processing before another code candidate.
 
 Private evidence: `C168-parent-control-root-summary.json`, `C168-run2-unqualified.json`, `C168-closeout.json`, the complete first archive/sidecar/marker, frozen clock CSV and independent cross-check. Raw machine and licensing data remain private.
+
+## C169: unchanged parent with host scheduler observations
+
+Same immutable parent and VM settings, with additional read-only host task sampling at 1 Hz. No CPU affinity, governor, fixed clock, power or voltage changes. One complete Fire Strike P archive passed strict local validation; additional monitoring makes this a diagnostic, not an unmonitored A/B arm.
+
+| Metric | C169 parent |
+| --- | ---: |
+| Graphics score | 5281 |
+| GT1 FPS | 18.540348 |
+| GT2 FPS | 30.152102 |
+| Physics FPS | 31.064182 |
+| Combined FPS | 18.645399 |
+| Global benchmark seconds | 199.124461 |
+
+Physical clocks: 190 global-window P0 samples, memory 7000 MHz. At utilization >=90%, 79 samples show SM clocks 1800–1845 MHz, median 1830 MHz. Maximum 79 C/159.69 W, 14 software power-cap samples, zero sampled hardware thermal slowdown. A later 1410 MHz/2% utilization reading was after benchmark completion. Continuous finite BOOST_TO_MAX hints retain dynamic clock selection.
+
+The CPU sampler has 199 global-window observations without missing intervals or errored task rows. Adjacent counters show 37.629 s execution and 12.128 s runnable delay for the doorbell thread; host-events has 1.407 s execution and 5.266 s runnable delay. Both affinity masks are CPU 10; vCPUs may use CPUs 0–15. Source `eb573dec` pins the reader before callbacks and lazily spawns host-events without changing its inherited affinity. No intentional co-location policy or lock cycle was established. These observations support a scheduling investigation, not a causal FPS estimate.
+
+Archive alignment assumes zero host/guest clock offset; request brackets remain imprecise and individual GT boundaries unavailable. Runnable delay is not lock wait or a latency percentile. Whole-session ring-to-host p99 3175 us/max 104.0 ms includes setup and collection. The sampler consumed 8.434 CPU seconds over 1110 observations; median snapshot 7.209 ms, maximum 42.359 ms. Frequencies describe brief hardware intervals; CPU throttling remains unknown.
+
+FMSIScan presence is not a rendering boundary. The archive places the benchmark at 14:28:47–14:32:06 CEST while passive logs still list that process. Preserve the phase correction in `C168-C169-phase-erratum.json`.
+
+Fresh three-frame D3D11 readback and pre/post guest health passed: stock driver 617.14, adapter OK/problem 0, readable System log, no Display 4101 since boot. Monitoring/scanning restored on through observed UI. Owned VM and both collectors stopped before the original bound; NVIDIA stayed bound, no new host Xid, 6838 MiB FB/231 MiB BAR1 free. Available checks passed; trace/guest RC checks skipped, 18 ERROR notes retained. No new recording. Work paused at the user's request; no further test launched.
+
+Next: controlled hybrid versus spin with the same explicit CPU placement, then GPU work/state and memory traffic. See [the prioritized measurements](windows-performance-next-2026-10-05.md). Private evidence: `C169-scheduler-parent-root-qualification.json`, complete archive/sidecar/marker, CPU/clock data, independent cross-checks, health, closeout and final Claude handoff.
