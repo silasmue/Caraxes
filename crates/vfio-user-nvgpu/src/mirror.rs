@@ -642,7 +642,86 @@ struct OwnedGfxp {
     slot: usize,
     bind_attempted: bool,
     bound: bool,
+    /// Cleanup did not finish: keep the owning channels and prevent publication.
+    quarantined: bool,
     buffers: Vec<OwnedGfxpBuffer>,
+}
+
+/// The release decision is shared by real host calls and failure-injection tests.
+trait GfxpCleanupHost {
+    fn idle(&mut self, channel: u32) -> u32;
+    fn bind_wfi(&mut self, tsg: u32) -> u32;
+    fn mode(&mut self, channel: u32) -> (u32, u32);
+    fn release(&mut self, owned: &mut OwnedGfxp) -> Result<(), String>;
+}
+
+/// A failed BIND may still have attached the buffers. No release is permitted until
+/// the exact live channel confirms WFI; a scheduled (or possibly scheduled) channel
+/// must first idle. Keep the partial ledger on every failure, including release errors.
+fn cleanup_gfxp<H: GfxpCleanupHost>(
+    host: &mut H,
+    tsg: u32,
+    channel: Option<u32>,
+    may_be_scheduled: bool,
+    owned: &mut OwnedGfxp,
+) -> Result<(), String> {
+    owned.quarantined = true;
+    if owned.bind_attempted {
+        let channel = channel.ok_or("GFXP detach lacks its live host channel; retained")?;
+        if may_be_scheduled {
+            let idle = host.idle(channel);
+            if idle != sys::NV_OK {
+                return Err(format!("GFXP cleanup idle: {}; retained", status_name(idle)));
+            }
+        }
+        let bind = host.bind_wfi(tsg);
+        if bind != sys::NV_OK {
+            return Err(format!("GFXP BIND WFI: {}; retained", status_name(bind)));
+        }
+        let (get, mode) = host.mode(channel);
+        if get != sys::NV_OK || mode != 0 {
+            return Err(format!(
+                "GFXP GET after BIND WFI: {}, mode {mode:#x}; retained",
+                status_name(get)
+            ));
+        }
+        owned.bind_attempted = false;
+        owned.bound = false;
+    }
+    host.release(owned)
+}
+
+struct GfxpCleanup<'a> {
+    host: &'a mut HostMemory,
+    slots: Option<&'a mut crate::gfxpslot::Slots>,
+    reservation: u32,
+}
+
+impl GfxpCleanupHost for GfxpCleanup<'_> {
+    fn idle(&mut self, channel: u32) -> u32 {
+        let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER
+            | sys::NVOS30_FLAGS_IDLE_CACHE1
+            | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8)
+            | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
+        let mut p = vec![0u8; IDLE_PARAMS_SIZE];
+        p[..4].copy_from_slice(&1u32.to_le_bytes());
+        p[4..8].copy_from_slice(&channel.to_le_bytes());
+        p[IDLE_PARAMS_FLAGS..IDLE_PARAMS_FLAGS + 4].copy_from_slice(&flags.to_le_bytes());
+        p[IDLE_PARAMS_TIMEOUT..IDLE_PARAMS_TIMEOUT + 4].copy_from_slice(&100_000u32.to_le_bytes());
+        self.host.control(self.host.device(), CMD_FIFO_IDLE_CHANNELS, &mut p)
+    }
+
+    fn bind_wfi(&mut self, tsg: u32) -> u32 {
+        bind_gfxp(self.host, tsg, 0, &[0; 5])
+    }
+
+    fn mode(&mut self, channel: u32) -> (u32, u32) {
+        get_gfxp_mode(self.host, channel)
+    }
+
+    fn release(&mut self, owned: &mut OwnedGfxp) -> Result<(), String> {
+        release_gfxp(self.host, self.slots.as_deref_mut(), self.reservation, owned)
+    }
 }
 
 /// Unmap and free what `owned` holds, newest first, and give its slot back. A step that
@@ -699,6 +778,7 @@ fn attach_gfxp_slot(
         slot,
         bind_attempted: false,
         bound: false,
+        quarantined: false,
         buffers: Vec::new(),
     };
     let result = (|| -> Result<(), String> {
@@ -753,11 +833,10 @@ fn attach_gfxp_slot(
     match result {
         Ok(()) => Ok(owned),
         Err(why) => {
-            // The context is not scheduled yet: back to WFI, then release.
-            if owned.bind_attempted {
-                let _ = bind_gfxp(h, tsg, 0, &[0; 5]);
-            }
-            match release_gfxp(h, None, reservation, &mut owned) {
+            // The context is not scheduled yet, but even a failed BIND can have
+            // attached it. A failed detach keeps the channel and slot for cleanup.
+            let mut cleanup = GfxpCleanup { host: h, slots: None, reservation };
+            match cleanup_gfxp(&mut cleanup, tsg, Some(channel), false, &mut owned) {
                 Ok(()) => Err((None, why)),
                 Err(e) => Err((Some(owned), format!("{why}; release: {e}"))),
             }
@@ -1780,6 +1859,8 @@ pub struct HostChannel {
     /// the USERD poller ([`UserdSlot`]).
     userd: Option<Arc<UserdSlot>>,
     context_ready: bool,
+    /// A failed build is teardown-only, even after its GFXP backing is detached.
+    cleanup_quarantined: bool,
     /// The host error notifier when the guest's could not be mirrored (a guest notifier in
     /// VRAM): the device's own page, read by the RC scan (`Mirror::rc_notifier`).
     rc_page: Option<crate::hostmem::DevicePage>,
@@ -1796,10 +1877,23 @@ impl HostChannel {
     }
 
     fn set_context_ready(&mut self, ready: bool) {
+        let ready = ready && !self.cleanup_quarantined;
         self.context_ready = ready;
         if let Some(s) = &self.userd {
             s.set_ready(ready);
         }
+    }
+
+    fn quarantine_cleanup(&mut self) -> (bool, bool) {
+        let prior = (self.context_ready, self.cleanup_quarantined);
+        self.cleanup_quarantined = true;
+        self.set_context_ready(false);
+        prior
+    }
+
+    fn restore_after_cleanup(&mut self, prior: (bool, bool)) {
+        self.cleanup_quarantined = prior.1;
+        self.set_context_ready(prior.0);
     }
 }
 
@@ -3462,6 +3556,9 @@ impl Mirror {
     /// Forward the doorbell of built channel `chid` now: flush the FB store, publish a
     /// shadowed USERD, record the forwarded GPPut, ring the host doorbell, harvest.
     fn ring_now(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
+        if self.channels.get(&chid).is_some_and(|hc| hc.cleanup_quarantined || self.gfxp_quarantined(hc.tsg)) {
+            return vec![format!("shadow: chid {chid} held: owned GFXP cleanup is quarantined")];
+        }
         use crate::launch::{mark, Step};
         let mut notes = Vec::new();
         gm.fb.flush();
@@ -4112,6 +4209,12 @@ impl Mirror {
             "shadow: chid {chid}: mirror build taken down before its commit (host channel {:#x} never scheduled) [host]",
             built.channel
         ));
+        self.retain_built_channel(&pb, chid, built);
+    }
+
+    /// Preserve every build-owned dependency without publishing work. Used by reset
+    /// and failed GFXP cleanup, so teardown still has the exact channel for idle/GET.
+    fn retain_built_channel(&mut self, pb: &PendingBuild, chid: u32, built: HostBuilt) {
         let pages: Vec<u32> = built.owned.iter().copied().filter(|d| *d != built.channel).collect();
         let gr_capture = (std::env::var(crate::grcapture::ENV).as_deref() == Ok("1")
             && built.objects.iter().any(|(class, _)| *class == 0xC597))
@@ -4133,12 +4236,32 @@ impl Mirror {
                 fwd_unwaited: 0,
                 userd: built.shadow_userd.map(|u| UserdSlot::new(u, false)),
                 context_ready: false,
+                cleanup_quarantined: false,
                 rc_page: built.rc_page,
                 gr_capture,
                 gr_capture_incomplete: None,
             },
         );
         self.publish_userd_watch();
+    }
+
+    fn gfxp_quarantined(&self, key: TsgKey) -> bool {
+        self.tsgs.get(&key).and_then(|t| t.gfxp.as_ref()).is_some_and(|s| s.quarantined)
+    }
+
+    fn quarantine_gfxp_build(&mut self, pb: &PendingBuild, chid: u32, built: HostBuilt) {
+        self.retain_built_channel(pb, chid, built);
+        for hc in self.channels.values_mut().filter(|hc| hc.tsg == pb.tsg_key) {
+            hc.quarantine_cleanup();
+        }
+        let held: Vec<u32> = self.held_rings.keys().copied().filter(|c| {
+            self.channels.get(c).is_some_and(|hc| hc.tsg == pb.tsg_key)
+        }).collect();
+        for c in held {
+            self.held_rings.remove(&c);
+            self.ring_stats.dropped += 1;
+        }
+        self.update_waiting();
     }
 
     /// Take a finished build's output into the maps (the commit and the teardown): the host
@@ -4200,9 +4323,8 @@ impl Mirror {
                 }
             }
             Some(Err((kept, why))) => {
-                let line = format!(
-                    "WARNING gfxp: tsg {key} (guest chid {chid}) stays in graphics WFI: {why}"
-                );
+                let state = if kept.is_some() { "cleanup quarantined; no scheduling" } else { "stays in graphics WFI" };
+                let line = format!("WARNING gfxp: tsg {key} (guest chid {chid}) {state}: {why}");
                 eprintln!("vfio-user-nvgpu: {line}");
                 notes.push(line);
                 self.gfxp_no_slot += 1;
@@ -4237,10 +4359,22 @@ impl Mirror {
     /// the root's jobs up to its newest doorbell are applied (a held ring otherwise).
     fn commit_build(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
         let t0 = Instant::now();
-        let Some(pb) = self.builds.remove(&chid) else {
-            return Vec::new();
-        };
+        // A later channel's doorbell can commit it before the completer sees the
+        // TSG's first build. Absorb its owned-GFXP outcome before any member schedules.
         let mut notes = Vec::new();
+        if let Some(pb) = self.builds.get(&chid) {
+            let mut first: Vec<(u64, u32)> = self.builds.iter()
+                .filter(|(_, b)| b.tsg_key == pb.tsg_key && b.id < pb.id && b.slot.is_some())
+                .map(|(c, b)| (b.id, *c)).collect();
+            first.sort_unstable();
+            for (_, c) in first {
+                self.wait_build(c);
+                notes.extend(self.commit_build(reg, gm, c));
+            }
+        }
+        let Some(pb) = self.builds.remove(&chid) else {
+            return notes;
+        };
         let built = self.absorb_build(&pb, chid, &mut notes);
         let committed = self.schedule_build(reg, gm, &pb, chid, built, &mut notes);
         crate::dlock::tag(|| format!("commit chid {chid} {} us", t0.elapsed().as_micros()));
@@ -4328,6 +4462,11 @@ impl Mirror {
             return false;
         };
         let key = pb.tsg_key;
+        if self.gfxp_quarantined(key) {
+            notes.push(format!("shadow: chid {chid}: owned GFXP cleanup retained; not scheduling"));
+            self.quarantine_gfxp_build(pb, chid, built);
+            return false;
+        }
         let tsg = self.tsgs.get(&key).map_or(0, |t| t.handle);
         let scheduled = (|| -> Result<u32, String> {
             if let Some(u) = built.shadow_userd.as_mut() {
@@ -4361,16 +4500,25 @@ impl Mirror {
                 notes.push(why);
                 self.build_stats.failed += 1;
                 let mut h = self.hm.lock().unwrap();
-                // An owned GFXP set bound in this build goes back first (WFI, unmap, slot):
-                // a TSG this build made holds no other channel.
+                // SCHEDULE may have succeeded before token acquisition failed. Idle
+                // the exact channel, then verify WFI before releasing its buffers.
+                let mut retained = false;
                 if let Some(t) = self.tsgs.get_mut(&key).filter(|_| pb.slot.is_some()) {
                     if let Some(mut set) = t.gfxp.take() {
-                        let _ = bind_gfxp(&h, tsg, 0, &[0; 5]);
-                        if let Err(e) = release_gfxp(&mut h, self.slots.as_mut(), self.reservation, &mut set) {
+                        let mut cleanup = GfxpCleanup {
+                            host: &mut h, slots: self.slots.as_mut(), reservation: self.reservation,
+                        };
+                        if let Err(e) = cleanup_gfxp(&mut cleanup, tsg, Some(built.channel), true, &mut set) {
                             notes.push(format!("ERROR gfxp: tsg {key}: {e}; set retained"));
                             t.gfxp = Some(set);
+                            retained = true;
                         }
                     }
+                }
+                if retained {
+                    drop(h);
+                    self.quarantine_gfxp_build(pb, chid, built);
+                    return false;
                 }
                 // Newest first: the channel (with its engine objects), then the guest pages.
                 let mut freed = true;
@@ -4412,6 +4560,7 @@ impl Mirror {
                 fwd_unwaited: 0,
                 userd: built.shadow_userd.map(|u| UserdSlot::new(u, pb.submit)),
                 context_ready: pb.submit,
+                cleanup_quarantined: false,
                 rc_page: built.rc_page,
                 gr_capture,
                 gr_capture_incomplete: None,
@@ -4864,6 +5013,9 @@ impl Mirror {
     pub fn promote_deferred_context(&mut self, reg: &Registry, chid: u32) -> Result<(), String> {
         let ch = reg.channel(chid).ok_or("deferred target channel is gone")?;
         let root = reg.vas_key_of(ch).and_then(|key| reg.vas_root(key));
+        if self.channels.get(&chid).is_some_and(|hc| hc.cleanup_quarantined || self.gfxp_quarantined(hc.tsg)) {
+            return Err("owned GFXP cleanup is quarantined".into());
+        }
         let hc = self.channels.get_mut(&chid).filter(|hc| hc.generation == ch.generation)
             .ok_or("deferred target host context is gone")?;
         if root != hc.shadow_root.map(Target::Fb) { return Err("deferred target VAS changed".into()); }
@@ -5750,6 +5902,7 @@ impl Mirror {
                         fwd_unwaited: 0,
                         userd: None,
                         context_ready: true,
+                        cleanup_quarantined: false,
                         rc_page,
                         gr_capture: None,
                         gr_capture_incomplete: None,
@@ -5994,7 +6147,11 @@ impl Mirror {
 
     /// The guest rang the doorbell of a mirrored channel: ring the host's.
     pub fn doorbell(&mut self, chid: u32) -> Result<String, String> {
-        let token = self.channels.get(&chid).ok_or("not mirrored")?.token;
+        let channel = self.channels.get(&chid).ok_or("not mirrored")?;
+        if channel.cleanup_quarantined || self.gfxp_quarantined(channel.tsg) {
+            return Err("owned GFXP cleanup is quarantined; no host doorbell".into());
+        }
+        let token = channel.token;
         if self.doorbell.is_none() {
             let (h, map) = self
                 .hm
@@ -6282,6 +6439,12 @@ impl Mirror {
         if hosts.is_empty() {
             return None;
         }
+        if !disable && hosts.iter().any(|(chid, _)| {
+            self.channels.get(chid).is_some_and(|hc| hc.cleanup_quarantined || self.gfxp_quarantined(hc.tsg))
+        }) {
+            return Some((sys::NV_ERR_INVALID_STATE as u32,
+                "owned GFXP cleanup is quarantined; scheduling enable refused".into()));
+        }
         let h = self.hm.lock().unwrap();
         let mut worst = sys::NV_OK;
         let mut parts = Vec::new();
@@ -6445,6 +6608,10 @@ impl Mirror {
         let Some(mut owned) = self.tsgs.get_mut(&key).and_then(|t| t.gfxp.take()) else {
             return true;
         };
+        owned.quarantined = true;
+        let prior_ready: Vec<(u32, (bool, bool))> = self.channels.iter_mut()
+            .filter(|(_, hc)| hc.tsg == key)
+            .map(|(chid, hc)| (*chid, hc.quarantine_cleanup())).collect();
         let host_tsg = self.tsgs.get(&key).map(|t| t.handle);
         // The TSG's host channels, idled before the BIND to WFI (the context must not run).
         let hosted: Vec<(u32, u32)> = self
@@ -6466,31 +6633,30 @@ impl Mirror {
                 return false;
             }
         }
-        if owned.bind_attempted {
-            let host = self.hm.lock().unwrap();
-            let bind = host_tsg.map_or(sys::NV_OK, |t| bind_gfxp(&host, t, 0, &[0; 5]));
-            let (get, mode) = hosted
-                .first()
-                .map_or((sys::NV_OK, 0), |(_, hc)| get_gfxp_mode(&host, *hc));
-            if bind != sys::NV_OK || get != sys::NV_OK || mode != 0 {
-                notes.push(format!("tsg {key}: ERROR GFXP BIND WFI/GET: bind {}, get {}, mode {mode:#x}; retained",
-                    status_name(bind), status_name(get)));
-                drop(host);
-                self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
-                return false;
-            }
-            owned.bound = false;
-        }
         self.worker.wait_all();
         self.worker.wait_idle();
         let mut host = self.hm.lock().unwrap();
-        if let Err(e) = release_gfxp(&mut host, self.slots.as_mut(), self.reservation, &mut owned) {
+        let mut cleanup = GfxpCleanup {
+            host: &mut host, slots: self.slots.as_mut(), reservation: self.reservation,
+        };
+        let result = match host_tsg {
+            Some(tsg) => cleanup_gfxp(&mut cleanup, tsg, hosted.first().map(|(_, h)| *h), false, &mut owned),
+            None => Err("GFXP cleanup lacks its owning host TSG; retained".into()),
+        };
+        if let Err(e) = result {
             notes.push(format!("tsg {key}: ERROR {e}; retained"));
             drop(host);
             self.tsgs.get_mut(&key).unwrap().gfxp = Some(owned);
             return false;
         }
         drop(host);
+        // An engine-object free can leave its channel alive. Successful detach
+        // restores normal publication; a previously quarantined channel stays held.
+        for (chid, prior) in prior_ready {
+            if let Some(hc) = self.channels.get_mut(&chid) {
+                hc.restore_after_cleanup(prior);
+            }
+        }
         notes.push(format!(
             "tsg {key}: owned GFXP back to WFI, slot {} freed [host]",
             owned.slot
@@ -9363,6 +9529,200 @@ mod tests {
         }
         assert!(p[56..88].iter().all(|byte| *byte == 0), "unused and CPU-pointer fields stay zero");
         assert!(p[92..].iter().all(|byte| *byte == 0), "CILP and routing fields stay zero");
+    }
+
+    #[derive(Default)]
+    struct GfxpCleanupFake {
+        idle_status: u32,
+        bind_status: u32,
+        get_status: u32,
+        mode: u32,
+        release_error: bool,
+        calls: Vec<(&'static str, u32)>,
+        slots_returned: usize,
+    }
+
+    impl GfxpCleanupHost for GfxpCleanupFake {
+        fn idle(&mut self, channel: u32) -> u32 {
+            self.calls.push(("idle", channel));
+            self.idle_status
+        }
+
+        fn bind_wfi(&mut self, tsg: u32) -> u32 {
+            self.calls.push(("bind", tsg));
+            self.bind_status
+        }
+
+        fn mode(&mut self, channel: u32) -> (u32, u32) {
+            self.calls.push(("get", channel));
+            (self.get_status, self.mode)
+        }
+
+        fn release(&mut self, owned: &mut OwnedGfxp) -> Result<(), String> {
+            self.calls.push(("release", owned.slot as u32));
+            assert!(!owned.bind_attempted, "release requires verified detach or no attempted bind");
+            assert!(!owned.bound);
+            // A partial unmap succeeded, but freeing its virtual object can fail.
+            owned.buffers[0].mapped = false;
+            if self.release_error {
+                return Err("injected virtual free failure".into());
+            }
+            owned.buffers.clear();
+            self.slots_returned += 1;
+            Ok(())
+        }
+    }
+
+    fn gfxp_cleanup_fixture() -> OwnedGfxp {
+        OwnedGfxp {
+            slot: 3,
+            bind_attempted: true,
+            bound: true,
+            quarantined: false,
+            buffers: vec![OwnedGfxpBuffer {
+                virtual_handle: Some(0x44), va: 0x10000, len: 0x2000, mapped: true,
+            }],
+        }
+    }
+
+    fn assert_gfxp_backing_retained(host: &GfxpCleanupFake, owned: &OwnedGfxp) {
+        assert!(owned.quarantined);
+        assert!(owned.bind_attempted);
+        assert_eq!(owned.slot, 3);
+        assert_eq!(owned.buffers.len(), 1);
+        assert_eq!(owned.buffers[0].virtual_handle, Some(0x44));
+        assert!(owned.buffers[0].mapped);
+        assert_eq!(host.slots_returned, 0);
+        assert!(host.calls.iter().all(|(op, _)| *op != "release"));
+    }
+
+    #[test]
+    fn gfxp_attach_failure_retains_backing_until_detach_and_get_confirm_wfi() {
+        for (bind_status, get_status, mode, calls) in [
+            (0x51, 0, 0, vec![("bind", 0x22)]),
+            (0, 0x51, 0, vec![("bind", 0x22), ("get", 0x33)]),
+            (0, 0, 1, vec![("bind", 0x22), ("get", 0x33)]),
+        ] {
+            let mut host = GfxpCleanupFake { bind_status, get_status, mode, ..Default::default() };
+            let mut owned = gfxp_cleanup_fixture();
+            owned.bound = false; // The original BIND/GET failed: its effects are uncertain.
+            assert!(cleanup_gfxp(&mut host, 0x22, Some(0x33), false, &mut owned).is_err());
+            assert_eq!(host.calls, calls);
+            assert_gfxp_backing_retained(&host, &owned);
+        }
+    }
+
+    #[test]
+    fn gfxp_token_failure_requires_idle_before_detach_or_release() {
+        // The same gate used after SCHEDULE succeeds and GET_WORK_SUBMIT_TOKEN fails.
+        for (idle_status, bind_status, get_status, mode, calls) in [
+            (0x51, 0, 0, 0, vec![("idle", 0x33)]),
+            (0, 0x51, 0, 0, vec![("idle", 0x33), ("bind", 0x22)]),
+            (0, 0, 0x51, 0, vec![("idle", 0x33), ("bind", 0x22), ("get", 0x33)]),
+            (0, 0, 0, 1, vec![("idle", 0x33), ("bind", 0x22), ("get", 0x33)]),
+        ] {
+            let mut host = GfxpCleanupFake { idle_status, bind_status, get_status, mode, ..Default::default() };
+            let mut owned = gfxp_cleanup_fixture();
+            assert!(cleanup_gfxp(&mut host, 0x22, Some(0x33), true, &mut owned).is_err());
+            assert_eq!(host.calls, calls);
+            assert_gfxp_backing_retained(&host, &owned);
+        }
+        let mut host = GfxpCleanupFake::default();
+        let mut owned = gfxp_cleanup_fixture();
+        cleanup_gfxp(&mut host, 0x22, Some(0x33), true, &mut owned).unwrap();
+        assert_eq!(host.calls, [("idle", 0x33), ("bind", 0x22), ("get", 0x33), ("release", 3)]);
+        assert_eq!(host.slots_returned, 1);
+        assert!(owned.buffers.is_empty());
+    }
+
+    #[test]
+    fn gfxp_cleanup_without_live_channel_cannot_invent_a_successful_get() {
+        let mut host = GfxpCleanupFake::default();
+        let mut owned = gfxp_cleanup_fixture();
+        assert!(cleanup_gfxp(&mut host, 0x22, None, false, &mut owned).is_err());
+        assert!(host.calls.is_empty());
+        assert_gfxp_backing_retained(&host, &owned);
+    }
+
+    #[test]
+    fn gfxp_partial_release_keeps_the_remaining_ledger_and_slot_for_retry() {
+        let mut host = GfxpCleanupFake { release_error: true, ..Default::default() };
+        let mut owned = gfxp_cleanup_fixture();
+        assert!(cleanup_gfxp(&mut host, 0x22, Some(0x33), false, &mut owned).is_err());
+        assert!(owned.quarantined);
+        assert!(!owned.bind_attempted, "detach was verified before the partial release");
+        assert!(!owned.bound);
+        assert_eq!(owned.buffers[0].virtual_handle, Some(0x44));
+        assert!(!owned.buffers[0].mapped);
+        assert_eq!(host.slots_returned, 0);
+        host.release_error = false;
+        host.calls.clear();
+        // Once detached, a failed release can finish without rediscovering a channel.
+        cleanup_gfxp(&mut host, 0x22, None, false, &mut owned).unwrap();
+        assert_eq!(host.calls, [("release", 3)]);
+        assert_eq!(host.slots_returned, 1);
+        assert!(owned.buffers.is_empty());
+    }
+
+    #[test]
+    fn gfxp_mapping_failure_before_bind_releases_without_a_detach_call() {
+        let mut host = GfxpCleanupFake::default();
+        let mut owned = gfxp_cleanup_fixture();
+        owned.bind_attempted = false;
+        owned.bound = false;
+        cleanup_gfxp(&mut host, 0x22, None, false, &mut owned).unwrap();
+        assert_eq!(host.calls, [("release", 3)]);
+        assert_eq!(host.slots_returned, 1);
+    }
+
+    #[test]
+    fn gfxp_channel_quarantine_survives_successful_buffer_cleanup_and_promotion() {
+        let slot = Arc::new(UserdSlot {
+            cell: Mutex::new(UserdCell { userd: None, ready: true }),
+        });
+        let mut channel = HostChannel {
+            generation: 1,
+            handle: 0x33,
+            tsg: TsgKey::Handle(1, 2),
+            token: 0,
+            objects: Vec::new(),
+            engine_map: BTreeMap::new(),
+            pages: Vec::new(),
+            created: Instant::now(),
+            doorbells: 0,
+            shadow_root: Some(0x1000),
+            fwd_put: None,
+            fwd_unwaited: 0,
+            userd: Some(slot.clone()),
+            context_ready: true,
+            cleanup_quarantined: false,
+            rc_page: None,
+            gr_capture: None,
+            gr_capture_incomplete: None,
+        };
+        // Ordinary successful cleanup preserves the existing publication state.
+        let prior = channel.quarantine_cleanup();
+        assert!(!channel.context_ready);
+        assert!(!slot.cell().ready);
+        channel.restore_after_cleanup(prior);
+        assert!(channel.context_ready);
+        assert!(slot.cell().ready);
+
+        // A failed build first enters permanent channel quarantine. A later
+        // engine-object free may successfully detach and remove OwnedGfxp entirely.
+        channel.quarantine_cleanup();
+        let prior = channel.quarantine_cleanup();
+        let mut host = GfxpCleanupFake::default();
+        let mut owned = gfxp_cleanup_fixture();
+        cleanup_gfxp(&mut host, 0x22, Some(channel.handle), true, &mut owned).unwrap();
+        assert!(owned.buffers.is_empty());
+        assert_eq!(host.slots_returned, 1);
+        drop(owned);
+        channel.restore_after_cleanup(prior);
+        channel.set_context_ready(true); // The shared promotion/publication guard.
+        assert!(channel.cleanup_quarantined);
+        assert!(!channel.context_ready);
+        assert!(!slot.cell().ready, "the USERD poller must stay disabled too");
     }
 
     #[test]
