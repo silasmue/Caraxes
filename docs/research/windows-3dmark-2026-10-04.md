@@ -560,4 +560,27 @@ Whole-session doorbell-to-host p99 rose from 2250 to 3025 us, maximum from 50.5 
 
 Three D3D11 frames verified. Guest adapter status OK/problem 0, no Display 4101 since boot. Monitoring restored, owned processes stopped, NVIDIA stayed bound, no host Xid; 6797 MiB FB/231 MiB BAR1 free. Nineteen backend ERROR notes retained; trace/guest RC checks skipped. D3D12 Xid 31 remains unresolved. No new recording.
 
-Private root qualification: `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04/C167-trace-consumers-root-qualification.json`. Candidate SHA256 `92734242c61b421c410bd6586709ed3f7f6a3008b15df85491e3fd74335b5534`. C168 now repeats the pinned pre-change parent; its result is pending.
+Private root qualification: `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04/C167-trace-consumers-root-qualification.json`. Candidate SHA256 `92734242c61b421c410bd6586709ed3f7f6a3008b15df85491e3fd74335b5534`. The pinned parent control is recorded below.
+
+## C168: unchanged parent also slower
+
+Exact C166 parent source `eb573dec`, backend `27800eef...`, with the same stock drivers, resources, VM boost policy, FE off and read-only clock sampling. Three D3D11 frames verified. One complete Fire Strike P archive passed strict local validation:
+
+| Metric | C168 parent |
+| --- | ---: |
+| Graphics score | 5382 |
+| GT1 FPS | 18.859163 |
+| GT2 FPS | 30.834635 |
+| Physics FPS | 27.321795 |
+| Combined FPS | 19.668446 |
+| Global benchmark seconds | 201.036666 |
+
+The unchanged parent also falls below C166's 6015/6040. The trace consumer change cannot alone explain all observed loss. Its performance remains unaccepted; neither a gain nor a regression is attributed. CPU Physics also falls, but this does not establish host contention or any specific cause.
+
+The global window contains 191 P0 clock samples with memory at 7000 MHz. At physical utilization >=90%, 77 samples have SM clocks 1800–1845 MHz, median 1845 MHz. Maximum temperature 79 C, power 160.56 W, 19 software power-cap samples and zero sampled hardware thermal slowdown. These are physical/global observations. Boost reaches high clocks while performance is weaker.
+
+A second attempt remained in SystemInfo scanning. It was stopped before the original 30-minute deadline, with no complete archive or accepted score. Monitoring restoration and guest post-health were not collected; verify both on the next boot. The armed marker and failed collection evidence remain private. Do not count this as a second benchmark result.
+
+Owned VM, backend and clock sampler stopped; NVIDIA stayed bound, no new host Xid, 6895 MiB FB/231 MiB BAR1 free. Available checks passed; trace/guest RC checks skipped, 19 ERROR notes retained. No new recording. Whole-session rearm and doorbell timing totals remain unqualified for individual workloads. Next: a separate bounded parent diagnostic of thread scheduling, SMT placement and interrupt processing before another code candidate.
+
+Private evidence: `C168-parent-control-root-summary.json`, `C168-run2-unqualified.json`, `C168-closeout.json`, the complete first archive/sidecar/marker, frozen clock CSV and independent cross-check. Raw machine and licensing data remain private.
