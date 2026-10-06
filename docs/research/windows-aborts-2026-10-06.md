@@ -171,10 +171,15 @@ fix and earlier controls. C178–C181 use the same immutable backend and VMM.
   Process collection and benchmark recording are off for this timing run.
 - Physical non-stall events are engine-wide and include host clients. The existing
   `CARAXES_INTR_GATE_MS` delays and combines these hints outside its recent-host-
-  doorbell window, retaining every held vector and bypassing RC events. C190 tests
-  a 1 ms hold and 10 ms hot window on unchanged C189 binaries. Guest interrupt
-  register writes remain ordered. This is an experiment, not a default: a long
-  kernel can complete outside the hot window and incur extra wake latency.
+  doorbell window, retaining held vectors and bypassing RC events. C190 tests a
+  1 ms hold and 10 ms hot window on unchanged C189 binaries. It passes the three
+  D3D readbacks, loaded Home controls, pre/post health and clean teardown. Seven
+  host events arm and disarm without refusal. The final gate summary records
+  39,743 immediate events, 119,319 held and 115,871 held-vector deliveries: little
+  combining. Idle has 3,576 interrupt writes/s versus C189's 3,863; host activity
+  differs, so no gain is promoted. The VMM request still averages 23.83 us.
+  Guest register writes stay ordered. Leave the gate off: an old submission can
+  incur extra completion latency, and the nominal hold excludes scheduler delay.
 - Standard ioeventfds carry counts for an offset and optional fixed data match,
   not arbitrary register masks and ordering. This VMM refuses `ioregionfd` and
   disallows ioeventfd areas overlapping its mapped pages. Neither is a ready
