@@ -344,12 +344,17 @@ archives and process metadata contain private machine data and remain local.
   `C192-phase-review.json`. A separate GT1 interval is inferred from the scene's
   displayed time, rather than two captured phase boundaries; its VMM endpoints
   differ by up to 2.31 seconds. This is not continuous moving-scene evidence.
-- In that inferred 10.76-second interval, ordinary doorbells still trap 935 times
-  while guest-token rings count 86. Control `0x2080a613` has 391 host calls taking
+- In that inferred 10.76-second interval, all 935 ordinary doorbell traps are
+  runlist 0 / ChID 55 (914) or runlist 2 / ChID 56 (21), identified by existing
+  per-token profile rows without byte traces. Both exceed the automatic ChID 0–49
+  set. The offer contains 250 datamatch entries across runlists 0, 1, 7, 2 and 3;
+  widening every runlist would exceed the FD budget. The 86 eventfd wakeups
+  represent 340 guest writes; posted-ring counts can differ because RingGate
+  coalesces repeated queued values. Control `0x2080a613` has 391 host calls taking
   2.114 seconds, and `0x2080a612` has 392 taking 0.366 seconds. Whole-device counts
-  include desktop/SystemInfo work. Neither the missed token values nor the opaque
-  controls' safe caching semantics are established. IRQ handling is a cost, not
-  a complete explanation of low FPS. Physical samples during this run reach
+  include desktop/SystemInfo work. The opaque controls' safe caching semantics
+  remain unproven; do not cache them from request size alone. IRQ handling is a
+  cost, not a complete explanation of low FPS. Physical samples during this run reach
   1,845 MHz with memory at 7,000 MHz; host activity is included.
 - Host engine events include other host clients. The existing coalescing, pending
   `again` state, hint withdrawal and optional gate do not identify a fresh event's
@@ -371,8 +376,27 @@ archives and process metadata contain private machine data and remain local.
   provenance; production Cargo.lock is unchanged. Backend tests pass 931 library,
   one parser and two integration tests, with one ignored; release build passes.
   The initial settings-registry failure is retained and the new entry is tested.
-  Fresh C193 Windows startup/idle qualification is pending; no gain is promoted.
+  C193 qualifies startup/D3D11 and passive desktop idle with full server spin.
+  Stock Windows stays Problem 0 with no Display 4101; device creation takes
+  655 ms and three verified readbacks take 23 ms. Available checks pass with no
+  new Xid or VA-update errors; 15 other backend ERROR lines remain. Exact owned
+  processes are stopped and NVIDIA remains bound. No 3DMark render is performed.
+- C193's 60.73-second idle bracket has 228,811 interrupt writes (3,767/s) and
+  0.952 seconds of backend service. Nearby VMM snapshots cover 60.38 seconds:
+  227,786 requests, 7.265 seconds of request time and 0.013 seconds of mutex wait,
+  averaging 31.90 us and 0.058 us. Snapshot endpoints differ by about two seconds.
+  The whole backend consumes 68.18 CPU seconds over 61.48 wall seconds, including
+  all its threads. Spin provides no demonstrated latency gain over C191's
+  31.59 us idle sample and remains off by default. Different host loads prevent
+  treating these runs as proof of a regression. No FPS gain is promoted.
+- Two C193 admission attempts stop below the unchanged 45 GiB artifact floor,
+  before creating a VM/backend. The successful third attempt follows verified
+  relocation of rebuildable release/graph/dependency caches to the root disk,
+  preserving their paths with symlinks. Frozen binaries, packets and results
+  retain their bytes. These are resource stops, not guest boot failures.
 
 Artifacts are under `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04`:
 `C192-root-closeout.json`, `C192-latency-whole-render-diagnostic.json`,
-`C192-phase-review.json` and `C193-vfio-poll-build-checks.json`.
+`C192-phase-review.json`, `C193-vfio-poll-build-checks.json`,
+`C193-latency-idle-spin.json`, `C193-idle-cpu.json`, `C193-root-closeout.json`
+and `C193-cache-relocation.json`.
