@@ -118,6 +118,27 @@ fn watched_offset(i: usize) -> u64 {
     }
 }
 
+/// The inverse of `watched_offset` for an aligned word in the tree page.
+fn watched_index(off: u64) -> Option<usize> {
+    if off & 3 != 0 {
+        return None;
+    }
+    match off {
+        o if (LEAF..LEAF + 4 * LEAVES as u64).contains(&o) => Some(W_LEAF + ((o - LEAF) / 4) as usize),
+        o if (LEAF_EN_SET..LEAF_EN_SET + 4 * LEAVES as u64).contains(&o) => {
+            Some(W_EN_SET + ((o - LEAF_EN_SET) / 4) as usize)
+        }
+        o if (LEAF_EN_CLEAR..LEAF_EN_CLEAR + 4 * LEAVES as u64).contains(&o) => {
+            Some(W_EN_CLEAR + ((o - LEAF_EN_CLEAR) / 4) as usize)
+        }
+        TOP => Some(W_TOP),
+        TOP_EN_SET => Some(W_TOP_EN_SET),
+        TOP_EN_CLEAR => Some(W_TOP_EN_CLEAR),
+        LEAF_TRIGGER => Some(W_TRIGGER),
+        _ => None,
+    }
+}
+
 /// One mapped page of the memfd, as 1024 words the guest also writes (also the display
 /// front-end page, display/fe_page.rs).
 pub(crate) struct Mapping {
@@ -717,7 +738,7 @@ impl IntrPage {
             eprintln!("vfio-user-nvgpu: {m}");
             self.shared.note(m);
         }
-        let i = (0..WATCHED).find(|&i| watched_offset(i) == a);
+        let i = watched_index(a);
         let (mut rearm, mut rearm_by_set, mut acked) = (false, false, false);
         match i {
             Some(i) if i < W_EN_SET => {
@@ -1058,7 +1079,7 @@ impl IntrPage {
         }
         // Words of the tree [0, 0x800) that are no register read 0 when trapped.
         for off in (0..0x800u64).step_by(4) {
-            if (0..WATCHED).any(|i| watched_offset(i) == off) {
+            if watched_index(off).is_some() {
                 continue;
             }
             let w = self.tree.word(off);
@@ -1362,6 +1383,21 @@ mod tests {
 
     fn load(p: &IntrPage, reg: u64) -> u32 {
         p.tree.word(reg).load(Ordering::Acquire)
+    }
+
+    #[test]
+    fn watched_index_matches_every_word_and_hole_in_the_tree_page() {
+        let mut found = 0usize;
+        for off in 0..PAGE {
+            let from_layout = (0..WATCHED).find(|&i| watched_offset(i) == off);
+            let decoded = watched_index(off);
+            assert_eq!(decoded, from_layout, "tree-page offset {off:#x}");
+            if decoded.is_some() {
+                assert_eq!(off & 3, 0);
+                found += 1;
+            }
+        }
+        assert_eq!(found, WATCHED);
     }
 
     /// On with host execution, with the 1 ms sleep bound and the 10 ms retrigger watchdog.
