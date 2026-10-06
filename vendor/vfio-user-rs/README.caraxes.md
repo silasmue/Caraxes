@@ -103,3 +103,17 @@ consumer and shuts down the active socket; no producer waits for space. The
 backend alone produces records, and the VMM alone advances head. Both are
 trusted host processes: the O_RDWR memfd can be remapped despite each side's
 cooperative read-only mmap protection. This is not an access-control boundary.
+
+## Private synchronous BAR0 transport (experimental, opt-in)
+
+The additional `bar_shmem_required` client option and `bar_shmem_offer` backend
+hook negotiate `x_caraxes_bar_shmem` only with local IRQ support. After local IRQ
+COMMIT, private command `0x8001` PREPARE returns fixed metadata and exactly
+three descriptors: a sealed-size 4 KiB memfd and distinct nonblocking request
+and reply eventfds. The existing server command thread polls the socket and
+request eventfd; there is no backend worker. Only in-bounds BAR0 reads/writes
+of 1, 2, 4 or 8 bytes use the single atomic request/reply slot. Commands on
+the socket cannot overtake one because the Client remains mutably borrowed.
+The local IRQ reply fence runs before each shared reply. Accepted request
+faults and timeouts close the session without socket fallback. This first
+layout is limited to cooperating Linux/x86_64 host peers, never guest mapping.

@@ -26,6 +26,7 @@ use vm_memory::{ByteValued, FileOffset};
 use vmm_sys_util::sock_ctrl_msg::ScmSocket;
 
 pub mod local_irq;
+pub mod bar_shmem;
 
 #[macro_use]
 extern crate serde_derive;
@@ -55,6 +56,8 @@ pub enum Command {
     UserDirtyPages = 14,
     /// Private Caraxes extension, valid only after explicit VERSION negotiation.
     LocalIrq = 0x8000,
+    /// Private, synchronous BAR0 shared request/reply extension.
+    BarShmem = 0x8001,
 }
 
 #[allow(dead_code)]
@@ -552,6 +555,14 @@ struct Capabilities {
     migration: MigrationCapabilities,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     x_caraxes_local_irq: Option<LocalIrqCapability>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    x_caraxes_bar_shmem: Option<BarShmemCapability>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+struct BarShmemCapability { version:u16, transport:String, scope:String }
+impl BarShmemCapability {
+    fn v1()->Self {Self{version:1,transport:"sync-slot-v1".into(),scope:"linux-x86_64-bar0".into()}}
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -586,12 +597,13 @@ impl Default for Capabilities {
             max_data_xfer_size: default_max_data_xfer_size(),
             migration: default_migration_capabilities(),
             x_caraxes_local_irq: None,
+            x_caraxes_bar_shmem: None,
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ClientOptions { pub local_irq_required: bool }
+pub struct ClientOptions { pub local_irq_required: bool, pub bar_shmem_required: bool }
 
 pub struct Client {
     stream: UnixStream,
@@ -600,6 +612,9 @@ pub struct Client {
     resettable: bool,
     regions: Vec<Region>,
     local_irq_negotiated: bool,
+    bar_shmem_negotiated: bool,
+    bar_shmem: Option<bar_shmem::ClientChannel>,
+    bar_shmem_faulted: bool,
 }
 
 #[derive(Debug)]
@@ -670,6 +685,8 @@ pub enum Error {
     UnexpectedNoReply(Command),
     #[error("Terminal local IRQ session failure: {0}")]
     LocalIrqTerminal(&'static str),
+    #[error("Terminal BAR shared transport failure: {0}")]
+    BarShmemTerminal(&'static str),
 }
 
 impl Client {
@@ -678,6 +695,10 @@ impl Client {
     }
 
     pub fn new_with_options(path: &Path, options: ClientOptions) -> Result<Client, Error> {
+        if options.bar_shmem_required && (!options.local_irq_required
+            || !cfg!(all(target_os="linux",target_arch="x86_64"))) {
+            return Err(Error::UnsupportedFeature);
+        }
         let stream = UnixStream::connect(path).map_err(Error::Connect)?;
 
         let mut client = Client {
@@ -687,6 +708,9 @@ impl Client {
             resettable: false,
             regions: Vec::new(),
             local_irq_negotiated: false,
+            bar_shmem_negotiated: false,
+            bar_shmem: None,
+            bar_shmem_faulted: false,
         };
 
         client.negotiate_version(options)?;
@@ -703,6 +727,7 @@ impl Client {
             capabilities: Capabilities {
                 max_msg_fds: CLIENT_MAX_MSG_FDS,
                 x_caraxes_local_irq: options.local_irq_required.then(LocalIrqCapability::v1),
+                x_caraxes_bar_shmem: options.bar_shmem_required.then(BarShmemCapability::v1),
                 ..Default::default()
             },
         };
@@ -728,7 +753,7 @@ impl Client {
             IoSlice::new(version_data.as_bytes_with_nul()),
         ];
 
-        if options.local_irq_required {
+        if options.local_irq_required || options.bar_shmem_required {
             // A short VERSION frame would make private extension negotiation ambiguous.
             self.stream.write_all(version.as_slice()).map_err(Error::StreamWrite)?;
             self.stream.write_all(version_data.as_bytes_with_nul()).map_err(Error::StreamWrite)?;
@@ -780,6 +805,9 @@ impl Client {
         if options.local_irq_required && !self.local_irq_negotiated {
             return Err(Error::UnsupportedFeature);
         }
+        self.bar_shmem_negotiated=options.bar_shmem_required
+            && server_caps.capabilities.x_caraxes_bar_shmem.as_ref()==Some(&BarShmemCapability::v1());
+        if options.bar_shmem_required && !self.bar_shmem_negotiated {return Err(Error::UnsupportedFeature);}
 
         debug!(
             "Received server version information: major = {} minor = {} capabilities = {:?}",
@@ -790,6 +818,40 @@ impl Client {
     }
 
     pub fn local_irq_negotiated(&self) -> bool { self.local_irq_negotiated }
+    pub fn bar_shmem_negotiated(&self)->bool {self.bar_shmem_negotiated}
+    pub fn bar_shmem_uses(&self,region:u32,offset:u64,len:usize)->bool {
+        self.bar_shmem.as_ref().is_some_and(|c|!c.faulted() && c.eligible(region,offset,len))
+    }
+
+    /// Complete the private PREPARE handshake after local IRQ COMMIT. The BAR
+    /// request slot remains owned by this Client and its outer caller mutex.
+    pub fn bar_shmem_prepare(&mut self)->Result<(),Error> {
+        if !self.bar_shmem_negotiated || self.bar_shmem.is_some() || self.bar_shmem_faulted
+            {return Err(Error::UnsupportedFeature);}
+        let result=(|| {
+            let header=Header{message_id:self.next_message_id.0,command:Command::BarShmem as u16,
+                message_size:32,flags:HeaderFlags::Command as u32,..Default::default()};
+            let mut request=[0u8;32];request[..16].copy_from_slice(header.as_slice());
+            request[16..20].copy_from_slice(b"BSHM");request[20..22].copy_from_slice(&1u16.to_le_bytes());
+            self.next_message_id+=Wrapping(1);
+            self.stream.write_all(&request).map_err(Error::StreamWrite)?;
+            let (reply,payload,mut fds)=self.recv_reply(&header,bar_shmem::PREPARE_BYTES as u32)?;
+            if reply.flags!=HeaderFlags::Reply as u32 || reply.error!=0
+                || payload.len()!=bar_shmem::PREPARE_BYTES || fds.len()!=3
+            {return Err(Error::InvalidReply(Command::BarShmem,"prepare reply/FD count"));}
+            let metadata=bar_shmem::Metadata::decode(&payload)
+                .map_err(|_|Error::InvalidReply(Command::BarShmem,"prepare metadata"))?;
+            if self.regions.first().is_none_or(|r|r.index!=0 || r.size!=metadata.bar0_size)
+            {return Err(Error::InvalidReply(Command::BarShmem,"BAR0 size"));}
+            let reply_fd=fds.pop().unwrap();let request_fd=fds.pop().unwrap();let page_fd=fds.pop().unwrap();
+            let channel=bar_shmem::ClientChannel::map(metadata,page_fd,request_fd,reply_fd)
+                .map_err(|_|Error::InvalidReply(Command::BarShmem,"prepare descriptors"))?;
+            self.bar_shmem=Some(channel);
+            Ok(())
+        })();
+        if result.is_err(){self.bar_shmem_faulted=true;let _=self.stream.shutdown(std::net::Shutdown::Both);}
+        result
+    }
 
     /// Poll-only clone; callers must never read from this descriptor.
     pub fn local_irq_liveness_stream(&self) -> std::io::Result<UnixStream> {
@@ -1136,6 +1198,14 @@ impl Client {
     }
 
     pub fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> Result<(), Error> {
+        if self.bar_shmem_faulted {return Err(Error::BarShmemTerminal("session faulted"));}
+        if let Some(channel)=&mut self.bar_shmem {
+            if channel.faulted() {self.bar_shmem_faulted=true;return Err(Error::BarShmemTerminal("slot faulted"));}
+            if channel.eligible(region,offset,data.len()) {
+                return channel.access(&self.stream,offset,data,false).map_err(|_|{
+                    self.bar_shmem_faulted=true;Error::BarShmemTerminal("shared read")});
+            }
+        }
         let region_read = RegionAccess {
             header: Header {
                 message_id: self.next_message_id.0,
@@ -1164,6 +1234,15 @@ impl Client {
     }
 
     pub fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> Result<(), Error> {
+        if self.bar_shmem_faulted {return Err(Error::BarShmemTerminal("session faulted"));}
+        if let Some(channel)=&mut self.bar_shmem {
+            if channel.faulted() {self.bar_shmem_faulted=true;return Err(Error::BarShmemTerminal("slot faulted"));}
+            if channel.eligible(region,offset,data.len()) {
+                let mut bytes=[0u8;8];bytes[..data.len()].copy_from_slice(data);
+                return channel.access(&self.stream,offset,&mut bytes[..data.len()],true).map_err(|_|{
+                    self.bar_shmem_faulted=true;Error::BarShmemTerminal("shared write")});
+            }
+        }
         let region_write = RegionAccess {
             header: Header {
                 message_id: self.next_message_id.0,
@@ -1482,6 +1561,8 @@ impl Client {
 }
 
 pub trait ServerBackend {
+    /// Explicit opt-in: the server itself owns the transport and dispatch loop.
+    fn bar_shmem_offer(&self)->bool {false}
     /// Explicit opt-in: generic backends never advertise this private extension.
     fn local_irq_offer(&self) -> bool { false }
     fn local_irq_prepare(&mut self) -> Result<local_irq::PreparedServer, std::io::Error> {
@@ -1580,9 +1661,12 @@ struct SessionContext {
     token: u64,
     epoch: u64,
     producer: Option<local_irq::QueueProducer>,
+    bar_shmem_negotiated: bool,
+    bar_shmem: Option<bar_shmem::ServerChannel>,
 }
 impl Default for SessionContext {
-    fn default() -> Self { Self { version_seen:false,phase:LocalIrqPhase::Off,token:0,epoch:0,producer:None } }
+    fn default() -> Self { Self { version_seen:false,phase:LocalIrqPhase::Off,token:0,epoch:0,producer:None,
+        bar_shmem_negotiated:false,bar_shmem:None } }
 }
 impl SessionContext {
     fn terminal(&self) -> bool { self.producer.as_ref().is_some_and(|p|p.is_terminal()) }
@@ -1876,6 +1960,17 @@ impl Server {
                         Some(LocalIrqCapability::v1());
                     session.phase = LocalIrqPhase::Negotiated;
                 }
+                if cfg!(all(target_os="linux",target_arch="x86_64"))
+                    && backend.bar_shmem_offer()
+                    && session.phase==LocalIrqPhase::Negotiated
+                    && client_capabilities.capabilities.x_caraxes_bar_shmem.as_ref()
+                        == Some(&BarShmemCapability::v1())
+                    && client_capabilities.capabilities.max_msg_fds>=3
+                    && self.regions.first().is_some_and(|r|r.region_info.index==0 && r.region_info.size>0)
+                {
+                    server_capabilities.capabilities.x_caraxes_bar_shmem=Some(BarShmemCapability::v1());
+                    session.bar_shmem_negotiated=true;
+                }
                 let server_version_data = serde_json::to_string(&server_capabilities)
                     .map_err(Error::SerializeCapabilites)?;
                 let server_version = Version {
@@ -1897,7 +1992,7 @@ impl Server {
                     IoSlice::new(server_version_data.as_bytes_with_nul()),
                 ];
 
-                if session.phase == LocalIrqPhase::Negotiated {
+                if session.phase == LocalIrqPhase::Negotiated || session.bar_shmem_negotiated {
                     stream.write_all(server_version.as_slice()).map_err(Error::StreamWrite)?;
                     stream.write_all(server_version_data.as_bytes_with_nul()).map_err(Error::StreamWrite)?;
                 } else {
@@ -1964,6 +2059,29 @@ impl Server {
                     }
                     _ => return Err(Error::LocalIrqTerminal("local IRQ state/token")),
                 }
+            }
+            Command::BarShmem => {
+                if !session.bar_shmem_negotiated || session.phase!=LocalIrqPhase::Active
+                    || session.bar_shmem.is_some() || header.message_size!=32
+                    || header.flags!=HeaderFlags::Command as u32 || header.error!=0 || !fds.is_empty()
+                {return Err(Error::BarShmemTerminal("bad prepare request/state"));}
+                let mut request=[0u8;16];stream.read_exact(&mut request).map_err(Error::StreamRead)?;
+                if &request[..4]!=b"BSHM" || u16::from_le_bytes(request[4..6].try_into().unwrap())!=1
+                    || request[6..].iter().any(|x|*x!=0)
+                {return Err(Error::BarShmemTerminal("bad prepare magic/version"));}
+                let bar0_size=self.regions.first().ok_or(Error::BarShmemTerminal("missing BAR0"))?.region_info.size;
+                let prepared=bar_shmem::prepare(bar0_size)
+                    .map_err(|_|Error::BarShmemTerminal("prepare transport"))?;
+                let reply=Header{message_id:header.message_id,command:Command::BarShmem as u16,
+                    flags:HeaderFlags::Reply as u32,
+                    message_size:(size_of::<Header>()+bar_shmem::PREPARE_BYTES) as u32,..Default::default()};
+                let mut buf=Vec::with_capacity(reply.message_size as usize);
+                buf.extend_from_slice(reply.as_slice());buf.extend_from_slice(&prepared.metadata.encode());
+                let sent=stream.send_with_fds(&[buf.as_slice()],&[prepared.page_fd.as_raw_fd(),
+                    prepared.request_fd.as_raw_fd(),prepared.reply_fd.as_raw_fd()])
+                    .map_err(Error::SendWithFd)?;
+                if sent!=buf.len(){return Err(Error::BarShmemTerminal("short prepare reply"));}
+                session.bar_shmem=Some(prepared.channel);
             }
             Command::DmaMap => {
                 let mut cmd = DmaMap {
@@ -2433,19 +2551,60 @@ impl Server {
         self.client_max_msg_fds.store(default_max_msg_fds(), Ordering::Relaxed);
         let mut session=SessionContext::default();
         let result=(|| {
-            loop {
+            'serve: loop {
                 if session.terminal(){return Err(Error::LocalIrqTerminal("producer fault"));}
-                idle_poll_header(&stream, mode).map_err(Error::StreamRead)?;
+                if let Some(channel)=&mut session.bar_shmem {
+                    let mut p=[libc::pollfd{fd:stream.as_raw_fd(),events:libc::POLLIN,revents:0},
+                        libc::pollfd{fd:channel.request_fd(),events:libc::POLLIN,revents:0}];
+                    loop {
+                        let n=unsafe{libc::poll(p.as_mut_ptr(),2,-1)};
+                        if n<0 {let e=std::io::Error::last_os_error();
+                            if e.kind()==std::io::ErrorKind::Interrupted {continue;}
+                            return Err(Error::StreamRead(e));}
+                        break;
+                    }
+                    if p[0].revents & libc::POLLHUP!=0 && p[0].revents & libc::POLLIN==0
+                        && p[1].revents==0 {
+                        if session.terminal(){return Err(Error::LocalIrqTerminal("producer fault"));}
+                        info!("Connection closed");break 'serve;
+                    }
+                    if p[0].revents & libc::POLLHUP!=0 && p[1].revents & libc::POLLIN!=0
+                    {return Err(Error::BarShmemTerminal("abandoned shared request"));}
+                    if p[0].revents & (libc::POLLERR|libc::POLLNVAL)!=0
+                        || p[1].revents & (libc::POLLERR|libc::POLLHUP|libc::POLLNVAL)!=0
+                    {return Err(Error::BarShmemTerminal("socket/eventfd hangup"));}
+                    if p[1].revents & libc::POLLIN !=0 {
+                        channel.serve(backend,&stream,session.phase==LocalIrqPhase::Active)
+                            .map_err(|_|Error::BarShmemTerminal("request/fence"))?;
+                        continue;
+                    }
+                    if p[0].revents & libc::POLLIN==0 {
+                        if p[0].revents & libc::POLLHUP!=0 {
+                            if session.terminal(){return Err(Error::LocalIrqTerminal("producer fault"));}
+                            info!("Connection closed");break 'serve;
+                        }
+                        return Err(Error::BarShmemTerminal("poll revents"));
+                    }
+                } else {
+                    idle_poll_header(&stream, mode).map_err(Error::StreamRead)?;
+                }
                 let Some((header, fds)) = receive_header(&mut stream)? else {
+                    if session.terminal(){return Err(Error::LocalIrqTerminal("producer fault"));}
                     info!("Connection closed");
                     break;
                 };
+                if header.command==Command::BarShmem as u16 && mode!=IdlePollMode::Off {
+                    return Err(Error::BarShmemTerminal("shared BAR incompatible with socket idle poll mode"));
+                }
                 if let Err(e) = self.handle_command(backend, &mut stream, header, fds, &mut session) {
                     error!("Error handling command: {:?}: {e}", header.command);
                     if session.phase == LocalIrqPhase::Prepared
                         || session.phase == LocalIrqPhase::Active
                         || header.command == Command::LocalIrq as u16
+                        || session.bar_shmem.is_some()
+                        || header.command == Command::BarShmem as u16
                         || matches!(e,Error::LocalIrqTerminal(_))
+                        || matches!(e,Error::BarShmemTerminal(_))
                     {return Err(e);}
                     let reply = Header {
                         message_id: header.message_id,
@@ -2462,6 +2621,7 @@ impl Server {
         if session.phase == LocalIrqPhase::Prepared || session.phase == LocalIrqPhase::Active {
             if let Some(p)=&session.producer {p.terminal();}
         }
+        if let Some(channel)=&session.bar_shmem {channel.terminal();}
         backend.local_irq_disconnected();
         result
     }
@@ -2516,6 +2676,7 @@ mod tests {
                 resettable: !expected,
                 regions: Vec::new(),
                 local_irq_negotiated: false,
+                bar_shmem_negotiated:false,bar_shmem:None,bar_shmem_faulted:false,
             };
             assert!(client.get_regions().unwrap().is_empty());
             assert_eq!(client.num_irqs, 2);
@@ -2929,15 +3090,18 @@ mod tests {
         just_committed: bool,
         fail_write: bool,
         disconnects: Arc<std::sync::atomic::AtomicU32>,
+        writes: Arc<std::sync::atomic::AtomicU32>,
     }
 
     impl LocalBackend {
         fn new(fail_write: bool, disconnects: Arc<std::sync::atomic::AtomicU32>) -> Self {
-            Self { producer:None,metadata:None,active:false,just_committed:false,fail_write,disconnects }
+            Self { producer:None,metadata:None,active:false,just_committed:false,fail_write,disconnects,
+                writes:Arc::new(AtomicU32::new(0)) }
         }
     }
 
     impl ServerBackend for LocalBackend {
+        fn bar_shmem_offer(&self)->bool {true}
         fn local_irq_offer(&self)->bool {true}
         fn local_irq_prepare(&mut self)->Result<local_irq::PreparedServer,std::io::Error>{
             let metadata=local_irq::Metadata::fresh(0,0xb81000,0xb82000,[0;8],1000,true)?;
@@ -2968,6 +3132,7 @@ mod tests {
         }
         fn region_read(&mut self,_:u32,_:u64,data:&mut[u8])->Result<(),std::io::Error>{data.fill(0x5a);Ok(())}
         fn region_write(&mut self,_:u32,_:u64,_:&[u8])->Result<(),std::io::Error>{
+            self.writes.fetch_add(1,Ordering::Relaxed);
             if self.fail_write {Err(std::io::ErrorKind::Other.into())}else{Ok(())}
         }
         fn dma_map(&mut self,_:DmaMapFlags,_:u64,_:u64,_:u64,_:Option<File>)->Result<(),std::io::Error>{Ok(())}
@@ -2988,7 +3153,7 @@ mod tests {
         let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
         let disconnects=Arc::new(AtomicU32::new(0));let seen=disconnects.clone();
         let worker=std::thread::spawn(move||server.run(&mut LocalBackend::new(false,seen)));
-        let mut client=Client::new_with_options(&path,ClientOptions{local_irq_required:true}).unwrap();
+        let mut client=Client::new_with_options(&path,ClientOptions{local_irq_required:true,..Default::default()}).unwrap();
         assert!(client.local_irq_negotiated());
         let prepared=client.local_irq_prepare().unwrap();
         assert_eq!(prepared.metadata.initial_ticket,0);
@@ -3000,8 +3165,82 @@ mod tests {
         assert_eq!(ticket,1,"backend fence publishes before RPC reply");
         assert_eq!(consumer.drain_through(ticket).unwrap()[0].kind,
             local_irq::RecordKind::Hints([7;8]));
-        drop(client);assert!(worker.join().unwrap().is_ok());
+        drop(client);let outcome=worker.join().unwrap();assert!(outcome.is_ok(),"{outcome:?}");
         assert_eq!(disconnects.load(Ordering::Relaxed),1);
+    }
+
+    #[test]
+    fn bar_shmem_real_server_repeated_writes_reset_and_shared_reads() {
+        let path=local_test_path("bar-shared");
+        let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
+        let mut backend=LocalBackend::new(false,Arc::new(AtomicU32::new(0)));
+        let writes=backend.writes.clone();
+        let worker=std::thread::spawn(move||server.run(&mut backend));
+        let mut client=Client::new_with_options(&path,ClientOptions{
+            local_irq_required:true,bar_shmem_required:true}).unwrap();
+        assert!(client.bar_shmem_negotiated());
+        let prepared=client.local_irq_prepare().unwrap();
+        client.local_irq_commit(prepared.metadata.token,prepared.metadata.epoch,0).unwrap();
+        client.bar_shmem_prepare().unwrap();
+        assert!(client.bar_shmem_uses(0,4,4));
+        assert!(!client.bar_shmem_uses(0,4094,4));
+        assert!(!client.bar_shmem_uses(1,4,4));
+        assert!(!client.bar_shmem_uses(0,4,3));
+        for _ in 0..3 {client.region_write(0,4,&[1,2,3,4]).unwrap();}
+        let mut read=[0;4];client.region_read(0,4,&mut read).unwrap();
+        assert_eq!(read,[0x5a;4]);
+        client.region_write(0,12,&[1,2,3]).unwrap(); // unsupported width uses socket before submission
+        let mut narrow=[0;3];client.region_read(0,12,&mut narrow).unwrap();
+        assert_eq!(narrow,[0x5a;3]);
+        client.reset().unwrap(); // socket command cannot overtake shared requests
+        client.region_read(0,4,&mut read).unwrap();
+        assert_eq!(read,[0x5a;4]);
+        assert_eq!(writes.load(Ordering::Relaxed),4);
+        drop(client);let outcome=worker.join().unwrap();assert!(outcome.is_ok(),"{outcome:?}");
+    }
+
+    #[test]
+    fn bar_shmem_backend_error_closes_without_socket_fallback() {
+        let path=local_test_path("bar-error");
+        let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
+        let worker=std::thread::spawn(move||server.run(&mut LocalBackend::new(true,Arc::new(AtomicU32::new(0)))));
+        let mut client=Client::new_with_options(&path,ClientOptions{
+            local_irq_required:true,bar_shmem_required:true}).unwrap();
+        let prepared=client.local_irq_prepare().unwrap();
+        client.local_irq_commit(prepared.metadata.token,prepared.metadata.epoch,0).unwrap();
+        client.bar_shmem_prepare().unwrap();
+        assert!(matches!(client.region_write(0,0,&[1]),Err(Error::BarShmemTerminal(_))));
+        assert!(matches!(client.region_read(0,0,&mut [0;4]),Err(Error::BarShmemTerminal(_))));
+        assert!(worker.join().unwrap().is_err());
+    }
+
+    #[test]
+    fn bar_shmem_prepare_rejects_wrong_fd_role_and_closes() {
+        let (stream,mut peer)=UnixStream::pair().unwrap();
+        let server=std::thread::spawn(move||{
+            let mut request=[0u8;32];peer.read_exact(&mut request).unwrap();
+            assert_eq!(&request[16..20],b"BSHM");
+            let prepared=bar_shmem::prepare(4096).unwrap();
+            let wrong=File::open("/dev/null").unwrap();
+            let reply=Header{message_id:u16::from_ne_bytes(request[..2].try_into().unwrap()),
+                command:Command::BarShmem as u16,flags:HeaderFlags::Reply as u32,
+                message_size:80,..Default::default()};
+            let mut bytes=Vec::from(reply.as_slice());bytes.extend_from_slice(&prepared.metadata.encode());
+            assert_eq!(peer.send_with_fds(&[bytes.as_slice()],&[prepared.page_fd.as_raw_fd(),
+                prepared.request_fd.as_raw_fd(),wrong.as_raw_fd()]).unwrap(),bytes.len());
+        });
+        let mut client=Client{stream,next_message_id:Wrapping(0),num_irqs:0,resettable:false,
+            regions:vec![Region{flags:0,index:0,size:4096,file_offset:None,sparse_areas:Vec::new()}],
+            local_irq_negotiated:true,bar_shmem_negotiated:true,bar_shmem:None,bar_shmem_faulted:false};
+        assert!(matches!(client.bar_shmem_prepare(),Err(Error::InvalidReply(Command::BarShmem,"prepare descriptors"))));
+        assert!(client.bar_shmem_faulted);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn bar_shmem_requires_local_irq_before_connecting() {
+        assert!(matches!(Client::new_with_options(Path::new("/no-such-vfio-user-socket"),
+            ClientOptions{bar_shmem_required:true,..Default::default()}),Err(Error::UnsupportedFeature)));
     }
 
     #[test]
@@ -3009,7 +3248,7 @@ mod tests {
         let path=local_test_path("generic");
         let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
         let worker=std::thread::spawn(move||server.run(&mut NullBackend));
-        assert!(matches!(Client::new_with_options(&path,ClientOptions{local_irq_required:true}),
+        assert!(matches!(Client::new_with_options(&path,ClientOptions{local_irq_required:true,..Default::default()}),
             Err(Error::UnsupportedFeature)));
         assert!(worker.join().unwrap().is_ok());
 
@@ -3018,6 +3257,7 @@ mod tests {
         let worker=std::thread::spawn(move||server.run(&mut LocalBackend::new(false,Arc::new(AtomicU32::new(0)))));
         let client=Client::new(&path).unwrap();
         assert!(!client.local_irq_negotiated());
+        assert!(!client.bar_shmem_negotiated());
         drop(client);assert!(worker.join().unwrap().is_ok());
     }
 
@@ -3027,7 +3267,7 @@ mod tests {
         let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
         let disconnects=Arc::new(AtomicU32::new(0));let seen=disconnects.clone();
         let worker=std::thread::spawn(move||server.run(&mut LocalBackend::new(true,seen)));
-        let mut client=Client::new_with_options(&path,ClientOptions{local_irq_required:true}).unwrap();
+        let mut client=Client::new_with_options(&path,ClientOptions{local_irq_required:true,..Default::default()}).unwrap();
         let prepared=client.local_irq_prepare().unwrap();
         client.local_irq_commit(prepared.metadata.token,prepared.metadata.epoch,0).unwrap();
         assert!(client.region_write(0,0,&[1]).is_err());
@@ -3056,7 +3296,8 @@ mod tests {
                 }
             });
             let mut client=Client{stream,next_message_id:Wrapping(0),num_irqs:0,
-                resettable:false,regions:Vec::new(),local_irq_negotiated:true};
+                resettable:false,regions:Vec::new(),local_irq_negotiated:true,
+                bar_shmem_negotiated:false,bar_shmem:None,bar_shmem_faulted:false};
             let result=client.local_irq_prepare();
             if error {assert!(matches!(result,Err(Error::ErrorReply{command:Command::LocalIrq,errno}) if errno==EINVAL as u32));}
             else {assert!(matches!(result,Err(Error::InvalidReply(Command::LocalIrq,"prepare size or FD count"))));}
@@ -3396,6 +3637,7 @@ mod tests {
             resettable: false,
             regions: Vec::new(),
             local_irq_negotiated: false,
+            bar_shmem_negotiated:false,bar_shmem:None,bar_shmem_faulted:false,
         };
         let fake = std::thread::spawn(move || {
             let error_reply = |peer: &mut UnixStream, raw: &[u8]| {
