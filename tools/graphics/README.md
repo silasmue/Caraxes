@@ -31,3 +31,23 @@ failure bound. A 120-second maximum alarm and internal deadline bound the
 process, while an external harness should also apply its own timeout. One run
 does not establish sustained FPS, physical DRAM bandwidth, clock equivalence,
 or a depth-rendering result.
+
+## Offline Nsight GPU-metrics summary
+
+Export an owned Nsight Systems report to SQLite, then summarize it without
+modifying the export:
+
+```sh
+nsys export --type=sqlite --output=/absolute/capture.sqlite /absolute/capture.nsys-rep
+python3 tools/graphics/nsys-metrics-summary.py /absolute/capture.sqlite > /absolute/summary.json
+```
+
+`--device-index 0` is the default; `--start-ns` and `--end-ns` select inclusive
+Nsight event timestamps. The analyzer requires an unambiguous device and metric
+group, joins on both `typeId` and `metricId`, and checks the captured metric-set
+definition in `StringIds` before reporting any values. It applies each embedded
+submetric multiplier, including TU10x clock MHz and graphics PCIe GB/s, while
+keeping NVIDIA's original metric names and units. Missing or ambiguous unit
+definitions fail the analysis. JSON includes sample cadence, gaps, invalid-value
+counts, coverage and diagnostics. These counters cover the whole physical GPU;
+the summary does not attribute activity to a guest or subtract an idle baseline.

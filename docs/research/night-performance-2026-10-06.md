@@ -145,3 +145,8 @@ Raw archives and logs contain private machine data and remain local.
 The subsequent [host-control worker comparison](host-control-worker-2026-10-06.md)
 records cheaper GSP HEAD writes, increased guest polling and essentially unchanged
 Fire Strike GT results. The worker remains experimental and off by default.
+
+The later [GPU workload attribution](gpu-workload-attribution-2026-10-06.md)
+records a clean high-activity hardware-counter window with low SM instruction
+issue, original Windows workload probes and Linux compute controls. It also
+documents focus-loss and host-resource aborts; no FPS gain is accepted.
