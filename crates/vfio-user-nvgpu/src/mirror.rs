@@ -996,6 +996,28 @@ struct HostTsg {
     preempt: TsgPreempt,
 }
 
+/// Change only the guest ownership key; the host objects and their handles stay live.
+fn rekey_host_vas(
+    vas: &mut BTreeMap<(u32, u32), HostVas>,
+    tsgs: &mut BTreeMap<TsgKey, HostTsg>,
+    old: (u32, u32),
+    heir: (u32, u32),
+) -> bool {
+    // A live DUP resolves to `old`, so `heir` cannot have its own host mirror.
+    assert!(!vas.contains_key(&heir), "DUP heir already owns a host VAS");
+    let moved = if let Some(host) = vas.remove(&old) {
+        vas.insert(heir, host);
+        true
+    } else {
+        false
+    };
+    // Shadow TSGs record the guest VAS key too, even without a raw HostVas.
+    for tsg in tsgs.values_mut().filter(|t| t.vas == old) {
+        tsg.vas = heir;
+    }
+    moved
+}
+
 /// What the build check of a host GR TSG found and did (preempt.rs).
 #[derive(Clone, Copy, Debug, Default)]
 struct TsgPreempt {
@@ -6882,6 +6904,36 @@ impl Mirror {
         }
     }
 
+    /// Move the mirror's ownership spelling with the registry's surviving DUP handle.
+    /// Host handles and shadow-root membership stay in place: RM still owns the same
+    /// objects, and only the guest's name for their VAS has changed.
+    fn rehome_vas_for_free(
+        &mut self,
+        reg: &Registry,
+        h_client: u32,
+        h_object: u32,
+        notes: &mut Vec<String>,
+    ) {
+        for (old, heirs) in reg.vas_rehomes_for_free(h_client, h_object) {
+            let heir = heirs[0];
+            // The boot path already settles these before FREE. Settle here as well so
+            // a direct mirror free cannot leave a late build carrying the old key.
+            let building: Vec<_> = self.builds.iter()
+                .filter(|(_, b)| b.vas_key == old)
+                .map(|(chid, _)| *chid)
+                .collect();
+            for chid in building {
+                self.settle_build(chid, notes);
+            }
+            if rekey_host_vas(&mut self.vas, &mut self.tsgs, old, heir) {
+                notes.push(format!(
+                    "vaspace {:#x}/{:#x}: host VAS retained under surviving DUP {:#x}/{:#x} [host]",
+                    old.0, old.1, heir.0, heir.1
+                ));
+            }
+        }
+    }
+
     /// The guest freed `h_object` of `h_client` (or the client itself): free the host
     /// mirrors that stood for it, channels before TSGs before VA spaces. The set-B ranges
     /// of a freed guest channel whose host TSG outlives this free stay out of set A until
@@ -6919,6 +6971,7 @@ impl Mirror {
     /// [`Mirror::free_object`] without the set-B holds.
     fn free_host_objects(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
         let mut notes = Vec::new();
+        self.rehome_vas_for_free(reg, h_client, h_object, &mut notes);
         if let Some((chid, generation, class, _)) = reg.engine_object(h_client, h_object) {
             if self.video_pending.get(&chid).is_some_and(|(handle, _, _)| *handle == h_object) {
                 self.video_pending.remove(&chid);
@@ -8717,6 +8770,65 @@ mod tests {
         assert!(reg.record_free(0xb4, 0xb4).is_empty());
         assert_eq!(reg.vas_root((0xb4, 0xbeef_0300)), None);
         assert!(exclusions_of(&reg, ROOT, size).is_empty());
+    }
+
+    #[test]
+    fn host_vas_and_tsg_follow_surviving_dup_until_last_client_frees() {
+        const ROOT: u64 = 0x1_3567_7000;
+        const OWNER: (u32, u32) = (0xb1, 0x3);
+        const FIRST_HEIR: (u32, u32) = (0xb3, 0xbfef_0001);
+        const LAST_HEIR: (u32, u32) = (0xb4, 0xbeef_0300);
+        let key = TsgKey::Grp(10);
+        // Both freeing the owner's VAS handle and freeing its whole client must
+        // leave the other client's already-built host channel dependencies live.
+        for (freed_object, shadow_only) in [OWNER.1, OWNER.0]
+            .into_iter()
+            .flat_map(|object| [(object, false), (object, true)])
+        {
+            let (mut reg, chid) = dup_vas_world(ROOT);
+            let mut vas = if shadow_only {
+                BTreeMap::new()
+            } else {
+                BTreeMap::from([(OWNER, HostVas { handle: 0x71, root: ROOT })])
+            };
+            let mut tsgs = BTreeMap::from([(key, HostTsg {
+                handle: 0x72,
+                vas: OWNER,
+                engine: 1,
+                guest: (0xb4, 0x30),
+                gfxp: None,
+                preempt: TsgPreempt::default(),
+            })]);
+            let plan = reg.vas_rehomes_for_free(OWNER.0, freed_object);
+            assert_eq!(plan, vec![(OWNER, vec![FIRST_HEIR, LAST_HEIR])]);
+            assert_eq!(rekey_host_vas(&mut vas, &mut tsgs, OWNER, plan[0].1[0]), !shadow_only);
+            reg.record_free(OWNER.0, freed_object);
+            assert_eq!(reg.vas_key_of(reg.channel(chid).unwrap()), Some(FIRST_HEIR));
+            assert!(!vas.contains_key(&OWNER));
+            assert_eq!(vas.get(&FIRST_HEIR).map(|v| v.handle), (!shadow_only).then_some(0x71));
+            assert_eq!(tsgs.get(&key).unwrap().vas, FIRST_HEIR);
+            assert_eq!(tsgs.get(&key).unwrap().handle, 0x72);
+            // The production client-free scan must no longer choose the old owner.
+            assert_eq!(vas.keys().filter(|k| k.0 == OWNER.0).count(), 0);
+            assert_eq!(tsgs.values().filter(|t| t.vas == OWNER).count(), 0);
+
+            let plan = reg.vas_rehomes_for_free(FIRST_HEIR.0, FIRST_HEIR.0);
+            assert_eq!(plan, vec![(FIRST_HEIR, vec![LAST_HEIR])]);
+            assert_eq!(rekey_host_vas(&mut vas, &mut tsgs, FIRST_HEIR, plan[0].1[0]), !shadow_only);
+            reg.record_free(FIRST_HEIR.0, FIRST_HEIR.0);
+            assert_eq!(reg.vas_key_of(reg.channel(chid).unwrap()), Some(LAST_HEIR));
+            assert_eq!(vas.get(&LAST_HEIR).map(|v| v.handle), (!shadow_only).then_some(0x71));
+            assert_eq!(tsgs.get(&key).unwrap().vas, LAST_HEIR);
+            assert_eq!(vas.keys().filter(|k| k.0 == FIRST_HEIR.0).count(), 0);
+            assert_eq!(tsgs.values().filter(|t| t.vas == FIRST_HEIR).count(), 0);
+
+            // With no DUP heir, the final client's ordinary teardown must see
+            // the host VAS and TSG under its own key and release them.
+            assert!(reg.vas_rehomes_for_free(LAST_HEIR.0, LAST_HEIR.0).is_empty());
+            assert_eq!(vas.keys().filter(|k| k.0 == LAST_HEIR.0).count(), usize::from(!shadow_only));
+            assert_eq!(tsgs.get(&key).unwrap().vas, LAST_HEIR);
+            assert_eq!(tsgs.values().filter(|t| t.guest.0 == LAST_HEIR.0).count(), 1);
+        }
     }
 
     /// The owner freed last (the channels' client first): the behaviour before the re-home.

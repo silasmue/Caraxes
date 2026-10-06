@@ -1987,21 +1987,10 @@ impl Registry {
     /// shadow re-sync mapped over the host's GR context (31 refused fixed VA allocations per
     /// teardown; docs/research/va-alloc-bursts-2026-09-26.md).
     fn rehome_duplicated_vas(&mut self, h_client: u32, h_object: u32) -> Vec<String> {
-        let all = h_client == h_object;
-        let freed = |k: &(u32, u32)| k.0 == h_client && (all || k.1 == h_object);
-        let owners: Vec<(u32, u32)> = self.vaspaces.keys().copied().filter(freed).collect();
+        let rehomes = self.vas_rehomes_for_free(h_client, h_object);
         let mut notes = Vec::new();
-        for old in owners {
-            // `record_dup` stores the resolved source, so an alias names its VAS directly.
-            let heirs: Vec<(u32, u32)> = self
-                .aliases
-                .iter()
-                .filter(|(d, s)| **s == old && !freed(d))
-                .map(|(d, _)| *d)
-                .collect();
-            let Some(&heir) = heirs.first() else {
-                continue;
-            };
+        for (old, heirs) in rehomes {
+            let heir = heirs[0];
             self.set_b_changed();
             self.aliases.remove(&heir);
             for d in &heirs[1..] {
@@ -2038,6 +2027,32 @@ impl Registry {
             ));
         }
         notes
+    }
+
+    /// The surviving DUP handles that keep each freed VAS alive. The mirror and registry
+    /// must choose the same first heir before either changes its ownership keys.
+    pub(crate) fn vas_rehomes_for_free(
+        &self,
+        h_client: u32,
+        h_object: u32,
+    ) -> Vec<((u32, u32), Vec<(u32, u32)>)> {
+        let all = h_client == h_object;
+        let freed = |k: &(u32, u32)| k.0 == h_client && (all || k.1 == h_object);
+        self.vaspaces
+            .keys()
+            .copied()
+            .filter(freed)
+            .filter_map(|old| {
+                // `record_dup` stores the resolved source, so an alias names its VAS directly.
+                let heirs: Vec<_> = self
+                    .aliases
+                    .iter()
+                    .filter(|(d, s)| **s == old && !freed(d))
+                    .map(|(d, _)| *d)
+                    .collect();
+                (!heirs.is_empty()).then_some((old, heirs))
+            })
+            .collect()
     }
 
     /// The ChID of guest channel `(h_client, h_channel)`, if recorded.

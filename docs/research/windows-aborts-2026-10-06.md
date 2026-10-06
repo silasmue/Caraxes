@@ -22,7 +22,41 @@ not establish a GPU compatibility fix or a performance gain.
   application crash or display reset; that does not prove a normal process exit.
 
 See [the overnight investigation](night-performance-2026-10-06.md) for the memory
-fix and earlier controls. The immutable backend and VMM remain unchanged here.
+fix and earlier controls. C178–C181 use the same immutable backend and VMM.
+
+## VAS lifecycle fix
+
+- Before this change, freeing a VAS owner could delete mirrored TSGs and channels
+  that another client still used through a DUP alias. The registry then retained
+  that alias, leaving the registry and mirror inconsistent.
+- The mirror now uses the registry's deterministic surviving-handle plan before
+  teardown. It retains host handles and changes their guest ownership key, also
+  updating shadow-only TSGs that have no raw host VAS. Pending builds settle first.
+- The regression covers both owner-handle and whole-client FREE, raw and
+  shadow-only state, two successive surviving clients, and final-owner teardown
+  selection. It exercises production planning and mirror map updates without
+  GPU RM calls. The full suite passes: 928 unit tests, one ignored test and two
+  integration tests. The release build passes.
+- The destructive path requires a raw host VAS. Current Windows zero-based
+  compressed FB normally uses shadow-only state, where the old code left stale
+  ownership keys instead. Neither path is established as the cause of C174/C175.
+- A separate edge remains: freeing a VAS handle while an original-owner channel
+  still references it can leave that channel with an unresolved registry key.
+  This change does not qualify that lifecycle or host-RM free-failure recovery.
+
+## Slow startup
+
+- C181 observes the 3DMark root process about two seconds after Steam and its JVM
+  about six seconds after Steam. Window readiness takes 75.146 seconds, leaving
+  about 69 seconds after the JVM starts. The first window still has a blank body;
+  this is not complete UI readiness.
+- A SystemInfo scanner overlaps that interval for about 41 seconds and exits 0.
+  SystemInfo is a profiling candidate, not an established cause. WMI timestamps
+  have the provider-event limitation described below.
+- Independent D3D11 device creation takes 584 ms in C180 and 792 ms in C181.
+  That fixture does not explain the application delay or exclude slower
+  application-specific GPU queries. VM boot latency has not been measured with
+  an early readiness poll.
 
 ## Diagnostic changes
 
@@ -95,10 +129,8 @@ archives and process metadata contain private machine data and remain local.
 
 ## Next steps
 
-- Fix the independently found cross-client VAS teardown bug. Freeing a VAS owner
-  currently drops dependent mirrored TSGs/channels before the registry rehomes
-  surviving DUP aliases. Add coverage for mirrored state, not only the registry.
-  Its connection to the earlier no-`READY` failure is unproven.
+- Qualify the VAS fix on hardware without claiming it resolves the earlier
+  no-`READY` failure. Profile application startup separately from scored runs.
 - Repeat with SystemInfo monitoring on. Require four matching primary results,
   compatible child start/stop instances, post-health and clean teardown.
 - On a reproduced failure, retain current child exit status, product log,
