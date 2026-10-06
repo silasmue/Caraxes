@@ -284,10 +284,12 @@ pub const TOKEN_VECTOR_BITS: u32 = 12;
 pub const TOKEN_RUNLIST_SHIFT: u32 = 16;
 pub const TOKEN_RUNLIST_MAX: u32 = 0x7F;
 
-/// ChIDs per runlist in the automatic set: the Windows KMD and its applications used ChIDs up
-/// to 37 (the ring census of doorbell-token-pool.md (g)); ChIDs are one space for all
-/// runlists on Turing, so a guest with more live channels than this has its higher ones trap.
+/// Base ChIDs per runlist in the automatic set, limited by the reported channel count: the
+/// Windows KMD and its applications used ChIDs up to 37 (doorbell-token-pool.md (g)). Select
+/// runlists at this width so spare eventfds never displace an engine.
 pub const AUTO_CHIDS: u32 = 48;
+/// Small margin covering measured ChID 48 when the selected runlists and FD budget allow it.
+const AUTO_CHIDS_MAX: u32 = 50;
 
 /// The guest token of `chid` on `runlist` (kfifoGenerateWorkSubmitTokenHal_TU102,
 /// kernel_fifo_tu102.c:75-130).
@@ -311,11 +313,12 @@ impl GuestTokens {
     /// The automatic set from the device-info table the device presents: the graphics
     /// engine's runlist and the lowest async copy runlist interleaved first, then the
     /// video encoders', the other copy runlists and the video decoders', as many as
-    /// `budget` eventfds allow at `chids` ChIDs each (at most `AUTO_CHIDS`). Engines that
-    /// are not host-driven, SEC2, NVJPG and OFA get none. `engines`: (name, runlist,
-    /// host_driven) of each entry.
+    /// `budget` eventfds allow at `AUTO_CHIDS` ChIDs each, then extend those same runlists
+    /// toward `AUTO_CHIDS_MAX` if spare eventfds and the reported channel count allow it.
+    /// Engines that are not host-driven, SEC2, NVJPG and OFA get none. `engines`:
+    /// (name, runlist, host_driven) of each entry.
     pub fn auto(engines: &[(&str, u32, bool)], chids: u32, budget: usize) -> Option<Self> {
-        let chids = chids.min(AUTO_CHIDS);
+        let base_chids = chids.min(AUTO_CHIDS);
         let rls = |prefix: &str| {
             let mut v: Vec<u32> = engines
                 .iter()
@@ -336,14 +339,18 @@ impl GuestTokens {
                 rest.push(r);
             }
         }
-        if chids == 0 {
+        if base_chids == 0 {
             return None;
         }
-        let fit = budget / chids as usize;
+        let fit = budget / base_chids as usize;
         if fit < hot.len() {
             return None;
         }
         rest.truncate(fit - hot.len());
+        // The base-width selection is final. Spend only its spare budget on higher ChIDs;
+        // do not recompute the runlist set at the wider width.
+        let chids = (budget / (hot.len() + rest.len()))
+            .min(chids.min(AUTO_CHIDS_MAX) as usize) as u32;
         let t = GuestTokens { hot, rest, chids };
         t.check().ok()?;
         Some(t)
@@ -494,7 +501,7 @@ mod tests {
 
     /// The automatic set from TU106's device-info table (chips/tu106/device-info.toml):
     /// GR (0) and CE2 (1) interleaved, then NVENC (7), CE3 (2), CE4 (3); the NVDECs do not
-    /// fit 253 eventfds at 48 ChIDs. With the pool's 64 fewer, only NVENC follows.
+    /// fit 253 eventfds at the base 48 ChIDs. With the pool's 64 fewer, only NVENC follows.
     #[test]
     fn automatic_guest_tokens_on_tu106() {
         use super::GuestTokens;
@@ -504,14 +511,54 @@ mod tests {
             ("nvdec2", 6, true), ("nvenc0", 7, true), ("sec2", 8, true), ("sw", 0, false),
         ];
         let t = GuestTokens::auto(&engines, 512, 252).unwrap();
-        assert_eq!((t.hot.clone(), t.rest.clone(), t.chids, t.len()), (vec![0, 1], vec![7, 2, 3], 48, 240));
+        assert_eq!((t.hot.clone(), t.rest.clone(), t.chids, t.len()), (vec![0, 1], vec![7, 2, 3], 50, 250));
         let v = t.values();
         assert_eq!(&v[..4], &[0x0, 0x10000, 0x1, 0x10001]);
         assert_eq!(v.iter().position(|&x| x == 0x1000f), Some(31), "the KMD's paging CE");
         assert_eq!(v.iter().position(|&x| x == 0x1a), Some(52), "a GR channel");
-        assert_eq!(v.iter().position(|&x| x == 0x70024), Some(132), "NVENC");
+        assert_eq!(v.iter().position(|&x| x == 0x70024), Some(136), "NVENC");
+        assert!(v.contains(&0x30), "runlist 0, ChID 48");
+        assert!(!v.contains(&0x32), "ChID 50 stays trapped");
+        let t = GuestTokens::auto(&engines, 512, 251).unwrap();
+        assert_eq!((t.runlists(), t.chids, t.len()), (vec![0, 1, 7, 2, 3], 50, 250));
         let t = GuestTokens::auto(&engines, 512, 253 - 64 - 2).unwrap();
-        assert_eq!(t.runlists(), vec![0, 1, 7]);
+        assert_eq!((t.runlists(), t.chids, t.len()), (vec![0, 1, 7], 50, 150));
+        assert!(t.values().contains(&0x30));
         assert!(GuestTokens::auto(&engines, 512, 50).is_none());
+
+        // Four runlists fit at the base width throughout this boundary. Extend to 49
+        // where possible; never drop the fourth runlist to obtain ChID 48.
+        for budget in 192..=199 {
+            let t = GuestTokens::auto(&engines, 512, budget).unwrap();
+            assert_eq!(t.runlists(), vec![0, 1, 7, 2], "budget {budget}");
+            assert_eq!(t.chids, if budget < 196 { 48 } else { 49 });
+            assert_eq!(t.values().contains(&0x30), budget >= 196);
+            assert!(t.len() <= budget);
+        }
+        let t = GuestTokens::auto(&engines, 512, 200).unwrap();
+        assert_eq!((t.runlists(), t.chids, t.len()), (vec![0, 1, 7, 2], 50, 200));
+        for (reported, runlists) in [(37, vec![0, 1, 7, 2, 3, 4]), (48, vec![0, 1, 7, 2, 3])] {
+            let t = GuestTokens::auto(&engines, reported, 253).unwrap();
+            assert_eq!(t.runlists(), runlists);
+            assert_eq!(t.chids, reported);
+            assert!(!t.values().contains(&0x30));
+        }
+        let t = GuestTokens::auto(&engines, 49, 253).unwrap();
+        assert_eq!((t.runlists(), t.chids), (vec![0, 1, 7, 2, 3], 49));
+        assert!(t.values().contains(&0x30));
+        assert!(!t.values().contains(&0x31));
+        // Every possible one-message budget retains exactly the runlists the 48-wide
+        // selection would have chosen, and never declares more eventfds than allotted.
+        let order = [0, 1, 7, 2, 3, 4, 5, 6];
+        for budget in 0..=super::MAX_TOKENS {
+            let t = GuestTokens::auto(&engines, 512, budget);
+            if budget < 2 * super::AUTO_CHIDS as usize {
+                assert!(t.is_none(), "budget {budget}");
+            } else {
+                let t = t.unwrap();
+                assert_eq!(t.runlists(), order[..budget / super::AUTO_CHIDS as usize], "budget {budget}");
+                assert!(t.len() <= budget, "budget {budget}");
+            }
+        }
     }
 }

@@ -57,6 +57,42 @@ fix and earlier controls. C178–C181 use the same immutable backend and VMM.
   That fixture does not explain the application delay or exclude slower
   application-specific GPU queries. VM boot latency has not been measured with
   an early readiness poll.
+- C182 measures the first successful SSH response 23.6 seconds after the owned
+  launcher starts. The VAS candidate renders three D3D11 readbacks; device
+  creation takes 983 ms. Its 3DMark window appears after 54.966 seconds, with a
+  later screenshot confirming loaded Home controls. The longest SystemInfo
+  scanner overlaps startup for about 26 seconds and exits 0. These timings do
+  not establish a speed gain across different sessions and instrumentation.
+- A 69.8-second profile bracket around that application start counts 786,206
+  trapped register accesses: 186,491 ordinary accesses, 329,326 routed interrupt
+  tree writes, 262,377 display-status reads and 8,012 display-status writes.
+  Whole-device counts include desktop/background clients. RPC service sums to
+  2.05 seconds; power control `0x2080a613` takes 1.49 seconds over 360 replies.
+  Nested RPC/control/host/access times overlap and must not be added.
+- The automatic guest-token set covers ChIDs 0–47. Runlist 0 / ChID 48 accounts
+  for 52,133 trapped doorbells in this bracket. Those writes fall outside the
+  eventfd set. The full doorbell access row has 52,178 writes, 592 ms of service
+  and 7.68 seconds of interval attribution. Extending coverage must preserve the
+  single-reply FD budget and the previously covered engine/runlist set.
+- Ordinary accesses have 21.85 seconds of `gap_ns` attribution. These are short
+  end-to-end intervals between completed accesses, including current service,
+  guest work, transport and scheduling. They are not exclusive trap overhead;
+  routed accesses have no such interval measurement. The many traps are a
+  concrete optimization target, not a complete explanation of the startup wait.
+- C182's process collector stops cleanly with 480 records and task exit 0.
+  Post-health remains Problem 0 with no Display 4101; owned processes stop,
+  NVIDIA remains bound and the host has no new Xid. No scored benchmark or
+  dedicated cross-client DUP hardware trigger is exercised.
+- The token fix first selects the old 48-wide runlist set, then spends its spare
+  FD budget on ChIDs 48 and 49 where the reported channel count permits. Tight
+  budgets retain their old engine coverage. Tests cover every one-message
+  budget, partial extension to 49, and lower reported counts. Focused tests,
+  the full suite and the release build pass; hardware qualification follows.
+- C183 stops before its D3D fixture or benchmark: a CPU-only Nix QEMU 10.1.5
+  test VM appears while the packet admits only 10.2.4. This is a runtime
+  admission stop, not a Windows workload abort. Its GPU processes stop normally;
+  the unrelated test VMs remain untouched. A fresh packet pins both reviewed
+  executables and still excludes GPU, guest-image and tap conflicts.
 
 ## Diagnostic changes
 
@@ -131,6 +167,8 @@ archives and process metadata contain private machine data and remain local.
 
 - Qualify the VAS fix on hardware without claiming it resolves the earlier
   no-`READY` failure. Profile application startup separately from scored runs.
+- Qualify the extended doorbell-token coverage. Profile the same start/idle
+  phases before interpreting a score.
 - Repeat with SystemInfo monitoring on. Require four matching primary results,
   compatible child start/stop instances, post-health and clean teardown.
 - On a reproduced failure, retain current child exit status, product log,
