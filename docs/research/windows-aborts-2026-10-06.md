@@ -400,3 +400,48 @@ Artifacts are under `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04`:
 `C192-phase-review.json`, `C193-vfio-poll-build-checks.json`,
 `C193-latency-idle-spin.json`, `C193-idle-cpu.json`, `C193-root-closeout.json`
 and `C193-cache-relocation.json`.
+
+## Parallel trap reduction candidates
+
+- `b53f534e` adds `CARAXES_GUEST_TOKEN_EXTRAS=runlist:chid,...` (decimal;
+  unset or `0` keeps the previous offer). Sparse datamatches consume only spare
+  FDs after the unchanged automatic token list. Pool, MSI-rearm and RPC-head
+  reservations still share the 253-FD limit. Malformed fields, unselected
+  runlists and out-of-range ChIDs fail before host allocation. With the C192
+  settings, `0:55,2:56` fits behind all 250 base tokens. Excess valid requests
+  remain trapped and the log lists the actual additions. A mapped usermode
+  doorbell is incompatible. Default coverage and guest token values are unchanged.
+- Guest-token readers resolve a wake against the current BootModel. No explicit
+  reconnect-epoch discard of queued counts was found. This is a pre-existing
+  limitation of all static guest-token eventfds; reset/channel reuse needs its
+  own qualification before claiming stale-wake isolation across reconnect.
+- `031b435c` adds an inactive exact read-only window USERD page builder. Every
+  dword, including holes and assembly/ARMED state, matches the ordinary display
+  model; all 32 eligible pages and a real window-4 pushbuffer update are tested.
+  Only emulated per-guest state is published. Every write must stay trapped.
+  The time-dependent core scan-line page is excluded. No runtime mapping or
+  refresh call-site is added.
+- The display release probe measures about 45.5 us per full-page refresh and
+  43 ns per one-word publication. It is a local model probe, not a production
+  hot-path benchmark. A full scan after every PUT could erase the savings from
+  mapped reads; use it only for initialization/reset. Activation requires an
+  audit and incremental publication at every channel-state mutation, under the
+  current display owner, before write/control completion.
+- In the separate VMM tree, `4dfa2bc66` adds an inactive exact IRQ core. Ten
+  standalone tests pass; thirteen tests with the actual backend oracle compare
+  4,000 ordered transitions, every page word and MSI count. Byte lanes, repeated
+  SET, ACK-again, TOP masking, hints, watchdog, availability and reset are covered.
+  It is not registered in the VMM runtime and removes no traps yet.
+- IRQ activation still needs negotiated single ownership, reliable cause
+  transport, read-only page/MSI adapters and reset/BAR lifecycle handling.
+  Preserve host pending-bitset drain grouping: splitting two raises into two
+  folds can create an extra ACK-again MSI. Initial activation is restricted to
+  fresh exact reset; importing live tagged state is unimplemented. A transport
+  fault must stop the device, without falling back to another mutable tree.
+- Stable backend validation passes 936 library, two parser and two integration
+  tests, with one ignored; release build and whitespace checks pass. AST graph
+  update completes with the existing header parse warnings. The display and
+  local IRQ candidates remain inactive during sparse-token hardware qualification.
+
+Private evidence: `C194-build-checks.json`, `C194-graphify-update.log` and
+`local-irq-foundation-2026-10-06/metadata.json` in the Windows artifact directory.
