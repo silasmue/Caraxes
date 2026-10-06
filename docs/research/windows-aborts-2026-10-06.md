@@ -148,6 +148,33 @@ fix and earlier controls. C178–C181 use the same immutable backend and VMM.
   mapping means a local VMM handler would still take the KVM exit, but could
   remove the socket round trip. Measure mutex wait and transport latency apart
   from backend register service before choosing that larger change.
+- C189 measures that wrapper with an opt-in diagnostic VMM built from
+  `b675232c1`. All 34 PCI tests, PCI library clippy and the release build pass.
+  The diagnostic adds timestamps and bounded histograms; normal operation keeps
+  the original call path. Earlier read-only mapping and BAR-move behavior stays.
+- Its 75.9-second startup bracket has 408,410 backend interrupt writes and
+  2.715 seconds of register service. Nearby VMM snapshots contain 403,123 writes,
+  13.606 seconds of synchronous request time and 0.024 seconds of mutex wait:
+  means 33.75 and 0.060 microseconds per write. Request median falls in 16–32 us,
+  p95 in 32–64 us. The wrapper excludes the KVM exit and preceding PCI bus path.
+  Requests include socket transport, backend work and scheduling, not just CPU
+  service. Snapshot endpoints differ by 0.50 and 1.14 seconds; do not subtract
+  the two timings as an exact transport cost.
+- Passive desktop idle still has 3,863 interrupt writes per second over 70.9
+  seconds. Nearby VMM samples average 24.57 us per request and 0.053 us of mutex
+  wait. Display-status read traps remain zero. The client lock is not the main
+  wait in these windows. This supports removing the synchronous hop from the
+  interrupt path; it does not explain the complete launcher delay or predict FPS.
+- C189 reaches a 3DMark window in 53.128 seconds, verifies three D3D11 readbacks
+  and loaded Home controls, and passes pre/post health and teardown with NVIDIA
+  bound and no new Xid. The host load differs from C188; no speed gain is inferred.
+  Process collection and benchmark recording are off for this timing run.
+- Physical non-stall events are engine-wide and include host clients. The existing
+  `CARAXES_INTR_GATE_MS` delays and combines these hints outside its recent-host-
+  doorbell window, retaining every held vector and bypassing RC events. C190 tests
+  a 1 ms hold and 10 ms hot window on unchanged C189 binaries. Guest interrupt
+  register writes remain ordered. This is an experiment, not a default: a long
+  kernel can complete outside the hot window and incur extra wake latency.
 - Standard ioeventfds carry counts for an offset and optional fixed data match,
   not arbitrary register masks and ordering. This VMM refuses `ioregionfd` and
   disallows ioeventfd areas overlapping its mapped pages. Neither is a ready
