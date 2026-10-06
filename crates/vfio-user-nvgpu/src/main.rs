@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use anyhow::{bail, Context, Result};
 use nvrm_abi::naming::{self, NameFormat};
-use vfio_user::Server;
+use vfio_user::{IdlePollMode, Server};
 use vfio_user_nvgpu::bar0::Bar0;
 use vfio_user_nvgpu::board::{Board, BOARDS};
 use vfio_user_nvgpu::boot::BootModel;
@@ -162,6 +162,67 @@ fn describe_guest_abi(pin: Option<ver::GuestAbi>) -> String {
     match pin {
         Some(g) => format!("{g}, pinned (--guest-abi)"),
         None => "chosen by the guest (570, 610 or 615; 610 until its GSP boot shows it)".to_string(),
+    }
+}
+
+const VFIO_IDLE_POLL_ENV: &str = "CARAXES_VFIO_IDLE_POLL";
+
+fn parse_vfio_idle_poll(value: Option<&str>) -> std::result::Result<IdlePollMode, String> {
+    match value {
+        None | Some("0") => Ok(IdlePollMode::Off),
+        Some("spin") => Ok(IdlePollMode::Spin),
+        Some(v) if v.starts_with("hybrid:") => {
+            let us = &v["hybrid:".len()..];
+            if us.is_empty() || !us.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(format!("{VFIO_IDLE_POLL_ENV}={v:?}: expected hybrid:1..1000"));
+            }
+            match us.parse::<u64>() {
+                Ok(n @ 1..=1000) => Ok(IdlePollMode::Hybrid(std::time::Duration::from_micros(n))),
+                _ => Err(format!("{VFIO_IDLE_POLL_ENV}={v:?}: expected hybrid:1..1000")),
+            }
+        }
+        Some(v) => Err(format!(
+            "{VFIO_IDLE_POLL_ENV}={v:?}: expected 0, hybrid:1..1000, or spin"
+        )),
+    }
+}
+
+fn requested_vfio_idle_poll() -> Result<IdlePollMode> {
+    let value = match std::env::var(VFIO_IDLE_POLL_ENV) {
+        Ok(v) => Some(v),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => {
+            return Err(anyhow::anyhow!("{VFIO_IDLE_POLL_ENV} is not Unicode"));
+        }
+    };
+    parse_vfio_idle_poll(value.as_deref()).map_err(anyhow::Error::msg)
+}
+
+#[cfg(test)]
+mod vfio_idle_poll_tests {
+    use super::*;
+
+    #[test]
+    fn opt_in_modes_are_strict_and_hybrid_is_bounded() {
+        assert_eq!(parse_vfio_idle_poll(None).unwrap(), IdlePollMode::Off);
+        assert_eq!(parse_vfio_idle_poll(Some("0")).unwrap(), IdlePollMode::Off);
+        assert_eq!(parse_vfio_idle_poll(Some("spin")).unwrap(), IdlePollMode::Spin);
+        assert_eq!(
+            parse_vfio_idle_poll(Some("hybrid:100")).unwrap(),
+            IdlePollMode::Hybrid(std::time::Duration::from_micros(100))
+        );
+        for bad in [
+            "",
+            "1",
+            "hybrid:",
+            "hybrid:0",
+            "hybrid:1001",
+            "hybrid:-1",
+            "hybrid: 100",
+            "spin ",
+        ] {
+            assert!(parse_vfio_idle_poll(Some(bad)).is_err(), "{bad:?}");
+        }
     }
 }
 
@@ -604,6 +665,7 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
 
 fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // Strict policy validation precedes threads and every host RM/VRAM allocation.
+    let vfio_idle_poll = requested_vfio_idle_poll()?;
     let boost_policy = vfio_user_nvgpu::hostboost::requested_policy().map_err(anyhow::Error::msg)?;
     if !a.host_exec {
         vfio_user_nvgpu::hostboost::set_off(boost_policy, "no host execution");
@@ -1829,10 +1891,18 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     };
     let mut backend = SharedDevice::new(device.clone(), routes);
     let mut clients = 1u32;
+    if vfio_idle_poll != IdlePollMode::Off {
+        eprintln!(
+            "vfio-user-nvgpu: vfio-user server idle poll {vfio_idle_poll:?} ({VFIO_IDLE_POLL_ENV}); CPU-for-latency diagnostic"
+        );
+    }
     let result = loop {
-        let r = server
-            .run(&mut backend)
-            .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+        let r = if vfio_idle_poll == IdlePollMode::Off {
+            server.run(&mut backend)
+        } else {
+            server.run_with_idle_poll(&mut backend, vfio_idle_poll)
+        }
+        .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
         if r.is_err() || !client_waiting(&waiting, RECONNECT_WINDOW) {
             break r;
         }

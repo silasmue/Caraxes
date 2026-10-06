@@ -19,6 +19,7 @@ use std::os::unix::{
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use thiserror::Error;
 use vfio_bindings::bindings::vfio::*;
 use vm_memory::{ByteValued, FileOffset};
@@ -1432,6 +1433,85 @@ pub struct Server {
     client_max_msg_fds: AtomicU32,
 }
 
+/// Optional CPU-for-latency wait before the server's unchanged blocking header receive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdlePollMode {
+    Off,
+    Hybrid(Duration),
+    Spin,
+}
+
+fn idle_poll_header(stream: &UnixStream, mode: IdlePollMode) -> std::io::Result<()> {
+    if mode == IdlePollMode::Off {
+        return Ok(());
+    }
+    let start = Instant::now();
+    loop {
+        let mut byte = 0u8;
+        // SAFETY: `byte` is writable for one byte. PEEK does not consume the header or
+        // its ancillary FDs; the ordinary recv_with_fds below remains their sole reader.
+        let n = unsafe {
+            libc::recv(
+                stream.as_raw_fd(),
+                &mut byte as *mut u8 as *mut c_void,
+                1,
+                libc::MSG_PEEK | libc::MSG_DONTWAIT,
+            )
+        };
+        if n >= 0 {
+            // A byte is ready, or EOF: let the existing receive handle either case.
+            return Ok(());
+        }
+        let e = std::io::Error::last_os_error();
+        if !matches!(
+            e.kind(),
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted
+        ) {
+            return Err(e);
+        }
+        if let IdlePollMode::Hybrid(limit) = mode {
+            if start.elapsed() >= limit {
+                // Fall back to the original blocking receive after the bounded spin.
+                return Ok(());
+            }
+        }
+        std::hint::spin_loop();
+    }
+}
+
+fn receive_header(stream: &mut UnixStream) -> Result<Option<(Header, Vec<File>)>, Error> {
+    let mut header = Header::default();
+    // The maximum number of FDs that can be sent is 16 so that is also the
+    // maximum that can be received.
+    let mut fds = vec![0; 16];
+    let mut iovecs = vec![iovec {
+        iov_base: header.as_mut_slice().as_mut_ptr() as *mut c_void,
+        iov_len: header.as_mut_slice().len(),
+    }];
+    // SAFETY: the header and descriptor arrays are writable and correctly sized.
+    let (bytes, fds_received) = unsafe {
+        stream
+            .recv_with_fds(&mut iovecs, &mut fds)
+            .map_err(Error::ReceiveWithFd)?
+    };
+    fds.truncate(fds_received);
+    // Own every received descriptor before read_exact can fail on a short header.
+    let fds: Vec<File> = fds
+        .into_iter()
+        // SAFETY: recv_with_fds returned ownership of these descriptors.
+        .map(|fd| unsafe { File::from_raw_fd(fd) })
+        .collect();
+    if bytes == 0 {
+        return Ok(None);
+    }
+    if bytes < size_of::<Header>() {
+        stream
+            .read_exact(&mut header.as_mut_slice()[bytes..])
+            .map_err(Error::StreamRead)?;
+    }
+    Ok(Some((header, fds)))
+}
+
 impl Server {
     pub fn new(
         path: &Path,
@@ -2087,38 +2167,28 @@ impl Server {
     }
 
     pub fn run(&self, backend: &mut dyn ServerBackend) -> Result<(), Error> {
+        self.run_inner(backend, IdlePollMode::Off)
+    }
+
+    /// Serve with an optional busy wait before each header receive. The normal receive
+    /// still owns header bytes, file descriptors, replies, and message ordering.
+    pub fn run_with_idle_poll(
+        &self,
+        backend: &mut dyn ServerBackend,
+        mode: IdlePollMode,
+    ) -> Result<(), Error> {
+        self.run_inner(backend, mode)
+    }
+
+    fn run_inner(&self, backend: &mut dyn ServerBackend, mode: IdlePollMode) -> Result<(), Error> {
         let (mut stream, _) = self.listener.accept().map_err(Error::SocketAccept)?;
 
         loop {
-            let mut header = Header::default();
-
-            // The maximum number of FDs that can be sent is 16 so that is
-            // also the maximum that can be received.
-            let mut fds = vec![0; 16];
-            let mut iovecs = vec![iovec {
-                iov_base: header.as_mut_slice().as_mut_ptr() as *mut c_void,
-                iov_len: header.as_mut_slice().len(),
-            }];
-            // SAFETY: Safe as the iovect is correctly initialised and fds is big enough
-            let (bytes, fds_received) = unsafe {
-                stream
-                    .recv_with_fds(&mut iovecs, &mut fds)
-                    .map_err(Error::ReceiveWithFd)?
-            };
-
-            // Other end closed connection
-            if bytes == 0 {
+            idle_poll_header(&stream, mode).map_err(Error::StreamRead)?;
+            let Some((header, fds)) = receive_header(&mut stream)? else {
                 info!("Connection closed");
                 break;
-            }
-
-            fds.resize(fds_received, 0);
-
-            let fds: Vec<File> = fds
-                .iter()
-                // SAFETY: Safe as we have only valid FDs in the vector now
-                .map(|fd| unsafe { File::from_raw_fd(*fd) })
-                .collect();
+            };
 
             if let Err(e) = self.handle_command(backend, &mut stream, header, fds) {
                 error!("Error handling command: {:?}: {e}", header.command);
@@ -2157,6 +2227,76 @@ impl Drop for Server {
 mod tests {
     use super::*;
     use std::mem::size_of;
+
+    #[test]
+    fn idle_peek_preserves_fragmented_header_and_scm_rights() {
+        let (sender, mut receiver) = UnixStream::pair().unwrap();
+        // SAFETY: a new descriptor, checked and owned by `original`.
+        let raw = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC | libc::EFD_NONBLOCK) };
+        assert!(raw >= 0);
+        // SAFETY: `raw` was returned by eventfd above.
+        let mut original = unsafe { File::from_raw_fd(raw) };
+        let header = Header {
+            message_id: 7,
+            command: Command::DeviceReset as u16,
+            message_size: size_of::<Header>() as u32,
+            ..Default::default()
+        };
+        sender
+            .send_with_fds(&[&header.as_slice()[..5]], &[original.as_raw_fd()])
+            .unwrap();
+        let tail = header.as_slice()[5..].to_vec();
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(2));
+            (&sender).write_all(&tail).unwrap();
+        });
+
+        idle_poll_header(&receiver, IdlePollMode::Spin).unwrap();
+        let (received, mut fds) = receive_header(&mut receiver).unwrap().unwrap();
+        writer.join().unwrap();
+        assert_eq!(fds.len(), 1);
+        assert_eq!(received.message_id, header.message_id);
+        assert_eq!(received.command, header.command);
+        fds[0].write_all(&37u64.to_ne_bytes()).unwrap();
+        let mut value = [0u8; 8];
+        original.read_exact(&mut value).unwrap();
+        assert_eq!(u64::from_ne_bytes(value), 37);
+    }
+
+    #[test]
+    fn receive_header_midframe_eof_closes_passed_fd() {
+        let (sender, mut receiver) = UnixStream::pair().unwrap();
+        let (passed, mut peer) = UnixStream::pair().unwrap();
+        let header = Header {
+            message_id: 8,
+            command: Command::DeviceReset as u16,
+            message_size: size_of::<Header>() as u32,
+            ..Default::default()
+        };
+        sender
+            .send_with_fds(&[&header.as_slice()[..5]], &[passed.as_raw_fd()])
+            .unwrap();
+        drop(passed);
+        drop(sender);
+
+        let err = receive_header(&mut receiver).unwrap_err();
+        assert!(matches!(
+            err,
+            Error::StreamRead(e) if e.kind() == std::io::ErrorKind::UnexpectedEof
+        ));
+        peer.set_read_timeout(Some(Duration::from_millis(100))).unwrap();
+        let mut byte = [0u8];
+        assert_eq!(peer.read(&mut byte).unwrap(), 0);
+    }
+
+    #[test]
+    fn idle_poll_hybrid_falls_back_and_spin_observes_eof() {
+        let (sender, mut receiver) = UnixStream::pair().unwrap();
+        idle_poll_header(&receiver, IdlePollMode::Hybrid(Duration::from_micros(100))).unwrap();
+        drop(sender);
+        idle_poll_header(&receiver, IdlePollMode::Spin).unwrap();
+        assert!(receive_header(&mut receiver).unwrap().is_none());
+    }
 
     fn build_sparse_cap_data(areas: &[vfio_region_sparse_mmap_area]) -> Vec<u8> {
         let mut cap_data: Vec<u8> = Vec::new();

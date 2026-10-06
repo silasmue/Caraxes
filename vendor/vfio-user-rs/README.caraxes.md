@@ -20,6 +20,13 @@ Three changes, each available as a patch:
 | One eventfd per ioeventfd sub-region: the client announces `max_msg_fds` 253 (`SCM_MAX_FD`) and receives that many; the server sends at most 253; `add_ioeventfd()` accepts datamatch sub-regions at one offset and refuses what KVM would refuse as a duplicate; tests | `src/lib.rs`, `CHANGELOG.md` | [../../patches/vfio-user-rs/0002-vfio-user-one-eventfd-per-ioeventfd-sub-region.patch](../../patches/vfio-user-rs/0002-vfio-user-one-eventfd-per-ioeventfd-sub-region.patch), on top of 0001 | with 0001, as one change |
 | `vfio-bindings` requirement `=0.6.3` widened to `>=0.6.2, <=0.6.3` | `Cargo.toml` | the diff below | local only |
 
+An additional local diagnostic adds `Server::run_with_idle_poll()` with `IdlePollMode`
+(`Off`, bounded `Hybrid`, or `Spin`). The default `run()` retains its blocking wait;
+the opt-in mode peeks for header readiness before that receive and may consume a CPU
+while idle. The server now completes short headers with `read_exact()` and owns any
+received `SCM_RIGHTS` descriptors before that fallible read. These changes are local
+to this vendored copy and are not represented by the upstream-candidate patches above.
+
 ```diff
  [dependencies.vfio-bindings]
 -version = "=0.6.3"
@@ -69,5 +76,6 @@ are in [../../patches/README.md](../../patches/README.md), "Patch 0005". In shor
 `cargo test -p vfio_user` in a checkout of rust-vmm/vfio at `a38ee7a3eeb5` with the
 patch applied: 10 passed (7 new), `cargo clippy -p vfio_user --all-targets -D warnings`
 clean. With patch 0002 as well (`/mnt/vmstore/caraxes/vfio-rs-0006`): 14 passed (4 new),
-clippy and rustfmt clean. This directory is not a workspace member, so the tests are not run from the
-Leandro workspace; `src/lib.rs` here is byte-identical to the tested file.
+clippy and rustfmt clean. This directory is not a workspace member, so its tests
+require an isolated manifest. The local diagnostic and short-header tests are separate
+from the upstream-candidate patch test counts above.
