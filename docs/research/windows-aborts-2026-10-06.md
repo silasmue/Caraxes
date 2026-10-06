@@ -588,3 +588,18 @@ the earlier Claude handoff are unchanged.
   old guard. A CH forwarding regression passes; its full PCI suite is now 54.
 - C200 repeats the short qualification with fresh metadata and an identity-ready
   marker. Immutable C199 sources, binaries and failed results are retained.
+
+## Local IRQ Windows smoke
+
+- C200 passes one stock-driver boot, three D3D11 GPU readbacks and 30.844 s idle.
+  Pre/post health remains ProblemCode 0 with no Display 4101. SSH responds after
+  23.873 s; device creation takes 699 ms and three verified frames take 27 ms.
+- Owned processes stop, NVIDIA remains bound, no new host Xid appears and all
+  guest RAM is unpinned. Fifteen protected BAR1 remaps use the existing trapped
+  replica path. No sustained rendering, reset or multi-guest result claimed.
+- IRQ tree/rearm socket writes are removed. C200's VMM write profiler also
+  accidentally bypasses ordinary RPC writes in local mode, so its empty groups
+  do not measure a gain. C201 will separate local, socket and completion-fence
+  costs before one diagnostic Fire Strike run. No accepted FPS gain yet.
+
+Private evidence: `C200-root-closeout.json` and the fresh post-C200 Claude handoff.
