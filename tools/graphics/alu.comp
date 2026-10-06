@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#version 450
+layout(local_size_x = 256) in;
+layout(set = 0, binding = 0, std430) readonly buffer Input { uint value[]; } input_data;
+layout(set = 0, binding = 1, std430) writeonly buffer Output { uint value[]; } output_data;
+layout(push_constant) uniform Params { uint count; uint iterations; } params;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= params.count) return;
+    uint x = input_data.value[i] ^ (i * 0x9e3779b9u);
+    for (uint j = 0; j < params.iterations; ++j) {
+        x ^= x >> 16;
+        x *= 0x7feb352du;
+        x ^= x >> 15;
+        x *= 0x846ca68bu;
+        x ^= x >> 16;
+        x += (i ^ j) * 0x9e3779b9u;
+    }
+    output_data.value[i] = x;
+}

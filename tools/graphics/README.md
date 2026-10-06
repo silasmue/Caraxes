@@ -1,0 +1,33 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
+# Vulkan compute unit timing
+
+`vk-unit-timing` is an original, headless TU106/NVIDIA Vulkan diagnostic. Build
+it with `build.sh /absolute/output/vk-unit-timing`; the script embeds both
+locally compiled SPIR-V shaders in the executable. `--self-test` runs only CPU
+arithmetic and timestamp-wrap checks. No Vulkan API is called by that mode.
+
+Examples for an owner-controlled native/guest harness:
+
+```sh
+vk-unit-timing --mode alu --iterations 256 --samples 7 --warmup 2 --seconds 120
+vk-unit-timing --mode stream --mib 64 --samples 7 --warmup 2 --seconds 120
+```
+
+ALU transforms 65,536 device-local words with 32, 256 or 1024 runtime loop
+iterations. Stream reads and writes two device-local 16 or 64 MiB buffers;
+one host-coherent staging buffer is used only for upload and full verification.
+Stream's reported logical byte count is one read plus one write per element,
+not measured DRAM traffic. The GPU interval brackets an explicit write-order
+barrier and pre-recorded compute dispatch with TOP/BOTTOM timestamp queries.
+JSONL keeps warmups and measured
+samples separate and reports CPU submit, fence wait, query retrieval, GPU ticks
+and elapsed time. Upload, preconditioning and complete output readback happen
+outside the measured command buffer. Every word is checked against a CPU
+reference. Exit status 0 requires all samples and exact verification.
+
+Per-job wall/GPU time must stay under one second; fences have a ten-second
+failure bound. A 120-second maximum alarm and internal deadline bound the
+process, while an external harness should also apply its own timeout. One run
+does not establish sustained FPS, physical DRAM bandwidth, clock equivalence,
+or a depth-rendering result.

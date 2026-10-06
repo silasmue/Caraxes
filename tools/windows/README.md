@@ -19,6 +19,7 @@ SYSTEM through the QEMU guest agent; stock Windows and driver components only (P
 |---|---|
 | `smoke.ps1` | Device Manager name, status and problem code; registry adapter strings; `nvidia-smi -L`, `--query-gpu`, `-q`; `vulkaninfo --summary`; the D3D11 and D3D12 gates; TDR/nvlddmkm events |
 | `d3d11-render.ps1` | D3D11 triangle, clear, triangle, each read back and verified |
+| `d3d11-benchmark.ps1` | Bounded offscreen fill, ALU, depth and memory cases; GPU timestamp/disjoint queries, separate CPU encode/Flush/wait times, JSONL and readback validation. `-ValidateOnly` compiles and checks helpers without opening a GPU; `-DispatchMiB 1\|16` controls memory dispatch granularity. |
 | `d3d12-probe.ps1` | D3D12 device, 100 fence-signal round trips, a compute dispatch of 256 words read back |
 | `cuda-probe.ps1` | deviceQuery, PTX JIT vector add (1 Mi floats), launch cost, pinned copy bandwidth |
 | `nvenc-probe.ps1` | NVENC through the NVENC API (no ffmpeg), the twin of caraxes/tools/nvenc-probe.c: P1 ULL CBR, the same pattern and ENC line; `-Mode lock` (driver input buffers filled by the CPU, as on Linux) or `-Mode vram` (8 frames in CUDA memory, registered and mapped: the encoder alone) |
