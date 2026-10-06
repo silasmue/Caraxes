@@ -44,6 +44,10 @@ mod linked {
 
     impl Fixture {
         fn new(name: &str) -> Self {
+            Self::new_mode(name, false)
+        }
+
+        fn new_mode(name: &str, shmem: bool) -> Self {
             let board = Board::load("rtx2070").unwrap();
             let chip = chip::by_name(&board.chip).unwrap();
             let rearm = chip.data().bar0.pcfg + NV_XVE_CYA_2;
@@ -78,6 +82,11 @@ mod linked {
                 .with_intr_shared(shared.clone())
                 .with_local_irq(page.clone(), rearm)
                 .unwrap();
+            let device = if shmem {
+                device.with_guest_dma_gpa(true).with_bar_shmem().unwrap()
+            } else {
+                device
+            };
             let routes = Routes {
                 terminal_fault: Some(device.terminal_fault_handle()),
                 intr_page: Some(page.clone()),
@@ -104,6 +113,7 @@ mod linked {
                 &socket,
                 ClientOptions {
                     local_irq_required: true,
+                    bar_shmem_required: shmem,
                 },
             )
             .unwrap();
@@ -120,6 +130,9 @@ mod linked {
                 .local_irq_commit(metadata.token, metadata.epoch, metadata.initial_ticket)
                 .unwrap();
             owner.committed().unwrap();
+            if shmem {
+                client.bar_shmem_prepare().unwrap();
+            }
             let msi = EventFd::new(EFD_NONBLOCK).unwrap();
             owner.set_irq(1, &[&msi]).unwrap();
             let mut control = [0; 2];
@@ -182,6 +195,30 @@ mod linked {
             }
             let _ = std::fs::remove_file(&self.socket);
         }
+    }
+
+    #[test]
+    fn shared_bar_reply_and_socket_reset_fence_the_real_owner() {
+        let fixture = Fixture::new_mode("shared-owner", true);
+        fixture.write(LEAF_EN_SET, 1 << 4);
+        fixture.write(TOP_EN_SET, 1);
+        fixture.shared.raise(4);
+        fixture.page.scan();
+        let result = {
+            let mut client = fixture.client.lock().unwrap();
+            assert!(client.bar_shmem_uses(0, 0x88740, 4));
+            client.region_write(0, 0x88740, &[1, 2, 3, 4])
+        };
+        fixture.owner.rpc_complete(result).unwrap();
+        assert_eq!(fixture.word(LEAF), 1 << 4);
+        assert_eq!(fixture.take_msi(), 1);
+        let result = fixture.client.lock().unwrap().reset();
+        fixture.owner.rpc_complete(result).unwrap();
+        assert_eq!(fixture.word(LEAF), 0);
+        assert_eq!(fixture.word(LEAF_EN_SET), 0);
+        let result = fixture.client.lock().unwrap().region_read(0, 0x88740, &mut [0; 4]);
+        fixture.owner.rpc_complete(result).unwrap();
+        assert!(fixture.exit.read().is_err());
     }
 
     #[test]

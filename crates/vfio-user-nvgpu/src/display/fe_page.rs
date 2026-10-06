@@ -752,7 +752,11 @@ impl FePage {
 
     /// Ordinary Engine::read32 values, details before summaries and DISPATCH last.
     /// A mapped reader gets ordered publication, not an atomic multi-register snapshot.
-    fn publish_exact(&self, st: &State) {
+    /// The guest cannot write this mapping: skip unchanged words to avoid dirtying all
+    /// watched cache lines on each head ack, while reading the actual page so a stray
+    /// change is repaired even when the model itself is unchanged.
+    fn publish_exact(&self, st: &State) -> usize {
+        let mut changed = 0;
         for i in 0..WATCHED {
             let value = match i {
                 i if i < W_AWAKEN_WIN => st.irq.evt[i - W_EVT],
@@ -763,10 +767,14 @@ impl FePage {
                 W_CTRL => st.irq.ctrl_disp(),
                 _ => st.irq.dispatch(),
             };
-            self.watched(i).store(value, Ordering::Release);
-            self.expected[i].store(value, Ordering::Relaxed);
+            if self.watched(i).load(Ordering::Relaxed) != value {
+                self.watched(i).store(value, Ordering::Release);
+                self.expected[i].store(value, Ordering::Relaxed);
+                changed += 1;
+            }
         }
         std::sync::atomic::fence(Ordering::SeqCst);
+        changed
     }
 
     /// The watchdog, about every millisecond: a marker outstanding for the retrigger
@@ -982,6 +990,40 @@ mod tests {
         p.write(FE_RM_INTR_EN_HEAD_TIMING + 4, &LAST_DATA.to_le_bytes());
         p.write(FE_EVT_STAT_HEAD_TIMING, &LAST_DATA.to_le_bytes());
         assert_eq!(raised.load(Ordering::Relaxed), 3);
+    }
+
+    #[test]
+    fn exact_ro_sparse_publication_keeps_full_image_and_reset() {
+        let (_intr, p, _) = page_mode(Mode::ExactReadOnly);
+        {
+            let mut st = p.lock();
+            st.irq.evt[0] = LAST_DATA;
+            st.irq.en[0] = LAST_DATA;
+            st.irq.awaken_win = 4;
+            assert_eq!(p.publish_exact(&st), 6);
+            assert_eq!(p.publish_exact(&st), 0, "unchanged status dirties no mapped words");
+            p.word(FE_EVT_STAT_HEAD_TIMING).store(0, Ordering::Relaxed);
+            assert_eq!(p.publish_exact(&st), 1, "publication repairs the page itself");
+        }
+        for off in (FE_PAGE..FE_PAGE + PAGE).step_by(4) {
+            let expected = match off {
+                FE_EVT_STAT_HEAD_TIMING | FE_RM_INTR_EN_HEAD_TIMING
+                | FE_RM_INTR_STAT_HEAD_TIMING => LAST_DATA,
+                FE_RM_INTR_DISPATCH => 1,
+                FE_RM_INTR_STAT_CTRL_DISP => CTRL_DISP_AWAKEN,
+                FE_EVT_STAT_AWAKEN_WIN => 4,
+                _ => 0,
+            };
+            assert_eq!(p.read32(off), expected, "BAR0 {off:#x}");
+        }
+        p.write(FE_EVT_STAT_HEAD_TIMING, &LAST_DATA.to_le_bytes());
+        assert_eq!(p.read32(FE_EVT_STAT_HEAD_TIMING), 0);
+        assert_eq!(p.read32(FE_RM_INTR_STAT_HEAD_TIMING), 0);
+        assert_eq!(p.read32(FE_RM_INTR_DISPATCH), 0);
+        p.attach(FeIrq::new(4));
+        for off in (FE_PAGE..FE_PAGE + PAGE).step_by(4) {
+            assert_eq!(p.read32(off), 0, "reset BAR0 {off:#x}");
+        }
     }
 
     fn store(p: &FePage, off: u64, v: u32) {

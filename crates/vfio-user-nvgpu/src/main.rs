@@ -256,9 +256,49 @@ fn requested_vfio_idle_poll() -> Result<IdlePollMode> {
     parse_vfio_idle_poll(value.as_deref()).map_err(anyhow::Error::msg)
 }
 
+fn parse_bar_shmem(
+    value: Option<&str>, host_exec: bool, boot_model: bool, chip: &str, local_irq: bool,
+) -> std::result::Result<bool, String> {
+    let enabled = match value {
+        None | Some("0") => false,
+        Some("1") => true,
+        Some(other) => return Err(format!("CARAXES_BAR_SHMEM={other:?}: expected 0 or 1")),
+    };
+    if enabled && (!host_exec || !boot_model || !chip.eq_ignore_ascii_case("tu106") || !local_irq) {
+        return Err("CARAXES_BAR_SHMEM=1 requires fresh TU106 host execution, a boot model and CARAXES_LOCAL_IRQ=1".into());
+    }
+    Ok(enabled)
+}
+
+fn requested_bar_shmem(a: &Args, local_irq: bool) -> Result<bool> {
+    let value = match std::env::var("CARAXES_BAR_SHMEM") {
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => bail!("CARAXES_BAR_SHMEM is not Unicode"),
+    };
+    parse_bar_shmem(value.as_deref(), a.host_exec, a.boot_model, &a.chip.data().short_name, local_irq)
+        .map_err(anyhow::Error::msg)
+}
+
 #[cfg(test)]
 mod vfio_idle_poll_tests {
     use super::*;
+
+    #[test]
+    fn bar_shmem_is_explicit_and_limited_to_host_tu106_with_local_irq() {
+        assert!(!parse_bar_shmem(None, false, false, "ga102", false).unwrap());
+        assert!(!parse_bar_shmem(Some("0"), false, false, "ga102", false).unwrap());
+        assert!(parse_bar_shmem(Some("1"), true, true, "TU106", true).unwrap());
+        for bad in ["", "on", "true", "2", " 1", "1 "] {
+            assert!(parse_bar_shmem(Some(bad), true, true, "tu106", true).is_err());
+        }
+        for (host, boot, chip, irq) in [
+            (false, true, "tu106", true), (true, false, "tu106", true),
+            (true, true, "ga102", true), (true, true, "tu106", false),
+        ] {
+            assert!(parse_bar_shmem(Some("1"), host, boot, chip, irq).is_err());
+        }
+    }
 
     #[test]
     fn read_only_window_selection_excludes_other_display_pages() {
@@ -788,6 +828,10 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     };
     if local_irq && (!a.host_exec || !a.boot_model || !a.chip.data().short_name.eq_ignore_ascii_case("tu106")) {
         bail!("CARAXES_LOCAL_IRQ=1 requires fresh TU106 host execution and a boot model");
+    }
+    let bar_shmem = requested_bar_shmem(a, local_irq)?;
+    if bar_shmem && vfio_idle_poll != IdlePollMode::Off {
+        anyhow::bail!("CARAXES_BAR_SHMEM=1 requires CARAXES_VFIO_IDLE_POLL=0");
     }
     // The datamatch token pool: one eventfd per pool token, so the eventfd names the
     // channel (docs/caraxes/doorbell-token-pool.md).
@@ -1560,6 +1604,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             bail!("CARAXES_LOCAL_IRQ=1: chip has no MSI re-arm register");
         }
         device = device.with_local_irq(page, b.pcfg + NV_XVE_CYA_2).map_err(anyhow::Error::msg)?;
+    }
+    if bar_shmem {
+        device = device.with_bar_shmem().map_err(anyhow::Error::msg)?;
     }
     if let Some(r) = host_mem
         .as_ref()

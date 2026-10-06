@@ -27,6 +27,7 @@ def main():
         backend / "Cargo.lock",
         backend / "vendor/vfio-user-rs/src/lib.rs",
         backend / "vendor/vfio-user-rs/src/local_irq.rs",
+        backend / "vendor/vfio-user-rs/src/bar_shmem.rs",
         backend / "crates/vfio-user-nvgpu/src/intr.rs",
         backend / "crates/vfio-user-nvgpu/src/intr_page.rs",
         backend / "crates/vfio-user-nvgpu/src/device.rs",
@@ -40,6 +41,8 @@ def main():
         vmm / "pci/src/caraxes_irq.rs",
         vmm / "pci/src/caraxes_irq_owner.rs",
         vmm / "pci/src/mmap.rs",
+        vmm / "vendor/vfio-user-rs/src/lib.rs",
+        vmm / "vendor/vfio-user-rs/src/bar_shmem.rs",
     ]
     before = {str(path): digest(path) for path in inputs}
     commands = []

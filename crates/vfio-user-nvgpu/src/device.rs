@@ -119,6 +119,8 @@ pub struct Device {
     /// Explicitly opted-in, negotiated VMM-owned exact interrupt tree.
     local_irq_page: Option<Arc<crate::intr_page::IntrPage>>,
     local_irq_rearm: Option<u64>,
+    /// Experimental synchronous BAR0 transport, served by the same command thread.
+    bar_shmem: bool,
 }
 
 /// A BAR1 pool poll that holds the device longer than this is traced as an event (the
@@ -351,6 +353,7 @@ pub struct SharedDevice {
     gate: Arc<crate::ringgate::RingGate>,
     terminal_fault: Arc<AtomicBool>,
     local_irq_offer: bool,
+    bar_shmem_offer: bool,
 }
 
 /// The current display engine, for the paths without the device mutex (`Device::display_slot`).
@@ -548,6 +551,7 @@ impl SharedDevice {
         let doorbell = locked.bar0.boot().map(|b| b.usermode_doorbell());
         let terminal_fault = locked.terminal_fault.clone();
         let local_irq_offer = locked.local_irq_page.is_some();
+        let bar_shmem_offer = locked.bar_shmem;
         drop(locked);
         Self {
             device,
@@ -556,6 +560,7 @@ impl SharedDevice {
             gate,
             terminal_fault,
             local_irq_offer,
+            bar_shmem_offer,
         }
     }
 
@@ -702,6 +707,10 @@ impl SharedDevice {
 }
 
 impl ServerBackend for SharedDevice {
+    fn bar_shmem_offer(&self) -> bool {
+        self.bar_shmem_offer && !self.terminal_fault.load(Ordering::Acquire)
+    }
+
     fn local_irq_offer(&self) -> bool {
         self.local_irq_offer
     }
@@ -1073,6 +1082,7 @@ impl Device {
             terminal_fault: Arc::new(AtomicBool::new(false)),
             local_irq_page: None,
             local_irq_rearm: None,
+            bar_shmem: false,
         }
     }
 
@@ -1440,6 +1450,21 @@ impl Device {
         }
         self.local_irq_page = Some(page);
         self.local_irq_rearm = Some(rearm_offset);
+        Ok(self)
+    }
+
+    /// Opt in before serving a client. Main validates host execution before
+    /// allocating resources; the builder also rejects an ineligible or used model.
+    /// This changes only transport advertisement, never BAR0 register handling.
+    pub fn with_bar_shmem(mut self) -> Result<Self, String> {
+        if !self.guest_dma_gpa || !self.bar0.chip().data().short_name.eq_ignore_ascii_case("tu106")
+            || self.bar0.boot().is_none() || self.local_irq_page.is_none()
+            || self.local_irq_page.as_ref().is_some_and(|page| page.remote_owned())
+            || !self.dma.is_empty() || self.irq_fds.iter().any(|fds| !fds.is_empty())
+            || self.reset_error.is_some() || self.terminal_fault.load(Ordering::Acquire) {
+            return Err("BAR shared memory requires a fresh TU106 host-execution model with local IRQ configured".into());
+        }
+        self.bar_shmem = true;
         Ok(self)
     }
 
@@ -2810,6 +2835,171 @@ impl Device {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct BarShmemFixture {
+        client: vfio_user::Client,
+        device: Arc<Mutex<Device>>,
+        source: Arc<IntrShared>,
+        page: Arc<crate::intr_page::IntrPage>,
+        consumer: vfio_user::local_irq::QueueConsumer,
+        _hook: crate::intr_page::PageHook,
+        server: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl BarShmemFixture {
+        fn new(name: &str, shared: bool) -> Self {
+            let f = crate::fixture::rtx2070();
+            let source = IntrShared::new();
+            let page = crate::intr_page::IntrPage::create(
+                16 << 20, 0xb8_1000, f.chip.data().identity, source.clone(),
+                crate::intr_page::Config::default(),
+            ).unwrap();
+            let (hook, wake) = crate::intr_page::PageHook::new(page.clone()).unwrap();
+            source.attach_page(wake);
+            let boot = crate::boot::BootModel::new(
+                f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30),
+            );
+            let rearm = f.chip.data().bar0.pcfg + NV_XVE_CYA_2;
+            let mut device = rtx2070_device().with_guest_dma_gpa(true);
+            device.bar0 = Bar0::new(f.chip, Vec::new(), None)
+                .with_boot_model(boot).with_intr_page(page.clone());
+            device.intr = Some(source.clone());
+            let device = device.with_local_irq(page.clone(), rearm).unwrap();
+            assert!(!device.bar_shmem, "local IRQ alone does not enable the transport");
+            let device = device.with_bar_shmem().unwrap();
+            let routes = Routes {
+                terminal_fault: Some(device.terminal_fault_handle()),
+                intr_page: Some(page.clone()), rearm: Some(rearm), ..Routes::default()
+            };
+            let device = Arc::new(Mutex::new(device));
+            let mut backend = SharedDevice::with_gate(
+                device.clone(), routes, Arc::new(crate::ringgate::RingGate::default()),
+            );
+            assert!(ServerBackend::bar_shmem_offer(&backend));
+            let board = Board::load("rtx2070").unwrap();
+            let path = std::env::temp_dir().join(format!("caraxes-bar-shmem-{}-{name}.sock", std::process::id()));
+            let server = vfio_user::Server::new(&path, true, irqs(), regions(&board)).unwrap();
+            let server = std::thread::spawn(move || { let _ = server.run(&mut backend); });
+            let mut client = vfio_user::Client::new_with_options(&path, vfio_user::ClientOptions {
+                local_irq_required: true, bar_shmem_required: shared,
+            }).unwrap();
+            let prepared = client.local_irq_prepare().unwrap();
+            let consumer = vfio_user::local_irq::QueueConsumer::map(&prepared).unwrap();
+            client.local_irq_commit(prepared.metadata.token, prepared.metadata.epoch, 0).unwrap();
+            if shared {
+                assert!(client.bar_shmem_negotiated());
+                client.bar_shmem_prepare().unwrap();
+            }
+            Self { client, device, source, page, consumer, _hook: hook, server: Some(server) }
+        }
+
+        fn drain(&mut self) -> Vec<vfio_user::local_irq::Record> {
+            let tail = self.consumer.published_tail().unwrap();
+            self.consumer.drain_through(tail).unwrap()
+        }
+    }
+
+    impl Drop for BarShmemFixture {
+        fn drop(&mut self) {
+            let _ = self.client.shutdown();
+            if let Some(server) = self.server.take() { let _ = server.join(); }
+        }
+    }
+
+    #[test]
+    fn bar_shmem_builder_refuses_a_model_without_local_irq() {
+        assert!(rtx2070_device().with_bar_shmem().is_err());
+        assert!(rtx2070_device().with_guest_dma_gpa(true).with_bar_shmem().is_err());
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let backend = SharedDevice::with_gate(device, Routes::default(), Arc::new(crate::ringgate::RingGate::default()));
+        assert!(!ServerBackend::bar_shmem_offer(&backend));
+    }
+
+    #[test]
+    fn bar_shmem_matches_socket_bar0_values_widths_and_byte_lanes() {
+        let mut socket = BarShmemFixture::new("differential-socket", false);
+        let mut shared = BarShmemFixture::new("differential-shared", true);
+        // The PCFG mirror applies its existing byte masks. Include odd starts,
+        // 1/2/4/8-byte operations, and width 3/16 requests that must stay socket.
+        for (offset, data) in [
+            (0x88740, vec![0x12]), (0x88741, vec![0x34, 0x56]),
+            (0x88743, vec![0x78, 0x9a, 0xbc, 0xde]),
+            (0x88750, vec![1, 2, 3, 4, 5, 6, 7, 8]), (0x88760, vec![9, 10, 11]),
+        ] {
+            assert!(!socket.client.bar_shmem_uses(0, offset, data.len()));
+            assert_eq!(shared.client.bar_shmem_uses(0, offset, data.len()), matches!(data.len(), 1 | 2 | 4 | 8));
+            socket.client.region_write(0, offset, &data).unwrap();
+            shared.client.region_write(0, offset, &data).unwrap();
+            for width in [1, 2, 4, 8, 16] {
+                assert_eq!(shared.client.bar_shmem_uses(0, offset, width), width != 16);
+                let (mut expected, mut actual) = (vec![0xa5; width], vec![0x5a; width]);
+                socket.client.region_read(0, offset, &mut expected).unwrap();
+                shared.client.region_read(0, offset, &mut actual).unwrap();
+                assert_eq!(actual, expected, "BAR0 {offset:#x} width {width}");
+            }
+        }
+        let (mut expected, mut actual) = ([0; 4], [0; 4]);
+        assert!(!shared.client.bar_shmem_uses(7, 0, 4));
+        socket.client.region_read(7, 0, &mut expected).unwrap();
+        shared.client.region_read(7, 0, &mut actual).unwrap();
+        assert_eq!(actual, expected, "non-BAR0 requests remain ordinary RPC");
+    }
+
+    #[test]
+    fn bar_shmem_replies_publish_irq_prefix_and_socket_reset_preserves_order() {
+        use vfio_user::local_irq::RecordKind;
+        let mut f = BarShmemFixture::new("reply-reset-order", true);
+        f.source.raise(4);
+        f.client.region_write(0, 0x88740, &0x1234_5678u32.to_le_bytes()).unwrap();
+        let first = f.drain();
+        assert_eq!(first.len(), 1, "the shared write reply must fence pending causes");
+        assert_eq!(first[0].epoch, 1);
+        assert_eq!(first[0].kind, RecordKind::Fold([1 << 4, 0, 0, 0, 0, 0, 0, 0]));
+        f.client.reset().unwrap();
+        let reset = f.drain();
+        assert_eq!(reset.len(), 1);
+        assert!(matches!(reset[0].kind, RecordKind::ResetCommit { new_epoch: 2, .. }));
+        assert_eq!(reset[0].seq, first[0].seq + 1);
+        f.source.raise(5);
+        let mut value = [0; 4];
+        f.client.region_read(0, 0x88740, &mut value).unwrap();
+        assert_eq!(u32::from_le_bytes(value), 0x1234_5678, "DEVICE_RESET retains PCI config mirror state");
+        let after = f.drain();
+        assert_eq!(after.len(), 1, "the shared read reply must fence new-epoch causes");
+        assert_eq!((after[0].epoch, after[0].seq), (2, 1));
+        assert_eq!(after[0].kind, RecordKind::Fold([1 << 5, 0, 0, 0, 0, 0, 0, 0]));
+        // FLR through the BAR0 PCI configuration mirror takes the ordinary
+        // after_write path, discarding old causes before its ordered reset.
+        f.source.raise(6);
+        f.client.region_write(0, 0x88080, &0x8000u16.to_le_bytes()).unwrap();
+        let flr = f.drain();
+        assert_eq!(flr.len(), 1);
+        assert_eq!((flr[0].epoch, flr[0].seq), (2, 2));
+        assert!(matches!(flr[0].kind, RecordKind::ResetCommit { new_epoch: 3, .. }));
+        let mut control = [0; 2];
+        f.client.region_read(0, 0x88080, &mut control).unwrap();
+        assert_eq!(u16::from_le_bytes(control) & 0x8000, 0, "FLR bit reads clear");
+        assert!(f.drain().is_empty(), "pre-FLR causes cannot leak into the new epoch");
+    }
+
+    #[test]
+    fn bar_shmem_accepted_irq_fence_failure_is_terminal_after_the_side_effect() {
+        let mut f = BarShmemFixture::new("reply-fault", true);
+        // Fill the queue without failing it, ending with the unchanged disabled
+        // MSI state. A pending cause then needs one more slot at the reply fence.
+        for i in 0..vfio_user::local_irq::CAPACITY {
+            f.page.remote_msi_enabled(i % 2 == 0).unwrap();
+        }
+        assert_eq!(f.consumer.published_tail().unwrap(), vfio_user::local_irq::CAPACITY);
+        f.source.raise(4);
+        // The write itself latches normally, then the mandatory IRQ completion
+        // fence discovers the full cause channel. It must never reply success
+        // or retry this accepted request through the socket path.
+        assert!(f.client.region_write(0, 0x88740, &0xaabb_ccddu32.to_le_bytes()).is_err());
+        assert_eq!(f.device.lock().unwrap().cfg.dword(0x740), 0xaabb_ccdd);
+        assert!(f.device.lock().unwrap().terminal_fault.load(Ordering::Acquire));
+        assert!(f.client.region_read(0, 0, &mut [0; 4]).is_err());
+    }
 
     #[test]
     fn local_irq_backend_prepare_commit_fold_reset_and_disconnect() {
