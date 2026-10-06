@@ -27,6 +27,7 @@ pub mod dump;
 pub mod engine;
 pub mod chan_page;
 pub mod fe_page;
+pub mod ro_chan_page;
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
