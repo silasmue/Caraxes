@@ -197,6 +197,9 @@ pub struct Bar0 {
     um_page: Option<std::sync::Arc<crate::um_page::UmPage>>,
     /// The display kick page (`CARAXES_DISPLAY_KICK_PAGE=1`, display/chan_page.rs).
     chan_page: Option<std::sync::Arc<crate::display::chan_page::ChanPage>>,
+    /// An optional exact read-only window USERD page. Unlike `chan_page`, every
+    /// guest write to this page stays on the ordinary trapped BAR0 path.
+    ro_chan_page: Option<std::sync::Arc<crate::display::ro_chan_page::RoChanPage>>,
 }
 
 impl Bar0 {
@@ -223,6 +226,7 @@ impl Bar0 {
             inv_page: None,
             um_page: None,
             chan_page: None,
+            ro_chan_page: None,
         }
     }
 
@@ -236,9 +240,50 @@ impl Bar0 {
     pub fn with_chan_page(
         mut self,
         page: std::sync::Arc<crate::display::chan_page::ChanPage>,
-    ) -> Self {
+    ) -> Result<Self, String> {
+        if self.ro_chan_page.is_some() {
+            return Err("writable display kick page overlaps read-only window page".into());
+        }
         self.chan_page = Some(page);
-        self
+        Ok(self)
+    }
+
+    /// Attach a guest-specific, read-only window page after the boot model is
+    /// present, before the sparse area is offered to a VMM. The legacy writable
+    /// kick-page area overlaps it and is therefore incompatible.
+    pub fn with_ro_chan_page(
+        mut self,
+        page: std::sync::Arc<crate::display::ro_chan_page::RoChanPage>,
+    ) -> Result<Self, String> {
+        if self.chan_page.is_some() {
+            return Err("read-only window page overlaps the writable kick page".into());
+        }
+        if !self.page.as_ref().is_some_and(|intr| page.belongs_to(intr)) {
+            return Err("read-only window page belongs to a different interrupt memfd".into());
+        }
+        let boot = self.boot.as_mut().ok_or("read-only window page needs the boot model")?;
+        boot.ctrl.display.attach_ro_chan_page(page.clone())?;
+        self.ro_chan_page = Some(page);
+        Ok(self)
+    }
+
+    pub fn has_ro_chan_page(&self) -> bool {
+        self.ro_chan_page.is_some()
+    }
+
+    /// Erase the old client's mapped register image before ending its backend.
+    pub fn clear_ro_chan_page(&self) {
+        if let Some(page) = &self.ro_chan_page {
+            page.clear();
+        }
+    }
+
+    /// End model activity after a terminal RO-page error. The caller keeps the
+    /// device's host-memory reservation for the normal worker-join teardown.
+    pub fn retire_boot_model(&mut self) {
+        if let Some(mut boot) = self.boot.take() {
+            self.notes.extend(boot.ctrl.dstate.release_zbc());
+        }
     }
 
     /// Serve the usermode page from its memory (um_page.rs).
@@ -328,7 +373,12 @@ impl Bar0 {
 
     /// Device reset (vfio-user reset or a PCI function-level reset): latched
     /// registers and the boot model return to their initial state.
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self) -> Result<(), String> {
+        if let Some(page) = &self.ro_chan_page {
+            // Erase the previous guest's image before rebuilding its model. A
+            // failed reattachment cannot leave old register values mapped.
+            page.clear();
+        }
         self.latched.clear();
         // The devinit scratch a real card's devinit sets at every reset (families/mod.rs).
         if let Some((r, v)) = crate::families::devinit_scratch(self.chip.data()) {
@@ -340,10 +390,18 @@ impl Bar0 {
         // the guest enabled the vector and never serviced it).
         if let Some(b) = self.boot.as_mut() {
             b.reset();
+            if let Some(page) = &self.ro_chan_page {
+                b.ctrl.display.attach_ro_chan_page(page.clone()).map_err(|e| {
+                    format!("read-only window page: reset attachment failed with erased image: {e}")
+                })?;
+            }
+        } else if self.ro_chan_page.is_some() {
+            return Err("read-only window page: boot model disappeared after erasing image".into());
         }
         if let Some(p) = &self.page {
             p.reset();
         }
+        Ok(())
     }
 
     /// Notes produced by the boot model since the last call (for the trace).
@@ -540,6 +598,118 @@ mod tests {
     }
 
     #[test]
+    fn read_only_window_page_preserves_trapped_partial_write_semantics() {
+        use crate::display::ro_chan_page::RoChanPage;
+        let f = crate::fixture::rtx2070();
+        let intr = crate::intr_page::IntrPage::create(
+            16 << 20,
+            0xb8_1000,
+            f.chip.data().identity,
+            crate::intr::IntrShared::new(),
+            crate::intr_page::Config::default(),
+        )
+        .unwrap();
+        let base = crate::display::WIN_USERD + 4 * crate::intr_page::PAGE;
+        let ro = std::sync::Arc::new(RoChanPage::create(&intr, base).unwrap());
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        let mut boot = BootModel::new(
+            f.chip,
+            crate::fb::FbLayout::plain(4 << 30),
+            f.identity(4 << 30),
+        );
+        boot.ctrl.display = crate::display::Display::from_setup(&crate::display::Setup {
+            enabled: true,
+            chip: "tu106".into(),
+            board: board.display,
+        })
+        .unwrap();
+        let (plain, mut cfg) = parts();
+        let mut bar0 = plain
+            .with_boot_model(boot)
+            .with_intr_page(intr.clone())
+            .with_ro_chan_page(ro.clone())
+            .unwrap();
+        let mem = GuestMemory::new();
+        let off = base + 0x100;
+        assert_eq!(bar0.write(&mut cfg, &mem, off + 1, &[0x12, 0x34]), WriteEffect::Latched);
+        let mut routed = [0; 4];
+        let mut mapped = [0; 4];
+        bar0.read(&cfg, &mem, off, &mut routed);
+        assert!(ro.read(off, &mut mapped));
+        assert_eq!(mapped, routed);
+        assert_eq!(mapped, [0; 4], "partial display writes do not change Display::read32");
+
+        assert_eq!(bar0.write(&mut cfg, &mem, off, &0x8765_4321u32.to_le_bytes()), WriteEffect::Model);
+        bar0.read(&cfg, &mem, off, &mut routed);
+        assert!(ro.read(off, &mut mapped));
+        assert_eq!(mapped, routed);
+        assert_eq!(u32::from_le_bytes(mapped), 0x8765_4321);
+
+        // Simulate a reset that cannot rebuild its display owner. The returned
+        // error and erased image must precede any attempt to reuse the memfd.
+        bar0.boot = None;
+        assert!(bar0.reset().unwrap_err().contains("boot model disappeared"));
+        assert!(ro.read(off, &mut mapped));
+        assert_eq!(mapped, [0; 4]);
+
+        let writable = crate::display::chan_page::ChanPage::create(&intr).unwrap();
+        assert!(bar0.with_chan_page(writable.clone()).err().unwrap().contains("overlaps"));
+        let forward = Bar0::new(crate::fixture::rtx2070().chip, Vec::new(), None)
+            .with_intr_page(intr)
+            .with_chan_page(writable)
+            .unwrap();
+        assert!(forward.with_ro_chan_page(ro).err().unwrap().contains("overlaps"));
+    }
+
+    /// This changes the process-global display Setup, so run it alone:
+    /// `cargo test -p vfio-user-nvgpu ro_window_reset_rejects_disabled_setup --lib -- --ignored`.
+    #[test]
+    #[ignore = "mutates process-global display setup; run alone"]
+    fn ro_window_reset_rejects_disabled_setup() {
+        use crate::display::ro_chan_page::RoChanPage;
+        let f = crate::fixture::rtx2070();
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        crate::display::configure(crate::display::Setup {
+            enabled: true,
+            chip: "tu106".into(),
+            board: board.display,
+        });
+        let intr = crate::intr_page::IntrPage::create(
+            16 << 20,
+            0xb8_1000,
+            f.chip.data().identity,
+            crate::intr::IntrShared::new(),
+            crate::intr_page::Config::default(),
+        )
+        .unwrap();
+        let base = crate::display::WIN_USERD + 4 * crate::intr_page::PAGE;
+        let ro = std::sync::Arc::new(RoChanPage::create(&intr, base).unwrap());
+        let boot = BootModel::new(
+            f.chip,
+            crate::fb::FbLayout::plain(4 << 30),
+            f.identity(4 << 30),
+        );
+        let (plain, mut cfg) = parts();
+        let mut bar0 = plain
+            .with_boot_model(boot)
+            .with_intr_page(intr)
+            .with_ro_chan_page(ro.clone())
+            .unwrap();
+        let off = base + 0x100;
+        let mem = GuestMemory::new();
+        assert_eq!(bar0.write(&mut cfg, &mem, off, &0x8765_4321u32.to_le_bytes()), WriteEffect::Model);
+        let mut mapped = [0; 4];
+        assert!(ro.read(off, &mut mapped));
+        assert_eq!(u32::from_le_bytes(mapped), 0x8765_4321);
+
+        crate::display::configure(crate::display::Setup::default());
+        let error = bar0.reset().unwrap_err();
+        assert!(error.contains("enabled display"), "{error}");
+        assert!(ro.read(off, &mut mapped));
+        assert_eq!(mapped, [0; 4], "no old-client value after failed reset");
+    }
+
+    #[test]
     fn exact_ro_fallback_drops_whole_crossing_access_without_partial_mutation() {
         use crate::display::fe_page::{FePage, Mode, FE_PAGE};
         let intr = crate::intr_page::IntrPage::create(
@@ -695,7 +865,7 @@ mod tests {
         );
         assert_eq!(rd(&mut bar0, &cfg, 0x21434), (7, false));
         // A reset forgets the write; the capture stays.
-        bar0.reset();
+        bar0.reset().unwrap();
         assert_eq!(rd(&mut bar0, &cfg, 0x21434), (1, true));
 
         // Fail closed: no table, the same offsets read 0.

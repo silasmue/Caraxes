@@ -167,6 +167,29 @@ fn describe_guest_abi(pin: Option<ver::GuestAbi>) -> String {
 
 const VFIO_IDLE_POLL_ENV: &str = "CARAXES_VFIO_IDLE_POLL";
 const GUEST_TOKEN_EXTRAS_ENV: &str = "CARAXES_GUEST_TOKEN_EXTRAS";
+const DISPLAY_WINDOW_RO_ENV: &str = "CARAXES_DISPLAY_WINDOW_RO";
+
+fn parse_display_window_ro(value: Option<&str>) -> std::result::Result<Option<u64>, String> {
+    match value {
+        None | Some("0") => Ok(None),
+        Some(v) => {
+            let instance = v.strip_prefix("window:").filter(|n| {
+                !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())
+            }).and_then(|n| n.parse::<u64>().ok()).filter(|n| *n < 32);
+            instance.map(|n| Some(vfio_user_nvgpu::display::WIN_USERD + n * intr_page::PAGE))
+                .ok_or_else(|| format!("{DISPLAY_WINDOW_RO_ENV}={v:?}: expected 0 or window:0..31"))
+        }
+    }
+}
+
+fn requested_display_window_ro() -> Result<Option<u64>> {
+    let value = match std::env::var(DISPLAY_WINDOW_RO_ENV) {
+        Ok(v) => Some(v),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => bail!("{DISPLAY_WINDOW_RO_ENV} is not Unicode"),
+    };
+    parse_display_window_ro(value.as_deref()).map_err(anyhow::Error::msg)
+}
 
 fn parse_guest_token_extras(value: Option<&str>) -> std::result::Result<Vec<(u32, u32)>, String> {
     let Some(value) = value.filter(|v| *v != "0") else {
@@ -236,6 +259,18 @@ fn requested_vfio_idle_poll() -> Result<IdlePollMode> {
 #[cfg(test)]
 mod vfio_idle_poll_tests {
     use super::*;
+
+    #[test]
+    fn read_only_window_selection_excludes_other_display_pages() {
+        assert_eq!(parse_display_window_ro(None).unwrap(), None);
+        assert_eq!(parse_display_window_ro(Some("0")).unwrap(), None);
+        assert_eq!(parse_display_window_ro(Some("window:0")).unwrap(), Some(0x690000));
+        assert_eq!(parse_display_window_ro(Some("window:4")).unwrap(), Some(0x694000));
+        assert_eq!(parse_display_window_ro(Some("window:31")).unwrap(), Some(0x6af000));
+        for bad in ["", "4", "on", "window:", "window:-1", "window:32", "window:0x4", "window:4 ", " window:4", "window:18446744073709551616"] {
+            assert!(parse_display_window_ro(Some(bad)).is_err(), "{bad:?}");
+        }
+    }
 
     #[test]
     fn sparse_guest_token_values_are_strict_and_bounded() {
@@ -715,6 +750,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // Strict policy validation precedes threads and every host RM/VRAM allocation.
     let vfio_idle_poll = requested_vfio_idle_poll()?;
     let guest_token_extras = requested_guest_token_extras()?;
+    let ro_window_base = requested_display_window_ro()?;
+    if ro_window_base.is_some() {
+        if !a.host_exec || !a.boot_model || !a.display {
+            bail!("{DISPLAY_WINDOW_RO_ENV} needs --host-exec, --boot-model and --display");
+        }
+        if fe_page::requested_mode(true, true).map_err(anyhow::Error::msg)?
+            .is_some_and(|mode| mode.automatic_kicks())
+        {
+            bail!("{DISPLAY_WINDOW_RO_ENV} overlaps the legacy writable display kick page; use {}=exact-ro or 0", fe_page::DISPLAY_PAGE_ENV);
+        }
+    }
     if !guest_token_extras.is_empty() && !a.boot_model {
         bail!("{GUEST_TOKEN_EXTRAS_ENV} needs --boot-model");
     }
@@ -1409,13 +1455,24 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         let k = vfio_user_nvgpu::display::chan_page::ChanPage::create(page)
             .map_err(|e| anyhow::anyhow!("display kick page: {e}"))?;
         vfio_user_nvgpu::display::set_chan_page(k.clone());
-        bar0 = bar0.with_chan_page(k.clone());
+        bar0 = bar0.with_chan_page(k.clone())
+            .map_err(|e| anyhow::anyhow!("display kick page: {e}"))?;
         let (base, len) = k.area();
         eprintln!(
             "vfio-user-nvgpu: display kick page: BAR0 [{base:#x}, {:#x}) (the window channels' USERD pages, PUT and GET) offered as a sparse mmap area; the reactor runs the kick of each PUT change and stores GET (with the display page, docs/caraxes/intr-page.md §12.3)",
             base + len
         );
         Some(k)
+    } else {
+        None
+    };
+    let ro_window = if let Some(base) = ro_window_base {
+        let intr = intr_page.as_ref().context("read-only window page needs the interrupt memfd")?;
+        let page = Arc::new(vfio_user_nvgpu::display::ro_chan_page::RoChanPage::create(intr, base)
+            .map_err(anyhow::Error::msg)?);
+        bar0 = bar0.with_ro_chan_page(page.clone()).map_err(anyhow::Error::msg)?;
+        eprintln!("vfio-user-nvgpu: read-only window page: BAR0 [{base:#x}, {:#x}) exact emulated values; incremental publication, every store remains trapped; requires matching read-only VMM area; reconnect requires backend restart ({DISPLAY_WINDOW_RO_ENV})", base + intr_page::PAGE);
+        Some(page)
     } else {
         None
     };
@@ -1511,6 +1568,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .chain(inv.as_ref().map(|i| i.area()))
             .chain(um.as_ref().map(|u| u.area()))
             .chain(kicks.as_ref().map(|k| k.area()))
+            .chain(ro_window.as_ref().map(|p| p.area()))
             .collect(),
     });
     for l in config_block(&ConfigView {
@@ -1617,6 +1675,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         mem: device.mem_view(),
     });
     let routes = Routes {
+        terminal_fault: Some(device.terminal_fault_handle()),
         intr_page: intr_page.clone(),
         rearm: intr_page.as_ref().and_then(|_| {
             let b = &chip.data().bar0;

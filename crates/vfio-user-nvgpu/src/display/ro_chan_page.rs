@@ -2,12 +2,11 @@
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
 //! An exact read-only BAR0 view of one emulated window-channel USERD page.
 //!
-//! This is a source-only candidate. A caller must offer `area()` as a read-only
-//! sparse mapping, leave *every* store trapped, and call `refresh` while holding
-//! the device's current display state after channel controls, allocations and
-//! trapped writes, before completing those operations. A hot write should use
-//! `publish_word` for each changed PUT/GET, method, or latch dword; a full
-//! `refresh` is for initial publication and reset. Reset must drain old
+//! Opt-in through `CARAXES_DISPLAY_WINDOW_RO`. A caller must offer `area()` as a read-only
+//! sparse mapping and leave *every* store trapped. `Display` publishes changed
+//! PUT/GET, method, and latch dwords as it applies trapped writes; a full
+//! `refresh` is for initial publication and reset. The production caller must
+//! serialize display writes and publication with the device mutex. Reset must drain old
 //! operations and refresh the new display before the guest resumes. The page is
 //! guest-owned emulated state in the interrupt memfd, never a host BAR mapping.
 //! It must not overlap the writable legacy kick-page area.
@@ -18,6 +17,7 @@
 //! page is excluded because its scan-line register advances with time.
 
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Weak};
 
 use super::{Display, WIN_USERD};
 use crate::intr_page::{IntrPage, Mapping, PAGE};
@@ -27,12 +27,13 @@ const WINDOW_PAGES: u64 = 32;
 pub struct RoChanPage {
     base: u64,
     map: Mapping,
+    owner: Weak<IntrPage>,
 }
 
 impl RoChanPage {
     /// `base` identifies exactly one NVC57E window instance, never a core,
     /// window-immediate, cursor or host register page.
-    pub fn create(intr: &IntrPage, base: u64) -> Result<Self, String> {
+    pub fn create(intr: &Arc<IntrPage>, base: u64) -> Result<Self, String> {
         if base < WIN_USERD
             || base >= WIN_USERD + WINDOW_PAGES * PAGE
             || (base - WIN_USERD) % PAGE != 0
@@ -42,7 +43,16 @@ impl RoChanPage {
         Ok(Self {
             base,
             map: intr.map_page(base)?,
+            owner: Arc::downgrade(intr),
         })
+    }
+
+    /// Attachment must use the same VM's interrupt memfd; a weak identity does
+    /// not keep a dead client's page alive or accept a recycled fd number.
+    pub fn belongs_to(&self, intr: &Arc<IntrPage>) -> bool {
+        self.owner
+            .upgrade()
+            .is_some_and(|owner| Arc::ptr_eq(&owner, intr))
     }
 
     pub fn area(&self) -> (u64, u64) {
@@ -57,17 +67,18 @@ impl RoChanPage {
                 .is_some_and(|end| end <= self.base + PAGE)
     }
 
-    /// Publish every dword from the ordinary BAR0 display model. Build the image
-    /// before the first store, so an unexpected hole never publishes half a page.
-    /// The caller holds current-engine ownership during publication and write
-    /// completion, as the exact FE page does.
-    pub fn refresh(&self, display: &mut Display) -> Result<(), String> {
+    /// Publish every dword from the ordinary BAR0 display model. Initial
+    /// publication and reset only; hot writes publish changed words instead.
+    /// Production callers hold the device mutex across model publication and
+    /// write completion; this method does not acquire that lock itself.
+    pub fn refresh(&self, display: &Display) -> Result<(), String> {
+        if !display.enabled {
+            return Err("read-only window page needs an enabled display".into());
+        }
         let mut words = [0u32; (PAGE / 4) as usize];
         for (i, value) in words.iter_mut().enumerate() {
             let off = self.base + (i as u64) * 4;
-            *value = display
-                .read32(off)
-                .ok_or_else(|| format!("BAR0 {off:#x}: display does not own mapped dword"))?;
+            *value = display.window_word(off);
         }
         for (i, value) in words.into_iter().enumerate() {
             self.map
@@ -77,23 +88,42 @@ impl RoChanPage {
         Ok(())
     }
 
+    /// Erase the previous client's image before model replacement. A failed
+    /// attachment then cannot expose any of that client's register values.
+    pub fn clear(&self) {
+        for rel in (0..PAGE).step_by(4) {
+            self.map.word(rel).store(0, Ordering::Release);
+        }
+    }
+
     /// Publish one dword changed by the ordinary display model. The PUT kick's
     /// changed method list (`ChanState::method`) and PUT/GET, or a direct trapped
     /// write's latched dword, supply the offsets. Never infer mutations by
     /// comparing shared memory: repeated guest writes remain transactions.
-    pub fn publish_word(&self, display: &mut Display, off: u64) -> Result<(), String> {
+    pub fn publish_word(&self, display: &Display, off: u64) -> Result<(), String> {
         if off % 4 != 0 || !self.covers_range(off, 4) {
             return Err(format!(
                 "BAR0 {off:#x}: outside aligned window-channel page"
             ));
         }
-        let value = display
-            .read32(off)
-            .ok_or_else(|| format!("BAR0 {off:#x}: display does not own mapped dword"))?;
+        if !display.enabled {
+            return Err("read-only window page needs an enabled display".into());
+        }
+        let value = display.window_word(off);
         self.map
             .word(off - self.base)
             .store(value, Ordering::Release);
         Ok(())
+    }
+
+    /// The internal mutation hook. An offset on a different window page is
+    /// expected; an in-page dword uses the same infallible decoder as read32.
+    pub(crate) fn publish_if_covered(&self, display: &Display, off: u64) {
+        if off % 4 == 0 && self.covers_range(off, 4) {
+            self.map
+                .word(off - self.base)
+                .store(display.window_word(off), Ordering::Release);
+        }
     }
 
     /// Also serves a trapped read with the same little-endian byte lanes as the
@@ -135,6 +165,7 @@ mod tests {
         RoChanPage {
             base,
             map: Mapping::new(f.as_raw_fd(), base).unwrap(),
+            owner: Weak::new(),
         }
     }
 
@@ -177,9 +208,9 @@ mod tests {
     #[test]
     fn full_page_tracks_put_get_methods_armed_and_holes() {
         let base = WIN_USERD + 4 * PAGE;
-        let page = page(base);
+        let page = Arc::new(page(base));
         let mut display = display();
-        page.refresh(&mut display).unwrap();
+        display.attach_ro_chan_page(page.clone()).unwrap();
         equal_full_page(&page, &mut display);
 
         // An allocation sets both control words; a trapped method write is
@@ -196,7 +227,6 @@ mod tests {
         display
             .write32(base + CHN_ARMED + 0x22c, 0xffff, &mem, &mut fb)
             .unwrap();
-        page.refresh(&mut display).unwrap();
         equal_full_page(&page, &mut display);
         let mut lanes = [0u8; 6];
         assert!(page.read(base + 0x229, &mut lanes));
@@ -213,12 +243,19 @@ mod tests {
     #[test]
     fn window_kick_publishes_hot_armed_words_and_reset_clears_them() {
         let base = WIN_USERD + 4 * PAGE;
-        let page = page(base);
+        let page = Arc::new(page(base));
         let mut display = display();
+        display.attach_ro_chan_page(page.clone()).unwrap();
         let mut mem = GuestMemory::new();
         let f = memfd(PAGE);
         mem.map(0x10_0000, PAGE, 0, &f).unwrap();
         let words = [
+            1u32 << 18,
+            0x1234_5678,
+            1u32 << 18 | 4,
+            0x8765_4321,
+            1u32 << 18 | 0x100,
+            0xface_cafe,
             1u32 << 18 | 0x22c,
             0xcf,
             1u32 << 18 | 0x2ec,
@@ -243,28 +280,24 @@ mod tests {
         display
             .control(d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER, &push)
             .unwrap();
+        equal_full_page(&page, &mut display);
         let mut alloc = vec![0; d::CHANNELDMA_ALLOC_SIZE];
         super::super::put32(&mut alloc, d::CHANNEL_ALLOC_INSTANCE, 4);
         super::super::put32(&mut alloc, d::CHANNELDMA_ALLOC_OFFSET, 0x40);
         display.alloc(d::NVC57E_WINDOW_CHANNEL_DMA, &alloc).unwrap();
-        page.refresh(&mut display).unwrap();
         equal_full_page(&page, &mut display);
 
         let mut fb = FakeFb::new(1 << 20);
         display
             .write32(base, 0x40 + (words.len() as u32) * 4, &mem, &mut fb)
             .unwrap();
-        for off in [
-            base,
-            base + 4,
-            base + 0x22c,
-            base + 0x2ec,
-            base + CHN_ARMED + 0x22c,
-            base + CHN_ARMED + 0x2ec,
-        ] {
-            page.publish_word(&mut display, off).unwrap();
-        }
         equal_full_page(&page, &mut display);
+        let mut below_methods = [0; 4];
+        assert!(page.read(base + 0x100, &mut below_methods));
+        assert_eq!(
+            below_methods, [0; 4],
+            "assembly below CHN_METHODS is not a readback word"
+        );
         let mut armed = [0; 4];
         assert!(page.read(base + CHN_ARMED + 0x22c, &mut armed));
         assert_eq!(u32::from_le_bytes(armed), 0xcf);
@@ -294,9 +327,34 @@ mod tests {
         }
 
         let mut fresh = self::display();
-        page.refresh(&mut fresh).unwrap();
+        page.clear();
+        fresh.attach_ro_chan_page(page.clone()).unwrap();
         equal_full_page(&page, &mut fresh);
         assert!(page.read(base + CHN_ARMED + 0x22c, &mut armed));
         assert_eq!(u32::from_le_bytes(armed), 0);
+    }
+
+    #[test]
+    fn rpc_free_keeps_display_channel_state_as_current_model_does() {
+        let fixture = crate::fixture::rtx2070();
+        let mut ctrl =
+            crate::ctrl::Dispatcher::new(fixture.chip.data(), &fixture.identity(4 << 30), None);
+        ctrl.display = display();
+        let base = WIN_USERD + 4 * PAGE;
+        let page = Arc::new(page(base));
+        ctrl.display.attach_ro_chan_page(page.clone()).unwrap();
+        let mut alloc = vec![0; d::CHANNELDMA_ALLOC_SIZE];
+        super::super::put32(&mut alloc, d::CHANNEL_ALLOC_INSTANCE, 4);
+        super::super::put32(&mut alloc, d::CHANNELDMA_ALLOC_OFFSET, 0x40);
+        assert_eq!(
+            ctrl.alloc(0x101, 0x202, 0x101, d::NVC57E_WINDOW_CHANNEL_DMA, &alloc)
+                .status,
+            crate::ver::common::NV_OK,
+        );
+        equal_full_page(&page, &mut ctrl.display);
+        assert_eq!(ctrl.display.read32(base), Some(0x40));
+        ctrl.free(0x101, 0x202);
+        equal_full_page(&page, &mut ctrl.display);
+        assert_eq!(ctrl.display.read32(base), Some(0x40));
     }
 }

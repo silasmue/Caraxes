@@ -18,6 +18,7 @@ use std::fs::File;
 use std::mem::size_of;
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use vfio_bindings::bindings::vfio::{
@@ -110,6 +111,11 @@ pub struct Device {
     /// offset, and the wakeups that handed writes to [`Device::rpc_ioeventfd`].
     rpc_head: Option<u64>,
     rpc_wakeups: u64,
+    /// A failed model reset leaves the optional read-only window page erased.
+    /// Every following VFIO access fails until this backend is torn down.
+    reset_error: Option<String>,
+    /// Shared with the lock-free VFIO routes; reset failure terminates all access paths.
+    terminal_fault: Arc<AtomicBool>,
 }
 
 /// A BAR1 pool poll that holds the device longer than this is traced as an event (the
@@ -275,6 +281,9 @@ pub fn spawn_token_reader_hooked(
     reactor.spawn_hooked(
         readers,
         move |rings, seen, st| {
+            if routes.terminal_fault.as_ref().is_some_and(|fault| fault.load(Ordering::Acquire)) {
+                return;
+            }
             // The MSI re-arm with the interrupt page: taken by the page, never waiting for
             // the device mutex (`Routes`).
             let routed_rearm = match (rearm_at, routes.intr_page.as_ref()) {
@@ -337,6 +346,7 @@ pub struct SharedDevice {
     /// The usermode doorbell's BAR0 offset (`None`: no boot model, nothing is posted).
     doorbell: Option<u64>,
     gate: Arc<crate::ringgate::RingGate>,
+    terminal_fault: Arc<AtomicBool>,
 }
 
 /// The current display engine, for the paths without the device mutex (`Device::display_slot`).
@@ -393,6 +403,9 @@ impl DisplayRoute {
 /// (a mirror build, a shadow walk) must not stall the guest's interrupt service.
 #[derive(Clone, Default)]
 pub struct Routes {
+    /// Optional terminal fault shared at construction, so exact eventfd service
+    /// can check it without ever taking the device mutex.
+    pub terminal_fault: Option<Arc<AtomicBool>>,
     /// The interrupt page: accesses of its two pages (the tree's stores in exact mode are
     /// applied at once under the page's lock; page 0 is latched memory).
     pub intr_page: Option<Arc<crate::intr_page::IntrPage>>,
@@ -527,17 +540,24 @@ impl SharedDevice {
     }
 
     fn with_gate(device: Arc<Mutex<Device>>, routes: Routes, gate: Arc<crate::ringgate::RingGate>) -> Self {
-        let doorbell = device
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .bar0
-            .boot()
-            .map(|b| b.usermode_doorbell());
+        let locked = device.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let doorbell = locked.bar0.boot().map(|b| b.usermode_doorbell());
+        let terminal_fault = locked.terminal_fault.clone();
+        drop(locked);
         Self {
             device,
             routes,
             doorbell,
             gate,
+            terminal_fault,
+        }
+    }
+
+    fn require_live(&self) -> std::io::Result<()> {
+        if self.terminal_fault.load(Ordering::Acquire) {
+            Err(std::io::Error::other("device model terminated after reset failure or client departure"))
+        } else {
+            Ok(())
         }
     }
 
@@ -654,6 +674,7 @@ impl SharedDevice {
 
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
+        self.require_live()?;
         let t0 = crate::profile::on().then(std::time::Instant::now);
         if self.routes.read(region, offset, data) {
             if let Some(t0) = t0 {
@@ -690,6 +711,7 @@ impl ServerBackend for SharedDevice {
     }
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
+        self.require_live()?;
         if self.post_doorbell(region, offset, data) {
             return Ok(());
         }
@@ -741,14 +763,17 @@ impl ServerBackend for SharedDevice {
         size: u64,
         fd: Option<File>,
     ) -> std::io::Result<()> {
+        self.require_live()?;
         self.lock("dma map").dma_map(flags, offset, address, size, fd)
     }
 
     fn dma_unmap(&mut self, flags: DmaUnmapFlags, address: u64, size: u64) -> std::io::Result<()> {
+        self.require_live()?;
         self.lock("dma unmap").dma_unmap(flags, address, size)
     }
 
     fn reset(&mut self) -> std::io::Result<()> {
+        self.require_live()?;
         self.lock("reset").reset()
     }
 
@@ -760,6 +785,7 @@ impl ServerBackend for SharedDevice {
         count: u32,
         fds: Vec<File>,
     ) -> std::io::Result<()> {
+        self.require_live()?;
         self.lock("set irqs").set_irqs(index, flags, start, count, fds)
     }
 }
@@ -984,6 +1010,8 @@ impl Device {
             slow_pool_polls: 0,
             rpc_head: None,
             rpc_wakeups: 0,
+            reset_error: None,
+            terminal_fault: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -1051,6 +1079,9 @@ impl Device {
     /// poll, docs/caraxes/sottr-stage.md §11). Several writes between two wakeups are one
     /// re-arm: each would repeat the same idempotent steps.
     pub fn msi_rearm_ioeventfd(&mut self, offset: u64, writes: u64) {
+        if self.terminal_fault.load(Ordering::Acquire) {
+            return;
+        }
         self.ring_posted_first();
         self.rearm_wakeups += 1;
         self.rearm_writes += writes;
@@ -1309,7 +1340,17 @@ impl Device {
 
     fn sync_msi_enabled(&self) {
         if let Some(s) = &self.intr {
-            s.set_msi_enabled(self.cfg.msi_enabled());
+            s.set_msi_enabled(!self.terminal_fault.load(Ordering::Acquire) && self.cfg.msi_enabled());
+        }
+    }
+
+    fn stop_terminal_irqs(&mut self) {
+        if let Some(shared) = &self.intr {
+            shared.set_msi_enabled(false);
+            shared.set_msi_fd(None);
+        }
+        for fds in &mut self.irq_fds {
+            fds.clear();
         }
     }
 
@@ -1719,7 +1760,24 @@ impl Device {
                 .map_err(|e| format!("IRQ index {index}: {e}"))?;
             }
         }
-        self.reset_model();
+        if self.bar0.has_ro_chan_page() {
+            // The departing VMM may retain its read-only mmap after closing
+            // the socket. Reusing this memfd for another client would let it
+            // observe that client's display state. Drain exact readers, erase
+            // the image and stop the old host producers before ending the backend.
+            let error = "read-only window page requires a new backend/memfd for a new VFIO client".to_string();
+            self.terminal_fault.store(true, Ordering::Release);
+            self.reset_error = Some(error.clone());
+            self.stop_terminal_irqs();
+            {
+                let mut slot = self.display_slot.write().unwrap_or_else(PoisonError::into_inner);
+                *slot = None;
+                self.bar0.clear_ro_chan_page();
+            }
+            self.bar0.retire_boot_model();
+            return Err(error);
+        }
+        self.reset_model()?;
         self.cfg = self.cfg_reset.clone();
         if self.guest_dma_gpa {
             if let GuestRam::Register(hm) = &self.guest_ram {
@@ -1742,7 +1800,10 @@ impl Device {
 
     /// A device reset (FLR or the client's reset): the interrupt vectors raised before it
     /// and not yet delivered go first, then the model and the guest aliases.
-    fn reset_model(&mut self) {
+    fn reset_model(&mut self) -> Result<(), String> {
+        if let Some(error) = &self.reset_error {
+            return Err(error.clone());
+        }
         // Exact operations retain the slot reader through publication and raise; this
         // writer drains them before reattaching the shared FE page/resetting pending IRQs.
         // No new exact operation reaches an engine until publish_display below.
@@ -1759,7 +1820,13 @@ impl Device {
         }
         // The model first (its old interrupt sources stop with it: the mirror's host event
         // thread is joined when the old mirror drops), then what they raised goes.
-        self.bar0.reset();
+        if let Err(error) = self.bar0.reset() {
+            self.reset_error = Some(error.clone());
+            self.terminal_fault.store(true, Ordering::Release);
+            self.stop_terminal_irqs();
+            self.bar0.retire_boot_model();
+            return Err(error);
+        }
         if let Some(s) = &self.intr {
             let dropped = s.reset_pending();
             if dropped.iter().any(|&p| p != 0) {
@@ -1771,6 +1838,7 @@ impl Device {
         }
         self.load_guest_aliases();
         self.publish_display();
+        Ok(())
     }
 
     /// The display engine for the paths without the device mutex (the display clock, the
@@ -1778,6 +1846,11 @@ impl Device {
     pub fn display_slot(&mut self) -> DisplaySlot {
         self.publish_display();
         self.display_slot.clone()
+    }
+
+    /// Copy before wrapping the device in its mutex for lock-free eventfd routes.
+    pub fn terminal_fault_handle(&self) -> Arc<AtomicBool> {
+        self.terminal_fault.clone()
     }
 
     fn publish_display(&self) {
@@ -1837,6 +1910,11 @@ impl Device {
     /// rings them before its own work (its launch chain, if timed, stays its own), else the
     /// completer (each ring timed as a trapped ring of the launch chain from its post).
     pub fn ring_posted(&mut self, gate: &crate::ringgate::RingGate, by_access: bool) {
+        if self.terminal_fault.load(Ordering::Acquire) {
+            // Drop queued writes from the old client; no producer may reach the model.
+            let _ = gate.take_posted();
+            return;
+        }
         if !gate.has_posted() || self.ringing_posted {
             return;
         }
@@ -2115,6 +2193,9 @@ impl ServerBackend for Device {
         offset: u64,
         data: &mut [u8],
     ) -> Result<(), std::io::Error> {
+        if let Some(error) = &self.reset_error {
+            return Err(std::io::Error::other(error.clone()));
+        }
         self.apply_registrations();
         let mut note = None;
         match region {
@@ -2175,6 +2256,9 @@ impl ServerBackend for Device {
         offset: u64,
         data: &[u8],
     ) -> Result<(), std::io::Error> {
+        if let Some(error) = &self.reset_error {
+            return Err(std::io::Error::other(error.clone()));
+        }
         self.apply_registrations();
         // A BAR0 write that lands in the config-space mirror orders no FB, BAR1 or GPU
         // state (`after_bar0_write`).
@@ -2235,6 +2319,9 @@ impl ServerBackend for Device {
             self.after_bar0_write_in(sync_point, offset, pace);
         } else {
             self.after_write();
+        }
+        if let Some(error) = &self.reset_error {
+            return Err(std::io::Error::other(error.clone()));
         }
         Ok(())
     }
@@ -2326,8 +2413,7 @@ impl ServerBackend for Device {
     fn reset(&mut self) -> Result<(), std::io::Error> {
         self.trace
             .event("reset: device model back to its initial state");
-        self.reset_model();
-        Ok(())
+        self.reset_model().map_err(std::io::Error::other)
     }
 
     fn set_irqs(
@@ -2472,7 +2558,10 @@ impl Device {
         if self.cfg.take_flr() {
             self.trace
                 .event("flr: function-level reset, device model back to its initial state");
-            self.reset_model();
+            if let Err(error) = self.reset_model() {
+                self.trace.event(&format!("flr: reset failed; VFIO accesses stopped: {error}"));
+                return;
+            }
         }
         if self.bar0.boot_mut().is_some_and(|b| b.take_msi()) {
             self.raise_msi();
@@ -2484,6 +2573,64 @@ impl Device {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ro_window_mapping_refuses_memfd_reuse_for_a_later_client() {
+        use crate::display::ro_chan_page::RoChanPage;
+        let f = crate::fixture::rtx2070();
+        let intr = crate::intr_page::IntrPage::create(
+            16 << 20,
+            0xb8_1000,
+            f.chip.data().identity,
+            crate::intr::IntrShared::new(),
+            crate::intr_page::Config::default(),
+        )
+        .unwrap();
+        let base = crate::display::WIN_USERD + 4 * crate::intr_page::PAGE;
+        let ro = Arc::new(RoChanPage::create(&intr, base).unwrap());
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        let mut boot = crate::boot::BootModel::new(
+            f.chip,
+            crate::fb::FbLayout::plain(4 << 30),
+            f.identity(4 << 30),
+        );
+        boot.ctrl.display = crate::display::Display::from_setup(&crate::display::Setup {
+            enabled: true,
+            chip: "tu106".into(),
+            board: board.display,
+        })
+        .unwrap();
+        let mut device = rtx2070_device();
+        device.bar0 = Bar0::new(f.chip, Vec::new(), None)
+            .with_boot_model(boot)
+            .with_intr_page(intr.clone())
+            .with_ro_chan_page(ro.clone())
+            .unwrap();
+        let off = base + 0x100;
+        assert_eq!(
+            device.bar0.write(&mut device.cfg, &device.mem, off, &0x1234_5678u32.to_le_bytes()),
+            WriteEffect::Model
+        );
+        let mut image = [0; 4];
+        assert!(ro.read(off, &mut image));
+        assert_eq!(u32::from_le_bytes(image), 0x1234_5678);
+        let slot = device.display_slot();
+        assert!(slot.read().unwrap().is_some());
+        let error = device.client_gone().unwrap_err();
+        assert!(error.contains("new backend/memfd"), "{error}");
+        assert!(device.bar0.has_ro_chan_page());
+        assert!(ro.read(off, &mut image));
+        assert_eq!(image, [0; 4]);
+        assert!(slot.read().unwrap().is_none(), "exact display producers must be detached");
+        assert!(device.terminal_fault.load(Ordering::Acquire));
+        assert!(device.bar0.boot().is_none(), "old model producers must be retired");
+        let mut shared = SharedDevice::new(
+            Arc::new(Mutex::new(device)),
+            Routes { intr_page: Some(intr), ..Routes::default() },
+        );
+        assert!(ServerBackend::region_read(&mut shared, VFIO_PCI_BAR0_REGION_INDEX, 0, &mut image).is_err());
+        assert!(ServerBackend::region_write(&mut shared, VFIO_PCI_BAR0_REGION_INDEX, off, &image).is_err());
+    }
 
     fn guest_ram_file() -> File {
         let name = std::ffi::CString::new("caraxes-gpa-test").unwrap();
@@ -2510,7 +2657,7 @@ mod tests {
         assert_eq!(d.mem.host_iova(0, 0x1000), Some(0x100000));
         assert_eq!(d.mem.host_iova(0x100000, 0x1000), Some(0x7f00_0000_0000));
         assert_eq!(d.mem.translate(0x100000, 4), Some(0x100000));
-        d.reset_model();
+        d.reset_model().unwrap();
         assert_eq!(d.mem.translate(0x100000, 4), Some(0x100000));
         assert_eq!(d.mem.host_iova(0x100000, 0x1000), Some(0x7f00_0000_0000));
         assert!(!d.mem.covers(0x2000, 1));

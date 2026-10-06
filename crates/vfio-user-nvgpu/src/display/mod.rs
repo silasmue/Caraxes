@@ -360,6 +360,9 @@ pub struct Display {
     pub chan_state: BTreeMap<u64, ChanState>,
     /// Latched writes to display pages without a model.
     latched: BTreeMap<u64, u32>,
+    /// Optional exact read-only view of one window USERD page. Its memfd belongs
+    /// to this VM. Production callers serialize publication with the device lock.
+    ro_chan_page: Option<std::sync::Arc<ro_chan_page::RoChanPage>>,
     /// The AUX transcript in dp-sink's format (`aux::record_line`).
     pub aux_transcript: Vec<String>,
     /// Link configuration the last DP_CTRL trained (rate code, lanes).
@@ -524,6 +527,7 @@ impl Display {
             core_armed: BTreeMap::new(),
             chan_state: BTreeMap::new(),
             latched: BTreeMap::new(),
+            ro_chan_page: None,
             aux_transcript: Vec::new(),
             link: None,
             fec: false,
@@ -593,6 +597,52 @@ impl Display {
 
     fn chip(&self) -> &ChipDisplay {
         self.chip.as_ref().expect("enabled display has chip data")
+    }
+
+    /// Initial publication, or reattachment after a fresh display was built by
+    /// reset. The caller must complete this before offering/resuming the guest
+    /// mapping; a disabled display is not a valid mapping owner.
+    pub fn attach_ro_chan_page(
+        &mut self,
+        page: std::sync::Arc<ro_chan_page::RoChanPage>,
+    ) -> Result<(), String> {
+        if !self.enabled {
+            return Err("read-only window page needs an enabled display".into());
+        }
+        page.refresh(self)?;
+        self.ro_chan_page = Some(page);
+        Ok(())
+    }
+
+    fn publish_ro_word(&self, off: u64) {
+        if let Some(page) = &self.ro_chan_page {
+            page.publish_if_covered(self, off);
+        }
+    }
+
+    /// The entire NVC57E page is model-owned, including otherwise-zero holes.
+    /// This pure decoder is also the mapped page's publication source, so an
+    /// unmodelled latched word and a reserved hole retain their trapped values.
+    pub(crate) fn window_word(&self, off: u64) -> u32 {
+        let (base, rel) = page_of(off);
+        debug_assert!((WIN_USERD..WIN_USERD + 32 * 0x1000).contains(&base));
+        if let Some(ch) = self.channels.get(&base) {
+            match rel {
+                0 => return ch.put,
+                4 => return ch.get,
+                _ => {}
+            }
+        }
+        if rel >= CHN_METHODS {
+            let state = self.chan_state.get(&base);
+            if rel >= CHN_ARMED {
+                return state.and_then(|s| s.read(rel)).unwrap_or(0);
+            }
+            if let Some(value) = state.and_then(|s| s.read(rel)) {
+                return value;
+            }
+        }
+        self.latched.get(&off).copied().unwrap_or(0)
     }
 
     /// The engine, under the display lock (held for one statement at a time here).
@@ -756,6 +806,8 @@ impl Display {
                         p.set_channel(base, ch.put, ch.get);
                     }
                     self.channels.insert(base, ch);
+                    self.publish_ro_word(base);
+                    self.publish_ro_word(base + 4);
                 }
                 ok(b, GUEST, note)
             }
@@ -1680,6 +1732,8 @@ impl Display {
                 " instance {inst}: USERD at BAR0 {base:#x}, pushbuffer {:#x} (valid {}), initial PUT/GET {initial_offset:#x}",
                 ch.pb, ch.valid
             ));
+            self.publish_ro_word(base);
+            self.publish_ro_word(base + 4);
         }
         Some(ok(
             params.to_vec(),
@@ -1721,6 +1775,9 @@ impl Display {
         if (CORE_ARMED..CORE_ARMED + 0x8000).contains(&off) {
             let m = (off - CORE_ARMED) as u32;
             return Some(self.core_armed.get(&m).copied().unwrap_or(0));
+        }
+        if (WIN_USERD..WIN_USERD + 32 * 0x1000).contains(&off) {
+            return Some(self.window_word(off));
         }
         if (CORE_USERD..USERD_END).contains(&off) {
             let (base, rel) = page_of(off);
@@ -1987,9 +2044,16 @@ impl Display {
             if let Some(mut ch) = self.channels.get(&base).copied() {
                 ch.put = v;
                 ch.kicks += 1;
+                // A window UPDATE may notify the guest during kick. Publish the
+                // accepted PUT before any method can reach that notifier. GET
+                // remains the last consumed pointer until parsing finishes.
+                self.channels.insert(base, ch);
+                self.publish_ro_word(base);
                 self.eng().catch_up(engine::now_ns(), fb, mem);
                 let note = self.kick(base, &mut ch, mem, fb);
                 self.channels.insert(base, ch);
+                self.publish_ro_word(base);
+                self.publish_ro_word(base + 4);
                 let mut notes = vec![note];
                 notes.extend(self.take_engine_notes());
                 return Some(notes);
@@ -2006,6 +2070,7 @@ impl Display {
             self.chan_state.entry(base).or_default().method(rel as u32, v);
         }
         self.latched.insert(off, v);
+        self.publish_ro_word(off);
         Some(Vec::new())
     }
 
@@ -2074,7 +2139,13 @@ impl Display {
                                     self.core_assembly.insert(m, data);
                                 }
                             } else {
-                                published.extend(self.chan_state.entry(base).or_default().method(m, data));
+                                let changed = self.chan_state.entry(base).or_default().method(m, data);
+                                // Publish the decoder's canonical value before
+                                // window_update can raise a completion interrupt.
+                                for &(rel, _) in &changed {
+                                    self.publish_ro_word(base + rel);
+                                }
+                                published.extend(changed);
                                 if let Some(w) = window {
                                     if m == 0x200 {
                                         updates += 1;
