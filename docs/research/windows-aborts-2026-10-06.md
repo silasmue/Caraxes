@@ -445,3 +445,45 @@ and `C193-cache-relocation.json`.
 
 Private evidence: `C194-build-checks.json`, `C194-graphify-update.log` and
 `local-irq-foundation-2026-10-06/metadata.json` in the Windows artifact directory.
+
+## Sparse-token Windows qualification
+
+- C196 runs stock Windows with `0:55,2:56`, all 250 automatic entries and both
+  additions registered. Device creation takes 635 ms; three verified D3D11
+  readbacks take 24 ms. Pre/post health stays Problem 0 with no Display 4101.
+  The 3DMark window becomes ready after 49.4 seconds. An earlier snapshot request
+  precedes readiness and fails with "UI window unavailable"; its evidence is
+  retained, followed by a successful fresh snapshot.
+- One diagnostic Fire Strike completes all four primary results: graphics 5,092,
+  GT1 17.766 FPS and GT2 29.367 FPS. This instrumented run has no strict child-exit
+  audit and is excluded from scored comparisons. No gain or moving-scene proof
+  is promoted. The process query's name filter is incomplete; continuing
+  SystemInfo activity alone does not identify which rendering phase is active.
+- Across the 375.2-second launch/render/collection/idle bracket, 17,131 ordinary
+  doorbells still trap: runlist 0 / ChID 51 (16,215), runlist 2 / ChID 52 (910)
+  and runlist 2 / ChID 50 (6). The offer's new values have no trapped writes, but
+  no per-value eventfd counters establish that they were used. Automatic ChID
+  allocation differs from C192. There are 29,995 eventfd wakeups representing
+  67,824 guest writes. Static values from one trace are not general coverage.
+- The same bracket has 1,543,931 interrupt writes (4,115/s), 5.792 seconds of
+  backend service, 36,523 FE writes and zero display-status read traps. Nearby
+  VMM snapshots span 372.4 seconds: 1,534,294 requests taking 43.681 seconds plus
+  0.086 seconds of client mutex wait, averaging 28.47 us and 0.056 us. Endpoint
+  differences are +1.21/−1.58 seconds. The local IRQ owner remains the next
+  route-level change; this is not a complete explanation of the low FPS.
+- Available checks pass with no new Xid or VA-update error; 19 other backend
+  ERROR lines remain. All owned processes and samplers stop; NVIDIA remains bound.
+  C194 and C195 fail admission before creating any VM because of package path
+  and checksum-basename errors. Those frozen packets are preserved. C196 uses a
+  corrected sibling package with identical binary bytes and unchanged guards.
+- `b1e25965` separately fixes the vfio-user client's inverted RESET flag test.
+  A socketpair regression tests real `DEVICE_GET_INFO` replies with and without
+  the flag; all 18 isolated vendor tests pass. Production Cargo.lock is unchanged.
+  C196 uses the previous immutable VMM/backend and does not test this correction.
+  The VMM's relative vendor path currently resolves into the main checkout,
+  rather than this worktree. Pin an isolated matching copy before implementing
+  the local-IRQ protocol; do not alter the main checkout through that symlink.
+
+Private evidence: `C196-root-closeout.json`, `C196-doorbell-delta.json`,
+`C196-latency-whole-render-diagnostic.json`, `C194-admission-stop.json`,
+`C195-admission-stop.json` and `C197-reset-vendor-validation.json`.
