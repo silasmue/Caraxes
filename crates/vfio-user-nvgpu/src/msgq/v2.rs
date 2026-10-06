@@ -809,6 +809,56 @@ impl QueueStateV2 {
         self.enqueue(qm, NVDM_TYPE_GMCAPI, g.encode().to_vec(), params, id, 0)
     }
 
+    /// Admit a complete asynchronous RM reply before publishing any of its records.
+    /// False means temporary held-capacity pressure; no index or payload was consumed.
+    pub(crate) fn send_batch(
+        &mut self,
+        qm: &QueueMemory,
+        records: &[(RpcHeader, Vec<u8>)],
+    ) -> Result<bool, String> {
+        if self.failed.is_some() {
+            return Err(self.failed_error());
+        }
+        if records.is_empty() || records.len() > 2 {
+            return Err("asynchronous RM reply must contain one or two records".into());
+        }
+        if self.held.len() + records.len() > MAX_HELD {
+            return Ok(false);
+        }
+        let msg_size = self.stat.msg_size as usize;
+        let mut prepared = Vec::with_capacity(records.len());
+        for (header, payload) in records {
+            let total = ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE + payload.len();
+            let slots = total.div_ceil(msg_size);
+            if header.function > gmcapi::COMMAND_RESERVED_LAST
+                || total > ELEMENT_SIZE_MAX
+                || slots > self.stat.msg_count as usize
+            {
+                return Err("asynchronous RM reply does not fit the status queue".into());
+            }
+            let mut raw = vec![0u8; slots * msg_size];
+            put_u32(&mut raw, ELEMENT_MAGIC, MCTP_MAGIC);
+            put_u32(&mut raw, ELEMENT_MCTP_PAYLOAD_SIZE, total as u32);
+            put_u32(&mut raw, ELEMENT_MCTP_HEADER, MCTP_HEADER);
+            put_u32(&mut raw, ELEMENT_NVDM_HEADER, nvdm_header(NVDM_TYPE_RM_RPC));
+            put_u32(
+                &mut raw,
+                ELEMENT_NVDM_PAYLOAD_SIZE,
+                (RPC_HEADER_SIZE + payload.len()) as u32,
+            );
+            let mut header = *header;
+            header.length = (RPC_HEADER_SIZE + payload.len()) as u32;
+            raw[ELEMENT_HEADER_SIZE..ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE]
+                .copy_from_slice(&header.encode());
+            raw[ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE..total].copy_from_slice(payload);
+            prepared.push(raw);
+        }
+        self.sent = self.sent.wrapping_add(prepared.len() as u32);
+        self.held.extend(prepared);
+        self.flush(qm)?;
+        Ok(true)
+    }
+
     fn enqueue(
         &mut self,
         qm: &QueueMemory,
@@ -860,6 +910,9 @@ impl QueueStateV2 {
     }
 
     fn flush(&mut self, qm: &QueueMemory) -> Result<(), String> {
+        if self.failed.is_some() {
+            return Err(self.failed_error());
+        }
         let msg_size = self.stat.msg_size as usize;
         while let Some(raw) = self.held.front() {
             let slots = (raw.len() / msg_size) as u32;
@@ -1039,6 +1092,185 @@ pub(crate) mod tests {
     fn linked(tag: &str) -> (GuestMemory, Vec<u64>, std::path::PathBuf) {
         let (mem, pages, _base, path) = queue_fixture(tag);
         (mem, pages, path)
+    }
+
+    fn large_control_reply(sequence: u32) -> [(RpcHeader, Vec<u8>); 2] {
+        // A613's 79,936 parameter bytes plus its 40-byte control frame occupy
+        // one maximum-size v2 RPC record and one continuation record.
+        let request = RpcHeader {
+            sequence,
+            ..RpcHeader::event(0x47, 0)
+        };
+        let first = vec![0xa6; MAX_RPC_SIZE - RPC_HEADER_SIZE];
+        let continuation = vec![0x5c; 40 + 79_936 - first.len()];
+        assert_eq!((first.len(), continuation.len()), (65_480, 14_496));
+        [
+            (RpcHeader::reply(&request, 0, first.len()), first),
+            (
+                RpcHeader {
+                    function: crate::rpc::FN_CONTINUATION_RECORD,
+                    sequence: sequence.wrapping_add(1),
+                    ..RpcHeader::reply(&request, 0, continuation.len())
+                },
+                continuation,
+            ),
+        ]
+    }
+
+    fn fill_status_and_hold(q: &mut QueueStateV2, qm: &QueueMemory, held: usize) {
+        for i in 0..63 + held {
+            q.send(qm, &RpcHeader::event(0x1003, 1), &[i as u8])
+                .unwrap();
+        }
+        assert_eq!(
+            (q.write_ptr, q.held(), q.sent),
+            (63, held, (63 + held) as u32)
+        );
+    }
+
+    #[test]
+    fn async_batch_capacity_refusal_changes_no_state_or_bytes() {
+        let (mem, pages, path) = linked("v2batchcapacity");
+        let qm = QueueMemory::new(&mem, &pages);
+        let _cpu = Cpu::create(&qm);
+        let mut q = QueueStateV2::link(&qm, &args(), 0).unwrap();
+        let batch = large_control_reply(u32::MAX);
+
+        fill_status_and_hold(&mut q, &qm, 63);
+        let state = (q.sent, q.write_ptr, q.held.clone());
+        let mut bytes = vec![0; QSIZE as usize];
+        assert!(qm.read(STAT, &mut bytes));
+        assert_eq!(q.send_batch(&qm, &batch), Ok(false));
+        assert_eq!((q.sent, q.write_ptr, q.held.clone()), state);
+        let mut unchanged = vec![0; bytes.len()];
+        assert!(qm.read(STAT, &mut unchanged));
+        assert_eq!(unchanged, bytes, "refused batch wrote no status bytes");
+        assert!(q.failed.is_none());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn async_batch_admits_two_records_then_tail_retries_publish_in_order() {
+        let (mem, pages, path) = linked("v2batchdrain");
+        let qm = QueueMemory::new(&mem, &pages);
+        let mut cpu = Cpu::create(&qm);
+        let mut q = QueueStateV2::link(&qm, &args(), 0).unwrap();
+        let batch = large_control_reply(u32::MAX);
+        // One fewer held element leaves exactly two admission slots. The CPU first
+        // drains the full ring, then the 62 older held replies; only then can the
+        // 16-slot first record and four-slot continuation become visible together.
+        fill_status_and_hold(&mut q, &qm, 62);
+        assert_eq!(q.send_batch(&qm, &batch), Ok(true));
+        assert_eq!((q.sent, q.write_ptr, q.held()), (127, 63, 64));
+        for _ in 0..63 {
+            cpu.receive(&qm, q.write_ptr).expect("old ring reply");
+        }
+        q.cpu_read_ptr = cpu.read_ptr;
+        assert_eq!(
+            q.retry_held(&qm).as_deref(),
+            Some("status queue: 62 held element(s) written, 2 still held")
+        );
+        assert_eq!((q.write_ptr, q.held()), (125, 2));
+        for _ in 0..62 {
+            cpu.receive(&qm, q.write_ptr).expect("older held reply");
+        }
+        q.cpu_read_ptr = cpu.read_ptr;
+        assert_eq!(
+            q.retry_held(&qm).as_deref(),
+            Some("status queue: 2 held element(s) written, 0 still held")
+        );
+        assert_eq!((q.write_ptr, q.held(), q.sent), (145, 0, 127));
+        for (index, (expected, payload)) in batch.iter().enumerate() {
+            let (nvdm, body) = cpu.receive(&qm, q.write_ptr).expect("batch record");
+            assert_eq!(nvdm, NVDM_TYPE_RM_RPC);
+            let header = RpcHeader::parse(&body);
+            assert_eq!(header.function, expected.function, "record {index}");
+            assert_eq!(
+                header.sequence, expected.sequence,
+                "wrapped sequence {index}"
+            );
+            assert_eq!(header.length as usize, RPC_HEADER_SIZE + payload.len());
+            assert_eq!(&body[RPC_HEADER_SIZE..], payload, "record {index} payload");
+        }
+        assert_eq!(cpu.read_ptr, q.write_ptr);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn async_batch_validates_later_record_before_any_publication() {
+        let (mem, pages, path) = linked("v2batchinvalid");
+        let qm = QueueMemory::new(&mem, &pages);
+        let _cpu = Cpu::create(&qm);
+        let mut q = QueueStateV2::link(&qm, &args(), 0).unwrap();
+        let mut batch = large_control_reply(7);
+        batch[1].1.resize(MAX_RPC_SIZE - RPC_HEADER_SIZE + 1, 0x5c);
+        let mut before = vec![0; QSIZE as usize];
+        assert!(qm.read(STAT, &mut before));
+        assert!(q
+            .send_batch(&qm, &batch)
+            .unwrap_err()
+            .contains("does not fit"));
+        assert_eq!((q.sent, q.write_ptr, q.held()), (0, 0, 0));
+        let mut after = vec![0; before.len()];
+        assert!(qm.read(STAT, &mut after));
+        assert_eq!(
+            after, before,
+            "even the valid first record was not published"
+        );
+        assert!(
+            q.failed.is_none(),
+            "pre-admission validation did not fault the ring"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn async_batch_later_unwritable_slot_is_sticky_and_never_retried() {
+        let (mem, pages, path) = linked("v2batchunwritable");
+        let qm = QueueMemory::new(&mem, &pages);
+        let mut cpu = Cpu::create(&qm);
+        let mut q = QueueStateV2::link(&qm, &args(), 0).unwrap();
+        let batch = large_control_reply(91);
+        let mut broken_pages = pages.clone();
+        // The first record fills slots 0..15. Simulate a vanished backing page
+        // for the continuation's first slot without changing the valid pages.
+        let continuation_page = ((STAT + 0x1000 + 16 * 0x1000) / 0x1000) as usize;
+        broken_pages[continuation_page] = 0xdead_0000;
+        let broken = QueueMemory::new(&mem, &broken_pages);
+        assert!(q
+            .send_batch(&broken, &batch)
+            .unwrap_err()
+            .contains("unwritable"));
+        assert_eq!((q.sent, q.write_ptr, q.held()), (2, 16, 1));
+        assert!(q
+            .failed
+            .as_deref()
+            .is_some_and(|e| e.contains("unwritable")));
+        let (_, first) = cpu
+            .receive(&qm, q.write_ptr)
+            .expect("first record was published");
+        assert_eq!(&first[RPC_HEADER_SIZE..], batch[0].1);
+        assert!(
+            cpu.receive(&qm, q.write_ptr).is_none(),
+            "continuation is invisible"
+        );
+        let before = (q.sent, q.write_ptr, q.held.clone());
+        q.cpu_read_ptr = cpu.read_ptr;
+        assert!(q.retry_held(&qm).unwrap().contains("unwritable"));
+        assert!(q
+            .send_batch(&qm, &batch)
+            .unwrap_err()
+            .contains("unwritable"));
+        assert!(q
+            .send(&qm, &RpcHeader::event(0x1003, 0), &[])
+            .unwrap_err()
+            .contains("unwritable"));
+        assert_eq!((q.sent, q.write_ptr, q.held), before);
+        assert!(
+            cpu.receive(&qm, q.write_ptr).is_none(),
+            "faulted retry wrote no continuation"
+        );
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
