@@ -180,6 +180,25 @@ fix and earlier controls. C178–C181 use the same immutable backend and VMM.
   differs, so no gain is promoted. The VMM request still averages 23.83 us.
   Guest register writes stay ordered. Leave the gate off: an old submission can
   incur extra completion latency, and the nominal hold excludes scheduler delay.
+- The periodic tree-hole check searched all 28 watched addresses for each of 512
+  words while holding the page mutex. `57dfceac` replaces that search and the
+  trapped-write lookup with a direct decoder. An exhaustive full-page comparison
+  covers registers, holes and unaligned bytes. All 931 unit tests, one ignored
+  test, two integration tests and the release build pass. Interrupt behavior is
+  unchanged.
+- C191 qualifies that decoder with three D3D11 readbacks, loaded 3DMark Home
+  controls, pre/post Problem 0, no Display 4101 and clean teardown with NVIDIA
+  bound and no new Xid. Gate stays off. Its 148.9-second idle bracket still has
+  3,818 interrupt writes/s. Nearby VMM samples average 31.59 us per request;
+  host load varies, so no latency or FPS improvement is established. This small
+  change does not remove the synchronous hop.
+- The next larger proposal is a negotiated local exact tree in the VMM, with one
+  model owner and a hidden, versioned host-cause transport. Preserve immediate
+  mapped-read visibility, ordered writes, pending/re-pending, MSI availability,
+  host hints and reset epochs. All tree accesses must stay with the owner after
+  activation; individual writes cannot fall back to a second backend model.
+  First measure this path during rendering, then compare register/event behavior
+  and qualify stock desktop/D3D, reset and unprofiled Fire Strike separately.
 - Standard ioeventfds carry counts for an offset and optional fixed data match,
   not arbitrary register masks and ordering. This VMM refuses `ioregionfd` and
   disallows ioeventfd areas overlapping its mapped pages. Neither is a ready
