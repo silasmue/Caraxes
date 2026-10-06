@@ -141,3 +141,7 @@ Completed Linux evidence: `linux-night-oct06d-root-qualification.json`,
 Polling evidence: E/F/G root qualifications, `linux-night-oct06efg-analysis.json`,
 pinned packets/probe, placement records and native/guest logs/images.
 Raw archives and logs contain private machine data and remain local.
+
+The subsequent [host-control worker comparison](host-control-worker-2026-10-06.md)
+records cheaper GSP HEAD writes, increased guest polling and essentially unchanged
+Fire Strike GT results. The worker remains experimental and off by default.
