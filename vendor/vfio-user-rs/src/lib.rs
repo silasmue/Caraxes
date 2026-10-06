@@ -847,7 +847,7 @@ impl Client {
             return Err(Error::NotPciDevice);
         }
 
-        self.resettable = reply.flags & VFIO_DEVICE_FLAGS_RESET != VFIO_DEVICE_FLAGS_RESET;
+        self.resettable = reply.flags & VFIO_DEVICE_FLAGS_RESET == VFIO_DEVICE_FLAGS_RESET;
 
         let num_regions = reply.num_regions;
         let mut regions = Vec::new();
@@ -2227,6 +2227,47 @@ impl Drop for Server {
 mod tests {
     use super::*;
     use std::mem::size_of;
+
+    #[test]
+    fn device_get_info_reset_flag_controls_client_resettable() {
+        for (flags, expected) in [
+            (VFIO_DEVICE_FLAGS_PCI | VFIO_DEVICE_FLAGS_RESET, true),
+            (VFIO_DEVICE_FLAGS_PCI, false),
+        ] {
+            let (stream, mut peer) = UnixStream::pair().unwrap();
+            let server = std::thread::spawn(move || {
+                let mut request = DeviceGetInfo::default();
+                peer.read_exact(request.as_mut_slice()).unwrap();
+                assert_eq!(request.header.command, Command::DeviceGetInfo as u16);
+                assert_eq!(request.header.message_size as usize, size_of::<DeviceGetInfo>());
+                let reply = DeviceGetInfo {
+                    header: Header {
+                        message_id: request.header.message_id,
+                        command: Command::DeviceGetInfo as u16,
+                        flags: HeaderFlags::Reply as u32,
+                        message_size: size_of::<DeviceGetInfo>() as u32,
+                        ..Default::default()
+                    },
+                    argsz: size_of::<DeviceGetInfo>() as u32,
+                    flags,
+                    num_regions: 0,
+                    num_irqs: 2,
+                };
+                peer.write_all(reply.as_slice()).unwrap();
+            });
+            let mut client = Client {
+                stream,
+                next_message_id: Wrapping(0),
+                num_irqs: 0,
+                resettable: !expected,
+                regions: Vec::new(),
+            };
+            assert!(client.get_regions().unwrap().is_empty());
+            assert_eq!(client.num_irqs, 2);
+            assert_eq!(client.resettable(), expected, "advertised flags {flags:#x}");
+            server.join().unwrap();
+        }
+    }
 
     #[test]
     fn idle_peek_preserves_fragmented_header_and_scm_rights() {

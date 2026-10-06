@@ -27,6 +27,10 @@ while idle. The server now completes short headers with `read_exact()` and owns 
 received `SCM_RIGHTS` descriptors before that fallible read. These changes are local
 to this vendored copy and are not represented by the upstream-candidate patches above.
 
+The local client also fixes an inverted `VFIO_DEVICE_FLAGS_RESET` test in
+`get_regions()`. `Client::resettable()` now follows the advertised flag. A socketpair
+regression checks real `DEVICE_GET_INFO` replies with and without RESET support.
+
 ```diff
  [dependencies.vfio-bindings]
 -version = "=0.6.3"
