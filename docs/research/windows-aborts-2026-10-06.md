@@ -574,3 +574,17 @@ the earlier Claude handoff are unchanged.
 - C199 is the next short Windows qualification, with local IRQ on and the
   optional display window off. C198 remains a separate unlaunched candidate.
   Source tests establish neither guest stability nor an FPS improvement.
+
+## First local IRQ qualification attempt
+
+- C199 starts the paired VMM/backend but its test guard stops before probes:
+  the package lacks the launcher's expected `source.json`. Both owned processes
+  exit and NVIDIA remains bound. No guest health or performance result accepted.
+- Review finds a separate real bug: both backend ownership guards rejected
+  CYA2 config-mirror reads, while CH correctly forwards them. Guards now distinguish
+  reads from rearm writes and report offset/direction on ownership violations.
+- Six actual-backend linked tests pass after the correction, including partial
+  and neighboring CYA2 reads without MSI replay. The new case fails with the
+  old guard. A CH forwarding regression passes; its full PCI suite is now 54.
+- C200 repeats the short qualification with fresh metadata and an identity-ready
+  marker. Immutable C199 sources, binaries and failed results are retained.

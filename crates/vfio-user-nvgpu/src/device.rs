@@ -567,7 +567,7 @@ impl SharedDevice {
         }
     }
 
-    fn reject_remote_access(&self, region: u32, offset: u64, len: usize) -> std::io::Result<()> {
+    fn reject_remote_access(&self, region: u32, offset: u64, len: usize, write: bool) -> std::io::Result<()> {
         if region != VFIO_PCI_BAR0_REGION_INDEX {
             return Ok(());
         }
@@ -578,11 +578,14 @@ impl SharedDevice {
         let tree = page.tree_base()..page.tree_base() + crate::intr_page::PAGE;
         let rearm = self.routes.rearm;
         if (offset < tree.end && end > tree.start)
-            || rearm.is_some_and(|r| offset < r.saturating_add(4) && end > r)
+            || (write && rearm.is_some_and(|r| offset < r.saturating_add(4) && end > r))
         {
             page.remote_violation();
             self.terminal_fault.store(true, Ordering::Release);
-            return Err(std::io::Error::other("VMM-owned local IRQ tree/re-arm reached backend"));
+            let direction = if write { "write" } else { "read" };
+            let error = format!("VMM-owned local IRQ {direction} reached backend: BAR{region} {offset:#x}, {len} bytes");
+            log::error!("{error}");
+            return Err(std::io::Error::other(error));
         }
         Ok(())
     }
@@ -729,7 +732,7 @@ impl ServerBackend for SharedDevice {
 
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
         self.require_live()?;
-        self.reject_remote_access(region, offset, data.len())?;
+        self.reject_remote_access(region, offset, data.len(), false)?;
         let t0 = crate::profile::on().then(std::time::Instant::now);
         if self.routes.read(region, offset, data) {
             if let Some(t0) = t0 {
@@ -767,7 +770,7 @@ impl ServerBackend for SharedDevice {
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
         self.require_live()?;
-        self.reject_remote_access(region, offset, data.len())?;
+        self.reject_remote_access(region, offset, data.len(), true)?;
         if self.post_doorbell(region, offset, data) {
             return Ok(());
         }
@@ -1324,7 +1327,7 @@ impl Device {
         Ok(())
     }
 
-    fn reject_local_irq_access(&self, region: u32, offset: u64, len: usize) -> std::io::Result<()> {
+    fn reject_local_irq_access(&self, region: u32, offset: u64, len: usize, write: bool) -> std::io::Result<()> {
         if region != VFIO_PCI_BAR0_REGION_INDEX {
             return Ok(());
         }
@@ -1334,11 +1337,14 @@ impl Device {
         let end = offset.saturating_add(len.max(1) as u64);
         let tree = page.tree_base()..page.tree_base() + crate::intr_page::PAGE;
         if (offset < tree.end && end > tree.start)
-            || self.local_irq_rearm.is_some_and(|r| offset < r.saturating_add(4) && end > r)
+            || (write && self.local_irq_rearm.is_some_and(|r| offset < r.saturating_add(4) && end > r))
         {
             page.remote_violation();
             self.terminal_fault.store(true, Ordering::Release);
-            return Err(std::io::Error::other("VMM-owned local IRQ tree/re-arm reached backend"));
+            let direction = if write { "write" } else { "read" };
+            let error = format!("VMM-owned local IRQ {direction} reached backend: BAR{region} {offset:#x}, {len} bytes");
+            log::error!("{error}");
+            return Err(std::io::Error::other(error));
         }
         Ok(())
     }
@@ -2417,7 +2423,9 @@ impl ServerBackend for Device {
         if self.terminal_fault.load(Ordering::Acquire) {
             return Err(std::io::Error::other("device session terminated"));
         }
-        self.reject_local_irq_access(region, offset, data.len())?;
+        // CYA2 reads retain their config-mirror value; only its rearm writes
+        // belong to the VMM. Tree reads and writes are always locally owned.
+        self.reject_local_irq_access(region, offset, data.len(), false)?;
         if let Some(error) = &self.reset_error {
             return Err(std::io::Error::other(error.clone()));
         }
@@ -2484,7 +2492,7 @@ impl ServerBackend for Device {
         if self.terminal_fault.load(Ordering::Acquire) {
             return Err(std::io::Error::other("device session terminated"));
         }
-        self.reject_local_irq_access(region, offset, data.len())?;
+        self.reject_local_irq_access(region, offset, data.len(), true)?;
         if let Some(error) = &self.reset_error {
             return Err(std::io::Error::other(error.clone()));
         }

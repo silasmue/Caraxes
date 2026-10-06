@@ -31,6 +31,7 @@ mod linked {
     struct Fixture {
         client: Arc<Mutex<Client>>,
         device: Arc<Mutex<Device>>,
+        config_mirror: ConfigSpace,
         owner: Arc<LocalIrqOwner>,
         shared: Arc<IntrShared>,
         page: Arc<IntrPage>,
@@ -51,6 +52,7 @@ mod linked {
             let cfg =
                 ConfigSpace::from_dump(parse_dump(&dump).unwrap(), board.bars, board.rom_bar_size)
                     .unwrap();
+            let config_mirror = cfg.clone();
             let identity =
                 StaticIdentity::new(chip.data(), &board, cfg.ids(), &board.name, 4 << 30);
             let shared = IntrShared::new();
@@ -128,6 +130,7 @@ mod linked {
             Self {
                 client: Arc::new(Mutex::new(client)),
                 device,
+                config_mirror,
                 owner,
                 shared,
                 page,
@@ -261,6 +264,43 @@ mod linked {
         fixture.write(TOP_EN_SET, 1);
         fixture.fold(5);
         assert_eq!(fixture.word(LEAF), 1 << 5);
+        assert_eq!(fixture.take_msi(), 1);
+        assert!(fixture.exit.read().is_err());
+    }
+
+    #[test]
+    fn rearm_register_reads_preserve_config_mirror_without_irq_side_effect() {
+        let fixture = Fixture::new("rearm-read");
+        let rearm = fixture.owner.metadata().rearm_offset;
+        fixture.write(LEAF_EN_SET, 1 << 4);
+        fixture.write(TOP_EN_SET, 1);
+        fixture.fold(4);
+        assert_eq!(fixture.take_msi(), 1);
+        for (lane, len) in [(0, 4), (0, 1), (1, 1), (2, 2), (-1, 6)] {
+            let offset = rearm.checked_add_signed(lane).unwrap();
+            let cfg_offset = NV_XVE_CYA_2.checked_add_signed(lane).unwrap();
+            let mut expected = vec![0; len];
+            let mut actual = vec![0; len];
+            // BAR0 exposes the raw mirror, even when extended PCI config bytes
+            // are hidden through the VFIO configuration region.
+            fixture
+                .config_mirror
+                .read(cfg_offset as usize, &mut expected);
+            assert!(fixture.owner.read(0, offset, &mut actual).is_none());
+            let result = {
+                let mut client = fixture.client.lock().unwrap();
+                client.region_read(0, offset, &mut actual)
+            };
+            fixture.owner.rpc_complete(result).unwrap();
+            assert_eq!(actual, expected, "CYA2 read lane {lane}, length {len}");
+            assert_eq!(fixture.word(LEAF), 1 << 4);
+            assert_eq!(fixture.take_msi(), 0, "A read must not rearm");
+        }
+        fixture
+            .owner
+            .write(0, rearm, &0u32.to_le_bytes())
+            .unwrap()
+            .unwrap();
         assert_eq!(fixture.take_msi(), 1);
         assert!(fixture.exit.read().is_err());
     }
