@@ -5510,10 +5510,11 @@ impl Mirror {
         notes.extend(lines);
         let stop = Arc::new(AtomicBool::new(false));
         let intr = self.intr.clone();
+        let generation = intr.producer_generation();
         let stop2 = stop.clone();
         let thread = std::thread::Builder::new()
             .name("host-events".into())
-            .spawn(move || event_loop(events, intr, stop2))
+            .spawn(move || event_loop(events, intr, generation, stop2))
             .ok();
         self.events = Some(Events {
             stop,
@@ -7153,6 +7154,18 @@ impl Mirror {
         notes
     }
 
+    /// PREPARE/reset barrier for a VMM-owned interrupt tree. The old event
+    /// thread and host channel work must be gone before an epoch can advance.
+    pub fn quiesce_for_local_irq(&mut self) -> Result<Vec<String>, String> {
+        let notes = self.reset();
+        if !self.channels.is_empty() || !self.tsgs.is_empty() || !self.vas.is_empty()
+            || !self.shadows.is_empty() || self.events.is_some()
+        {
+            return Err("host mirror retained a producer after local IRQ quiesce".into());
+        }
+        Ok(notes)
+    }
+
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
@@ -7666,7 +7679,7 @@ impl Drop for Mirror {
 
 /// The event thread: wait on the event ctl fds; drain each record; raise the guest
 /// vector of the engine (non-stall) or count the RC.
-fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: Arc<AtomicBool>) {
+fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, generation: u64, stop: Arc<AtomicBool>) {
     use std::os::fd::AsRawFd;
     let mut fds: Vec<libc::pollfd> = events
         .iter()
@@ -7680,7 +7693,7 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
     let mut gate = crate::launch::gate_hold().map(crate::launch::Gate::new);
     let raise_mask = |mask: u64| {
         for v in (0..64).filter(|v| mask & (1u64 << v) != 0) {
-            intr.raise(v);
+            intr.raise_in_generation(generation, v);
         }
     };
     while !stop.load(Ordering::SeqCst) {
@@ -7723,7 +7736,7 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
                             Some(held) => raise_mask(held),
                         }
                     }
-                    let msi = intr.raise(*vec);
+                    let msi = intr.raise_in_generation(generation, *vec);
                     crate::launch::raised();
                     intr.note(format!(
                         "event: host notifier {:#x} fired ({} record(s)) -> guest vector {vec}{} [host]",

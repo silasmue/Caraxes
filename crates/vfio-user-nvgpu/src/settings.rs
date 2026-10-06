@@ -57,6 +57,7 @@ pub const VARS: &[Var] = &[
     var("CARAXES_MSI_REARM_IOEVENTFD", Open, "off", "1: the MSI re-arm as an ioeventfd (Linux B, nouveau; Windows A/B open)"),
     var("CARAXES_DISPLAY_PAGE", Open, "off", "1: legacy tagged FE page; exact-ro: ordinary FE values, requires read-only VMM mapping (unqualified)"),
     var("CARAXES_DISPLAY_WINDOW_RO", Open, "0", "window:0..31: one exact read-only window USERD page; matching read-only VMM area required; no legacy kick page; restart on reconnect"),
+    var("CARAXES_LOCAL_IRQ", Open, "0", "1: require negotiated VMM-owned exact interrupt tree; fresh boot only; restart backend after disconnect"),
     var("CARAXES_ALLOC_LAZY", Open, "off", "1: shadow plans deferred to the next doorbell (Linux B)"),
     var("CARAXES_ALLOC_LAZY_MS", Open, "20", "the lazy plans' deadline in ms"),
     var("CARAXES_HOST_BOOST_POLICY", Open, "vm", "vm: finite highest-P-state hints throughout host-exec backend lifetime; activity: prior activity policy; no MHz guarantee"),

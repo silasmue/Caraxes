@@ -27,6 +27,10 @@ pub const LEAVES: usize = 8;
 #[derive(Default)]
 pub struct IntrShared {
     pending: [AtomicU32; LEAVES],
+    /// Captured by asynchronous producers; a reset barrier retires their token.
+    producer_generation: AtomicU64,
+    /// The VMM owns the exact tree/MSI after local-IRQ PREPARE.
+    remote_owner: AtomicBool,
     msi_fd: Mutex<Option<File>>,
     msi_enabled: AtomicBool,
     /// Serializes raises with changes that make MSI delivery available.
@@ -90,6 +94,10 @@ impl IntrShared {
     /// Keep a duplicate of the client's MSI eventfd for raising from the thread.
     pub fn set_msi_fd(&self, fd: Option<File>) {
         let _delivery = self.delivery.lock().unwrap();
+        if self.remote_owner.load(Ordering::Acquire) {
+            drop(fd);
+            return;
+        }
         let mut slot = self.msi_fd.lock().unwrap();
         let became_available = slot.is_none() && fd.is_some();
         *slot = fd;
@@ -106,6 +114,7 @@ impl IntrShared {
         let was = self.msi_enabled.swap(enabled, Ordering::SeqCst);
         if enabled
             && !was
+            && !self.remote_owner.load(Ordering::Acquire)
             && !self.page_mode.load(Ordering::SeqCst)
             && self.pending()
         {
@@ -137,8 +146,36 @@ impl IntrShared {
     /// guest kernel re-checks all its waiters on one interrupt anyway. Returns whether
     /// an MSI was written.
     pub fn raise(&self, vector: u32) -> bool {
+        self.raise_in_generation(self.producer_generation(), vector)
+    }
+
+    pub fn producer_generation(&self) -> u64 {
+        self.producer_generation.load(Ordering::Acquire)
+    }
+
+    /// After old producer threads have stopped, retire any in-flight callback
+    /// that may finish later (notably the display ticker's driver outcome).
+    pub fn advance_producer_generation(&self) -> u64 {
+        let _delivery = self.delivery.lock().unwrap();
+        self.producer_generation.fetch_add(1, Ordering::AcqRel) + 1
+    }
+
+    pub fn begin_remote_owner(&self) {
+        let _delivery = self.delivery.lock().unwrap();
+        self.remote_owner.store(true, Ordering::Release);
+        *self.msi_fd.lock().unwrap() = None;
+    }
+
+    pub fn remote_owner(&self) -> bool {
+        self.remote_owner.load(Ordering::Acquire)
+    }
+
+    pub fn raise_in_generation(&self, generation: u64, vector: u32) -> bool {
         use std::io::Write;
         let delivery = self.delivery.lock().unwrap();
+        if generation != self.producer_generation.load(Ordering::Acquire) {
+            return false;
+        }
         let leaf = (vector / 32) as usize;
         self.raised.fetch_add(1, Ordering::Relaxed);
         crate::profile::window("interrupts: vector raises", 0);
@@ -287,6 +324,9 @@ impl IntrShared {
 
     fn signal_msi_locked(&self) -> bool {
         use std::io::Write;
+        if self.remote_owner.load(Ordering::Acquire) {
+            return false;
+        }
         if !self.msi_enabled.load(Ordering::Relaxed) {
             return false;
         }
@@ -382,6 +422,13 @@ impl IntrTree {
 
     /// Raise `vector` (0..255).
     pub fn trigger(&mut self, vector: u32) {
+        if self.shared.as_ref().is_some_and(|shared| shared.remote_owner()) {
+            // Headless BootModel::post_events raises the GSP stall vector here.
+            // Once the VMM owns the exact page, this is a typed host cause and
+            // must enter the same pending Fold as host non-stall completions.
+            self.shared.as_ref().unwrap().raise(vector);
+            return;
+        }
         let before = self.asserted();
         let leaf = (vector / 32) as usize;
         if leaf < LEAVES {

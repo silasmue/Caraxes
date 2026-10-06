@@ -116,6 +116,9 @@ pub struct Device {
     reset_error: Option<String>,
     /// Shared with the lock-free VFIO routes; reset failure terminates all access paths.
     terminal_fault: Arc<AtomicBool>,
+    /// Explicitly opted-in, negotiated VMM-owned exact interrupt tree.
+    local_irq_page: Option<Arc<crate::intr_page::IntrPage>>,
+    local_irq_rearm: Option<u64>,
 }
 
 /// A BAR1 pool poll that holds the device longer than this is traced as an event (the
@@ -347,6 +350,7 @@ pub struct SharedDevice {
     doorbell: Option<u64>,
     gate: Arc<crate::ringgate::RingGate>,
     terminal_fault: Arc<AtomicBool>,
+    local_irq_offer: bool,
 }
 
 /// The current display engine, for the paths without the device mutex (`Device::display_slot`).
@@ -543,6 +547,7 @@ impl SharedDevice {
         let locked = device.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let doorbell = locked.bar0.boot().map(|b| b.usermode_doorbell());
         let terminal_fault = locked.terminal_fault.clone();
+        let local_irq_offer = locked.local_irq_page.is_some();
         drop(locked);
         Self {
             device,
@@ -550,6 +555,7 @@ impl SharedDevice {
             doorbell,
             gate,
             terminal_fault,
+            local_irq_offer,
         }
     }
 
@@ -559,6 +565,26 @@ impl SharedDevice {
         } else {
             Ok(())
         }
+    }
+
+    fn reject_remote_access(&self, region: u32, offset: u64, len: usize) -> std::io::Result<()> {
+        if region != VFIO_PCI_BAR0_REGION_INDEX {
+            return Ok(());
+        }
+        let Some(page) = self.routes.intr_page.as_ref().filter(|page| page.remote_owned()) else {
+            return Ok(());
+        };
+        let end = offset.saturating_add(len.max(1) as u64);
+        let tree = page.tree_base()..page.tree_base() + crate::intr_page::PAGE;
+        let rearm = self.routes.rearm;
+        if (offset < tree.end && end > tree.start)
+            || rearm.is_some_and(|r| offset < r.saturating_add(4) && end > r)
+        {
+            page.remote_violation();
+            self.terminal_fault.store(true, Ordering::Release);
+            return Err(std::io::Error::other("VMM-owned local IRQ tree/re-arm reached backend"));
+        }
+        Ok(())
     }
 
     /// The device lock for a trapped access or another vfio-user message: the posted
@@ -673,8 +699,37 @@ impl SharedDevice {
 }
 
 impl ServerBackend for SharedDevice {
+    fn local_irq_offer(&self) -> bool {
+        self.local_irq_offer
+    }
+
+    fn local_irq_prepare(&mut self) -> std::io::Result<vfio_user::local_irq::PreparedServer> {
+        self.lock("local IRQ prepare").local_irq_prepare()
+    }
+
+    fn local_irq_commit(&mut self, token: u64, epoch: u64, ticket: u64) -> std::io::Result<()> {
+        self.lock("local IRQ commit").local_irq_commit(token, epoch, ticket)
+    }
+
+    fn local_irq_abort(&mut self, _token: u64) -> std::io::Result<()> {
+        self.lock("local IRQ abort").local_irq_disconnected();
+        Ok(())
+    }
+
+    fn local_irq_disconnected(&mut self) {
+        crate::dlock::lock(&self.device, "local IRQ disconnected").local_irq_disconnected();
+    }
+
+    fn local_irq_before_reply(&mut self) -> std::io::Result<()> {
+        if !self.local_irq_offer {
+            return Ok(());
+        }
+        self.lock("local IRQ completion").local_irq_before_reply()
+    }
+
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
         self.require_live()?;
+        self.reject_remote_access(region, offset, data.len())?;
         let t0 = crate::profile::on().then(std::time::Instant::now);
         if self.routes.read(region, offset, data) {
             if let Some(t0) = t0 {
@@ -712,6 +767,7 @@ impl ServerBackend for SharedDevice {
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
         self.require_live()?;
+        self.reject_remote_access(region, offset, data.len())?;
         if self.post_doorbell(region, offset, data) {
             return Ok(());
         }
@@ -1012,6 +1068,8 @@ impl Device {
             rpc_wakeups: 0,
             reset_error: None,
             terminal_fault: Arc::new(AtomicBool::new(false)),
+            local_irq_page: None,
+            local_irq_rearm: None,
         }
     }
 
@@ -1266,6 +1324,25 @@ impl Device {
         Ok(())
     }
 
+    fn reject_local_irq_access(&self, region: u32, offset: u64, len: usize) -> std::io::Result<()> {
+        if region != VFIO_PCI_BAR0_REGION_INDEX {
+            return Ok(());
+        }
+        let Some(page) = self.local_irq_page.as_ref().filter(|page| page.remote_owned()) else {
+            return Ok(());
+        };
+        let end = offset.saturating_add(len.max(1) as u64);
+        let tree = page.tree_base()..page.tree_base() + crate::intr_page::PAGE;
+        if (offset < tree.end && end > tree.start)
+            || self.local_irq_rearm.is_some_and(|r| offset < r.saturating_add(4) && end > r)
+        {
+            page.remote_violation();
+            self.terminal_fault.store(true, Ordering::Release);
+            return Err(std::io::Error::other("VMM-owned local IRQ tree/re-arm reached backend"));
+        }
+        Ok(())
+    }
+
     /// A `DMA_UNMAP`: the queued pieces of the region are dropped, the one in flight
     /// finishes, and what finished is applied before the region is released.
     fn cancel_guest_ram(&mut self, address: u64, size: u64) -> std::io::Result<()> {
@@ -1338,7 +1415,113 @@ impl Device {
         self
     }
 
+    /// Opt in before serving the first client. The VMM must separately request
+    /// the private extension; generic vfio-user clients keep the old owner.
+    pub fn with_local_irq(
+        mut self,
+        page: Arc<crate::intr_page::IntrPage>,
+        rearm_offset: u64,
+    ) -> Result<Self, String> {
+        if self.bar0.boot().is_none() || !self.bar0.owns_intr_page(&page)
+            || !self.intr.as_ref().is_some_and(|shared| page.shares_intr(shared)) {
+            return Err("local IRQ requires a boot model and shared host interrupt source".into());
+        }
+        let tree_end = page.tree_base() + crate::intr_page::PAGE;
+        let rearm_end = rearm_offset.checked_add(4).ok_or("local IRQ re-arm offset overflows BAR0")?;
+        if rearm_offset % 4 != 0 || rearm_end > crate::bar0::SIZE
+            || rearm_offset < tree_end && rearm_end > page.tree_base() {
+            return Err("local IRQ re-arm offset is invalid".into());
+        }
+        self.local_irq_page = Some(page);
+        self.local_irq_rearm = Some(rearm_offset);
+        Ok(self)
+    }
+
+    fn local_irq_prepare(&mut self) -> std::io::Result<vfio_user::local_irq::PreparedServer> {
+        use vfio_user::local_irq::{Metadata, PreparedServer, QueueProducer};
+        let page = self.local_irq_page.as_ref()
+            .ok_or_else(|| std::io::Error::other("local IRQ not enabled"))?.clone();
+        let rearm = self.local_irq_rearm.ok_or_else(|| std::io::Error::other("local IRQ re-arm missing"))?;
+        let result = (|| {
+            if page.remote_owned() || !self.dma.is_empty() || self.irq_fds.iter().any(|fds| !fds.is_empty()) {
+                return Err(std::io::Error::other("local IRQ PREPARE requires a fresh, unmapped client"));
+            }
+            *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
+            if let Some(mirror) = self.bar0.boot_mut().and_then(|boot| boot.ctrl.mirror.as_mut()) {
+                for note in mirror.quiesce_for_local_irq().map_err(std::io::Error::other)? {
+                    self.trace.event(&format!("local IRQ PREPARE: {note}"));
+                }
+            }
+            let watchdog_period_us = page.config().retrigger
+                .map(|period| u32::try_from(period.as_micros()).map_err(|_| std::io::Error::other("local IRQ watchdog period exceeds protocol range")))
+                .transpose()?.unwrap_or(0);
+            let metadata = Metadata::fresh(0, page.tree_base(), rearm, page.hint_masks(), watchdog_period_us, self.cfg.msi_enabled())?;
+            let producer = QueueProducer::create(&metadata).map_err(std::io::Error::other)?;
+            page.prepare_remote(producer.clone()).map_err(std::io::Error::other)?;
+            self.bar0.reset().map_err(std::io::Error::other)?;
+            self.load_guest_aliases();
+            self.publish_display();
+            Ok(PreparedServer { metadata, producer })
+        })();
+        if let Err(error) = &result {
+            self.reset_error = Some(error.to_string());
+            self.terminate_local_irq_session();
+        }
+        result
+    }
+
+    fn local_irq_commit(&mut self, token: u64, epoch: u64, ticket: u64) -> std::io::Result<()> {
+        let page = self.local_irq_page.as_ref().ok_or_else(|| std::io::Error::other("local IRQ not enabled"))?;
+        let result = page.commit_remote(token, epoch, ticket).map_err(std::io::Error::other);
+        if result.is_err() { self.terminate_local_irq_session(); }
+        result
+    }
+
+    fn local_irq_disconnected(&mut self) {
+        if !self.local_irq_page.as_ref().is_some_and(|page| page.remote_owned())
+            && !self.terminal_fault.load(Ordering::Acquire) {
+            return;
+        }
+        self.terminate_local_irq_session();
+    }
+
+    fn terminate_local_irq_session(&mut self) {
+        self.terminal_fault.store(true, Ordering::Release);
+        *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
+        if let Some(page) = &self.local_irq_page { page.close_remote(); }
+        self.stop_terminal_irqs();
+        self.bar0.clear_ro_chan_page();
+        self.bar0.retire_boot_model();
+    }
+
+    pub fn local_irq_session_closed(&self) -> bool {
+        self.local_irq_page.is_some() && (self.terminal_fault.load(Ordering::Acquire)
+            || self.local_irq_page.as_ref().is_some_and(|page| page.remote_owned()))
+    }
+
+    fn local_irq_before_reply(&mut self) -> std::io::Result<()> {
+        if let Some(page) = &self.local_irq_page {
+            if !page.remote_owned() {
+                return Ok(());
+            }
+            page.scan();
+            if let Err(error) = page.check_remote_queue() {
+                self.terminate_local_irq_session();
+                return Err(std::io::Error::other(error));
+            }
+        }
+        Ok(())
+    }
+
     fn sync_msi_enabled(&self) {
+        if let Some(page) = &self.local_irq_page {
+            if page.remote_owned() {
+                if page.remote_msi_enabled(self.cfg.msi_enabled()).is_err() {
+                    self.terminal_fault.store(true, Ordering::Release);
+                    page.remote_violation();
+                }
+            }
+        }
         if let Some(s) = &self.intr {
             s.set_msi_enabled(!self.terminal_fault.load(Ordering::Acquire) && self.cfg.msi_enabled());
         }
@@ -1634,6 +1817,15 @@ impl Device {
 
     /// Signal the MSI eventfd the client registered (index 1), if MSI is enabled.
     fn raise_msi(&mut self) {
+        if let Some(page) = &self.local_irq_page {
+            if page.remote_owned() {
+                // The legacy IntrTree should not have a pending edge after the
+                // typed trigger cause was forwarded to IntrShared.
+                page.remote_violation();
+                self.terminal_fault.store(true, Ordering::Release);
+                return;
+            }
+        }
         use std::io::Write;
         let enabled = self.cfg.msi_enabled();
         match self
@@ -1743,6 +1935,10 @@ impl Device {
     /// An error leaves the rest as it is: the caller then ends the session as before
     /// (the full teardown), and the new client sees the connection close.
     pub fn client_gone(&mut self) -> Result<(), String> {
+        if self.local_irq_session_closed() {
+            self.local_irq_disconnected();
+            return Err("local IRQ owner requires a fresh backend process for the next client".into());
+        }
         self.trace.event(&format!(
             "client gone: a new client is waiting; the model resets, then {} memory region(s) and the IRQ eventfds of the old client go",
             self.dma.len()
@@ -1804,6 +2000,13 @@ impl Device {
         if let Some(error) = &self.reset_error {
             return Err(error.clone());
         }
+        if self.terminal_fault.load(Ordering::Acquire) {
+            return Err("device session terminated".into());
+        }
+        let remote = self.local_irq_page.as_ref().filter(|page| page.remote_owned()).cloned();
+        if remote.as_ref().is_some_and(|page| !page.remote_active()) {
+            return Err("local IRQ reset before COMMIT or after close".into());
+        }
         // Exact operations retain the slot reader through publication and raise; this
         // writer drains them before reattaching the shared FE page/resetting pending IRQs.
         // No new exact operation reaches an engine until publish_display below.
@@ -1818,16 +2021,33 @@ impl Device {
         if let Some(b) = self.bar0.boot() {
             b.ctrl.display.eng().pins.clear();
         }
+        if let Some(page) = &remote {
+            if let Some(mirror) = self.bar0.boot_mut().and_then(|boot| boot.ctrl.mirror.as_mut()) {
+                let notes = match mirror.quiesce_for_local_irq() {
+                    Ok(notes) => notes,
+                    Err(error) => {
+                        self.terminate_local_irq_session();
+                        return Err(error);
+                    }
+                };
+                for note in notes {
+                    self.trace.event(&format!("local IRQ reset: {note}"));
+                }
+            }
+            if let Err(error) = page.remote_reset_commit() {
+                self.terminate_local_irq_session();
+                return Err(error);
+            }
+        }
         // The model first (its old interrupt sources stop with it: the mirror's host event
         // thread is joined when the old mirror drops), then what they raised goes.
         if let Err(error) = self.bar0.reset() {
             self.reset_error = Some(error.clone());
-            self.terminal_fault.store(true, Ordering::Release);
-            self.stop_terminal_irqs();
-            self.bar0.retire_boot_model();
+            self.terminate_local_irq_session();
             return Err(error);
         }
-        if let Some(s) = &self.intr {
+        if remote.is_none() {
+          if let Some(s) = &self.intr {
             let dropped = s.reset_pending();
             if dropped.iter().any(|&p| p != 0) {
                 self.trace.event(&format!(
@@ -1835,6 +2055,7 @@ impl Device {
                     dropped
                 ));
             }
+          }
         }
         self.load_guest_aliases();
         self.publish_display();
@@ -2193,6 +2414,10 @@ impl ServerBackend for Device {
         offset: u64,
         data: &mut [u8],
     ) -> Result<(), std::io::Error> {
+        if self.terminal_fault.load(Ordering::Acquire) {
+            return Err(std::io::Error::other("device session terminated"));
+        }
+        self.reject_local_irq_access(region, offset, data.len())?;
         if let Some(error) = &self.reset_error {
             return Err(std::io::Error::other(error.clone()));
         }
@@ -2256,6 +2481,10 @@ impl ServerBackend for Device {
         offset: u64,
         data: &[u8],
     ) -> Result<(), std::io::Error> {
+        if self.terminal_fault.load(Ordering::Acquire) {
+            return Err(std::io::Error::other("device session terminated"));
+        }
+        self.reject_local_irq_access(region, offset, data.len())?;
         if let Some(error) = &self.reset_error {
             return Err(std::io::Error::other(error.clone()));
         }
@@ -2573,6 +2802,57 @@ impl Device {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_irq_backend_prepare_commit_fold_reset_and_disconnect() {
+        use vfio_user::local_irq::{Prepared, QueueConsumer, RecordKind};
+        let f = crate::fixture::rtx2070();
+        let source = IntrShared::new();
+        let page = crate::intr_page::IntrPage::create(
+            16 << 20, 0xb8_1000, f.chip.data().identity, source.clone(),
+            crate::intr_page::Config::default(),
+        ).unwrap();
+        let (_hook, wake) = crate::intr_page::PageHook::new(page.clone()).unwrap();
+        source.attach_page(wake);
+        let boot = crate::boot::BootModel::new(
+            f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30),
+        );
+        let rearm = f.chip.data().bar0.pcfg + NV_XVE_CYA_2;
+        let mut device = rtx2070_device();
+        device.bar0 = Bar0::new(f.chip, Vec::new(), None)
+            .with_boot_model(boot).with_intr_page(page.clone());
+        device.intr = Some(source.clone());
+        let device = Arc::new(Mutex::new(device.with_local_irq(page.clone(), rearm).unwrap()));
+        let routes = Routes { intr_page: Some(page.clone()), rearm: Some(rearm), ..Routes::default() };
+        let mut backend = SharedDevice::new(device.clone(), routes);
+        assert!(ServerBackend::local_irq_offer(&backend));
+        let prepared = ServerBackend::local_irq_prepare(&mut backend).unwrap();
+        assert_eq!(prepared.metadata.watchdog_period_us, 10_000);
+        assert_eq!(prepared.producer.published_tail(), 0);
+        let consumer_view = Prepared {
+            metadata: prepared.metadata.clone(),
+            queue_fd: prepared.producer.queue_fd().unwrap(),
+            event_fd: prepared.producer.event_fd().unwrap(),
+        };
+        let mut consumer = QueueConsumer::map(&consumer_view).unwrap();
+        source.raise(4);
+        ServerBackend::local_irq_before_reply(&mut backend).unwrap();
+        assert_eq!(prepared.producer.published_tail(), 0, "prepared bitmap remains pending");
+        ServerBackend::local_irq_commit(&mut backend, prepared.metadata.token,
+            prepared.metadata.epoch, 0).unwrap();
+        ServerBackend::local_irq_before_reply(&mut backend).unwrap();
+        let records = consumer.drain_through(prepared.producer.published_tail()).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].kind, RecordKind::Fold([1 << 4, 0, 0, 0, 0, 0, 0, 0]));
+
+        ServerBackend::reset(&mut backend).unwrap();
+        let records = consumer.drain_through(prepared.producer.published_tail()).unwrap();
+        assert_eq!(records.len(), 1);
+        assert!(matches!(records[0].kind, RecordKind::ResetCommit { new_epoch: 2, .. }));
+        ServerBackend::local_irq_disconnected(&mut backend);
+        assert!(prepared.producer.is_terminal());
+        assert!(device.lock().unwrap().bar0.boot().is_none());
+    }
 
     #[test]
     fn ro_window_mapping_refuses_memfd_reuse_for_a_later_client() {

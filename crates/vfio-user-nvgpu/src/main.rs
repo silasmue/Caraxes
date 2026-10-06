@@ -781,12 +781,23 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     for w in vfio_user_nvgpu::settings::removed_warnings(&env) {
         eprintln!("vfio-user-nvgpu: config: {w}");
     }
+    let local_irq = match std::env::var("CARAXES_LOCAL_IRQ").as_deref() {
+        Ok("1") => true,
+        Ok("0") | Err(_) => false,
+        Ok(other) => bail!("CARAXES_LOCAL_IRQ={other:?}: expected 0 or 1"),
+    };
+    if local_irq && (!a.host_exec || !a.boot_model || !a.chip.data().short_name.eq_ignore_ascii_case("tu106")) {
+        bail!("CARAXES_LOCAL_IRQ=1 requires fresh TU106 host execution and a boot model");
+    }
     // The datamatch token pool: one eventfd per pool token, so the eventfd names the
     // channel (docs/caraxes/doorbell-token-pool.md).
     let doorbell_tokens = tokens::requested().map_err(anyhow::Error::msg)?;
     // The MSI re-arm write as an ioeventfd, read by the token pool's reactor
     // (docs/caraxes/intr-page.md §4).
     let msi_rearm = msi_rearm_ioeventfd_requested();
+    if local_irq && msi_rearm {
+        bail!("CARAXES_LOCAL_IRQ=1 keeps MSI re-arm trapped in the VMM; disable CARAXES_MSI_REARM_IOEVENTFD");
+    }
     // The command-queue head write as an ioeventfd, read by the token pool's reactor
     // (docs/caraxes/gsp-transport-615.md §11).
     let rpc_ioeventfd = rpc_ioeventfd_requested();
@@ -891,6 +902,12 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The display front-end page (display/fe_page.rs): a third area of the same memfd.
     let display_page_mode =
         fe_page::requested_mode(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
+    // The legacy writable FE reactor can finish an old scan after reset and
+    // raise through the ticker in the new epoch. Exact FE callbacks finish
+    // under the current display slot guard; the clock captures its source.
+    if local_irq && display_page_mode.is_some_and(|mode| mode.automatic_kicks()) {
+        bail!("CARAXES_LOCAL_IRQ=1 requires CARAXES_DISPLAY_PAGE=exact-ro or 0");
+    }
     if ["CARAXES_SHADOW_USERD", "CARAXES_DEFERRED_API_CAPTURE", "CARAXES_DEFERRED_CONTEXT"].iter()
         .any(|key| std::env::var(key).as_deref() == Ok("1"))
         && !a.host_exec
@@ -1536,6 +1553,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         .with_guest_dma_gpa(a.host_exec)
         .with_guest_ram(guest_ram, a.dma_ranges.clone())
         .with_intr_shared(intr_shared.clone());
+    if local_irq {
+        let page = intr_page.as_ref().expect("host execution has an interrupt page").clone();
+        let b = &chip.data().bar0;
+        if b.pcfg_size < NV_XVE_CYA_2 + 4 {
+            bail!("CARAXES_LOCAL_IRQ=1: chip has no MSI re-arm register");
+        }
+        device = device.with_local_irq(page, b.pcfg + NV_XVE_CYA_2).map_err(anyhow::Error::msg)?;
+    }
     if let Some(r) = host_mem
         .as_ref()
         .and_then(|h| h.lock().unwrap().reservation().cloned())
@@ -2042,6 +2067,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             server.run_with_idle_poll(&mut backend, vfio_idle_poll)
         }
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+        if local_irq && intr_page.as_ref().is_some_and(|page| page.remote_owned()) {
+            // A VMM-owned tree and queue are scoped to one socket session. A
+            // new process creates fresh descriptors, nonce and producer state.
+            break r;
+        }
         if r.is_err() || !client_waiting(&waiting, RECONNECT_WINDOW) {
             break r;
         }

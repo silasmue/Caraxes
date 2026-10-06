@@ -560,3 +560,17 @@ Private evidence: `C198-build-checks.json`, `C198-source-regression-stop.json`,
 Private designs: `local-irq-activation-design-2026-10-06/plan.txt` and
 `local-doorbell-value-queue-design-2026-10-06/plan.txt`. Old packets, results and
 the earlier Claude handoff are unchanged.
+
+## Local IRQ source activation
+
+- The inactive boundary above is superseded by the paired implementation in
+  [local-irq-2026-10-06.md](local-irq-2026-10-06.md): negotiated ownership,
+  shared-memory causes, private VMM register page and local MSI delivery are
+  wired into the real backend and CH device path. Default remains off.
+- Backend tests pass 943 library, three binary and two integration cases;
+  vendor tests pass 28 and CH PCI tests pass 53. Five linked tests exercise
+  the actual backend/CH owner, including reset and progress during a blocked
+  unrelated RPC. Frozen source hashes are unchanged throughout verification.
+- C199 is the next short Windows qualification, with local IRQ on and the
+  optional display window off. C198 remains a separate unlaunched candidate.
+  Source tests establish neither guest stability nor an FPS improvement.

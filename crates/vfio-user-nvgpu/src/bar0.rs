@@ -236,6 +236,10 @@ impl Bar0 {
         self
     }
 
+    pub fn owns_intr_page(&self, page: &std::sync::Arc<crate::intr_page::IntrPage>) -> bool {
+        self.page.as_ref().is_some_and(|owner| std::sync::Arc::ptr_eq(owner, page))
+    }
+
     /// Serve the window channels' USERD pages from their memory (display/chan_page.rs).
     pub fn with_chan_page(
         mut self,

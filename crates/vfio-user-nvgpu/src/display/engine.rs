@@ -352,6 +352,8 @@ impl Ticker {
     /// acknowledges: C64, a re-arm storm after an FLR). Without a driver the tick raises and
     /// the guest's trapped status read advances the engine (`Display::read32_io`).
     fn fire(&self) {
+        let producer = self.intr();
+        let generation = producer.as_ref().map(|intr| intr.producer_generation());
         let d = self.driver.lock().unwrap().clone();
         let outcome = match d {
             Some(d) => {
@@ -365,7 +367,7 @@ impl Ticker {
             None => DriverOutcome::Pending(true),
         };
         if outcome == DriverOutcome::Pending(true) {
-            self.raise();
+            self.raise_captured(producer, generation);
         }
     }
 
@@ -480,6 +482,12 @@ impl Ticker {
 
     /// Raise the DISP vector (from any thread).
     pub fn raise(&self) {
+        let producer = self.intr();
+        let generation = producer.as_ref().map(|intr| intr.producer_generation());
+        self.raise_captured(producer, generation);
+    }
+
+    fn raise_captured(&self, producer: Option<Arc<IntrShared>>, generation: Option<u64>) {
         let now = now_ns().max(1);
         let _ = self
             .raise_for_ack
@@ -487,9 +495,9 @@ impl Ticker {
         let _ = self
             .raise_for_wake
             .compare_exchange(0, now, Ordering::AcqRel, Ordering::Acquire);
-        if let Some(i) = self.intr() {
+        if let (Some(intr), Some(generation)) = (producer, generation) {
             self.raised.fetch_add(1, Ordering::Relaxed);
-            if i.raise(self.vector.load(Ordering::Relaxed)) {
+            if intr.raise_in_generation(generation, self.vector.load(Ordering::Relaxed)) {
                 self.msis.fetch_add(1, Ordering::Relaxed);
             }
         }

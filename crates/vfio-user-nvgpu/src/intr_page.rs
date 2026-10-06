@@ -29,7 +29,7 @@
 use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -343,6 +343,20 @@ pub struct Scan {
     pub msi: bool,
 }
 
+/// Zero is the existing backend-owned tree. PREPARE retires that owner; there
+/// is deliberately no transition back to it within this backend process.
+const REMOTE_GENERIC: u8 = 0;
+const REMOTE_PREPARED: u8 = 1;
+const REMOTE_ACTIVE: u8 = 2;
+const REMOTE_CLOSED: u8 = 3;
+
+struct RemoteExport {
+    phase: u8,
+    producer: Option<vfio_user::local_irq::QueueProducer>,
+    epoch: u64,
+    msi_enabled: bool,
+}
+
 /// The two pages, their model and the counters.
 pub struct IntrPage {
     fd: OwnedFd,
@@ -358,6 +372,9 @@ pub struct IntrPage {
     expected: [AtomicU32; WATCHED],
     /// The guest's stores to the tree page trap: exact mode (module doc).
     exact: AtomicBool,
+    remote_phase: AtomicU8,
+    /// One serialization point for full pending-bitset drains and controls.
+    remote: Mutex<RemoteExport>,
     pub stats: Stats,
 }
 
@@ -423,6 +440,8 @@ impl IntrPage {
             }),
             expected: std::array::from_fn(|_| AtomicU32::new(0)),
             exact: AtomicBool::new(false),
+            remote_phase: AtomicU8::new(REMOTE_GENERIC),
+            remote: Mutex::new(RemoteExport { phase: REMOTE_GENERIC, producer: None, epoch: 0, msi_enabled: false }),
             stats: Stats::default(),
         };
         page.reset();
@@ -482,6 +501,10 @@ impl IntrPage {
     /// storm guard, but make only one MSI decision. Zero is no work; both counters saturate
     /// without iterating over the write count. The trapped path uses `rearm`, with count 1.
     pub fn rearm_count(&self, writes: u64) -> bool {
+        if self.remote_owned() {
+            self.remote_violation();
+            return false;
+        }
         if writes == 0 {
             return false;
         }
@@ -526,9 +549,33 @@ impl IntrPage {
     /// device forwards from the host, which [`Self::rearm`] may withdraw.
     pub fn set_hint_vectors(&self, vectors: &[u32]) {
         let mut st = self.lock();
+        if self.remote_owned() {
+            self.remote_scan_locked();
+        }
+        let before = st.hint;
         st.hint = [0; LEAVES];
         for &v in vectors.iter().filter(|&&v| v < 256) {
             st.hint[(v / 32) as usize] |= 1 << (v % 32);
+        }
+        if self.remote_owned() {
+            let remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(producer) = &remote.producer {
+                if st.hint == before {
+                    return;
+                }
+                if remote.phase == REMOTE_PREPARED {
+                    producer.terminal();
+                    return;
+                }
+                match producer.reserve() {
+                    Ok(reservation) => {
+                        if reservation.publish(vfio_user::local_irq::RecordKind::Hints(st.hint)).is_err() {
+                            producer.terminal();
+                        }
+                    }
+                    Err(_) => producer.terminal(),
+                }
+            }
         }
     }
 
@@ -639,6 +686,18 @@ impl IntrPage {
     /// constants, the tree page showing the initial displays.
     pub fn reset(&self) {
         let mut st = self.lock();
+        if self.remote_phase.load(Ordering::Acquire) != REMOTE_GENERIC {
+            // PMC remains backend-owned. The VMM's tree has a different memfd;
+            // neither its state nor pending host causes are reset here.
+            for off in (0..PAGE).step_by(4) {
+                self.pmc.word(off).store(0, Ordering::Relaxed);
+            }
+            for (off, v) in self.boot {
+                self.pmc.word(off).store(v, Ordering::Relaxed);
+            }
+            std::sync::atomic::fence(Ordering::SeqCst);
+            return;
+        }
         let exact = self.exact();
         // Raised and not yet folded: gone with the rest of the interrupt state.
         let dropped = self.shared.reset_pending();
@@ -678,6 +737,186 @@ impl IntrPage {
         self.exact.load(Ordering::Acquire)
     }
 
+    pub fn tree_base(&self) -> u64 {
+        self.tree_base
+    }
+
+    pub fn shares_intr(&self, shared: &Arc<IntrShared>) -> bool {
+        Arc::ptr_eq(&self.shared, shared)
+    }
+
+    pub fn hint_masks(&self) -> [u32; LEAVES] {
+        self.lock().hint
+    }
+
+    pub fn remote_owned(&self) -> bool {
+        self.remote_phase.load(Ordering::Acquire) != REMOTE_GENERIC
+    }
+
+    pub fn remote_active(&self) -> bool {
+        self.remote_phase.load(Ordering::Acquire) == REMOTE_ACTIVE
+    }
+
+    pub fn remote_violation(&self) {
+        let remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(producer) = &remote.producer {
+            producer.terminal();
+        }
+    }
+
+    /// Called only after old producer threads are quiesced and exact readers
+    /// drained. Its state lock closes the race with an old direct/page scan.
+    pub fn prepare_remote(&self, producer: vfio_user::local_irq::QueueProducer) -> Result<(), String> {
+        if !self.shared.page_mode() {
+            return Err("local IRQ needs the interrupt page reactor wake path".into());
+        }
+        let mut st = self.lock();
+        let mut remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+        if remote.phase != REMOTE_GENERIC {
+            return Err("local IRQ tree owner was already prepared".into());
+        }
+        self.shared.begin_remote_owner();
+        self.shared.advance_producer_generation();
+        let dropped = self.shared.reset_pending();
+        if dropped.iter().any(|&bits| bits != 0) {
+            self.shared.note(format!("local IRQ PREPARE discarded pre-barrier pending bits {dropped:x?}"));
+        }
+        st.model = Model::default();
+        st.again = [0; LEAVES];
+        st.stale_since = None;
+        st.muted = [0; LEAVES];
+        st.muted_since = None;
+        // A fresh negotiated owner uses exact register values from boot. The
+        // ordinary page waits for its first trapped write to infer this mode.
+        self.exact.store(true, Ordering::Release);
+        for off in (0..PAGE).step_by(4) {
+            self.tree.word(off).store(0, Ordering::Relaxed);
+        }
+        self.publish(&st.model);
+        remote.epoch = producer.metadata().epoch;
+        remote.msi_enabled = producer.metadata().msi_enabled;
+        remote.producer = Some(producer);
+        remote.phase = REMOTE_PREPARED;
+        self.remote_phase.store(REMOTE_PREPARED, Ordering::Release);
+        Ok(())
+    }
+
+    pub fn commit_remote(&self, token: u64, epoch: u64, ticket: u64) -> Result<(), String> {
+        {
+            let _st = self.lock();
+            let mut remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+            let producer = remote.producer.as_ref().ok_or("no prepared local IRQ queue")?;
+            if remote.phase != REMOTE_PREPARED || producer.metadata().token != token
+                || remote.epoch != epoch || ticket != 0 || producer.published_tail() != 0
+            {
+                return Err("local IRQ COMMIT does not match prepared owner".into());
+            }
+            remote.phase = REMOTE_ACTIVE;
+            self.remote_phase.store(REMOTE_ACTIVE, Ordering::Release);
+        }
+        self.scan();
+        self.check_remote_queue()
+    }
+
+    fn remote_scan_locked(&self) -> Scan {
+        let remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+        self.remote_scan_with(&remote)
+    }
+
+    fn remote_scan_with(&self, remote: &RemoteExport) -> Scan {
+        if remote.phase != REMOTE_ACTIVE || !self.shared.page_raised.load(Ordering::Acquire) {
+            return Scan::default();
+        }
+        let Some(producer) = remote.producer.as_ref() else {
+            // The reply fence diagnoses this invariant failure and closes the
+            // session; no pending leaf is taken without a queue reservation.
+            return Scan::default();
+        };
+        // Reserve before taking the raised flag or any leaf. A full queue closes
+        // the session while all pending causes remain identifiable.
+        let Ok(reservation) = producer.reserve() else {
+            return Scan::default();
+        };
+        if !self.shared.page_raised.swap(false, Ordering::AcqRel) {
+            return Scan::default();
+        }
+        self.shared.page_msi.store(false, Ordering::Release);
+        let pending = std::array::from_fn(|i| self.shared.take_pending(i) & !TAG);
+        let work = pending.iter().any(|&bits| bits != 0);
+        if reservation.publish(vfio_user::local_irq::RecordKind::Fold(pending)).is_err() {
+            producer.terminal();
+        }
+        Scan { work, msi: false }
+    }
+
+    pub fn remote_msi_enabled(&self, enabled: bool) -> Result<(), String> {
+        let _st = self.lock();
+        let mut remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+        if !matches!(remote.phase, REMOTE_PREPARED | REMOTE_ACTIVE) {
+            return Err("local IRQ MSI control outside prepared/active phase".into());
+        }
+        if remote.msi_enabled == enabled {
+            return Ok(());
+        }
+        if remote.phase == REMOTE_PREPARED {
+            if let Some(producer) = &remote.producer { producer.terminal(); }
+            return Err("MSI enable changed before local IRQ COMMIT".into());
+        }
+        self.remote_scan_with(&remote);
+        let producer = remote.producer.as_ref().ok_or("active local IRQ owner has no queue")?;
+        let reservation = producer.reserve().map_err(|e| e.to_string())?;
+        reservation.publish(vfio_user::local_irq::RecordKind::MsiEnabled(enabled))
+            .map_err(|e| e.to_string())?;
+        remote.msi_enabled = enabled;
+        Ok(())
+    }
+
+    /// Old sources have already stopped. The generation change and pending
+    /// discard precede the ordered ResetCommit, before fresh sources are built.
+    pub fn remote_reset_commit(&self) -> Result<(), String> {
+        let _st = self.lock();
+        let mut remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+        if remote.phase != REMOTE_ACTIVE {
+            return Err("local IRQ reset outside active phase".into());
+        }
+        let producer = remote.producer.as_ref().ok_or("active local IRQ owner has no queue")?;
+        let reservation = producer.reserve().map_err(|e| e.to_string())?;
+        self.shared.advance_producer_generation();
+        let dropped = self.shared.reset_pending();
+        if dropped.iter().any(|&bits| bits != 0) {
+            self.shared.note(format!("local IRQ reset discarded old-epoch pending bits {dropped:x?}"));
+        }
+        let new_epoch = remote.epoch.checked_add(1).ok_or("local IRQ epoch overflow")?;
+        reservation.publish(vfio_user::local_irq::RecordKind::ResetCommit {
+            new_epoch,
+            reset_ticket: 0,
+        }).map_err(|e| e.to_string())?;
+        remote.epoch = new_epoch;
+        Ok(())
+    }
+
+    pub fn check_remote_queue(&self) -> Result<(), String> {
+        let remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+        if remote.phase != REMOTE_GENERIC && remote.producer.is_none() {
+            return Err("local IRQ owner has no queue".into());
+        }
+        if remote.producer.as_ref().is_some_and(|producer| producer.is_terminal()) {
+            Err("local IRQ queue stopped".into())
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn close_remote(&self) {
+        let _st = self.lock();
+        let mut remote = self.remote.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(producer) = &remote.producer {
+            producer.terminal();
+        }
+        remote.phase = REMOTE_CLOSED;
+        self.remote_phase.store(REMOTE_CLOSED, Ordering::Release);
+    }
+
     /// Every watched word shows `model`'s display (the state lock held).
     fn publish(&self, model: &Model) {
         let exact = self.exact();
@@ -690,6 +929,10 @@ impl IntrPage {
 
     /// A trapped read of the pages (a client that did not map them): the memory.
     pub fn read32(&self, off: u64) -> u32 {
+        if self.remote_owned() && (self.tree_base..self.tree_base + PAGE).contains(&off) {
+            self.remote_violation();
+            return 0;
+        }
         self.word_at(off).load(Ordering::Acquire)
     }
 
@@ -698,6 +941,10 @@ impl IntrPage {
     /// it (latched values and boot constants, `tick` restores the latter).
     pub fn write(&self, off: u64, data: &[u8]) {
         if (self.tree_base..self.tree_base + PAGE).contains(&off) {
+            if self.remote_owned() {
+                self.remote_violation();
+                return;
+            }
             self.write_tree(off - self.tree_base, data);
             return;
         }
@@ -866,6 +1113,9 @@ impl IntrPage {
 
     /// The fast check of one reactor iteration: anything to do?
     pub fn dirty(&self) -> bool {
+        if self.remote_owned() {
+            return self.shared.page_raised.load(Ordering::Acquire);
+        }
         if self.shared.page_raised.load(Ordering::Acquire) {
             return true;
         }
@@ -898,6 +1148,9 @@ impl IntrPage {
         }
         let t0 = Instant::now();
         let mut st = self.lock();
+        if self.remote_owned() {
+            return self.remote_scan_locked();
+        }
         bump(&self.stats.scans);
         let w: [u32; WATCHED] = std::array::from_fn(|i| self.watched(i).load(Ordering::Acquire));
         let exp: [u32; WATCHED] = std::array::from_fn(|i| self.expected[i].load(Ordering::Relaxed));
@@ -1076,6 +1329,9 @@ impl IntrPage {
                 let _ = w.compare_exchange(cur, v, Ordering::AcqRel, Ordering::Relaxed);
                 self.odd(&mut st, Odd::BootStore);
             }
+        }
+        if self.remote_owned() {
+            return false;
         }
         // Words of the tree [0, 0x800) that are no register read 0 when trapped.
         for off in (0..0x800u64).step_by(4) {
@@ -1383,6 +1639,86 @@ mod tests {
 
     fn load(p: &IntrPage, reg: u64) -> u32 {
         p.tree.word(reg).load(Ordering::Acquire)
+    }
+
+    #[test]
+    fn local_irq_exports_one_whole_drain_and_orders_reset_generation() {
+        use vfio_user::local_irq::{Metadata, Prepared, QueueConsumer, QueueProducer, RecordKind};
+        let (page, shared, mut old_msi, _wake) = page(Config::default());
+        let hints = page.hint_masks();
+        let metadata = Metadata::fresh(0, BASE, 0x880704, hints, 1000, true).unwrap();
+        let producer = QueueProducer::create(&metadata).unwrap();
+        let prepared = Prepared {
+            metadata: metadata.clone(),
+            queue_fd: producer.queue_fd().unwrap(),
+            event_fd: producer.event_fd().unwrap(),
+        };
+        let mut consumer = QueueConsumer::map(&prepared).unwrap();
+        page.prepare_remote(producer.clone()).unwrap();
+        let old_generation = shared.producer_generation();
+        for vector in [4, 32, 224] {
+            shared.raise(vector);
+        }
+        page.scan();
+        assert_eq!(producer.published_tail(), 0, "PREPARE exports no cause");
+        page.commit_remote(metadata.token, metadata.epoch, 0).unwrap();
+        let records = consumer.drain_through(producer.published_tail()).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].kind, RecordKind::Fold([1 << 4, 1, 0, 0, 0, 0, 0, 1]));
+        let mut b = [0; 8];
+        assert!(std::io::Read::read(&mut old_msi, &mut b).is_err(), "backend MSI FD retired at PREPARE");
+
+        shared.raise(5);
+        page.remote_reset_commit().unwrap();
+        assert!(!shared.raise_in_generation(old_generation, 6));
+        shared.raise(7);
+        page.scan();
+        let records = consumer.drain_through(producer.published_tail()).unwrap();
+        assert_eq!(records.len(), 2);
+        assert!(matches!(records[0].kind, RecordKind::ResetCommit { new_epoch: 2, .. }));
+        assert_eq!(records[1].epoch, 2);
+        assert_eq!(records[1].seq, 1);
+        assert_eq!(records[1].kind, RecordKind::Fold([1 << 7, 0, 0, 0, 0, 0, 0, 0]));
+    }
+
+    #[test]
+    fn local_irq_full_queue_keeps_pending_cause_and_closes_session() {
+        use vfio_user::local_irq::{Metadata, QueueProducer, CAPACITY};
+        let (page, shared, _msi, _wake) = page(Config::default());
+        let metadata = Metadata::fresh(0, BASE, 0x880704, page.hint_masks(), 1000, false).unwrap();
+        let producer = QueueProducer::create(&metadata).unwrap();
+        page.prepare_remote(producer.clone()).unwrap();
+        page.commit_remote(metadata.token, metadata.epoch, 0).unwrap();
+        for _ in 0..CAPACITY {
+            shared.raise(4);
+            page.scan();
+        }
+        assert_eq!(producer.published_tail(), CAPACITY);
+        shared.raise(5);
+        page.scan();
+        assert!(producer.is_terminal());
+        assert_eq!(shared.take_pending(0) & (1 << 5), 1 << 5,
+            "reservation failure cannot consume the pending cause");
+    }
+
+    #[test]
+    fn local_irq_headless_gsp_stall_trigger_uses_owned_pending_fold() {
+        use vfio_user::local_irq::{Metadata, Prepared, QueueConsumer, QueueProducer, RecordKind};
+        let (page, shared, _msi, _wake) = page(Config::default());
+        let metadata = Metadata::fresh(0, BASE, 0x880704, page.hint_masks(), 10_000, false).unwrap();
+        let producer = QueueProducer::create(&metadata).unwrap();
+        let prepared = Prepared { metadata: metadata.clone(),
+            queue_fd: producer.queue_fd().unwrap(), event_fd: producer.event_fd().unwrap() };
+        let mut consumer = QueueConsumer::map(&prepared).unwrap();
+        page.prepare_remote(producer.clone()).unwrap();
+        page.commit_remote(metadata.token, metadata.epoch, 0).unwrap();
+        let mut boot_tree = crate::intr::IntrTree::new(BASE, PAGE).with_shared(shared);
+        boot_tree.trigger(3);
+        assert!(!boot_tree.take_msi(), "retired secondary tree cannot own MSI delivery");
+        page.scan();
+        let records = consumer.drain_through(producer.published_tail()).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].kind, RecordKind::Fold([1 << 3, 0, 0, 0, 0, 0, 0, 0]));
     }
 
     #[test]
