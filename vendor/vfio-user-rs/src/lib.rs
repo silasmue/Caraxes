@@ -25,6 +25,8 @@ use vfio_bindings::bindings::vfio::*;
 use vm_memory::{ByteValued, FileOffset};
 use vmm_sys_util::sock_ctrl_msg::ScmSocket;
 
+pub mod local_irq;
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -51,6 +53,8 @@ pub enum Command {
     DmaWrite = 12,
     DeviceReset = 13,
     UserDirtyPages = 14,
+    /// Private Caraxes extension, valid only after explicit VERSION negotiation.
+    LocalIrq = 0x8000,
 }
 
 #[allow(dead_code)]
@@ -546,6 +550,28 @@ struct Capabilities {
     max_data_xfer_size: u32,
     #[serde(default = "default_migration_capabilities")]
     migration: MigrationCapabilities,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    x_caraxes_local_irq: Option<LocalIrqCapability>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+struct LocalIrqCapability {
+    versions: Vec<u16>,
+    layouts: Vec<String>,
+    transports: Vec<String>,
+    owner: String,
+    page: String,
+    irq: String,
+    supports_reset_epochs: bool,
+}
+
+impl LocalIrqCapability {
+    fn v1() -> Self {
+        Self { versions: vec![1], layouts: vec!["tu106-exact-page-v1".into()],
+            transports: vec!["shm-fold-v1".into()], owner: "vmm".into(),
+            page: "vmm-private-tree-page-v1".into(), irq: "single-msi".into(),
+            supports_reset_epochs: true }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -559,9 +585,13 @@ impl Default for Capabilities {
             max_msg_fds: default_max_msg_fds(),
             max_data_xfer_size: default_max_data_xfer_size(),
             migration: default_migration_capabilities(),
+            x_caraxes_local_irq: None,
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ClientOptions { pub local_irq_required: bool }
 
 pub struct Client {
     stream: UnixStream,
@@ -569,6 +599,7 @@ pub struct Client {
     num_irqs: u32,
     resettable: bool,
     regions: Vec<Region>,
+    local_irq_negotiated: bool,
 }
 
 #[derive(Debug)]
@@ -637,10 +668,16 @@ pub enum Error {
     InvalidInput,
     #[error("No_reply bit unexpectedly set for command: {0:?}")]
     UnexpectedNoReply(Command),
+    #[error("Terminal local IRQ session failure: {0}")]
+    LocalIrqTerminal(&'static str),
 }
 
 impl Client {
     pub fn new(path: &Path) -> Result<Client, Error> {
+        Self::new_with_options(path, ClientOptions::default())
+    }
+
+    pub fn new_with_options(path: &Path, options: ClientOptions) -> Result<Client, Error> {
         let stream = UnixStream::connect(path).map_err(Error::Connect)?;
 
         let mut client = Client {
@@ -649,21 +686,23 @@ impl Client {
             num_irqs: 0,
             resettable: false,
             regions: Vec::new(),
+            local_irq_negotiated: false,
         };
 
-        client.negotiate_version()?;
+        client.negotiate_version(options)?;
 
         client.regions = client.get_regions()?;
 
         Ok(client)
     }
 
-    fn negotiate_version(&mut self) -> Result<(), Error> {
+    fn negotiate_version(&mut self, options: ClientOptions) -> Result<(), Error> {
         // "VFIO_USER_VERSION", capabilities: max_msg_fds is what this side can
         // receive in one message; the other capabilities keep their defaults.
         let caps = CapabilitiesData {
             capabilities: Capabilities {
                 max_msg_fds: CLIENT_MAX_MSG_FDS,
+                x_caraxes_local_irq: options.local_irq_required.then(LocalIrqCapability::v1),
                 ..Default::default()
             },
         };
@@ -689,11 +728,14 @@ impl Client {
             IoSlice::new(version_data.as_bytes_with_nul()),
         ];
 
-        // TODO: Use write_all_vectored() when ready
-        let _ = self
-            .stream
-            .write_vectored(&bufs)
-            .map_err(Error::StreamWrite)?;
+        if options.local_irq_required {
+            // A short VERSION frame would make private extension negotiation ambiguous.
+            self.stream.write_all(version.as_slice()).map_err(Error::StreamWrite)?;
+            self.stream.write_all(version_data.as_bytes_with_nul()).map_err(Error::StreamWrite)?;
+        } else {
+            // Preserve the generic path's existing write behavior.
+            let _ = self.stream.write_vectored(&bufs).map_err(Error::StreamWrite)?;
+        }
 
         debug!(
             "Sent client version information: major = {} minor = {} capabilities = {:?}",
@@ -707,6 +749,15 @@ impl Client {
             .read_exact(server_version.as_mut_slice())
             .map_err(Error::StreamRead)?;
 
+        if server_version.header.message_id != version.header.message_id
+            || server_version.header.command != Command::Version as u16
+            || server_version.header.flags != HeaderFlags::Reply as u32
+            || server_version.header.error != 0
+            || server_version.major != 0 || server_version.minor > 1
+            || server_version.header.message_size <= size_of::<Version>() as u32
+            || server_version.header.message_size > 4096
+        { return Err(Error::InvalidReply(Command::Version,"version envelope")); }
+
         debug!("Reply: {server_version:?}");
 
         let mut server_version_data =
@@ -715,15 +766,90 @@ impl Client {
             .read_exact(server_version_data.as_mut_slice())
             .map_err(Error::StreamRead)?;
 
+        if server_version_data.last()!=Some(&0) {
+            return Err(Error::InvalidReply(Command::Version,"missing NUL"));
+        }
+
         let server_caps: CapabilitiesData =
             serde_json::from_slice(&server_version_data[0..server_version_data.len() - 1])
                 .map_err(Error::DeserializeCapabilites)?;
+
+        self.local_irq_negotiated = options.local_irq_required
+            && server_caps.capabilities.x_caraxes_local_irq.as_ref()
+                == Some(&LocalIrqCapability::v1());
+        if options.local_irq_required && !self.local_irq_negotiated {
+            return Err(Error::UnsupportedFeature);
+        }
 
         debug!(
             "Received server version information: major = {} minor = {} capabilities = {:?}",
             server_version.major, server_version.minor, server_caps.capabilities
         );
 
+        Ok(())
+    }
+
+    pub fn local_irq_negotiated(&self) -> bool { self.local_irq_negotiated }
+
+    /// Poll-only clone; callers must never read from this descriptor.
+    pub fn local_irq_liveness_stream(&self) -> std::io::Result<UnixStream> {
+        self.stream.try_clone()
+    }
+
+    fn local_irq_request(&mut self, op:u16, token:u64, epoch:u64, ticket:u64,
+        max_payload:u32) -> Result<(Vec<u8>,Vec<File>),Error> {
+        if !self.local_irq_negotiated { return Err(Error::UnsupportedFeature); }
+        let result=(|| {
+        let header=Header{message_id:self.next_message_id.0,command:Command::LocalIrq as u16,
+            message_size:48,flags:HeaderFlags::Command as u32,..Default::default()};
+        let mut request=[0u8;48];request[..16].copy_from_slice(header.as_slice());
+        request[16..20].copy_from_slice(b"LIRQ");
+        request[20..22].copy_from_slice(&1u16.to_le_bytes());
+        request[22..24].copy_from_slice(&op.to_le_bytes());
+        request[24..32].copy_from_slice(&token.to_le_bytes());
+        request[32..40].copy_from_slice(&epoch.to_le_bytes());
+        request[40..48].copy_from_slice(&ticket.to_le_bytes());
+        self.next_message_id+=Wrapping(1);
+        self.stream.write_all(&request).map_err(Error::StreamWrite)?;
+        let (reply,payload,fds)=self.recv_reply(&header,max_payload)?;
+        if reply.flags != HeaderFlags::Reply as u32 || reply.error != 0 {
+            return Err(Error::ErrorReply{command:Command::LocalIrq,errno:reply.error});
+        }
+        Ok((payload,fds))
+        })();
+        if result.is_err() {
+            self.local_irq_negotiated=false;
+            let _=self.stream.shutdown(std::net::Shutdown::Both);
+        }
+        result
+    }
+
+    fn local_irq_invalid(&mut self,detail:&'static str)->Error {
+        self.local_irq_negotiated=false;
+        let _=self.stream.shutdown(std::net::Shutdown::Both);
+        Error::InvalidReply(Command::LocalIrq,detail)
+    }
+
+    pub fn local_irq_prepare(&mut self) -> Result<local_irq::Prepared,Error> {
+        let (payload,mut fds)=self.local_irq_request(1,0,0,0,128)?;
+        if payload.len()!=128 || fds.len()!=2 {
+            return Err(self.local_irq_invalid("prepare size or FD count"));
+        }
+        let metadata=local_irq::Metadata::decode(&payload)
+            .map_err(|_|self.local_irq_invalid("prepare metadata"))?;
+        let event_fd=fds.pop().unwrap();let queue_fd=fds.pop().unwrap();
+        Ok(local_irq::Prepared{metadata,queue_fd,event_fd})
+    }
+
+    pub fn local_irq_commit(&mut self,token:u64,epoch:u64,ticket:u64)->Result<(),Error>{
+        let (payload,fds)=self.local_irq_request(2,token,epoch,ticket,0)?;
+        if !payload.is_empty() || !fds.is_empty(){return Err(self.local_irq_invalid("commit reply"));}
+        Ok(())
+    }
+
+    pub fn local_irq_abort(&mut self,token:u64)->Result<(),Error>{
+        let (payload,fds)=self.local_irq_request(3,token,0,0,0)?;
+        if !payload.is_empty() || !fds.is_empty(){return Err(self.local_irq_invalid("abort reply"));}
         Ok(())
     }
 
@@ -1356,6 +1482,19 @@ impl Client {
 }
 
 pub trait ServerBackend {
+    /// Explicit opt-in: generic backends never advertise this private extension.
+    fn local_irq_offer(&self) -> bool { false }
+    fn local_irq_prepare(&mut self) -> Result<local_irq::PreparedServer, std::io::Error> {
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+    fn local_irq_commit(&mut self, _token:u64, _epoch:u64, _ticket:u64)
+        -> Result<(), std::io::Error> { Err(std::io::ErrorKind::Unsupported.into()) }
+    fn local_irq_abort(&mut self, _token:u64) -> Result<(), std::io::Error> {
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+    fn local_irq_disconnected(&mut self) {}
+    /// Publish all causes of the just completed command before its reply.
+    fn local_irq_before_reply(&mut self) -> Result<(), std::io::Error> { Ok(()) }
     fn region_read(
         &mut self,
         _region: u32,
@@ -1431,6 +1570,22 @@ pub struct Server {
     /// (vfio-user.rst, "VFIO_USER_VERSION": "If not specified then the receiver
     /// must assume a value of 1").
     client_max_msg_fds: AtomicU32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LocalIrqPhase { Off, Negotiated, Prepared, Active }
+struct SessionContext {
+    version_seen: bool,
+    phase: LocalIrqPhase,
+    token: u64,
+    epoch: u64,
+    producer: Option<local_irq::QueueProducer>,
+}
+impl Default for SessionContext {
+    fn default() -> Self { Self { version_seen:false,phase:LocalIrqPhase::Off,token:0,epoch:0,producer:None } }
+}
+impl SessionContext {
+    fn terminal(&self) -> bool { self.producer.as_ref().is_some_and(|p|p.is_terminal()) }
 }
 
 /// Optional CPU-for-latency wait before the server's unchanged blocking header receive.
@@ -1659,6 +1814,7 @@ impl Server {
         stream: &mut UnixStream,
         header: Header,
         fds: Vec<File>,
+        session: &mut SessionContext,
     ) -> Result<(), Error> {
         let command = Command::n(header.command).ok_or(Error::UnknownCommand(header.command))?;
         match command {
@@ -1670,6 +1826,13 @@ impl Server {
                     return Err(Error::UnexpectedNoReply(Command::Version));
                 }
 
+                if header.message_size < size_of::<Version>() as u32
+                    || header.message_size > 4096 || !fds.is_empty()
+                    || header.flags != HeaderFlags::Command as u32 || header.error != 0
+                    || session.version_seen
+                { return Err(Error::InvalidInput); }
+                session.version_seen=true;
+
                 // TODO: Make version/capabilities configurable
                 let mut client_version = Version {
                     header,
@@ -1678,6 +1841,9 @@ impl Server {
                 stream
                     .read_exact(&mut client_version.as_mut_slice()[size_of::<Header>()..])
                     .map_err(Error::StreamRead)?;
+                if client_version.major != 0 || client_version.minor > 1 {
+                    return Err(Error::InvalidInput);
+                }
 
                 let mut raw_version_data =
                     vec![0; header.message_size as usize - size_of::<Version>()];
@@ -1685,9 +1851,8 @@ impl Server {
                     .read_exact(&mut raw_version_data)
                     .map_err(Error::StreamRead)?;
                 let client_version_data = CString::from_vec_with_nul(raw_version_data)
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned();
+                    .map_err(|_| Error::InvalidInput)?
+                    .to_string_lossy().into_owned();
                 let client_capabilities: CapabilitiesData =
                     serde_json::from_str(&client_version_data)
                         .map_err(Error::DeserializeCapabilites)?;
@@ -1701,7 +1866,16 @@ impl Server {
                     Ordering::Relaxed,
                 );
 
-                let server_capabilities = CapabilitiesData::default();
+                let mut server_capabilities = CapabilitiesData::default();
+                if backend.local_irq_offer()
+                    && client_capabilities.capabilities.x_caraxes_local_irq.as_ref()
+                        == Some(&LocalIrqCapability::v1())
+                    && client_capabilities.capabilities.max_msg_fds >= 2
+                {
+                    server_capabilities.capabilities.x_caraxes_local_irq =
+                        Some(LocalIrqCapability::v1());
+                    session.phase = LocalIrqPhase::Negotiated;
+                }
                 let server_version_data = serde_json::to_string(&server_capabilities)
                     .map_err(Error::SerializeCapabilites)?;
                 let server_version = Version {
@@ -1723,13 +1897,73 @@ impl Server {
                     IoSlice::new(server_version_data.as_bytes_with_nul()),
                 ];
 
-                // TODO: Use write_all_vectored() when ready
-                let _ = stream.write_vectored(&bufs).map_err(Error::StreamWrite)?;
+                if session.phase == LocalIrqPhase::Negotiated {
+                    stream.write_all(server_version.as_slice()).map_err(Error::StreamWrite)?;
+                    stream.write_all(server_version_data.as_bytes_with_nul()).map_err(Error::StreamWrite)?;
+                } else {
+                    // Preserve generic VERSION serialization and send behavior.
+                    let _ = stream.write_vectored(&bufs).map_err(Error::StreamWrite)?;
+                }
 
                 info!(
                     "Sent server version: major = {} minor = {} capabilities = {:?}",
                     server_version.major, server_version.minor, server_capabilities.capabilities
                 );
+            }
+            Command::LocalIrq => {
+                if header.message_size != 48 || header.flags != HeaderFlags::Command as u32
+                    || !fds.is_empty() || session.phase == LocalIrqPhase::Off
+                { return Err(Error::LocalIrqTerminal("bad local IRQ request")); }
+                let mut request=[0u8;32];
+                stream.read_exact(&mut request).map_err(Error::StreamRead)?;
+                if &request[0..4] != b"LIRQ" || u16::from_le_bytes(request[4..6].try_into().unwrap()) != 1 {
+                    return Err(Error::LocalIrqTerminal("bad local IRQ magic/version"));
+                }
+                let op=u16::from_le_bytes(request[6..8].try_into().unwrap());
+                let token=u64::from_le_bytes(request[8..16].try_into().unwrap());
+                let epoch=u64::from_le_bytes(request[16..24].try_into().unwrap());
+                let ticket=u64::from_le_bytes(request[24..32].try_into().unwrap());
+                match op {
+                    1 if session.phase == LocalIrqPhase::Negotiated && token==0 && epoch==0 && ticket==0 => {
+                        let prepared=backend.local_irq_prepare().map_err(Error::Backend)?;
+                        session.producer=Some(prepared.producer.clone());
+                        session.phase=LocalIrqPhase::Prepared;
+                        prepared.metadata.validate().map_err(|_|Error::LocalIrqTerminal("invalid prepared metadata"))?;
+                        prepared.producer.attach_terminal_stream(stream).map_err(Error::StreamRead)?;
+                        if prepared.producer.metadata()!=&prepared.metadata
+                            || self.client_max_msg_fds.load(Ordering::Relaxed)<2
+                        {return Err(Error::LocalIrqTerminal("prepared transport mismatch"));}
+                        let queue_fd=prepared.producer.queue_fd().map_err(Error::StreamRead)?;
+                        let event_fd=prepared.producer.event_fd().map_err(Error::StreamRead)?;
+                        session.token=prepared.metadata.token;session.epoch=prepared.metadata.epoch;
+                        let reply=Header{message_id:header.message_id,command:header.command,
+                            message_size:144,flags:HeaderFlags::Reply as u32,..Default::default()};
+                        let mut buf=Vec::with_capacity(144);buf.extend_from_slice(reply.as_slice());
+                        buf.extend_from_slice(&prepared.metadata.wire());
+                        let sent=stream.send_with_fds(&[buf.as_slice()],&[queue_fd.as_raw_fd(),event_fd.as_raw_fd()])
+                            .map_err(Error::SendWithFd)?;
+                        if sent!=buf.len(){return Err(Error::LocalIrqTerminal("short prepare reply"));}
+                    }
+                    2 if session.phase == LocalIrqPhase::Prepared && token==session.token
+                        && epoch==session.epoch && ticket==0
+                        && session.producer.as_ref().unwrap().published_tail()==0 => {
+                        backend.local_irq_commit(token,epoch,ticket).map_err(Error::Backend)?;
+                        backend.local_irq_before_reply().map_err(|_|Error::LocalIrqTerminal("commit fence"))?;
+                        session.phase=LocalIrqPhase::Active;
+                        let reply=Header{message_id:header.message_id,command:header.command,
+                            message_size:16,flags:HeaderFlags::Reply as u32,..Default::default()};
+                        stream.write_all(reply.as_slice()).map_err(Error::StreamWrite)?;
+                    }
+                    3 if session.phase == LocalIrqPhase::Prepared && token==session.token
+                        && epoch==0 && ticket==0 => {
+                        backend.local_irq_abort(token).map_err(Error::Backend)?;
+                        session.producer=None;session.phase=LocalIrqPhase::Negotiated;
+                        let reply=Header{message_id:header.message_id,command:header.command,
+                            message_size:16,flags:HeaderFlags::Reply as u32,..Default::default()};
+                        stream.write_all(reply.as_slice()).map_err(Error::StreamWrite)?;
+                    }
+                    _ => return Err(Error::LocalIrqTerminal("local IRQ state/token")),
+                }
             }
             Command::DmaMap => {
                 let mut cmd = DmaMap {
@@ -1748,15 +1982,17 @@ impl Server {
                     return Err(Error::InvalidInput);
                 }
 
-                backend
-                    .dma_map(
+                let result = backend.dma_map(
                         DmaMapFlags::from_bits_truncate(cmd.flags),
                         cmd.offset,
                         cmd.address,
                         cmd.size,
                         fds.pop(),
-                    )
-                    .map_err(Error::Backend)?;
+                    );
+                if session.phase == LocalIrqPhase::Active {
+                    backend.local_irq_before_reply().map_err(|_|Error::LocalIrqTerminal("DMA map fence"))?;
+                }
+                result.map_err(Error::Backend)?;
 
                 if header.no_reply() {
                     return Ok(());
@@ -1782,13 +2018,15 @@ impl Server {
                     .read_exact(&mut cmd.as_mut_slice()[size_of::<Header>()..])
                     .map_err(Error::StreamRead)?;
 
-                backend
-                    .dma_unmap(
+                let result = backend.dma_unmap(
                         DmaUnmapFlags::from_bits_truncate(cmd.flags),
                         cmd.address,
                         cmd.size,
-                    )
-                    .map_err(Error::Backend)?;
+                    );
+                if session.phase == LocalIrqPhase::Active {
+                    backend.local_irq_before_reply().map_err(|_|Error::LocalIrqTerminal("DMA unmap fence"))?;
+                }
+                result.map_err(Error::Backend)?;
 
                 if header.no_reply() {
                     return Ok(());
@@ -2042,9 +2280,11 @@ impl Server {
                     return Err(Error::UnsupportedFeature);
                 }
 
-                backend
-                    .set_irqs(cmd.index, cmd.flags, cmd.start, cmd.count, fds)
-                    .map_err(Error::Backend)?;
+                let result = backend.set_irqs(cmd.index, cmd.flags, cmd.start, cmd.count, fds);
+                if session.phase == LocalIrqPhase::Active {
+                    backend.local_irq_before_reply().map_err(|_|Error::LocalIrqTerminal("IRQ fence"))?;
+                }
+                result.map_err(Error::Backend)?;
 
                 if header.no_reply() {
                     return Ok(());
@@ -2081,9 +2321,11 @@ impl Server {
                 }
 
                 let mut data = vec![0u8; count as usize];
-                backend
-                    .region_read(region, offset, &mut data)
-                    .map_err(Error::Backend)?;
+                let result = backend.region_read(region, offset, &mut data);
+                if session.phase == LocalIrqPhase::Active {
+                    backend.local_irq_before_reply().map_err(|_|Error::LocalIrqTerminal("region read fence"))?;
+                }
+                result.map_err(Error::Backend)?;
 
                 let reply = RegionAccess {
                     header: Header {
@@ -2119,9 +2361,11 @@ impl Server {
 
                 let mut data = vec![0u8; count as usize];
                 stream.read_exact(&mut data).map_err(Error::StreamRead)?;
-                backend
-                    .region_write(region, offset, &data)
-                    .map_err(Error::Backend)?;
+                let result = backend.region_write(region, offset, &data);
+                if session.phase == LocalIrqPhase::Active {
+                    backend.local_irq_before_reply().map_err(|_|Error::LocalIrqTerminal("region write fence"))?;
+                }
+                result.map_err(Error::Backend)?;
 
                 if header.no_reply() {
                     return Ok(());
@@ -2144,7 +2388,11 @@ impl Server {
                     .map_err(Error::StreamWrite)?;
             }
             Command::DeviceReset => {
-                backend.reset().map_err(Error::Backend)?;
+                let result=backend.reset();
+                if session.phase == LocalIrqPhase::Active {
+                    backend.local_irq_before_reply().map_err(|_|Error::LocalIrqTerminal("reset fence"))?;
+                }
+                result.map_err(Error::Backend)?;
 
                 if header.no_reply() {
                     return Ok(());
@@ -2182,34 +2430,40 @@ impl Server {
 
     fn run_inner(&self, backend: &mut dyn ServerBackend, mode: IdlePollMode) -> Result<(), Error> {
         let (mut stream, _) = self.listener.accept().map_err(Error::SocketAccept)?;
-
-        loop {
-            idle_poll_header(&stream, mode).map_err(Error::StreamRead)?;
-            let Some((header, fds)) = receive_header(&mut stream)? else {
-                info!("Connection closed");
-                break;
-            };
-
-            if let Err(e) = self.handle_command(backend, &mut stream, header, fds) {
-                error!("Error handling command: {:?}: {e}", header.command);
-                let reply = Header {
-                    message_id: header.message_id,
-                    command: header.command,
-                    flags: HeaderFlags::Error as u32 | HeaderFlags::Reply as u32,
-                    message_size: size_of::<Header>() as u32,
-                    error: if matches!(e, Error::InvalidInput) {
-                        EINVAL as u32
-                    } else {
-                        0
-                    },
+        self.client_max_msg_fds.store(default_max_msg_fds(), Ordering::Relaxed);
+        let mut session=SessionContext::default();
+        let result=(|| {
+            loop {
+                if session.terminal(){return Err(Error::LocalIrqTerminal("producer fault"));}
+                idle_poll_header(&stream, mode).map_err(Error::StreamRead)?;
+                let Some((header, fds)) = receive_header(&mut stream)? else {
+                    info!("Connection closed");
+                    break;
                 };
-                stream
-                    .write_all(reply.as_slice())
-                    .map_err(Error::StreamWrite)?;
+                if let Err(e) = self.handle_command(backend, &mut stream, header, fds, &mut session) {
+                    error!("Error handling command: {:?}: {e}", header.command);
+                    if session.phase == LocalIrqPhase::Prepared
+                        || session.phase == LocalIrqPhase::Active
+                        || header.command == Command::LocalIrq as u16
+                        || matches!(e,Error::LocalIrqTerminal(_))
+                    {return Err(e);}
+                    let reply = Header {
+                        message_id: header.message_id,
+                        command: header.command,
+                        flags: HeaderFlags::Error as u32 | HeaderFlags::Reply as u32,
+                        message_size: size_of::<Header>() as u32,
+                        error: if matches!(e, Error::InvalidInput) {EINVAL as u32} else {0},
+                    };
+                    stream.write_all(reply.as_slice()).map_err(Error::StreamWrite)?;
+                }
             }
+            Ok(())
+        })();
+        if session.phase == LocalIrqPhase::Prepared || session.phase == LocalIrqPhase::Active {
+            if let Some(p)=&session.producer {p.terminal();}
         }
-
-        Ok(())
+        backend.local_irq_disconnected();
+        result
     }
 }
 
@@ -2261,6 +2515,7 @@ mod tests {
                 num_irqs: 0,
                 resettable: !expected,
                 regions: Vec::new(),
+                local_irq_negotiated: false,
             };
             assert!(client.get_regions().unwrap().is_empty());
             assert_eq!(client.num_irqs, 2);
@@ -2667,6 +2922,148 @@ mod tests {
         }
     }
 
+    struct LocalBackend {
+        producer: Option<local_irq::QueueProducer>,
+        metadata: Option<local_irq::Metadata>,
+        active: bool,
+        just_committed: bool,
+        fail_write: bool,
+        disconnects: Arc<std::sync::atomic::AtomicU32>,
+    }
+
+    impl LocalBackend {
+        fn new(fail_write: bool, disconnects: Arc<std::sync::atomic::AtomicU32>) -> Self {
+            Self { producer:None,metadata:None,active:false,just_committed:false,fail_write,disconnects }
+        }
+    }
+
+    impl ServerBackend for LocalBackend {
+        fn local_irq_offer(&self)->bool {true}
+        fn local_irq_prepare(&mut self)->Result<local_irq::PreparedServer,std::io::Error>{
+            let metadata=local_irq::Metadata::fresh(0,0xb81000,0xb82000,[0;8],1000,true)?;
+            let producer=local_irq::QueueProducer::create(&metadata)
+                .map_err(std::io::Error::other)?;
+            self.producer=Some(producer.clone());self.metadata=Some(metadata.clone());
+            Ok(local_irq::PreparedServer{metadata,producer})
+        }
+        fn local_irq_commit(&mut self,token:u64,epoch:u64,_ticket:u64)->Result<(),std::io::Error>{
+            let m=self.metadata.as_ref().unwrap();
+            if token!=m.token || epoch!=m.epoch {return Err(std::io::ErrorKind::InvalidInput.into());}
+            self.active=true;self.just_committed=true;Ok(())
+        }
+        fn local_irq_abort(&mut self,token:u64)->Result<(),std::io::Error>{
+            if self.metadata.as_ref().is_none_or(|m|m.token!=token){return Err(std::io::ErrorKind::InvalidInput.into());}
+            self.producer=None;self.metadata=None;Ok(())
+        }
+        fn local_irq_disconnected(&mut self){
+            self.disconnects.fetch_add(1,Ordering::Relaxed);
+            self.producer=None;self.metadata=None;self.active=false;
+        }
+        fn local_irq_before_reply(&mut self)->Result<(),std::io::Error>{
+            if self.just_committed {self.just_committed=false;return Ok(());}
+            if self.active {self.producer.as_ref().unwrap().reserve()
+                .and_then(|r|r.publish(local_irq::RecordKind::Hints([7;8])))
+                .map_err(std::io::Error::other)?;}
+            Ok(())
+        }
+        fn region_read(&mut self,_:u32,_:u64,data:&mut[u8])->Result<(),std::io::Error>{data.fill(0x5a);Ok(())}
+        fn region_write(&mut self,_:u32,_:u64,_:&[u8])->Result<(),std::io::Error>{
+            if self.fail_write {Err(std::io::ErrorKind::Other.into())}else{Ok(())}
+        }
+        fn dma_map(&mut self,_:DmaMapFlags,_:u64,_:u64,_:u64,_:Option<File>)->Result<(),std::io::Error>{Ok(())}
+        fn dma_unmap(&mut self,_:DmaUnmapFlags,_:u64,_:u64)->Result<(),std::io::Error>{Ok(())}
+        fn reset(&mut self)->Result<(),std::io::Error>{Ok(())}
+        fn set_irqs(&mut self,_:u32,_:u32,_:u32,_:u32,_:Vec<File>)->Result<(),std::io::Error>{Ok(())}
+    }
+
+    fn local_test_path(tag:&str)->PathBuf {
+        std::env::temp_dir().join(format!("vfio-local-irq-{tag}-{}-{}.sock",
+            std::process::id(),std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()))
+    }
+
+    #[test]
+    fn local_irq_version_prepare_two_fds_commit_and_reply_fence(){
+        let path=local_test_path("complete");
+        let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
+        let disconnects=Arc::new(AtomicU32::new(0));let seen=disconnects.clone();
+        let worker=std::thread::spawn(move||server.run(&mut LocalBackend::new(false,seen)));
+        let mut client=Client::new_with_options(&path,ClientOptions{local_irq_required:true}).unwrap();
+        assert!(client.local_irq_negotiated());
+        let prepared=client.local_irq_prepare().unwrap();
+        assert_eq!(prepared.metadata.initial_ticket,0);
+        let mut consumer=local_irq::QueueConsumer::map(&prepared).unwrap();
+        client.local_irq_commit(prepared.metadata.token,prepared.metadata.epoch,0).unwrap();
+        let mut data=[0;4];client.region_read(0,0,&mut data).unwrap();
+        assert_eq!(data,[0x5a;4]);
+        let ticket=consumer.published_tail().unwrap();
+        assert_eq!(ticket,1,"backend fence publishes before RPC reply");
+        assert_eq!(consumer.drain_through(ticket).unwrap()[0].kind,
+            local_irq::RecordKind::Hints([7;8]));
+        drop(client);assert!(worker.join().unwrap().is_ok());
+        assert_eq!(disconnects.load(Ordering::Relaxed),1);
+    }
+
+    #[test]
+    fn local_irq_default_is_generic_and_required_refuses_unsupported_peer(){
+        let path=local_test_path("generic");
+        let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
+        let worker=std::thread::spawn(move||server.run(&mut NullBackend));
+        assert!(matches!(Client::new_with_options(&path,ClientOptions{local_irq_required:true}),
+            Err(Error::UnsupportedFeature)));
+        assert!(worker.join().unwrap().is_ok());
+
+        let path=local_test_path("optout");
+        let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
+        let worker=std::thread::spawn(move||server.run(&mut LocalBackend::new(false,Arc::new(AtomicU32::new(0)))));
+        let client=Client::new(&path).unwrap();
+        assert!(!client.local_irq_negotiated());
+        drop(client);assert!(worker.join().unwrap().is_ok());
+    }
+
+    #[test]
+    fn local_irq_backend_error_after_grant_closes_connection(){
+        let path=local_test_path("error");
+        let server=Server::new(&path,false,Vec::new(),vec![region(0,4096)]).unwrap();
+        let disconnects=Arc::new(AtomicU32::new(0));let seen=disconnects.clone();
+        let worker=std::thread::spawn(move||server.run(&mut LocalBackend::new(true,seen)));
+        let mut client=Client::new_with_options(&path,ClientOptions{local_irq_required:true}).unwrap();
+        let prepared=client.local_irq_prepare().unwrap();
+        client.local_irq_commit(prepared.metadata.token,prepared.metadata.epoch,0).unwrap();
+        assert!(client.region_write(0,0,&[1]).is_err());
+        assert!(worker.join().unwrap().is_err());
+        assert_eq!(disconnects.load(Ordering::Relaxed),1);
+    }
+
+    #[test]
+    fn local_irq_prepare_rejects_missing_fd_and_private_error_reply(){
+        for error in [false,true] {
+            let (stream,mut peer)=UnixStream::pair().unwrap();
+            let server=std::thread::spawn(move||{
+                let mut request=[0u8;48];peer.read_exact(&mut request).unwrap();
+                assert_eq!(&request[16..20],b"LIRQ");
+                assert_eq!(u16::from_le_bytes(request[22..24].try_into().unwrap()),1);
+                let message_id=u16::from_ne_bytes(request[0..2].try_into().unwrap());
+                let reply=Header{message_id,command:Command::LocalIrq as u16,
+                    message_size:if error {16}else{144},
+                    flags:HeaderFlags::Reply as u32 | if error {HeaderFlags::Error as u32}else{0},
+                    error:if error {EINVAL as u32}else{0}};
+                if error {peer.write_all(reply.as_slice()).unwrap();}
+                else {
+                    let mut buf=Vec::from(reply.as_slice());buf.extend_from_slice(&[0;128]);
+                    let fd=eventfd();
+                    peer.send_with_fds(&[buf.as_slice()],&[fd.as_raw_fd()]).unwrap();
+                }
+            });
+            let mut client=Client{stream,next_message_id:Wrapping(0),num_irqs:0,
+                resettable:false,regions:Vec::new(),local_irq_negotiated:true};
+            let result=client.local_irq_prepare();
+            if error {assert!(matches!(result,Err(Error::ErrorReply{command:Command::LocalIrq,errno}) if errno==EINVAL as u32));}
+            else {assert!(matches!(result,Err(Error::InvalidReply(Command::LocalIrq,"prepare size or FD count"))));}
+            server.join().unwrap();
+        }
+    }
+
     fn region(index: u32, size: u64) -> ServerRegion {
         ServerRegion {
             region_info: vfio_region_info {
@@ -2998,6 +3395,7 @@ mod tests {
             num_irqs: 0,
             resettable: false,
             regions: Vec::new(),
+            local_irq_negotiated: false,
         };
         let fake = std::thread::spawn(move || {
             let error_reply = |peer: &mut UnixStream, raw: &[u8]| {

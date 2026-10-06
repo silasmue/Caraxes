@@ -83,3 +83,23 @@ clean. With patch 0002 as well (`/mnt/vmstore/caraxes/vfio-rs-0006`): 14 passed 
 clippy and rustfmt clean. This directory is not a workspace member, so its tests
 require an isolated manifest. The local diagnostic and short-header tests are separate
 from the upstream-candidate patch test counts above.
+
+## Private local IRQ transport (experimental, opt-in)
+
+`ClientOptions { local_irq_required: true }` and an offering `ServerBackend` can
+negotiate `x_caraxes_local_irq` in VERSION. The private command `0x8000` carries
+fixed 32-byte little-endian PREPARE, COMMIT and ABORT requests. PREPARE returns
+fixed 128-byte metadata and exactly two descriptors: a sealed-size queue memfd
+and a notification eventfd. The first ticket is zero and the queue stays empty
+until COMMIT; initial hints and MSI state come only from metadata. Generic
+`Client::new` does not send the capability or use the private command.
+
+`src/local_irq.rs` defines the versioned `shm-fold-v1` queue: separate 4 KiB
+head/tail header pages and 1024 fixed 128-byte record slots. Fold records carry
+one complete eight-word pending drain; Hints, MsiEnabled and ResetCommit share
+the same per-epoch sequence. The producer reserves space before consuming a
+pending drain. Queue full or corruption latches a terminal flag, wakes the
+consumer and shuts down the active socket; no producer waits for space. The
+backend alone produces records, and the VMM alone advances head. Both are
+trusted host processes: the O_RDWR memfd can be remapped despite each side's
+cooperative read-only mmap protection. This is not an access-control boundary.
