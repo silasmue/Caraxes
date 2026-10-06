@@ -772,7 +772,7 @@ impl IntrPage {
             None => self.odd(&mut st, Odd::TreeHole),
         }
         self.publish(&st.model);
-        let edge = rearm_by_set && !rearm && st.model.top() != 0;
+        let edge = rearm_by_set && !rearm && st.model.top() & st.model.top_en != 0;
         if st.stores_traced < STORES_TRACED {
             st.stores_traced += 1;
             let m = &st.model;
@@ -1005,7 +1005,7 @@ impl IntrPage {
             self.expected[i].store(d, Ordering::Relaxed);
         }
         // The re-arm: a set store while an enabled vector is pending.
-        let edge = rearm_by_set && !raise_msi && st.model.top() != 0;
+        let edge = rearm_by_set && !raise_msi && st.model.top() & st.model.top_en != 0;
         let mut msi = false;
         if edge || raise_msi {
             // The page stores above come first; the eventfd write follows them.
@@ -1494,6 +1494,51 @@ mod tests {
         assert_eq!(load(&p, LEAF_EN_SET), 0);
     }
 
+    #[test]
+    fn exact_set_rearms_only_a_top_enabled_pending_subtree() {
+        let (p, shared, mut msi, _) = page(Config::default());
+        let write = |reg: u64, v: u32| p.write(BASE + reg, &v.to_le_bytes());
+        write(LEAF_EN_SET, 1 << 4);
+        assert!(p.exact());
+        assert!(shared.raise(4));
+        assert!(p.scan().msi);
+        assert_eq!(count(&mut msi), 1, "consume the vector's original raise");
+        assert_eq!((p.model().top(), p.model().top_en), (1, 0));
+
+        write(LEAF_EN_SET, 1 << 4);
+        assert_eq!(count(&mut msi), 0, "pending leaf in a disabled top subtree");
+        write(TOP_EN_SET, 1 << 1);
+        assert_eq!(count(&mut msi), 0, "unrelated subtree enable");
+        write(TOP_EN_SET, 1);
+        assert_eq!(count(&mut msi), 1, "enabling the pending subtree");
+        assert_eq!(p.stats.msi_edge.load(Ordering::Relaxed), 1);
+        assert!(p.rearm(), "the explicit MSI re-arm still sends while pending");
+        assert_eq!(count(&mut msi), 1);
+    }
+
+    #[test]
+    fn tagged_set_rearms_only_a_top_enabled_pending_subtree() {
+        let (p, shared, mut msi, _) = page(Config::default());
+        p.enable_vectors(&[4]);
+        assert!(shared.raise(4));
+        assert!(p.scan().msi);
+        assert_eq!(count(&mut msi), 1, "consume the vector's original raise");
+        assert_eq!((p.model().top(), p.model().top_en), (1, 0));
+
+        store(&p, LEAF_EN_SET, 1 << 5);
+        p.scan();
+        assert_eq!(count(&mut msi), 0, "pending leaf in a disabled top subtree");
+        store(&p, TOP_EN_SET, 1 << 1);
+        p.scan();
+        assert_eq!(count(&mut msi), 0, "unrelated subtree enable");
+        store(&p, TOP_EN_SET, 1);
+        assert!(p.scan().msi);
+        assert_eq!(count(&mut msi), 1, "enabling the pending subtree");
+        assert_eq!(p.stats.msi_edge.load(Ordering::Relaxed), 1);
+        assert!(!p.rearm(), "tagged-mode explicit re-arm behavior is unchanged");
+        assert_eq!(count(&mut msi), 0);
+    }
+
     /// The MSI re-arm (`kbifRearmMSI_GM107`): exact mode sends the MSI again while an
     /// enabled vector is pending, not otherwise; the tagged display leaves it to the watchdog.
     #[test]
@@ -1856,12 +1901,13 @@ mod tests {
         assert!(p.scan().msi);
         assert_eq!(count(&mut msi), 1);
         assert_eq!(load(&p, TOP), 1 << 3);
-        // A lock cycle between two scans: acquire, release (0xfffffffe then 0x1).
+        // A lock cycle between two scans: acquire, release (0xfffffffe then 0x9).
+        // The last visible set includes the pending GSP subtree (bit 3).
         store(&p, LEAF_EN_CLEAR + 8, 0x3);
         store(&p, TOP_EN_CLEAR, 0x8);
         store(&p, LEAF_EN_SET + 8, 0x3);
         store(&p, TOP_EN_SET, 0xFFFF_FFFE);
-        store(&p, TOP_EN_SET, 0x1);
+        store(&p, TOP_EN_SET, 0x9);
         assert!(p.scan().msi, "the release re-arms");
         assert_eq!(count(&mut msi), 1);
         assert_eq!(p.stats.msi_edge.load(Ordering::Relaxed), 1);

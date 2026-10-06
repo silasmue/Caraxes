@@ -2,8 +2,9 @@
 # Windows workload abort investigation
 
 The intermittent Fire Strike failure remains unexplained. Three later complete
-runs have not reproduced it. The changes below repair diagnostic tools; they do
-not establish a GPU compatibility fix or a performance gain.
+runs have not reproduced it. The changes below repair diagnostic tools, VAS
+ownership and interrupt masking, and extend doorbell offload. None establishes
+the cause of that abort or a benchmark performance gain.
 
 ## Earlier failures
 
@@ -87,12 +88,58 @@ fix and earlier controls. C178–C181 use the same immutable backend and VMM.
   FD budget on ChIDs 48 and 49 where the reported channel count permits. Tight
   budgets retain their old engine coverage. Tests cover every one-message
   budget, partial extension to 49, and lower reported counts. Focused tests,
-  the full suite and the release build pass; hardware qualification follows.
+  the full suite and the release build pass. C184 confirms that ChID 48 no longer
+  traps: its 103-second startup bracket has only 14 trapped doorbells, with
+  87,246 guest eventfd writes. Window readiness still takes 84.352 seconds.
+  Different bracket lengths and host activity prevent a direct speed comparison.
 - C183 stops before its D3D fixture or benchmark: a CPU-only Nix QEMU 10.1.5
   test VM appears while the packet admits only 10.2.4. This is a runtime
   admission stop, not a Windows workload abort. Its GPU processes stop normally;
   the unrelated test VMs remain untouched. A fresh packet pins both reviewed
   executables and still excludes GPU, guest-image and tap conflicts.
+
+## Display and interrupt traffic
+
+- C185 enables the existing `CARAXES_DISPLAY_PAGE=exact-ro` mode on the unchanged
+  C184 backend. The VMM maps the FE status page read-only; writes still trap and
+  apply synchronously. It uses ordinary register values without the legacy
+  tagged writable page, watchdog or kick-page protocol.
+- Windows reaches SSH after 23.7 seconds, renders the three D3D11 readbacks and
+  opens a 3DMark window after 73.541 seconds. A later screenshot confirms loaded
+  Home controls. Pre/post health is Problem 0 with no Display 4101. The process
+  collector stops cleanly with 508 events and task exit 0; owned GPU processes
+  stop, NVIDIA stays bound and the host has no new Xid.
+- The 95.3-second startup bracket has zero routed display-status reads and
+  11,038 FE writes. It still has 460,210 interrupt-tree writes, 110,166
+  SET-generated MSI re-arms and 55,250 vector raises. These device-wide counters
+  include background clients. This qualifies the mapped page for this startup
+  smoke test; scored rendering, reset and multi-guest behavior remain unqualified.
+- The SET re-arm condition ignored the top-level interrupt enable mask in both
+  exact and tagged modes. A pending leaf under a disabled top subtree could send
+  an MSI when the guest enabled that leaf again or an unrelated top subtree.
+  The fix requires the pending subtree to be top-enabled. It preserves ordered
+  ACK/SET/CLEAR writes and the separate explicit re-arm path.
+- Both regression tests fail with the old predicate and pass with the fix. The
+  full suite passes: 930 unit tests, one ignored test and two integration tests;
+  the release build passes. Hardware qualification of this fix is pending.
+  Aggregate re-arm counts cannot say how many MSI writes the fix will remove.
+- A writable shared interrupt page cannot retain repeated same-value stores.
+  Offloading the remaining writes requires an ordered register model, for example
+  in the VMM, with synchronous read visibility and correct MSI delivery. Do not
+  qualify dropping or merging these stores from access counts alone.
+
+## GSP reply queue pressure
+
+- C182 and C184 backend logs contain bursts of held replies: the status queue
+  has 48 of its 63 slots occupied, leaving too little room for a 16-slot
+  continuation record (`0x47`). These are transport continuation messages.
+- The guest's trapped `MSGQ_TAIL0` write already retries held replies immediately;
+  command processing and enqueue also retry. A new guest request is not a known
+  prerequisite for draining the queue. Existing logs do not measure hold age or
+  identify these bursts as the startup delay.
+- Search the live shared `gpu.log` during a run, or its archived copy after
+  teardown. A run-directory backend log does not exist yet during execution;
+  an empty search there cannot exclude queue pressure.
 
 ## Diagnostic changes
 
@@ -167,8 +214,8 @@ archives and process metadata contain private machine data and remain local.
 
 - Qualify the VAS fix on hardware without claiming it resolves the earlier
   no-`READY` failure. Profile application startup separately from scored runs.
-- Qualify the extended doorbell-token coverage. Profile the same start/idle
-  phases before interpreting a score.
+- Qualify the interrupt-mask fix and mapped FE page under scored rendering.
+  Compare the same start/idle phases before interpreting counts or a score.
 - Repeat with SystemInfo monitoring on. Require four matching primary results,
   compatible child start/stop instances, post-health and clean teardown.
 - On a reproduced failure, retain current child exit status, product log,
