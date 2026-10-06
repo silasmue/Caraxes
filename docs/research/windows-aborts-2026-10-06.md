@@ -487,3 +487,76 @@ Private evidence: `C194-build-checks.json`, `C194-graphify-update.log` and
 Private evidence: `C196-root-closeout.json`, `C196-doorbell-delta.json`,
 `C196-latency-whole-render-diagnostic.json`, `C194-admission-stop.json`,
 `C195-admission-stop.json` and `C197-reset-vendor-validation.json`.
+
+## Incremental read-only window page
+
+- `3087ab82` wires `CARAXES_DISPLAY_WINDOW_RO=window:0..31`; unset or `0`
+  keeps the existing path. It requires host execution, the boot model and
+  display. Legacy writable kick pages are rejected in either attachment order.
+  The selected page belongs to the same VM's interrupt memfd; every store
+  remains trapped. No physical BAR is exposed.
+- Allocation and pushbuffer controls publish PUT/GET. Kicks publish accepted
+  PUT before engine work and canonical assembly/ARMED words before the
+  triggering UPDATE can notify. GET advances after parsing finishes; an earlier
+  completion may observe the prior consumed pointer. Never publish GET early,
+  allowing the guest to overwrite unread pushbuffer words. Notification-time
+  ordering is source-reviewed; no dedicated interleaving test was added.
+- The mapped decoder preserves all page words, reserved holes, byte reads,
+  partial-write behavior and current FREE persistence. Regression pushbuffers
+  include methods 0, 4 and 0x100: raw method deltas must not replace register
+  pointers or otherwise-zero readbacks. Full refresh runs only at attachment
+  and reset, with changed dwords published on ordinary operations.
+- Reset errors propagate and erase the old image. Terminal handling detaches
+  the display, disables MSI, retires the model and rejects later VFIO requests.
+  Host memory stays allocated until normal worker-join teardown. A later
+  client requires a fresh backend/memfd: closing the socket cannot revoke a
+  read mapping retained by the departing VMM.
+- The first full suite exposed a new reader-constructor deadlock: it acquired
+  the Device mutex while the independent exact-rearm test held it. The reader
+  now receives its fault flag through Routes without acquiring that mutex.
+  The final suite passes 939 library, three parser and two integration tests;
+  the isolated reset-failure test also passes. Two tests are ignored in the
+  full suite, including that global-Setup test. Release and diff checks pass.
+- The VMM must map the selected area read-only. For window 4, add
+  `0:0x694000:0x1000` to `x_readonly_mmap_areas`; tree/FE areas remain as before.
+  The existing frozen launcher does not add this area automatically. C198 has
+  a separate pinned launcher with all three protections. Merely setting the
+  backend variable with a writable VMM mapping is not a valid configuration.
+- C198's source, release and runtime packet are pinned. Hardware was not
+  started: artifact free space was 43.38 GiB, below the retained 45 GiB floor.
+  No owned GPU VM remains; NVIDIA stays bound. Do not promote Windows mapping
+  stability, trap savings or FPS gains until fresh hardware qualification.
+
+Private evidence: `C198-build-checks.json`, `C198-source-regression-stop.json`,
+`C198-hardware-pending-storage.json` and `C198-display-window-runtime/`.
+
+## Local IRQ implementation boundary
+
+- VMM commit `f1c8d8f23` pins our existing vfio-user dependency inside its own
+  worktree, eliminating the shared symlink into the main checkout. The lockfile
+  is unchanged. The copied library passes 18 tests; CH PCI check and four
+  read-only mapping tests pass. This is not a new VMM hardware qualification.
+- The reviewed activation plan uses a VMM-owned 4 KiB read-only guest tree
+  page and a separate hidden, sequenced backend-to-VMM queue. Preserve each
+  complete pending-bitset drain as one Fold. One owner applies queued causes,
+  guest ACK/mask/trigger/rearm and MSI delivery in order. Queue faults stop the
+  session; no silent drop or fallback to a second tree owner.
+- Required wiring: optional VERSION negotiation and session hooks; retire
+  backend tree/MSI owners before COMMIT; local page/MSI adapter and independent
+  consumer; RPC completion fences; reset epochs, BAR moves, disconnect and
+  migration guards. Unsupported clients keep the existing generic path. The
+  tested core remains inactive and removes no interrupt-write round trips yet.
+- A later VMM-to-backend doorbell queue should capture each actual four-byte
+  value and feed existing post_doorbell/RingGate behavior. Preserve BAR2 flush,
+  submission holds and reset generations. This avoids static ChID offers and
+  per-value FD limits without exposing a raw physical doorbell. It does not
+  remove KVM write exits or establish a performance gain by itself.
+- Next hardware step: qualify C198 boot/D3D/desktop after storage headroom is
+  restored. Next substantial performance step: linked local IRQ transport
+  tests, then an instrumented Windows control. Keep full rendering/recording
+  for an actual change or measured gain; a sparse-token retest alone has no
+  demonstrated benefit.
+
+Private designs: `local-irq-activation-design-2026-10-06/plan.txt` and
+`local-doorbell-value-queue-design-2026-10-06/plan.txt`. Old packets, results and
+the earlier Claude handoff are unchanged.
