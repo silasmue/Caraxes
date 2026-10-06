@@ -128,6 +128,9 @@ fix and earlier controls. C178–C181 use the same immutable backend and VMM.
   top-enabled pending subtree. It appears in the profile and exit summary.
   Initial host raises retain their existing delivery contract; this counter
   and fix apply only to SET-generated re-arms, not every MSI source.
+  The full suite and release build pass. C188's hardware census has not run:
+  another host Nix evaluation consumes the required RAM headroom, so preflight
+  stops before creating a VM. Keep the counter's hardware measurement pending.
 - A writable shared interrupt page cannot retain repeated same-value stores.
   Offloading the remaining writes requires an ordered register model, for example
   in the VMM, with synchronous read visibility and correct MSI delivery. Do not
@@ -230,8 +233,9 @@ diagnostic and these runs are not a performance comparison.
   The frozen C148 validator first rejects the changed monitoring bit; a fresh
   strict validator expects monitoring on and retains every other gate. The
   original rejection, archive and validation-policy hashes remain preserved.
-- The physical GPU reaches 1,830–1,860 MHz during C187's high-utilization samples;
-  memory remains at 7,000 MHz. Idle returns to 1,410 MHz. These physical samples
+- C187's 84 physical samples at at least 80% utilization have a median SM clock
+  of 1,830 MHz and a peak of 1,860 MHz; memory remains at 7,000 MHz. Idle returns
+  to 1,410 MHz. These physical samples
   also include host activity; they do not isolate guest GPU utilization.
 - C187 passes pre/post health, three D3D11 readbacks and clean teardown with no
   new Xid. The process collector has 1,288 records and clean task exit 0.
