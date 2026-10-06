@@ -128,9 +128,17 @@ fix and earlier controls. C178–C181 use the same immutable backend and VMM.
   top-enabled pending subtree. It appears in the profile and exit summary.
   Initial host raises retain their existing delivery contract; this counter
   and fix apply only to SET-generated re-arms, not every MSI source.
-  The full suite and release build pass. C188's hardware census has not run:
-  another host Nix evaluation consumes the required RAM headroom, so preflight
-  stops before creating a VM. Keep the counter's hardware measurement pending.
+  The full suite and release build pass. C188's first preflight stops before
+  VM creation because another host build consumes the RAM reserve. A later
+  attempt runs with the required headroom: its 135.4-second startup bracket has
+  491,600 interrupt writes, 13,998 FE writes and zero display-status read traps.
+  The masked-SET counter stays at zero, independently confirmed by the exit
+  summary. This bug does not explain the hot traffic in that run. Backend
+  interrupt service totals 6.62 seconds; this excludes the VMM and transport.
+  Window readiness takes 97.765 seconds and a screenshot confirms loaded Home
+  controls. The collector stops cleanly, guest health stays Problem 0 with no
+  Display 4101, all owned processes stop and NVIDIA remains bound without a new
+  Xid. Host load differs; no startup speed or FPS gain is inferred.
 - A writable shared interrupt page cannot retain repeated same-value stores.
   Offloading the remaining writes requires an ordered register model, for example
   in the VMM, with synchronous read visibility and correct MSI delivery. Do not
