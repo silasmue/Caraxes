@@ -52,6 +52,7 @@ pub const VARS: &[Var] = &[
     var("LEA_VRAM_PROFILE_MIB", Knob, "4096", "the guest FB in MiB when --fb-mib and --profile are not given"),
     // Kept as they are until an A/B decides them.
     var("CARAXES_DOORBELL_TOKENS", Open, "off", "N: the doorbell token pool (Linux B, nouveau: 64; Windows A/B open)"),
+    var("CARAXES_GUEST_TOKEN_EXTRAS", Open, "0", "decimal runlist:chid pairs: sparse guest-token eventfds from spare budget; preserves automatic coverage, unqualified"),
     var("CARAXES_BAR2_MEMFD", Open, "off", "1: guest BAR2 as a memfd (Linux B, nouveau; Windows A/B open)"),
     var("CARAXES_MSI_REARM_IOEVENTFD", Open, "off", "1: the MSI re-arm as an ioeventfd (Linux B, nouveau; Windows A/B open)"),
     var("CARAXES_DISPLAY_PAGE", Open, "off", "1: legacy tagged FE page; exact-ro: ordinary FE values, requires read-only VMM mapping (unqualified)"),

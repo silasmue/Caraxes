@@ -399,6 +399,90 @@ impl GuestTokens {
     }
 }
 
+/// An unchanged automatic runlist selection plus optional exact guest-token values.
+/// The base is always registered first; extras use only its remaining FD budget.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuestTokenPlan {
+    base: GuestTokens,
+    extra_values: Vec<u32>,
+}
+
+impl GuestTokenPlan {
+    /// Keep the automatic set unchanged when no sparse values were requested.
+    pub fn base_only(base: GuestTokens) -> Self {
+        Self { base, extra_values: Vec::new() }
+    }
+
+    /// Add valid exact `(runlist, chid)` values in priority order until `budget` is full.
+    /// `budget` is the guest-token share of one vfio-user reply, after pool tokens and
+    /// other eventfds (MSI re-arm and RPC head) have been reserved by the caller.
+    /// Existing base values and repeated requests are deduplicated. Invalid requests
+    /// fail even if an earlier request already used the last spare descriptor.
+    pub fn with_extra_values(
+        base: GuestTokens,
+        reported_chids: u32,
+        budget: usize,
+        requested: &[(u32, u32)],
+    ) -> Result<Self, String> {
+        base.check()?;
+        if budget > MAX_TOKENS || base.len() > budget {
+            return Err(format!(
+                "guest tokens: base {} and budget {budget} must fit one reply of {MAX_TOKENS} FDs",
+                base.len()
+            ));
+        }
+        if base.chids > reported_chids {
+            return Err(format!(
+                "guest tokens: base covers {} ChIDs but only {reported_chids} are reported",
+                base.chids
+            ));
+        }
+        let selected = base.runlists();
+        let mut extra_values = Vec::new();
+        for &(runlist, chid) in requested {
+            if runlist > TOKEN_RUNLIST_MAX || !selected.contains(&runlist) {
+                return Err(format!("guest tokens: sparse runlist {runlist} is not selected"));
+            }
+            if chid >= 1 << TOKEN_VECTOR_BITS || chid >= reported_chids {
+                return Err(format!(
+                    "guest tokens: sparse ChID {chid} is outside the 12-bit field or {reported_chids} reported channels"
+                ));
+            }
+            let value = guest_token(runlist, chid);
+            if chid < base.chids || extra_values.contains(&value) {
+                continue;
+            }
+            if base.len() + extra_values.len() < budget {
+                extra_values.push(value);
+            }
+        }
+        Ok(Self { base, extra_values })
+    }
+
+    pub fn base(&self) -> &GuestTokens {
+        &self.base
+    }
+
+    pub fn extra_values(&self) -> &[u32] {
+        &self.extra_values
+    }
+
+    pub fn len(&self) -> usize {
+        self.base.len() + self.extra_values.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Registration order: every original base token, then the accepted sparse values.
+    pub fn values(&self) -> Vec<u32> {
+        let mut values = self.base.values();
+        values.extend_from_slice(&self.extra_values);
+        values
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -559,6 +643,85 @@ mod tests {
                 assert_eq!(t.runlists(), order[..budget / super::AUTO_CHIDS as usize], "budget {budget}");
                 assert!(t.len() <= budget, "budget {budget}");
             }
+        }
+    }
+
+    #[test]
+    fn sparse_values_spend_only_spare_fds_after_the_unchanged_base() {
+        use super::{GuestTokenPlan, GuestTokens};
+        let engines = [
+            ("gr0", 0, true), ("ce2", 1, true), ("ce3", 2, true),
+            ("ce4", 3, true), ("nvenc0", 7, true),
+        ];
+        let wanted = [(0, 55), (2, 56)];
+
+        // No pool, one MSI-rearm FD: 253 - 1 = 252 guest-token FDs. The
+        // five-runlist base uses 250; both observed values fit behind it.
+        let base = GuestTokens::auto(&engines, 512, 252).unwrap();
+        assert_eq!((base.runlists(), base.chids, base.len()), (vec![0, 1, 7, 2, 3], 50, 250));
+        let old = base.values();
+        let plan = GuestTokenPlan::with_extra_values(base, 512, 252, &wanted).unwrap();
+        assert_eq!(plan.base().values(), old);
+        assert_eq!(plan.extra_values(), &[0x37, 0x20038]);
+        assert_eq!(&plan.values()[..old.len()], old.as_slice());
+        assert_eq!(plan.len() + 1, super::MAX_TOKENS);
+
+        // One fewer descriptor admits only the first requested extra. Neither
+        // case can steal a base token or displace an engine/runlist.
+        let base = GuestTokens::auto(&engines, 512, 251).unwrap();
+        let plan = GuestTokenPlan::with_extra_values(base, 512, 251, &wanted).unwrap();
+        assert_eq!(plan.extra_values(), &[0x37]);
+        assert_eq!(plan.base().runlists(), vec![0, 1, 7, 2, 3]);
+        assert_eq!(plan.len(), 251);
+        let base = GuestTokens::auto(&engines, 512, 240).unwrap();
+        let plan = GuestTokenPlan::with_extra_values(base, 512, 240, &wanted).unwrap();
+        assert_eq!(plan.base().runlists(), vec![0, 1, 7, 2, 3]);
+        assert!(plan.extra_values().is_empty(), "no FD may be taken from the fifth runlist");
+
+        // With a 64-slot pool, MSI and RPC reservations, runlist 2 is absent
+        // from the base; requesting it is refused rather than stealing a slot.
+        let budget = super::MAX_TOKENS - 64 - 1 - 1;
+        let base = GuestTokens::auto(&engines, 512, budget).unwrap();
+        assert_eq!(base.runlists(), vec![0, 1, 7]);
+        assert!(GuestTokenPlan::with_extra_values(base.clone(), 512, budget, &wanted).is_err());
+        let plan = GuestTokenPlan::with_extra_values(base, 512, budget, &wanted[..1]).unwrap();
+        assert_eq!(plan.extra_values(), &[0x37]);
+        assert!(64 + 1 + 1 + plan.len() <= super::MAX_TOKENS);
+    }
+
+    #[test]
+    fn sparse_plan_validates_fields_deduplicates_and_matches_base_at_every_budget() {
+        use super::{GuestTokenPlan, GuestTokens};
+        let engines = [
+            ("gr0", 0, true), ("ce2", 1, true), ("ce3", 2, true),
+            ("ce4", 3, true), ("nvenc0", 7, true),
+        ];
+        let base = GuestTokens::auto(&engines, 512, 252).unwrap();
+        let plan = GuestTokenPlan::with_extra_values(
+            base.clone(), 512, 252, &[(0, 5), (0, 55), (0, 55), (2, 56)],
+        ).unwrap();
+        assert_eq!(plan.extra_values(), &[0x37, 0x20038]);
+        assert!(GuestTokenPlan::with_extra_values(base.clone(), 56, 252, &[(2, 56)]).is_err());
+        assert!(GuestTokenPlan::with_extra_values(base.clone(), 512, 252, &[(0, 4096)]).is_err());
+        assert!(GuestTokenPlan::with_extra_values(base.clone(), 512, 252, &[(128, 55)]).is_err());
+        assert!(GuestTokenPlan::with_extra_values(base.clone(), 512, 252, &[(4, 55)]).is_err());
+        assert!(GuestTokenPlan::with_extra_values(base.clone(), 512, 254, &[]).is_err());
+        assert!(GuestTokenPlan::with_extra_values(base, 512, 249, &[]).is_err());
+
+        for budget in 0..=super::MAX_TOKENS {
+            let Some(base) = GuestTokens::auto(&engines, 512, budget) else { continue };
+            let old = base.values();
+            let mut wanted = vec![(0, 55)];
+            if base.runlists().contains(&2) {
+                wanted.push((2, 56));
+            }
+            let plan = GuestTokenPlan::with_extra_values(base.clone(), 512, budget, &wanted).unwrap();
+            assert_eq!(plan.base(), &base, "budget {budget}");
+            assert_eq!(&plan.values()[..old.len()], old.as_slice(), "budget {budget}");
+            assert_eq!(plan.base().runlists(), base.runlists(), "budget {budget}");
+            assert_eq!(plan.len(), plan.values().len(), "budget {budget}");
+            assert!(plan.len() <= budget, "budget {budget}");
+            assert!(plan.extra_values().iter().all(|v| !old.contains(v)), "budget {budget}");
         }
     }
 }

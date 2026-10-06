@@ -166,6 +166,41 @@ fn describe_guest_abi(pin: Option<ver::GuestAbi>) -> String {
 }
 
 const VFIO_IDLE_POLL_ENV: &str = "CARAXES_VFIO_IDLE_POLL";
+const GUEST_TOKEN_EXTRAS_ENV: &str = "CARAXES_GUEST_TOKEN_EXTRAS";
+
+fn parse_guest_token_extras(value: Option<&str>) -> std::result::Result<Vec<(u32, u32)>, String> {
+    let Some(value) = value.filter(|v| *v != "0") else {
+        return Ok(Vec::new());
+    };
+    let invalid = || format!("{GUEST_TOKEN_EXTRAS_ENV}={value:?}: expected 0 or decimal runlist:chid pairs, separated by commas (runlist 0..127, chid 0..4095)");
+    let mut pairs = Vec::new();
+    for pair in value.split(',') {
+        if pairs.len() >= tokens::MAX_TOKENS {
+            return Err(format!("{GUEST_TOKEN_EXTRAS_ENV}: at most {} pairs", tokens::MAX_TOKENS));
+        }
+        let (runlist, chid) = pair.split_once(':').ok_or_else(&invalid)?;
+        let decimal = |v: &str| -> Option<u32> {
+            (!v.is_empty() && v.bytes().all(|b| b.is_ascii_digit()))
+                .then(|| v.parse().ok())
+                .flatten()
+        };
+        let runlist = decimal(runlist).filter(|v| *v <= tokens::TOKEN_RUNLIST_MAX).ok_or_else(&invalid)?;
+        let chid = decimal(chid).filter(|v| *v < 1 << tokens::TOKEN_VECTOR_BITS).ok_or_else(&invalid)?;
+        pairs.push((runlist, chid));
+    }
+    Ok(pairs)
+}
+
+fn requested_guest_token_extras() -> Result<Vec<(u32, u32)>> {
+    let value = match std::env::var(GUEST_TOKEN_EXTRAS_ENV) {
+        Ok(v) => Some(v),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => {
+            bail!("{GUEST_TOKEN_EXTRAS_ENV} is not Unicode");
+        }
+    };
+    parse_guest_token_extras(value.as_deref()).map_err(anyhow::Error::msg)
+}
 
 fn parse_vfio_idle_poll(value: Option<&str>) -> std::result::Result<IdlePollMode, String> {
     match value {
@@ -201,6 +236,19 @@ fn requested_vfio_idle_poll() -> Result<IdlePollMode> {
 #[cfg(test)]
 mod vfio_idle_poll_tests {
     use super::*;
+
+    #[test]
+    fn sparse_guest_token_values_are_strict_and_bounded() {
+        assert_eq!(parse_guest_token_extras(None).unwrap(), vec![]);
+        assert_eq!(parse_guest_token_extras(Some("0")).unwrap(), vec![]);
+        assert_eq!(parse_guest_token_extras(Some("0:55,2:56")).unwrap(), vec![(0, 55), (2, 56)]);
+        assert_eq!(parse_guest_token_extras(Some("127:4095")).unwrap(), vec![(127, 4095)]);
+        for bad in ["", "off", "0x0:55", "0:4096", "128:0", "0:-1", "0:55,", "0:55:1", " 0:55", "0:55 ", "4294967296:0"] {
+            assert!(parse_guest_token_extras(Some(bad)).is_err(), "{bad:?}");
+        }
+        let too_many = std::iter::repeat_n("0:55", tokens::MAX_TOKENS + 1).collect::<Vec<_>>().join(",");
+        assert!(parse_guest_token_extras(Some(&too_many)).is_err());
+    }
 
     #[test]
     fn opt_in_modes_are_strict_and_hybrid_is_bounded() {
@@ -666,6 +714,15 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
 fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // Strict policy validation precedes threads and every host RM/VRAM allocation.
     let vfio_idle_poll = requested_vfio_idle_poll()?;
+    let guest_token_extras = requested_guest_token_extras()?;
+    if !guest_token_extras.is_empty() && !a.boot_model {
+        bail!("{GUEST_TOKEN_EXTRAS_ENV} needs --boot-model");
+    }
+    if !guest_token_extras.is_empty()
+        && vfio_user_nvgpu::um_page::requested(true, true).map_err(anyhow::Error::msg)?
+    {
+        bail!("{GUEST_TOKEN_EXTRAS_ENV} needs a trapped doorbell, incompatible with {}", vfio_user_nvgpu::um_page::USERMODE_PAGE_ENV);
+    }
     let boost_policy = vfio_user_nvgpu::hostboost::requested_policy().map_err(anyhow::Error::msg)?;
     if !a.host_exec {
         vfio_user_nvgpu::hostboost::set_off(boost_policy, "no host execution");
@@ -677,21 +734,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let env = vfio_user_nvgpu::settings::environment();
     for w in vfio_user_nvgpu::settings::removed_warnings(&env) {
         eprintln!("vfio-user-nvgpu: config: {w}");
-    }
-    // The profile first, before any thread: SIGUSR2 must be blocked in every thread so
-    // that only the dump thread's sigwait takes it (profile.rs).
-    if profile::requested() {
-        let prefix = profile::prefix(a.trace.as_deref());
-        profile::start(prefix.clone()).context("profile")?;
-        profile::spawn_dump_thread().context("profile dump thread")?;
-        profile::register_source(Box::new(profile::doorbell_token_rows));
-        profile::register_source(Box::new(profile::routed_rows));
-        eprintln!(
-            "vfio-user-nvgpu: profile on ({}=1): dumps to {}.<n>.tsv on SIGUSR2 and {}.exit.tsv at exit (src/profile.rs)",
-            profile::PROFILE_ENV,
-            prefix.display(),
-            prefix.display()
-        );
     }
     // The datamatch token pool: one eventfd per pool token, so the eventfd names the
     // channel (docs/caraxes/doorbell-token-pool.md).
@@ -719,9 +761,22 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .map(|e| (e.name.as_str(), e.runlist, e.host_driven == 1))
             .collect();
         tokens::GuestTokens::auto(&engines, d.fifo.num_channels.value, budget)
+            .map(|base| {
+                tokens::GuestTokenPlan::with_extra_values(
+                    base,
+                    d.fifo.num_channels.value,
+                    budget,
+                    &guest_token_extras,
+                )
+            })
+            .transpose()
+            .map_err(anyhow::Error::msg)?
     } else {
         None
     };
+    if !guest_token_extras.is_empty() && guest_tokens.is_none() {
+        bail!("{GUEST_TOKEN_EXTRAS_ENV}: no automatic guest-token set fits the FD budget");
+    }
     // The pool's reactor reads every datamatch doorbell eventfd, the pool's and the guest
     // tokens'; the MSI re-arm and command-queue head eventfds ride on it.
     let token_reactor_on = doorbell_tokens.is_some() || guest_tokens.is_some();
@@ -736,6 +791,20 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         bail!(
             "{RPC_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd ({}=N or the guest tokens) and the boot model (--boot-model)",
             tokens::TOKENS_ENV
+        );
+    }
+    // Before any thread: SIGUSR2 must be blocked everywhere except the dump thread.
+    if profile::requested() {
+        let prefix = profile::prefix(a.trace.as_deref());
+        profile::start(prefix.clone()).context("profile")?;
+        profile::spawn_dump_thread().context("profile dump thread")?;
+        profile::register_source(Box::new(profile::doorbell_token_rows));
+        profile::register_source(Box::new(profile::routed_rows));
+        eprintln!(
+            "vfio-user-nvgpu: profile on ({}=1): dumps to {}.<n>.tsv on SIGUSR2 and {}.exit.tsv at exit (src/profile.rs)",
+            profile::PROFILE_ENV,
+            prefix.display(),
+            prefix.display()
         );
     }
     let mut rpc_head = None;
@@ -1505,6 +1574,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         let mut guest = Vec::new();
         if let Some(g) = guest_tokens.as_ref() {
+            let base = g.base();
             let values = g.values();
             let subs = if um.is_some() {
                 Vec::new()
@@ -1518,12 +1588,22 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 guest.push((v, reader));
             }
             eprintln!(
-                "vfio-user-nvgpu: doorbell guest tokens: BAR0 {offset:#x}, 4 bytes, {} sub-region(s) with datamatch runlist << 16 | chid, runlists {:?} interleaved per ChID then {:?} one by one, ChIDs 0..{}, one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a write of one of them is rung as its trapped write (docs/caraxes/doorbell-token-pool.md (g))",
+                "vfio-user-nvgpu: doorbell guest tokens: BAR0 {offset:#x}, 4 bytes, {} sub-region(s) with datamatch runlist << 16 | chid, base runlists {:?} interleaved per ChID then {:?} one by one, base ChIDs 0..{} plus {} sparse values, one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a write of one of them is rung as its trapped write (docs/caraxes/doorbell-token-pool.md (g))",
                 g.len(),
-                g.hot,
-                g.rest,
-                g.chids,
+                base.hot,
+                base.rest,
+                base.chids,
+                g.extra_values().len(),
             );
+            if !guest_token_extras.is_empty() {
+                let extras: Vec<_> = g.extra_values().iter().map(|v| {
+                    (v >> tokens::TOKEN_RUNLIST_SHIFT, v & ((1 << tokens::TOKEN_VECTOR_BITS) - 1))
+                }).collect();
+                eprintln!(
+                    "vfio-user-nvgpu: sparse guest tokens: requested {guest_token_extras:?}, extra datamatch values {extras:?}, after {} unchanged base entries; already covered values are deduplicated, excess values remain trapped ({GUEST_TOKEN_EXTRAS_ENV})",
+                    base.len(),
+                );
+            }
         }
         Some((offset, readers, guest))
     } else {
