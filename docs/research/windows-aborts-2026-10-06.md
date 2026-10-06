@@ -603,3 +603,17 @@ the earlier Claude handoff are unchanged.
   costs before one diagnostic Fire Strike run. No accepted FPS gain yet.
 
 Private evidence: `C200-root-closeout.json` and the fresh post-C200 Claude handoff.
+
+## Local IRQ profiling and write-exit limits
+
+- The paired VMM now separates local tree/rearm service, ordinary RPC latency
+  and owner completion fences. The socket-backed branch regression passes;
+  the PCI suite contains 55 tests and all six linked backend/VMM tests pass.
+- C201 passes boot, D3D11 and final health but expires at the fresh benchmark
+  page gate. C202 passes boot and health but times out during D3D task setup.
+  Both stop cleanly without arming a benchmark. No FPS gain is established.
+- Preserve ordered synchronous IRQ writes. Per-value eventfds lose SET/CLEAR
+  and ACK/cause order; buffered ACKs also lack a drain before guest mmap reads.
+  Coalesced MMIO is a separate submission-path candidate with explicit barriers.
+
+Details and evidence limits: [local-irq-2026-10-06.md](local-irq-2026-10-06.md).
