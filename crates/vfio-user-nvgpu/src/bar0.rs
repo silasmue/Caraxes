@@ -248,8 +248,15 @@ impl Bar0 {
         if self.ro_chan_page.is_some() {
             return Err("writable display kick page overlaps read-only window page".into());
         }
+        if let Some(boot) = &mut self.boot {
+            boot.ctrl.display.attach_chan_page(page.clone());
+        }
         self.chan_page = Some(page);
         Ok(self)
+    }
+
+    pub(crate) fn chan_page(&self) -> Option<std::sync::Arc<crate::display::chan_page::ChanPage>> {
+        self.chan_page.clone()
     }
 
     /// Attach a guest-specific, read-only window page after the boot model is
@@ -333,7 +340,10 @@ impl Bar0 {
     }
 
     /// Attach the E2 boot model.
-    pub fn with_boot_model(mut self, boot: BootModel) -> Self {
+    pub fn with_boot_model(mut self, mut boot: BootModel) -> Self {
+        if let Some(page) = &self.chan_page {
+            boot.ctrl.display.attach_chan_page(page.clone());
+        }
         self.boot = Some(boot);
         self
     }
@@ -378,6 +388,10 @@ impl Bar0 {
     /// Device reset (vfio-user reset or a PCI function-level reset): latched
     /// registers and the boot model return to their initial state.
     pub fn reset(&mut self) -> Result<(), String> {
+        if let Some(page) = &self.chan_page {
+            // Device serialization excludes a legacy scan/kick/completion here.
+            page.reset();
+        }
         if let Some(page) = &self.ro_chan_page {
             // Erase the previous guest's image before rebuilding its model. A
             // failed reattachment cannot leave old register values mapped.
@@ -394,6 +408,9 @@ impl Bar0 {
         // the guest enabled the vector and never serviced it).
         if let Some(b) = self.boot.as_mut() {
             b.reset();
+            if let Some(page) = &self.chan_page {
+                b.ctrl.display.attach_chan_page(page.clone());
+            }
             if let Some(page) = &self.ro_chan_page {
                 b.ctrl.display.attach_ro_chan_page(page.clone()).map_err(|e| {
                     format!("read-only window page: reset attachment failed with erased image: {e}")

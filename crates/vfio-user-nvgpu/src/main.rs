@@ -1515,7 +1515,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         let page = intr_page.as_ref().expect("the display page needs the interrupt page");
         let k = vfio_user_nvgpu::display::chan_page::ChanPage::create(page)
             .map_err(|e| anyhow::anyhow!("display kick page: {e}"))?;
-        vfio_user_nvgpu::display::set_chan_page(k.clone());
         bar0 = bar0.with_chan_page(k.clone())
             .map_err(|e| anyhow::anyhow!("display kick page: {e}"))?;
         let (base, len) = k.area();
@@ -1829,10 +1828,10 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 let d = device.clone();
                 h.with_kicks(
                     k.clone(),
-                    Arc::new(move |base, put| {
+                    Arc::new(move || {
                         d.lock()
                             .unwrap_or_else(PoisonError::into_inner)
-                            .display_kick_from_page(base, put)
+                            .poll_display_kicks()
                     }),
                 )
             }

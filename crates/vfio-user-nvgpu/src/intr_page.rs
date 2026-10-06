@@ -1555,8 +1555,9 @@ impl crate::poll::Hook for PageHook {
         if let Some((p, d)) = &self.um {
             work |= crate::um_page::poll(p, d.as_ref());
         }
-        if let Some((p, d)) = &self.kicks {
-            work |= crate::display::chan_page::poll(p, d.as_ref());
+        if let Some((_, d)) = &self.kicks {
+            // The driver locks the device before sampling any guest PUT.
+            work |= d();
         }
         self.iterations = self.iterations.wrapping_add(1);
         if woken || self.iterations % TICK_ITERATIONS == 0 {

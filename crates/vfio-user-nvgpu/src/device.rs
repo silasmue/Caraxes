@@ -1987,12 +1987,17 @@ impl Device {
                 .map_err(|e| format!("IRQ index {index}: {e}"))?;
             }
         }
-        if self.bar0.has_ro_chan_page() {
-            // The departing VMM may retain its read-only mmap after closing
+        if self.bar0.has_ro_chan_page() || self.bar0.chan_page().is_some() {
+            // The departing VMM may retain its display mmap after closing
             // the socket. Reusing this memfd for another client would let it
-            // observe that client's display state. Drain exact readers, erase
+            // observe or modify that client's display state. Drain readers, erase
             // the image and stop the old host producers before ending the backend.
-            let error = "read-only window page requires a new backend/memfd for a new VFIO client".to_string();
+            let error = if self.bar0.chan_page().is_some() {
+                "writable display kick page requires a new backend/memfd for a new VFIO client"
+            } else {
+                "read-only window page requires a new backend/memfd for a new VFIO client"
+            }
+            .to_string();
             self.terminal_fault.store(true, Ordering::Release);
             self.reset_error = Some(error.clone());
             self.stop_terminal_irqs();
@@ -2000,6 +2005,9 @@ impl Device {
                 let mut slot = self.display_slot.write().unwrap_or_else(PoisonError::into_inner);
                 *slot = None;
                 self.bar0.clear_ro_chan_page();
+                if let Some(page) = self.bar0.chan_page() {
+                    page.reset();
+                }
             }
             self.bar0.retire_boot_model();
             return Err(error);
@@ -2266,11 +2274,30 @@ impl Device {
         hold
     }
 
+    /// The caller retains the Device mutex from before sampling PUT until all
+    /// resulting GET stores complete. Reset and channel replacement use that
+    /// same mutex. This does not order an unobserved guest PUT ahead of a later
+    /// control request; the legacy coalescing assumptions remain unchanged.
+    pub fn poll_display_kicks(&mut self) -> bool {
+        if self.terminal_fault.load(Ordering::Acquire) || self.reset_error.is_some() {
+            return false;
+        }
+        let Some(page) = self.bar0.chan_page() else {
+            return false;
+        };
+        // Settle earlier posted work before taking any channel snapshot. Do not
+        // dispatch unrelated work between that snapshot and the private kick.
+        self.ring_posted_first();
+        if self.terminal_fault.load(Ordering::Acquire) || self.reset_error.is_some() {
+            return false;
+        }
+        crate::display::chan_page::poll(&page, |base, put| self.display_kick_from_page(base, put))
+    }
+
     /// The display kick page's reactor found a `PUT` change (display/chan_page.rs,
     /// docs/caraxes/intr-page.md §12.3): run the kick as the trapped write did, then the
     /// steps after a BAR0 write. Returns the channel's `GET`.
-    pub fn display_kick_from_page(&mut self, base: u64, put: u32) -> Option<u32> {
-        self.ring_posted_first();
+    fn display_kick_from_page(&mut self, base: u64, put: u32) -> Option<u32> {
         let mem = &self.mem;
         let (get, notes) = match self.bar0.boot_mut() {
             Some(b) => b.display_kick_from_page(mem, base, put),
@@ -2835,6 +2862,266 @@ impl Device {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct LegacyKickFixture {
+        client: vfio_user::Client,
+        device: Arc<Mutex<Device>>,
+        intr: Arc<crate::intr_page::IntrPage>,
+        page: Arc<crate::display::chan_page::ChanPage>,
+        server: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl LegacyKickFixture {
+        fn new(name: &str) -> Self {
+            let f = crate::fixture::rtx2070();
+            let intr = crate::intr_page::IntrPage::create(
+                16 << 20,
+                0xb8_1000,
+                f.chip.data().identity,
+                IntrShared::new(),
+                crate::intr_page::Config::default(),
+            )
+            .unwrap();
+            let page = crate::display::chan_page::ChanPage::create(&intr).unwrap();
+            let boot = crate::boot::BootModel::new(
+                f.chip,
+                crate::fb::FbLayout::plain(4 << 30),
+                f.identity(4 << 30),
+            );
+            let mut device = rtx2070_device();
+            device.bar0 = Bar0::new(f.chip, Vec::new(), None)
+                .with_boot_model(boot)
+                .with_intr_page(intr.clone())
+                .with_chan_page(page.clone())
+                .unwrap();
+            // Only fixture RAM is mapped; no host GPU, global display setup or
+            // global legacy page is installed by this fixture.
+            let raw =
+                unsafe { libc::memfd_create(c"legacy-kick-test".as_ptr(), libc::MFD_CLOEXEC) };
+            assert!(raw >= 0);
+            let ram = unsafe { File::from_raw_fd(raw) };
+            ram.set_len(0x1000).unwrap();
+            device.mem.map(0x10_0000, 0x1000, 0, &ram).unwrap();
+            let device = Arc::new(Mutex::new(device));
+            let mut backend = SharedDevice::with_gate(
+                device.clone(),
+                Routes::default(),
+                Arc::new(crate::ringgate::RingGate::default()),
+            );
+            let board = Board::load("rtx2070").unwrap();
+            let path = std::env::temp_dir().join(format!(
+                "caraxes-legacy-kick-{}-{name}.sock",
+                std::process::id()
+            ));
+            let server = vfio_user::Server::new(&path, true, irqs(), regions(&board)).unwrap();
+            let server = std::thread::spawn(move || {
+                server.run(&mut backend).unwrap();
+            });
+            let client = vfio_user::Client::new(&path).unwrap();
+            let fixture = Self {
+                client,
+                device,
+                intr,
+                page,
+                server: Some(server),
+            };
+            fixture.replace_pushbuffer(0);
+            fixture
+        }
+
+        fn replace_pushbuffer(&self, initial: u32) {
+            use crate::display::WIN_USERD;
+            use crate::ver::common::display as d;
+            let put32 = |bytes: &mut [u8], off: usize, value: u32| {
+                bytes[off..off + 4].copy_from_slice(&value.to_le_bytes());
+            };
+            let mut device = self.device.lock().unwrap();
+            let display = &mut device.bar0.boot_mut().unwrap().ctrl.display;
+            if !display.enabled {
+                let board = Board::load("rtx2070").unwrap();
+                let enabled = crate::display::Display::from_setup(&crate::display::Setup {
+                    enabled: true,
+                    chip: "tu106".into(),
+                    board: board.display,
+                })
+                .unwrap();
+                // Enable this fixture without replacing the instance or its
+                // private attachment, which Bar0 must establish after reset.
+                display.enabled = enabled.enabled;
+                display.chip = enabled.chip;
+                display.board_label = enabled.board_label;
+                display.connectors = enabled.connectors;
+                display.engine = enabled.engine;
+            }
+            let mut params = vec![0; d::PUSHBUFFER_SIZE];
+            put32(
+                &mut params,
+                d::PUSHBUFFER_HCLASS,
+                d::NVC57E_WINDOW_CHANNEL_DMA,
+            );
+            put32(&mut params, d::PUSHBUFFER_ADDRESS_SPACE, 1);
+            params[d::PUSHBUFFER_PHYSICAL_ADDR..d::PUSHBUFFER_PHYSICAL_ADDR + 8]
+                .copy_from_slice(&0x10_0000u64.to_le_bytes());
+            params[d::PUSHBUFFER_LIMIT..d::PUSHBUFFER_LIMIT + 8]
+                .copy_from_slice(&0xfffu64.to_le_bytes());
+            params[d::PUSHBUFFER_VALID] = 1;
+            assert_eq!(
+                display
+                    .control(d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER, &params)
+                    .unwrap()
+                    .status,
+                0
+            );
+            let mut alloc = vec![0; d::CHANNELDMA_ALLOC_SIZE];
+            put32(&mut alloc, d::CHANNELDMA_ALLOC_OFFSET, initial);
+            assert_eq!(
+                display
+                    .alloc(d::NVC57E_WINDOW_CHANNEL_DMA, &alloc)
+                    .unwrap()
+                    .status,
+                0
+            );
+            assert_eq!(display.channels[&WIN_USERD].get, initial);
+            // A valid two-method stream makes an incorrectly replayed kick
+            // observable in both the canonical and mapped ARMED word.
+            for (i, value) in [1u32 << 18 | 0x22c, 0xcf, 1 << 18 | 0x200, 0]
+                .iter()
+                .enumerate()
+            {
+                assert!(device.mem.write(
+                    0x10_0000 + initial as u64 + i as u64 * 4,
+                    &value.to_le_bytes()
+                ));
+            }
+        }
+
+        fn close_client(&mut self) {
+            self.client.shutdown().unwrap();
+            if let Some(server) = self.server.take() {
+                server.join().unwrap();
+            }
+        }
+    }
+
+    impl Drop for LegacyKickFixture {
+        fn drop(&mut self) {
+            let _ = self.client.shutdown();
+            if let Some(server) = self.server.take() {
+                let _ = server.join();
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_kick_poll_samples_after_socket_reset_and_pushbuffer_replacement() {
+        use crate::display::WIN_USERD;
+        use crate::poll::Hook;
+        use std::sync::mpsc;
+        for reset in [false, true] {
+            let mut f = LegacyKickFixture::new(if reset { "reset" } else { "replace" });
+            f.page.write(WIN_USERD, &16u32.to_le_bytes());
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (resume_tx, resume_rx) = mpsc::channel();
+            let resume_rx = Mutex::new(resume_rx);
+            let device = f.device.clone();
+            let ran = Arc::new(AtomicBool::new(false));
+            let observed = ran.clone();
+            let (hook, _wake) = crate::intr_page::PageHook::new(f.intr.clone()).unwrap();
+            let mut hook = hook.with_kicks(
+                f.page.clone(),
+                Arc::new(move || {
+                    entered_tx.send(()).unwrap();
+                    resume_rx.lock().unwrap().recv().unwrap();
+                    let work = device.lock().unwrap().poll_display_kicks();
+                    observed.store(work, Ordering::Release);
+                    work
+                }),
+            );
+            let poller = std::thread::spawn(move || {
+                hook.poll(false);
+            });
+            entered_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            if reset {
+                f.page.publish(WIN_USERD, 0xa2c, 0xdead);
+                f.client.reset().unwrap();
+                assert_eq!(f.page.read32(WIN_USERD + 0xa2c), 0);
+            }
+            f.replace_pushbuffer(0x80);
+            resume_tx.send(()).unwrap();
+            poller.join().unwrap();
+            assert!(
+                !ran.load(Ordering::Acquire),
+                "PUT must be sampled after the lifecycle transition"
+            );
+            assert_eq!(f.page.read32(WIN_USERD + 4), 0x80);
+            let mut d = f.device.lock().unwrap();
+            assert_eq!(
+                d.bar0.boot().unwrap().ctrl.display.channels[&WIN_USERD].kicks,
+                0
+            );
+            f.page.write(WIN_USERD, &0x90u32.to_le_bytes());
+            assert!(d.poll_display_kicks());
+            assert_eq!(
+                f.page.read32(WIN_USERD + 4),
+                0x90,
+                "GET completes before Device is unlocked"
+            );
+            assert_eq!(f.page.read32(WIN_USERD + 0xa2c), 0xcf);
+            assert_eq!(
+                d.bar0
+                    .boot_mut()
+                    .unwrap()
+                    .ctrl
+                    .display
+                    .read32(WIN_USERD + 0xa2c),
+                Some(0xcf)
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_kick_disconnect_refuses_reuse_of_a_retained_writable_mapping() {
+        use crate::display::WIN_USERD;
+        let mut f = LegacyKickFixture::new("disconnect");
+        let retained = f.intr.map_page(WIN_USERD).unwrap();
+        retained.word(0).store(16, Ordering::Release);
+        assert!(f.device.lock().unwrap().poll_display_kicks());
+        assert_eq!(retained.word(0xa2c).load(Ordering::Acquire), 0xcf);
+        f.close_client();
+        let mut device = f.device.lock().unwrap();
+        assert!(device
+            .client_gone()
+            .unwrap_err()
+            .contains("writable display kick page requires a new backend/memfd"));
+        for off in (0..crate::intr_page::PAGE).step_by(4) {
+            assert_eq!(retained.word(off).load(Ordering::Acquire), 0);
+        }
+        assert!(device.bar0.boot().is_none());
+        retained.word(0).store(32, Ordering::Release);
+        assert!(
+            !device.poll_display_kicks(),
+            "a retired client cannot reach a model"
+        );
+        assert!(device
+            .region_write(0, WIN_USERD, &48u32.to_le_bytes())
+            .is_err());
+    }
+
+    #[test]
+    fn legacy_kick_publication_belongs_to_its_device() {
+        use crate::display::WIN_USERD;
+        let a = LegacyKickFixture::new("owner-a");
+        let b = LegacyKickFixture::new("owner-b");
+        a.replace_pushbuffer(0x80);
+        assert_eq!(a.page.read32(WIN_USERD + 4), 0x80);
+        assert_eq!(b.page.read32(WIN_USERD + 4), 0);
+        a.page.write(WIN_USERD, &0x90u32.to_le_bytes());
+        assert!(a.device.lock().unwrap().poll_display_kicks());
+        assert_eq!(a.page.read32(WIN_USERD + 0xa2c), 0xcf);
+        assert_eq!(b.page.read32(WIN_USERD + 0xa2c), 0);
+    }
 
     struct BarShmemFixture {
         client: vfio_user::Client,

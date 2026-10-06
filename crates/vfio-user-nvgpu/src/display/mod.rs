@@ -119,19 +119,6 @@ pub fn fe_page() -> Option<std::sync::Arc<fe_page::FePage>> {
     FE_PAGE.lock().unwrap().clone()
 }
 
-static CHAN_PAGE: Mutex<Option<std::sync::Arc<chan_page::ChanPage>>> = Mutex::new(None);
-
-/// The window channels' USERD pages as memory (`CARAXES_DISPLAY_KICK_PAGE=1`,
-/// chan_page.rs): every display from now on shows its channels' `PUT` and `GET` there.
-pub fn set_chan_page(page: std::sync::Arc<chan_page::ChanPage>) {
-    *CHAN_PAGE.lock().unwrap() = Some(page);
-}
-
-/// The kick page, when on.
-pub fn chan_page() -> Option<std::sync::Arc<chan_page::ChanPage>> {
-    CHAN_PAGE.lock().unwrap().clone()
-}
-
 /// The file the display polls for host-side connector commands (engine.rs).
 pub fn set_control_file(path: std::path::PathBuf) {
     let vector = SETUP
@@ -363,6 +350,8 @@ pub struct Display {
     /// Optional exact read-only view of one window USERD page. Its memfd belongs
     /// to this VM. Production callers serialize publication with the device lock.
     ro_chan_page: Option<std::sync::Arc<ro_chan_page::RoChanPage>>,
+    /// Legacy writable USERD image owned by this device, reattached after reset.
+    chan_page: Option<std::sync::Arc<chan_page::ChanPage>>,
     /// The AUX transcript in dp-sink's format (`aux::record_line`).
     pub aux_transcript: Vec<String>,
     /// Link configuration the last DP_CTRL trained (rate code, lanes).
@@ -528,6 +517,7 @@ impl Display {
             chan_state: BTreeMap::new(),
             latched: BTreeMap::new(),
             ro_chan_page: None,
+            chan_page: None,
             aux_transcript: Vec::new(),
             link: None,
             fec: false,
@@ -597,6 +587,10 @@ impl Display {
 
     fn chip(&self) -> &ChipDisplay {
         self.chip.as_ref().expect("enabled display has chip data")
+    }
+
+    pub(crate) fn attach_chan_page(&mut self, page: std::sync::Arc<chan_page::ChanPage>) {
+        self.chan_page = Some(page);
     }
 
     /// Initial publication, or reattachment after a fresh display was built by
@@ -802,7 +796,7 @@ impl Display {
                     get32(params, d::PUSHBUFFER_CHANNEL_PB_SIZE)
                 );
                 if let Some(base) = userd_base(ch.hclass, ch.instance) {
-                    if let Some(p) = chan_page() {
+                    if let Some(p) = &self.chan_page {
                         p.set_channel(base, ch.put, ch.get);
                     }
                     self.channels.insert(base, ch);
@@ -1725,7 +1719,7 @@ impl Display {
             };
             ch.put = initial_offset;
             ch.get = initial_offset;
-            if let Some(p) = chan_page() {
+            if let Some(p) = &self.chan_page {
                 p.set_channel(base, initial_offset, initial_offset);
             }
             note.push_str(&format!(
@@ -2165,7 +2159,7 @@ impl Display {
         }
         ch.methods += methods;
         ch.get = ch.put;
-        if let Some(p) = chan_page() {
+        if let Some(p) = &self.chan_page {
             for (rel, v) in published {
                 p.publish(base, rel, v);
             }

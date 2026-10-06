@@ -5882,7 +5882,6 @@ mod tests {
     /// published. Guest GPPut changes during capture must not replace either sample.
     #[test]
     fn private_userd_data_is_flushed_before_both_captured_ring_publications() {
-        use crate::fb::FbStore;
         struct FenceStore {
             inner: crate::fb::HostRamStore,
             hosts: [usize; 2],

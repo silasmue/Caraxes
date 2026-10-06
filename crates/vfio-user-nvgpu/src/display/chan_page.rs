@@ -13,14 +13,16 @@
 //!
 //! With the switch the 64 pages are one sparse area of the interrupt page's memfd. The
 //! reactor compares each page's `PUT` with the last one it saw ([`ChanPage::scan`]); a
-//! change runs the same kick under the device lock (`Device::display_kick_from_page`) and
-//! stores the resulting `GET` ([`ChanPage::complete`]). A `PUT` written twice before the
-//! reactor looks is one kick to the last value, which is what the trapped path does for
-//! the second write (the walk goes from `GET` to the newest `PUT`). A `PUT` written back to
-//! the value the reactor saw last is no change: the guest never does that (a kick always
-//! adds methods; the pushbuffer wraps with a JUMP, display/mod.rs `kick`).
+//! change runs the same kick under the device lock (`Device::poll_display_kicks`) and
+//! stores the resulting `GET` ([`ChanPage::complete`]). Multiple `PUT` writes before the
+//! reactor looks become one kick to the last value; intermediate stores are not retained.
+//! A `PUT` written back to
+//! the value the reactor saw last is no change. This legacy path assumes the guest does
+//! not lap GET or use repeated PUT as a separate command; it does not capture every
+//! store or order pending PUT against a later control request. Lifecycle serialization
+//! below does not establish those assumptions for another guest driver.
 //!
-//! Fail closed: a store to `GET` is restored and counted; a `PUT` in a page without a
+//! Diagnostics: a store to `GET` is restored and counted; a `PUT` in a page without a
 //! channel is counted and left for the channel's allocation, which sets `PUT` and `GET`
 //! ([`ChanPage::set_channel`]). The watchdog counts a `GET` still behind a `PUT` the
 //! reactor saw more than [`WATCHDOG`] ago (a kick that did not complete).
@@ -60,6 +62,8 @@ pub struct ChanPage {
     seen: Vec<AtomicU32>,
     /// The `GET` the device set last per page.
     get: Vec<AtomicU32>,
+    /// Host-side reset/reallocation generation, never supplied by guest memory.
+    generation: Vec<AtomicU64>,
     /// When a kick was seen and not completed (the watchdog).
     pending_since: Mutex<Vec<Option<Instant>>>,
     pub stats: Stats,
@@ -74,6 +78,7 @@ impl ChanPage {
             maps,
             seen: (0..PAGES).map(|_| AtomicU32::new(0)).collect(),
             get: (0..PAGES).map(|_| AtomicU32::new(0)).collect(),
+            generation: (0..PAGES).map(|_| AtomicU64::new(0)).collect(),
             pending_since: Mutex::new(vec![None; PAGES]),
             stats: Stats::default(),
         };
@@ -94,7 +99,12 @@ impl ChanPage {
         (((off - BASE) / PAGE) as usize, (off - BASE) % PAGE)
     }
 
+    /// The owning Device serializes this with scans, kicks and channel replacement.
     pub fn reset(&self) {
+        let mut pending = self.pending_since.lock().unwrap_or_else(|e| e.into_inner());
+        for generation in &self.generation {
+            generation.fetch_add(1, Ordering::AcqRel);
+        }
         for m in &self.maps {
             for off in (0..PAGE).step_by(4) {
                 m.word(off).store(0, Ordering::Relaxed);
@@ -104,20 +114,24 @@ impl ChanPage {
             self.seen[i].store(0, Ordering::Relaxed);
             self.get[i].store(0, Ordering::Relaxed);
         }
+        pending.fill(None);
         std::sync::atomic::fence(Ordering::SeqCst);
     }
 
     /// A channel was allocated or given its pushbuffer (display/mod.rs): its page shows
-    /// `put` and `get` from now on.
+    /// `put` and `get` from now on. The owning Device holds its mutex throughout.
     pub fn set_channel(&self, base: u64, put: u32, get: u32) {
         if !self.covers(base) {
             return;
         }
         let (i, _) = Self::page(base);
+        let mut pending = self.pending_since.lock().unwrap_or_else(|e| e.into_inner());
+        self.generation[i].fetch_add(1, Ordering::AcqRel);
         self.seen[i].store(put, Ordering::Release);
         self.get[i].store(get, Ordering::Release);
         self.maps[i].word(4).store(get, Ordering::Release);
         self.maps[i].word(0).store(put, Ordering::Release);
+        pending[i] = None;
     }
 
     /// A method-state word of a channel's page (its assembly half from 0x200, its ARMED
@@ -145,9 +159,9 @@ impl ChanPage {
         }
     }
 
-    /// The kicks the guest wrote since the last scan: `(USERD base, PUT)`. A `GET` the
-    /// guest stored is restored and counted.
-    pub fn scan(&self) -> Vec<(u64, u32)> {
+    /// Called only within the Device-locked drain. A GET the guest stored is
+    /// restored and counted; captured PUTs never leave that drain.
+    fn scan(&self) -> Vec<Kick> {
         let mut out = Vec::new();
         for i in 0..PAGES {
             let m = &self.maps[i];
@@ -159,16 +173,24 @@ impl ChanPage {
             let put = m.word(0).load(Ordering::Acquire);
             if put != self.seen[i].load(Ordering::Acquire) {
                 self.seen[i].store(put, Ordering::Release);
-                out.push((BASE + i as u64 * PAGE, put));
+                out.push(Kick { base: BASE + i as u64 * PAGE, put,
+                    generation: self.generation[i].load(Ordering::Acquire) });
             }
         }
         out
     }
 
-    /// The device ran the kick of `base`: `get` is the channel's `GET` now (`None`: the
-    /// page has no channel).
-    pub fn complete(&self, base: u64, get: Option<u32>, us: u64) {
-        let (i, _) = Self::page(base);
+    fn current(&self, kick: Kick) -> bool {
+        let (i, _) = Self::page(kick.base);
+        self.generation[i].load(Ordering::Acquire) == kick.generation
+    }
+
+    /// Ignore a completion if the callback reset or replaced its channel.
+    fn complete(&self, kick: Kick, get: Option<u32>, us: u64) {
+        if !self.current(kick) {
+            return;
+        }
+        let (i, _) = Self::page(kick.base);
         match get {
             Some(g) => {
                 self.get[i].store(g, Ordering::Release);
@@ -233,17 +255,28 @@ impl ChanPage {
     }
 }
 
-/// What the reactor runs for a kick (main.rs: lock the device,
-/// `Device::display_kick_from_page`): the channel's `GET` after it.
-pub type Driver = dyn Fn(u64, u32) -> Option<u32> + Send + Sync;
+#[derive(Clone, Copy)]
+struct Kick {
+    base: u64,
+    put: u32,
+    generation: u64,
+}
 
-/// The reactor's side: run every kick found. Returns whether one ran.
-pub fn poll(page: &ChanPage, driver: &dyn Fn(u64, u32) -> Option<u32>) -> bool {
+/// The reactor calls this before sampling PUT. It must acquire the Device lock
+/// and retain it through `Device::poll_display_kicks`, including GET publication.
+pub type Driver = dyn Fn() -> bool + Send + Sync;
+
+/// Run under the Device mutex, including the scan and completion stores. Guest
+/// memory writes remain asynchronous and are not a sequenced request queue.
+pub(crate) fn poll(page: &ChanPage, mut driver: impl FnMut(u64, u32) -> Option<u32>) -> bool {
     let kicks = page.scan();
-    for &(base, put) in &kicks {
+    for &kick in &kicks {
+        if !page.current(kick) {
+            continue;
+        }
         let t0 = Instant::now();
-        let get = driver(base, put);
-        page.complete(base, get, t0.elapsed().as_micros() as u64);
+        let get = driver(kick.base, kick.put);
+        page.complete(kick, get, t0.elapsed().as_micros() as u64);
     }
     !kicks.is_empty()
 }
@@ -326,14 +359,58 @@ mod tests {
         let w6 = 0x69_6000;
         p.set_channel(w6, 0, 0);
         p.write(w6, &0x40u32.to_le_bytes());
-        let _ = p.scan();
+        let kick = p.scan()[0];
         let t = Instant::now();
         p.watchdog(t);
         p.watchdog(t + WATCHDOG);
         p.watchdog(t + WATCHDOG * 2);
         assert_eq!(p.stats.stuck.load(Ordering::Relaxed), 1);
-        p.complete(w6, Some(0x40), 5);
+        p.complete(kick, Some(0x40), 5);
         p.watchdog(t + WATCHDOG * 3);
         assert!(p.summary().contains("1 kick(s) not completed within 20 ms"));
+    }
+
+    #[test]
+    fn reset_discards_captured_kicks_completions_and_watchdog_age() {
+        let p = page();
+        p.write(BASE, &0x40u32.to_le_bytes());
+        p.write(BASE + PAGE, &0x80u32.to_le_bytes());
+        let mut calls = 0;
+        assert!(poll(&p, |_, _| {
+            calls += 1;
+            p.reset();
+            Some(0x40)
+        }));
+        assert_eq!(calls, 1, "the second old-generation sample is discarded");
+        assert_eq!(p.read32(BASE + 4), 0, "old completion cannot restore GET");
+        assert_eq!(p.stats.kicks.load(Ordering::Relaxed), 0);
+        let t = Instant::now();
+        p.write(BASE, &0x40u32.to_le_bytes());
+        let _ = p.scan();
+        p.watchdog(t);
+        p.reset();
+        p.write(BASE, &0x80u32.to_le_bytes());
+        let _ = p.scan();
+        p.watchdog(t + WATCHDOG * 2);
+        assert_eq!(p.stats.stuck.load(Ordering::Relaxed), 0);
+        p.watchdog(t + WATCHDOG * 3);
+        assert_eq!(p.stats.stuck.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn replacement_rejects_old_completion_and_starts_a_new_watchdog_episode() {
+        let p = page();
+        p.write(BASE, &0x40u32.to_le_bytes());
+        let kick = p.scan()[0];
+        let t = Instant::now();
+        p.watchdog(t);
+        p.set_channel(BASE, 0x80, 0x80);
+        p.complete(kick, Some(0x40), 5);
+        assert_eq!(p.read32(BASE + 4), 0x80);
+        p.write(BASE, &0xc0u32.to_le_bytes());
+        let _ = p.scan();
+        p.watchdog(t + WATCHDOG * 2);
+        assert_eq!(p.stats.stuck.load(Ordering::Relaxed), 0);
+        assert_eq!(p.stats.kicks.load(Ordering::Relaxed), 0);
     }
 }
