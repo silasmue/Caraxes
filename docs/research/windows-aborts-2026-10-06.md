@@ -320,3 +320,59 @@ archives and process metadata contain private machine data and remain local.
   application events and driver/backend health before changing GPU behavior.
 - Keep the original no-`READY` failure open. Successful later starts do not
   identify its cause or justify marking Windows graphics fully supported.
+
+## Render profile and server polling
+
+- C192 uses the qualified C191 backend and diagnostic VMM with the same IRQ,
+  register, boost and affinity settings. One instrumented Fire Strike publishes
+  all four primary results. Its score is excluded from performance comparisons;
+  no strict scored validation or child-exit audit is performed. Pre/post health
+  stays Problem 0 with no Display 4101. Available host checks pass with no new
+  Xid or VA-update error; 19 other backend ERROR lines remain. All owned processes
+  and samplers stop, and NVIDIA remains bound.
+- The 324.9-second launch/render/collection bracket has 1,326,750 interrupt writes
+  (4,084/s), 5.514 seconds of backend interrupt service, 37,659 FE writes and zero
+  display-status read traps. Nearby VMM snapshots span 321.9 seconds: 1,316,115
+  interrupt requests, 38.157 seconds of request time and 0.069 seconds of client
+  mutex wait, averaging 28.99 us and 0.053 us. Median/p95 fall in 16–32/32–64 us.
+  Snapshot endpoints differ by +1.27/−1.79 seconds. These are elapsed, overlapping
+  device-wide measurements, not exclusive CPU cost or the complete frame stall.
+- Six passive stills identify SystemInfo wait, GT1 loading, an actual GT1 scene
+  (frame 419, time 25.28), GT2 loading, Physics rendering and Combined loading.
+  The initially labelled `gt1-observed` counter interval crosses the GT1/GT2
+  transition. Its files are preserved and its phase label is rejected in
+  `C192-phase-review.json`. A separate GT1 interval is inferred from the scene's
+  displayed time, rather than two captured phase boundaries; its VMM endpoints
+  differ by up to 2.31 seconds. This is not continuous moving-scene evidence.
+- In that inferred 10.76-second interval, ordinary doorbells still trap 935 times
+  while guest-token rings count 86. Control `0x2080a613` has 391 host calls taking
+  2.114 seconds, and `0x2080a612` has 392 taking 0.366 seconds. Whole-device counts
+  include desktop/SystemInfo work. Neither the missed token values nor the opaque
+  controls' safe caching semantics are established. IRQ handling is a cost, not
+  a complete explanation of low FPS. Physical samples during this run reach
+  1,845 MHz with memory at 7,000 MHz; host activity is included.
+- Host engine events include other host clients. The existing coalescing, pending
+  `again` state, hint withdrawal and optional gate do not identify a fresh event's
+  owner. `GP_GET == GP_PUT` proves fetch, not execution completion; an empty event
+  drain also includes read/status failures. Neither condition is a safe reason
+  to drop a completion hint. A reliable per-channel completion signal remains
+  a prerequisite for guest-work-based suppression.
+- `6b792bc7` adds an opt-in server wait experiment:
+  `CARAXES_VFIO_IDLE_POLL=0|hybrid:1..1000|spin` (hybrid budget in microseconds).
+  Default remains blocking. Readiness polling peeks without consuming header
+  bytes or ancillary descriptors; normal receive/reply ordering remains. Full
+  spin can consume one host CPU while idle. It retains every KVM write exit and
+  synchronous socket request; it does not implement the local VMM IRQ proposal.
+- The same change repairs short-header reception: the server completes a
+  fragmented header and owns received descriptors before a fallible read, closing
+  them on mid-header EOF. Boundary EOF stays clean. Three socketpair tests cover
+  fragmented headers/SCM_RIGHTS, EOF descriptor cleanup and polling fallback.
+  Vendor tests pass 17/17 via an isolated manifest with recorded dev-lock
+  provenance; production Cargo.lock is unchanged. Backend tests pass 931 library,
+  one parser and two integration tests, with one ignored; release build passes.
+  The initial settings-registry failure is retained and the new entry is tested.
+  Fresh C193 Windows startup/idle qualification is pending; no gain is promoted.
+
+Artifacts are under `/mnt/vmstore/caraxes/windows-3dmark-2026-10-04`:
+`C192-root-closeout.json`, `C192-latency-whole-render-diagnostic.json`,
+`C192-phase-review.json` and `C193-vfio-poll-build-checks.json`.
