@@ -29,8 +29,10 @@ SYSTEM through the QEMU guest agent; stock Windows and driver components only (P
 | `soak-media.ps1` | the display soak's media load (signed-in session): Edge plays local 1080p60 H.264 and VP9 clips in loops with a dropped-frame overlay, a YouTube video, a WebGL page on ANGLE's Vulkan backend; logs the GPU engines' utilization and nvidia-smi's decoder use; decode seen and no TDR = PASS |
 | `cuda-loop.ps1` | cuda-probe.ps1 round after round for `-Minutes` (the soak's CUDA load) |
 | `dxgk-etw.ps1` | `-Action start` a DxgKrnl ETW session (all keywords) into C:\etw\dxgk.etl, `-Action stop` it and summarise the events (names by count, TDR/timeout/reset events) from tracerpt's CSV |
+| `process-trace.ps1` | WMI process starts, stops and unsigned exit status; exit-37 self-test before readiness; bounded recording with a stop file |
 | `display-mode.ps1` | the modes EnumDisplaySettings lists, a change to `-Width`x`-Height` and back (signed-in user's session) |
 | `steam-3dmark.ps1` | `-Install` Steam silently, `-Prefer` NVIDIA GPU for 3DMark, `-Collect` result scores |
+| `3dmark-launch.ps1` | Launch installed Steam app 223850 in the signed-in desktop and wait for its 3DMark window; reuse an existing process |
 | `showcase.ps1` | the screenshots of docs/vfio/showcase.md: Device Manager, the GPU's driver tab, Task Manager's GPU page, dxdiag's display tab; elevated in the signed-in session (caraxes/runs/win-2026-09-30/showcase-hi.sh) |
 | `display-name.ps1` | report the single present PCI NVIDIA RTX 2070; `-Apply` sets its Device Manager FriendlyName to `Leandro VFIO RTX 2070`, with a JSON backup; optional `-DriverDescription` also tests its DriverDesc; `-Restore` restores original values and absence |
 
@@ -46,6 +48,48 @@ backup validates; if retained after failure, inspect it before another apply.
 The script does not restart the GPU. On the measured Windows 11 / stock 617.14 boot, FriendlyName
 alone showed `Leandro VFIO RTX 2070` in fresh Device Manager and Task Manager windows. DXGI remains
 unverified. Driver reinstall or device recreation can replace these guest names.
+
+## 3DMark startup
+
+Run the launcher in the signed-in desktop, with a wrapper longer than its
+120-second default wait:
+
+```sh
+PACK_WAIT_S=180 python caraxes/runs/win11-2026-09-25/run44.py upack 3dmark-launch.ps1
+```
+
+Require task exit 0 and the `READY` line, then confirm the requested UI page.
+Window presence alone does not establish that its controls have loaded. `-ReadySeconds`
+accepts 30–180 seconds. The script checks the current session every 500 ms,
+uses a monotonic deadline and requires a window titled exactly `3DMark`.
+An existing current-session process is reused. SYSTEM/session 0, a missing
+Steam executable and a Steam error window fail explicitly.
+
+## Process exit tracing
+
+Run `process-trace.ps1` as LocalSystem in a dedicated PowerShell 5.1 process during
+an owned diagnostic session. Use a fresh output directory and allow the task
+wrapper more time than the collector's duration:
+
+```sh
+PACK_WAIT_S=660 python caraxes/runs/win11-2026-09-25/run44.py pack process-trace.ps1 \
+  -OutputDirectory 'C:\Users\Public\caraxes\process-trace-01' -DurationSeconds 600
+```
+
+- Wait for `ready.json`. It proves both WMI subscriptions observed an owned
+  `cmd.exe` start and stop with exit status 37, matching its direct exit code.
+- `process-events.jsonl` records process names, PIDs, parent PIDs, session IDs,
+  event and observation times, and unsigned exit status in decimal and hex.
+  Live command-line lookup for 3DMark is best effort; absence is inconclusive.
+- Create the output directory's `stop` file to finish early. Accept cleanup only
+  with task exit 0, `finished.json` reason `stop_marker` or `deadline`, and empty
+  `cleanup_errors`. A VM shutdown is not a clean collector stop.
+- Stop names may be truncated and parent PIDs may be zero. Match compatible names
+  and the corresponding start/stop instance; PIDs can be reused within one trace.
+  WMI event times are provider creation
+  times, not exact process birth or exit times; callback order can differ.
+- Preserve raw files locally: process metadata can contain private machine data.
+  These traces diagnose completion; runs with tracing do not establish a speedup.
 
 ## Order (stop at the first failure)
 
