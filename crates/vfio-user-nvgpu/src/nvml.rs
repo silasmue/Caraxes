@@ -55,6 +55,65 @@ pub struct Profile {
 
 type Host<'a> = Option<&'a mut (dyn HostRm + 'static)>;
 
+pub struct DeferredLegacy {
+    pub ticket: crate::host_control::Ticket,
+    pub cmd: u32,
+    pub params: Vec<u8>,
+    pub diagnostics: bool,
+}
+
+/// Called only after the dispatcher's earlier routes declined this control.
+pub(crate) fn defer_legacy(
+    service: &crate::host_control::Service,
+    cmd: u32,
+    params: &[u8],
+    diagnostics: bool,
+) -> Result<Option<DeferredLegacy>, String> {
+    if !crate::host_control::eligible(cmd, params.len())
+        || FORWARD.iter().any(|(c, _)| *c == cmd)
+        || HOST_SIZED_LEGACY.contains(&cmd)
+        || !LEGACY.iter().any(|(c, _, _)| *c == cmd)
+    {
+        return Ok(None);
+    }
+    let ticket = service.submit(NV20_SUBDEVICE_0, cmd, params.to_vec())?;
+    Ok(Some(DeferredLegacy {
+        ticket,
+        cmd,
+        params: params.to_vec(),
+        diagnostics,
+    }))
+}
+
+pub(crate) fn finish_legacy(
+    cmd: u32,
+    request: &[u8],
+    params: Vec<u8>,
+    status: u32,
+    diagnostics: bool,
+) -> Answer {
+    let (_, size, name) = LEGACY
+        .iter()
+        .find(|(c, _, _)| *c == cmd)
+        .expect("selected legacy control");
+    let mut a = answer_with(
+        status,
+        params,
+        "host (GSS legacy, forwarded opaquely; command and size from a native host trace)",
+        format!("GSS legacy {name}: host status {status:#x}"),
+    );
+    if request.len() != *size {
+        a.note.push_str(&format!(
+            " (params {} bytes, host trace had {size})",
+            request.len()
+        ));
+    }
+    if diagnostics || status != NV_OK {
+        a.note.push_str(&legacy_hashes(request, &a.params));
+    }
+    a
+}
+
 fn put32(b: &mut [u8], off: usize, v: u32) {
     b[off..off + 4].copy_from_slice(&v.to_le_bytes());
 }

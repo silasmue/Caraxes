@@ -285,6 +285,41 @@ mod vfio_idle_poll_tests {
     use super::*;
 
     #[test]
+    fn signal_host_control_drain_finishes_actual_call_before_memory_teardown() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+        struct BlockingHost(mpsc::Sender<()>, mpsc::Receiver<()>);
+        impl vfio_user_nvgpu::ctrl::HostRm for BlockingHost {
+            fn control(&mut self, _: u32, _: u32, _: &mut [u8]) -> u32 {
+                self.0.send(()).unwrap();
+                self.1.recv_timeout(Duration::from_secs(5)).unwrap();
+                0
+            }
+        }
+        let (entered, running) = mpsc::channel();
+        let (release, blocked) = mpsc::channel();
+        let worker =
+            vfio_user_nvgpu::host_control::Worker::start(Box::new(BlockingHost(entered, blocked)))
+                .unwrap();
+        let service = worker.service();
+        service.submit(0, 0x2080_a612, vec![0; 54352]).unwrap();
+        running.recv_timeout(Duration::from_secs(5)).unwrap();
+        let state = Mutex::new(Some(service.clone()));
+        let (teardown, observed) = mpsc::channel();
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                drain_signal_host_control(&state).unwrap();
+                teardown.send(()).unwrap(); // The HostMemory shutdown hook is after this barrier.
+            });
+            assert!(observed.recv_timeout(Duration::from_millis(30)).is_err());
+            release.send(()).unwrap();
+            observed.recv_timeout(Duration::from_secs(5)).unwrap();
+        });
+        assert!(service.submit(0, 0x2080_a612, vec![0; 54352]).is_err());
+        worker.stop().unwrap();
+    }
+
+    #[test]
     fn bar_shmem_is_explicit_and_limited_to_host_tu106_with_local_irq() {
         assert!(!parse_bar_shmem(None, false, false, "ga102", false).unwrap());
         assert!(!parse_bar_shmem(Some("0"), false, false, "ga102", false).unwrap());
@@ -738,7 +773,23 @@ fn spawn_soak_thread(
 /// Free the host memory on SIGTERM, SIGINT or SIGHUP, then exit. The signals are
 /// blocked in every other thread (the mask is set before any thread starts), so this
 /// thread alone receives them.
-fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
+fn drain_signal_host_control(
+    service: &Mutex<Option<vfio_user_nvgpu::host_control::Service>>,
+) -> Result<(), String> {
+    let service = service
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    match service {
+        Some(service) => service.close(),
+        None => Ok(()),
+    }
+}
+
+fn spawn_signal_thread(
+    hm: Arc<Mutex<HostMemory>>,
+    host_control: Arc<Mutex<Option<vfio_user_nvgpu::host_control::Service>>>,
+) -> Result<()> {
     // SAFETY: sigset manipulation on a local set; pthread_sigmask on this (the only)
     // thread before the helper exists, so both threads share the blocked mask.
     let set = unsafe {
@@ -759,7 +810,9 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
             // SAFETY: sigwait on the set blocked above.
             unsafe { libc::sigwait(&set, &mut sig) };
             eprintln!("vfio-user-nvgpu: signal {sig}: freeing host memory and exiting");
-            profile::dump_at_exit();
+            if let Err(error) = drain_signal_host_control(&host_control) {
+                eprintln!("vfio-user-nvgpu: signal: host-control drain failed: {error}");
+            }
             // A DMA_MAP registration in progress holds the lock; wait for it.
             let (log, closed) = match hm.lock() {
                 Ok(mut h) => {
@@ -777,6 +830,7 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
             if let Some(line) = vfio_user_nvgpu::hostboost::summary() {
                 eprint!("{line}");
             }
+            profile::dump_at_exit();
             if let Some(why) = closed {
                 eprintln!("vfio-user-nvgpu: exit 3: teardown failed closed ({why})");
                 std::process::exit(FAIL_CLOSED_EXIT);
@@ -845,6 +899,37 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The command-queue head write as an ioeventfd, read by the token pool's reactor
     // (docs/caraxes/gsp-transport-615.md §11).
     let rpc_ioeventfd = rpc_ioeventfd_requested();
+    let host_control_offlock =
+        std::env::var(vfio_user_nvgpu::host_control::ENV).is_ok_and(|v| v == "1");
+    if host_control_offlock {
+        if !a.host_rm || !a.boot_model || !a.host_exec {
+            bail!("CARAXES_HOST_CONTROL_OFFLOCK=1 requires --host-exec/GPA, --host-rm and --boot-model");
+        }
+        vfio_user_nvgpu::host_control::validate_options(
+            std::env::var("CARAXES_ACK_UNANSWERED").is_ok_and(|v| v == "1"),
+            vfio_user_nvgpu::recorded::excepted,
+            |cmd| {
+                std::env::var("CARAXES_WIN_ACK_EXTRA").is_ok_and(|values| {
+                    values
+                        .split(',')
+                        .filter_map(|s| {
+                            u32::from_str_radix(s.trim().trim_start_matches("0x"), 16).ok()
+                        })
+                        .any(|v| v == cmd)
+                })
+            },
+            vfio_user_nvgpu::recorded::overrides,
+            vfio_user_nvgpu::nvml::legacy_cacheable_enabled(),
+            rpc_ioeventfd,
+        )
+        .map_err(anyhow::Error::msg)?;
+        if vfio_user_nvgpu::ver::pinned().is_some_and(|g| g != vfio_user_nvgpu::ver::GuestAbi::V615)
+        {
+            bail!("CARAXES_HOST_CONTROL_OFFLOCK=1 requires the MsgqV2 guest transport");
+        }
+    }
+    eprintln!("vfio-user-nvgpu: host control offlock: {} (A612/A613 exact host results, trapped MsgqV2 head)", if host_control_offlock { "on" } else { "off" });
+
     // The guest's own tokens as datamatch ioeventfds (docs/caraxes/doorbell-token-pool.md
     // (g)): for guests that never read the notifier entry the pool hands tokens out through.
     // By default the set comes from the engines this device offers, sized to the eventfds
@@ -1072,6 +1157,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // version; any version without measured layouts ends start-up here.
     if a.reserve_vram || a.register_guest_ram || a.host_rm {
         let sel = vfio_user_nvgpu::hostabi::select().map_err(anyhow::Error::msg)?;
+        if host_control_offlock && sel.layouts.version != nvrm_sys::DriverVersion::V615 {
+            bail!("CARAXES_HOST_CONTROL_OFFLOCK=1 requires the qualified 615 host ABI");
+        }
         eprintln!(
             "vfio-user-nvgpu: {} (chosen by {}); guest ABI {}",
             sel.layouts.describe(),
@@ -1081,6 +1169,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     // Host memory for E5b: one client for the reservation and the guest RAM, shared with
     // the signal thread so that SIGTERM frees it too.
+    let signal_host_control = Arc::new(Mutex::new(None));
     let host_mem = if a.reserve_vram || a.register_guest_ram {
         let hm = HostMemory::open(privilege).context("open the host RM for host memory")?;
         eprintln!(
@@ -1088,7 +1177,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             hm.privilege().describe()
         );
         let hm = Arc::new(Mutex::new(hm));
-        spawn_signal_thread(hm.clone())?;
+        spawn_signal_thread(hm.clone(), signal_host_control.clone())?;
         Some(hm)
     } else {
         None
@@ -1240,6 +1329,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         eprintln!("vfio-user-nvgpu: display engine present (fuse 0; board connectors from the board data)");
     }
+    let mut host_control_worker = None;
     if a.boot_model {
         let fb_bytes = a.fb_mib << 20;
         let static_identity = StaticIdentity::from_spec(
@@ -1264,7 +1354,16 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             if profile::on() && host.enabled() {
                 profile::register_source(Box::new(vfio_user_nvgpu::fwdcache::counters));
             }
-            model = model.with_host(Box::new(host));
+            if host_control_offlock {
+                let worker = vfio_user_nvgpu::host_control::Worker::start(Box::new(host))
+                    .context("spawn ordered host-control worker")?;
+                let service = worker.service();
+                *signal_host_control.lock().unwrap_or_else(PoisonError::into_inner) = Some(service.clone());
+                model = model.with_host(service.proxy()).with_host_control(service);
+                host_control_worker = Some(worker);
+            } else {
+                model = model.with_host(Box::new(host));
+            }
         }
         if a.host_exec {
             let hm = host_mem.as_ref().expect("checked in parse_args").clone();
@@ -1810,6 +1909,29 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .unwrap_or_else(|| "off".into())
     );
     let device = Arc::new(Mutex::new(device));
+    let host_control_pump = if let Some(worker) = &host_control_worker {
+        let service = worker.service();
+        let device = device.clone();
+        Some(
+            std::thread::Builder::new()
+                .name("host-ctrl-pump".into())
+                .spawn(move || {
+                    let mut seen = 0;
+                    while service.wait(&mut seen) {
+                        let mut device =
+                            vfio_user_nvgpu::dlock::lock(&device, "host control completion");
+                        if let Err(error) = device.complete_host_controls() {
+                            eprintln!("vfio-user-nvgpu: host control completion failed: {error}");
+                            break;
+                        }
+                    }
+                })
+                .context("spawn host-control completion pump")?,
+        )
+    } else {
+        None
+    };
+
     let mut page_hook: Option<Box<dyn vfio_user_nvgpu::poll::Hook>> = page_hook.map(|h| {
         let h = match &inv {
             Some(i) => {
@@ -2148,6 +2270,20 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     for l in vfio_user_nvgpu::dlock::summary() {
         eprintln!("vfio-user-nvgpu: {l}");
     }
+    if let Some(worker) = &host_control_worker {
+        if let Err(error) = device
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .drain_host_controls()
+        {
+            eprintln!("vfio-user-nvgpu: host control final drain failed: {error}");
+        }
+        worker.service().stop_pump();
+    }
+    if let Some(pump) = host_control_pump {
+        pump.join()
+            .map_err(|_| anyhow::anyhow!("host-control completion pump panicked"))?;
+    }
     let mut device = device.lock().unwrap_or_else(PoisonError::into_inner);
     // The soak line at exit, before the teardown (what the guest's session left held), and
     // after it (what survived the teardown: every host object count should be 0).
@@ -2157,7 +2293,6 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     );
     // The client is gone: free the descriptors and the reservation before exiting.
     device.shutdown();
-    profile::dump_at_exit();
     let mut closed = None;
     if let Some(hm) = &host_mem {
         let (log, c) = match hm.lock() {
@@ -2214,6 +2349,10 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             w.lock().unwrap_or_else(PoisonError::into_inner).describe()
         );
     }
+    drop(device);
+    let worker_result = host_control_worker.map_or(Ok(()), |worker| worker.stop());
+    profile::dump_at_exit();
+    worker_result.map_err(anyhow::Error::msg)?;
     if let Some(why) = closed {
         // Fail closed (P20 item 4a): never report a clean exit when host state the GPU
         // could still reach was kept; the fd close at exit hands it to the host RM.

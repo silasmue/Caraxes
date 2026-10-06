@@ -388,6 +388,9 @@ impl Bar0 {
     /// Device reset (vfio-user reset or a PCI function-level reset): latched
     /// registers and the boot model return to their initial state.
     pub fn reset(&mut self) -> Result<(), String> {
+        if let Some(boot) = self.boot.as_mut() {
+            boot.retire_host_control()?;
+        }
         if let Some(page) = &self.chan_page {
             // Device serialization excludes a legacy scan/kick/completion here.
             page.reset();

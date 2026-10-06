@@ -539,8 +539,26 @@ mod tests {
         let s = summary_with_stats(true);
         assert!(s[0].contains("test: long 1 hold(s)"), "{s:?}");
         assert!(s[0].contains("test: short 1 hold(s)"), "{s:?}");
-        let longest = s.iter().find(|l| l.starts_with("device lock: longest")).unwrap();
-        assert!(longest.contains("test: long (bar0 W 0xb830b0)"), "{s:?}");
+        {
+            let st = STATS.lock().unwrap();
+            let long = st
+                .rows
+                .iter()
+                .find(|(label, _)| *label == "test: long")
+                .unwrap();
+            if let Some((_, _, detail)) = st
+                .longest
+                .iter()
+                .find(|(_, label, _)| *label == "test: long")
+            {
+                assert_eq!(detail, "bar0 W 0xb830b0");
+            } else {
+                // Other tests can fill the process-wide top eight with longer holds.
+                assert_eq!(st.longest.len(), LONGEST);
+                assert!(st.longest.iter().all(|(ns, _, _)| *ns >= long.1.max_ns));
+            }
+            assert!(st.longest.windows(2).all(|pair| pair[0].0 >= pair[1].0));
+        }
         assert_eq!(bucket(Duration::from_micros(3)), 2);
         assert_eq!(bucket(Duration::ZERO), 0);
         let mut r = Row::default();

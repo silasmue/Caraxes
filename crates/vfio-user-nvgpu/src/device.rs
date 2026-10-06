@@ -64,6 +64,7 @@ pub struct DmaMapping {
 }
 
 pub struct Device {
+    host_control: Option<crate::host_control::Service>,
     cfg: ConfigSpace,
     /// The configuration space as the device came up, for a new client ([`Device::client_gone`]).
     cfg_reset: ConfigSpace,
@@ -1052,6 +1053,7 @@ impl Device {
         }
         let irq_fds = (0..VFIO_PCI_NUM_IRQS).map(|_| Vec::new()).collect();
         Device {
+            host_control: bar0.boot().and_then(|b| b.host_control()),
             cfg_reset: cfg.clone(),
             cfg,
             bar0,
@@ -1083,6 +1085,61 @@ impl Device {
             local_irq_page: None,
             local_irq_rearm: None,
             bar_shmem: false,
+        }
+    }
+
+    /// The independent completion pump owns no guest memory or host client.
+    pub fn complete_host_controls(&mut self) -> std::io::Result<()> {
+        self.check_host_controls()?;
+        if self.terminal_fault.load(Ordering::Acquire) {
+            return Ok(());
+        }
+        let result = match self.bar0.boot_mut() {
+            Some(boot) => boot.complete_host_control(&self.mem),
+            None => Ok(Vec::new()),
+        };
+        match result {
+            Ok(notes) => {
+                for note in notes {
+                    self.trace.event(&format!("boot: {note}"));
+                }
+            }
+            Err(error) => return Err(self.fail_host_controls(error)),
+        }
+        self.after_write();
+        self.check_host_controls()?;
+        self.local_irq_before_reply()
+    }
+
+    pub fn drain_host_controls(&mut self) -> std::io::Result<()> {
+        if let Some(boot) = self.bar0.boot_mut() {
+            boot.retire_host_control().map_err(std::io::Error::other)?;
+        } else if let Some(service) = &self.host_control {
+            service.retire().map_err(std::io::Error::other)?;
+        }
+        Ok(())
+    }
+
+    fn fail_host_controls(&mut self, error: String) -> std::io::Error {
+        self.trace
+            .event(&format!("host control: terminal: {error}"));
+        self.reset_error = Some(error.clone());
+        self.terminal_fault.store(true, Ordering::Release);
+        // This also drains the worker before retiring the model. A remote IRQ fault
+        // wakes the VMM independently of any subsequent guest access.
+        self.terminate_local_irq_session();
+        std::io::Error::other(error)
+    }
+
+    fn check_host_controls(&mut self) -> std::io::Result<()> {
+        let error = self
+            .host_control
+            .as_ref()
+            .and_then(|s| s.check().err())
+            .or_else(|| self.bar0.boot().and_then(|b| b.host_control_error()));
+        match error {
+            Some(error) => Err(self.fail_host_controls(error)),
+            None => Ok(()),
         }
     }
 
@@ -1511,12 +1568,23 @@ impl Device {
     fn local_irq_disconnected(&mut self) {
         if !self.local_irq_page.as_ref().is_some_and(|page| page.remote_owned())
             && !self.terminal_fault.load(Ordering::Acquire) {
+            // The server invokes this hook for every socket closure. Retire host
+            // results before a disconnected guest's RAM can be released or reused.
+            if self.host_control.is_some() {
+                if let Err(error) = self.drain_host_controls() {
+                    self.fail_host_controls(error.to_string());
+                }
+            }
             return;
         }
         self.terminate_local_irq_session();
     }
 
     fn terminate_local_irq_session(&mut self) {
+        if let Err(error) = self.drain_host_controls() {
+            self.trace
+                .event(&format!("host control: terminal drain: {error}"));
+        }
         self.terminal_fault.store(true, Ordering::Release);
         *self.display_slot.write().unwrap_or_else(PoisonError::into_inner) = None;
         if let Some(page) = &self.local_irq_page { page.close_remote(); }
@@ -1531,6 +1599,7 @@ impl Device {
     }
 
     fn local_irq_before_reply(&mut self) -> std::io::Result<()> {
+        self.check_host_controls()?;
         if let Some(page) = &self.local_irq_page {
             if !page.remote_owned() {
                 return Ok(());
@@ -1966,6 +2035,7 @@ impl Device {
     /// An error leaves the rest as it is: the caller then ends the session as before
     /// (the full teardown), and the new client sees the connection close.
     pub fn client_gone(&mut self) -> Result<(), String> {
+        self.drain_host_controls().map_err(|e| e.to_string())?;
         if self.local_irq_session_closed() {
             self.local_irq_disconnected();
             return Err("local IRQ owner requires a fresh backend process for the next client".into());
@@ -2042,6 +2112,7 @@ impl Device {
         if self.terminal_fault.load(Ordering::Acquire) {
             return Err("device session terminated".into());
         }
+        self.drain_host_controls().map_err(|e| e.to_string())?;
         let remote = self.local_irq_page.as_ref().filter(|page| page.remote_owned()).cloned();
         if remote.as_ref().is_some_and(|page| !page.remote_active()) {
             return Err("local IRQ reset before COMMIT or after close".into());
@@ -2595,6 +2666,7 @@ impl ServerBackend for Device {
             }
             _ => Some("dropped"),
         };
+        self.check_host_controls()?;
         self.trace.access(Dir::Write, region, offset, data, note);
         if region == VFIO_PCI_BAR0_REGION_INDEX {
             // A trapped write of the MMU invalidate registers: the guest polls the trigger
@@ -2609,6 +2681,7 @@ impl ServerBackend for Device {
         } else {
             self.after_write();
         }
+        self.check_host_controls()?;
         if let Some(error) = &self.reset_error {
             return Err(std::io::Error::other(error.clone()));
         }
@@ -2639,6 +2712,15 @@ impl ServerBackend for Device {
                 if offset + size > f.metadata()?.len() || offset > i64::MAX as u64 {
                     return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
                 }
+            }
+        }
+        if fd.is_some() {
+            if let Some(boot) = self
+                .bar0
+                .boot_mut()
+                .filter(|b| b.queue_backing_overlaps(&self.mem, address, size))
+            {
+                boot.retire_queue().map_err(std::io::Error::other)?;
             }
         }
         self.apply_registrations();
@@ -2687,6 +2769,13 @@ impl ServerBackend for Device {
         ));
         if self.guest_dma_gpa && !self.dma.iter().any(|m| m.address == address && m.size == size) {
             return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
+        }
+        if let Some(boot) = self
+            .bar0
+            .boot_mut()
+            .filter(|b| b.queue_backing_overlaps(&self.mem, address, size))
+        {
+            boot.retire_queue().map_err(std::io::Error::other)?;
         }
         // QEMU also reports ROM/MMIO extents without a RAM fd. Their lifecycle
         // does not change any registered pages or translation table.
@@ -3547,7 +3636,7 @@ mod tests {
         assert_eq!(value, 1);
     }
 
-    fn rtx2070_device() -> Device {
+    pub(super) fn rtx2070_device() -> Device {
         let dump = include_str!("../../../caraxes/reference/rtx2070/config-space.txt");
         let board = crate::board::Board::load("rtx2070").unwrap();
         let chip = crate::chip::by_name(&board.chip).unwrap();
@@ -4304,3 +4393,7 @@ mod tests {
         assert!(regions_with_bar2(&board, None, Some(&bad))[3].mmap_fd.is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "host_control_integration.rs"]
+mod host_control_tests;

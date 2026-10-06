@@ -839,6 +839,17 @@ impl QueueState {
         Ok(seq)
     }
 
+    pub(crate) fn send_batch(
+        &mut self,
+        qm: &QueueMemory,
+        records: &[(RpcHeader, Vec<u8>)],
+    ) -> Result<bool, String> {
+        self.v2
+            .as_mut()
+            .ok_or("asynchronous replies require MsgqV2")?
+            .send_batch(qm, records)
+    }
+
     /// Send a GMCAPI request of the GSP-to-CPU direction (msgq/v2.rs
     /// `QueueStateV2::send_gmcapi_request`); GMCAPI exists only on message queue v2
     /// (driver 615 on).

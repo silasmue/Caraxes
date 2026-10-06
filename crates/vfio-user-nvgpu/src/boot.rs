@@ -93,6 +93,19 @@ const L2_OP_BUSY: u32 = 0b11;
 /// clears when it takes over a client-provided USERD.
 const USERD_SIZE: usize = 512;
 
+struct PendingHostControl {
+    request: crate::nvml::DeferredLegacy,
+    header: RpcHeader,
+    prefix: Vec<u8>,
+    frame: crate::ver::RmControlFrame,
+    client: u32,
+    object: u32,
+    size: usize,
+    records: Option<Vec<(RpcHeader, Vec<u8>)>>,
+    rpc_started: Option<std::time::Instant>,
+    control_started: Option<std::time::Instant>,
+}
+
 pub struct BootModel {
     chip: &'static dyn Chip,
     regs: Registers,
@@ -116,6 +129,11 @@ pub struct BootModel {
     rusd: crate::rusd::Rusd,
     /// A request split over CONTINUATION_RECORDs that is still being assembled.
     pending: Option<(crate::msgq::Message, usize)>,
+    host_control: Option<crate::host_control::Service>,
+    pending_host: Option<PendingHostControl>,
+    host_fault: Option<String>,
+    async_status_pending: bool,
+    queue_table: Option<(u64, u64)>,
     /// Memory registered with `ALLOC_MEMORY` and the GSP-side event buffers on it
     /// (gspmem.rs, docs/caraxes/gsp-plan/rpc-functions.md §4.1).
     pub gspmem: crate::gspmem::GspMemory,
@@ -135,6 +153,8 @@ pub struct BootModel {
     pool_observe: std::collections::HashMap<u32, ([u64; 5], u64, Vec<u64>)>,
     /// L2 cache operations started / forwarded to the host / host failures (trace).
     pub l2_op_counts: (u64, u64, u64),
+    #[cfg(test)]
+    pub(crate) l2_host_for_test: bool,
     bar2_block: u32,
     pub bar_faults: u32,
     /// The CPU interrupt tree (MSI source).
@@ -268,6 +288,11 @@ impl BootModel {
             unanswered: Vec::new(),
             rusd: Default::default(),
             pending: None,
+            host_control: None,
+            pending_host: None,
+            host_fault: None,
+            async_status_pending: false,
+            queue_table: None,
             gspmem: crate::gspmem::GspMemory::new(),
             fb: {
                 let mut fb = FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format);
@@ -281,6 +306,8 @@ impl BootModel {
             bar2_observe: Default::default(),
             pool_observe: Default::default(),
             l2_op_counts: (0, 0, 0),
+            #[cfg(test)]
+            l2_host_for_test: false,
             bar2_block: 0,
             bar_faults: 0,
             // The display raises its vector from its clock thread (display/engine.rs).
@@ -1421,6 +1448,11 @@ impl BootModel {
     /// Back to the post-GFW state, as a function-level reset would leave the card.
     /// The host RM connection survives.
     pub fn reset(&mut self) {
+        if let Err(error) = self.retire_host_control() {
+            self.host_fault = Some(error);
+            return;
+        }
+        let host_control = self.host_control.clone();
         let host = self.ctrl.take_host();
         let exec = self.exec.take();
         // The pool's size and counters survive; every assignment goes with the channels.
@@ -1447,6 +1479,7 @@ impl BootModel {
         }
         self.fb.carry_bar1_pool(&fresh.fb);
         self.fb.carry_bar2_area(&mut fresh.fb);
+        fresh.host_control = host_control;
         fresh.set_rpc_diagnostics(self.ctrl.rpc_diagnostics);
         fresh.ctrl.channels.tokens = tokens;
         // The persistent settings (ECC and MIG mode) survive, and what was pending applies.
@@ -1460,6 +1493,228 @@ impl BootModel {
         self.fast.reset();
         fresh.set_fast(self.fast.clone());
         *self = fresh;
+    }
+
+    pub fn with_host_control(mut self, service: crate::host_control::Service) -> Self {
+        self.host_control = Some(service);
+        self
+    }
+
+    pub fn host_control(&self) -> Option<crate::host_control::Service> {
+        self.host_control.clone()
+    }
+
+    pub fn host_control_error(&self) -> Option<String> {
+        self.host_fault
+            .clone()
+            .or_else(|| self.host_control.as_ref().and_then(|s| s.check().err()))
+            .or_else(|| {
+                self.host_control
+                    .as_ref()
+                    .and_then(|_| self.queues.as_ref()?.v2()?.failed.clone())
+            })
+    }
+
+    /// Device serialization excludes the completion pump during this worker-only drain.
+    pub fn retire_host_control(&mut self) -> Result<(), String> {
+        let result = self
+            .host_control
+            .as_ref()
+            .map_or(Ok(()), |service| service.retire());
+        if self.pending_host.is_some() {
+            crate::profile::window("host control: retired RPC", 1);
+        }
+        self.pending_host = None;
+        self.async_status_pending = false;
+        result
+    }
+
+    pub fn queue_backing_overlaps(&self, mem: &GuestMemory, address: u64, size: u64) -> bool {
+        let overlaps = |at: u64, len: u64| {
+            mem.translate(at, len).is_none_or(|gpa| {
+                gpa < address.saturating_add(size) && address < gpa.saturating_add(len)
+            })
+        };
+        self.host_control.is_some()
+            && (self.pages.iter().any(|p| overlaps(*p, 4096))
+                || self.queue_table.is_some_and(|(at, len)| overlaps(at, len)))
+    }
+
+    pub fn retire_queue(&mut self) -> Result<(), String> {
+        self.retire_host_control()?;
+        self.pending = None;
+        self.queues = None;
+        self.pages.clear();
+        self.queue_table = None;
+        Ok(())
+    }
+
+    /// A real worker result is committed under Device; the worker never uses guest RAM.
+    pub fn complete_host_control(&mut self, mem: &GuestMemory) -> Result<Vec<String>, String> {
+        if let Some(error) = self.host_control_error() {
+            return Err(error);
+        }
+        let Some(service) = self.host_control.clone() else {
+            return Ok(Vec::new());
+        };
+        let Some(mut pending) = self.pending_host.take() else {
+            return Ok(Vec::new());
+        };
+        let mut notes = Vec::new();
+        let finish_started = crate::profile::on().then(std::time::Instant::now);
+        let lock_started = crate::dlock::stats_enabled().then(std::time::Instant::now);
+        if pending.records.is_none() {
+            let Some(result) = service.take(pending.request.ticket)? else {
+                self.pending_host = Some(pending);
+                return Ok(notes);
+            };
+            if let Some(ready) = result.ready_at {
+                crate::profile::record(
+                    crate::profile::Key::Window("host control: ready to Device"),
+                    ready.elapsed(),
+                    1,
+                    None,
+                    "",
+                );
+            }
+            let a = self.ctrl.finish_host_control(
+                pending.client,
+                pending.object,
+                &pending.request,
+                result,
+            );
+            if let Some(t) = pending.control_started {
+                crate::profile::record(
+                    crate::profile::Key::Control(pending.request.cmd),
+                    t.elapsed(),
+                    0,
+                    Some(a.status),
+                    a.label,
+                );
+            }
+            if self.ctrl.rpc_diagnostics || a.status != rpc::NV_OK {
+                notes.push(format!(
+                    "ctrl {:#x}: {} -> status {:#x} [{}]",
+                    pending.request.cmd, a.note, a.status, a.label
+                ));
+            }
+            let payload = Self::control_reply(
+                pending.prefix.clone(),
+                pending.frame,
+                pending.request.cmd,
+                pending.size,
+                a,
+            );
+            let max = crate::msgq::v2::MAX_RPC_SIZE - v::RPC_HEADER_SIZE;
+            let mut records = Vec::with_capacity(2);
+            for (i, chunk) in payload.chunks(max).enumerate() {
+                let mut header = RpcHeader::reply(&pending.header, rpc::NV_OK, chunk.len());
+                if i != 0 {
+                    header.function = rpc::FN_CONTINUATION_RECORD;
+                    header.sequence = header.sequence.wrapping_add(i as u32);
+                }
+                records.push((header, chunk.to_vec()));
+            }
+            pending.records = Some(records);
+        }
+        let queues = self
+            .queues
+            .as_mut()
+            .ok_or("host-control completion lost its queue epoch")?;
+        let before = queues
+            .v2()
+            .ok_or("host-control completion requires MsgqV2")?
+            .write_ptr;
+        let qm = QueueMemory::new(mem, &self.pages);
+        let admission = queues.send_batch(&qm, pending.records.as_ref().expect("prepared reply"));
+        if let Some(t) = finish_started {
+            crate::profile::record(
+                crate::profile::Key::Window("host control: finish and serialize"),
+                t.elapsed(),
+                1,
+                None,
+                "",
+            );
+        }
+        if let Some(t) = lock_started {
+            crate::dlock::work(
+                "rpc finish",
+                format!("ctrl {:#x}", pending.request.cmd),
+                t.elapsed(),
+            );
+        }
+        let accepted = admission?;
+        if !accepted {
+            self.pending_host = Some(pending);
+            return Ok(notes);
+        }
+        self.async_status_pending = true;
+        let visible = queues.v2().expect("v2").write_ptr != before;
+        let held = queues.held() != 0;
+        service.committed(pending.request.ticket)?;
+        if let Some(t) = pending.rpc_started {
+            crate::profile::record(
+                crate::profile::Key::Rpc(pending.header.function),
+                t.elapsed(),
+                0,
+                None,
+                "",
+            );
+        }
+        if visible {
+            self.status_available();
+        }
+        self.async_status_pending = held;
+        if let Some(pa) = self.libos_args_pa {
+            notes.extend(self.service_queues(mem, pa));
+        }
+        Ok(notes)
+    }
+
+    fn control_reply(
+        mut prefix: Vec<u8>,
+        frame: crate::ver::RmControlFrame,
+        cmd: u32,
+        size: usize,
+        a: crate::ctrl::Answer,
+    ) -> Vec<u8> {
+        prefix.resize(frame.params, 0);
+        prefix[v::RM_CONTROL_STATUS..v::RM_CONTROL_STATUS + 4]
+            .copy_from_slice(&a.status.to_le_bytes());
+        if let (true, Some(f)) = (cmd & v::CMD_GSS_LEGACY_BIT != 0, frame.rmctrl_flags) {
+            let flags = crate::nvml::legacy_reply_flags(cmd, a.status);
+            prefix[f..f + 4].copy_from_slice(&flags.to_le_bytes());
+            if let (true, Some(r)) = (flags != 0, frame.access_right) {
+                prefix[r..r + 4].copy_from_slice(&0u32.to_le_bytes());
+            }
+        }
+        let mut out = a.params;
+        out.resize(size, 0);
+        prefix.extend_from_slice(&out);
+        prefix
+    }
+
+    fn status_available(&mut self) {
+        self.gsp_swgen0 = true;
+        self.events_posted = true;
+        if self.ctrl.display.enabled {
+            crate::display::engine::ticker().raise_gsp();
+        } else {
+            let gsp = v::MC_ENGINE_IDX
+                .iter()
+                .find(|(name, _)| *name == "GSP")
+                .map(|(_, i)| *i);
+            if let Some(entry) = self
+                .chip
+                .data()
+                .interrupts
+                .entries
+                .iter()
+                .find(|e| Some(e.mc_idx as u32) == gsp)
+            {
+                self.intr.trigger(entry.vector_stall);
+            }
+        }
     }
 
     pub fn libos_args_pa(&self) -> Option<u64> {
@@ -1580,7 +1835,11 @@ impl BootModel {
                 return format!("l2 {op:?}: complete (no host operation)")
             }
         };
-        if self.exec.is_none() {
+        let executing = self.exec.is_some();
+        // Tests inject only host-execution presence; the actual BAR and HostRm routes run.
+        #[cfg(test)]
+        let executing = executing || self.l2_host_for_test;
+        if !executing {
             return format!("l2 {op:?}: complete (no host execution, no cache behind the model)");
         }
         let t = std::time::Instant::now();
@@ -1805,6 +2064,7 @@ impl BootModel {
                 notes.extend(w.notes);
                 match w.event {
                     Some(BootEvent::BooterUnload { arg }) => {
+                        if let Err(error) = self.retire_host_control() { self.host_fault = Some(error); return Some(notes); }
                         // B5: nothing to save; the device's state lives in its process.
                         self.sr_meta_pa = Some(arg);
                         notes.push(format!(
@@ -1816,6 +2076,7 @@ impl BootModel {
                         notes.extend(self.resume(mem, pa));
                     }
                     Some(BootEvent::WprMeta { pa }) => {
+                        if let Err(error) = self.retire_host_control() { self.host_fault = Some(error); return Some(notes); }
                         self.suspended = None;
                         self.wpr_meta_pa = Some(pa);
                         // A Booter Load that is not a resume starts a new GSP-RM: the CPU
@@ -2278,6 +2539,9 @@ impl BootModel {
     /// doorbell, then answer everything in the command queue.
     fn service_queues(&mut self, mem: &GuestMemory, libos_args_pa: u64) -> Vec<String> {
         let mut notes = Vec::new();
+        if self.host_control_error().is_some() || self.pending_host.is_some() {
+            return notes;
+        }
         if self.queues.is_none() && self.auto_guest && !self.detect_guest(mem, libos_args_pa, &mut notes) {
             notes.push("queues: not linked (the guest's ABI is not known yet)".into());
             return notes;
@@ -2299,10 +2563,19 @@ impl BootModel {
         }
         let pages = std::mem::take(&mut self.pages);
         let mut queues = self.queues.take().expect("linked");
+        let before = queues.v2().map(|q| q.write_ptr);
         {
             let qm = QueueMemory::new(mem, &pages);
             notes.extend(queues.retry_held(&qm));
+            if self.host_control.is_some() {
+                if let Some(error) = queues.v2().and_then(|q| q.failed.clone()) {
+                    self.host_fault = Some(error);
+                }
+            }
             loop {
+                if self.host_control_error().is_some() {
+                    break;
+                }
                 let mut msg = match queues.receive(&qm) {
                     Ok(Some(m)) => m,
                     Ok(None) => break,
@@ -2569,10 +2842,34 @@ impl BootModel {
                         {
                             Some(a) => a,
                             None => {
-                                self.ctrl
-                                    .control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params)
+                                let service = self.host_control.as_ref().filter(|_| {
+                                    self.transport == GspTransport::MsgqV2 && msg.gmcapi.is_none()
+                                        && params.len() == size && at.checked_add(size).is_some_and(|end| end <= p.len())
+                                });
+                                match self.ctrl.begin_control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params, service) {
+                                    Ok(a) => a,
+                                    Err(crate::ctrl::ControlFlow::Deferred(request)) => {
+                                        self.pending_host = Some(PendingHostControl {
+                                            request, header: h, prefix: p[..at].to_vec(), frame,
+                                            client: w(v::RM_CONTROL_H_CLIENT), object: h_object, size,
+                                            records: None, rpc_started: t_rpc, control_started: t_ctl,
+                                        });
+                                        if let Some((start, key)) = work {
+                                            crate::dlock::work("rpc prepare", key, start.elapsed());
+                                        }
+                                        break;
+                                    }
+                                    Err(crate::ctrl::ControlFlow::Failed(error)) => {
+                                        self.host_fault = Some(error);
+                                        break;
+                                    }
+                                }
                             }
                         };
+                        if let Some(error) = self.host_control_error() {
+                            self.host_fault = Some(error);
+                            break;
+                        }
                         if let Some(t) = t_ctl {
                             crate::profile::record(
                                 crate::profile::Key::Control(cmd),
@@ -2617,28 +2914,13 @@ impl BootModel {
                             }
                             self.rusd.refresh(mem, now);
                         }
-                        let mut reply = p[..at.min(p.len())].to_vec();
-                        reply.resize(at, 0);
-                        let st = v::RM_CONTROL_STATUS;
-                        reply[st..st + 4].copy_from_slice(&a.status.to_le_bytes());
-                        if let (true, Some(f)) =
-                            (cmd & v::CMD_GSS_LEGACY_BIT != 0, frame.rmctrl_flags)
-                        {
-                            // GSS legacy: the guest caches the reply by its rmctrlFlags
-                            // (rpc.c:10899-10905 of 615): CACHEABLE for the experimental
-                            // candidates when CARAXES_LEGACY_CACHEABLE=1, 0 for the rest and
-                            // by default (nvml.rs `legacy_reply_flags`); with the flag the
-                            // access right is written 0. A 570 frame has no such field.
+                        if cmd & v::CMD_GSS_LEGACY_BIT != 0 && frame.rmctrl_flags.is_some() {
                             let flags = crate::nvml::legacy_reply_flags(cmd, a.status);
-                            reply[f..f + 4].copy_from_slice(&flags.to_le_bytes());
-                            if let (true, Some(r)) = (flags != 0, frame.access_right) {
-                                reply[r..r + 4].copy_from_slice(&0u32.to_le_bytes());
+                            if flags != 0 {
                                 notes.push(format!("ctrl {cmd:#x}: reply rmctrlFlags {flags:#x} (the guest caches it)"));
                             }
                         }
-                        let mut out = a.params;
-                        out.resize(size, 0);
-                        reply.extend_from_slice(&out);
+                        let reply = Self::control_reply(p[..at.min(p.len())].to_vec(), frame, cmd, size, a);
                         Some((rpc::NV_OK, reply))
                     }
                     rpc::FN_GSP_RM_ALLOC => {
@@ -2992,6 +3274,10 @@ impl BootModel {
                         Some((rpc::NV_ERR_NOT_SUPPORTED, msg.payload.clone()))
                     }
                 };
+                if let Some(error) = self.host_control_error() {
+                    self.host_fault = Some(error);
+                    break;
+                }
                 if let Some((result, payload)) = reply {
                     if let Some(g) = msg.gmcapi {
                         // A GMCAPI response is one MCTP/NVDM element (possibly spanning
@@ -3081,8 +3367,16 @@ impl BootModel {
                 ));
             }
         }
+        let visible = queues.v2().map(|q| q.write_ptr) != before;
+        let held = queues.held() != 0;
         self.pages = pages;
         self.queues = Some(queues);
+        if self.async_status_pending && visible && self.host_control_error().is_none() {
+            self.status_available();
+        }
+        if !held {
+            self.async_status_pending = false;
+        }
         notes
     }
 
@@ -3416,6 +3710,9 @@ impl BootModel {
                 None => false,
             };
             if recreated {
+                if self.host_control.is_some() {
+                    if let Err(error) = self.retire_queue() { self.host_fault = Some(error); }
+                }
                 self.queues = None;
                 notes.push("queues: QUEUE_HEAD written 0 (command queue created anew); link dropped until GSP-RM starts again".into());
             }
@@ -3426,9 +3723,21 @@ impl BootModel {
                     q.cpu_read_ptr = v;
                 }
                 let qm = QueueMemory::new(mem, &pages);
+                let before = queues.v2().map(|q| q.write_ptr);
                 notes.extend(queues.retry_held(&qm));
+                if self.host_control.is_some() {
+                    if let Some(error) = queues.v2().and_then(|q| q.failed.clone()) { self.host_fault = Some(error); }
+                }
+                let visible = queues.v2().map(|q| q.write_ptr) != before;
+                let held = queues.held() != 0;
+                if self.async_status_pending && visible && self.host_fault.is_none() { self.status_available(); }
+                if !held { self.async_status_pending = false; }
             }
             self.pages = pages;
+            match self.complete_host_control(mem) {
+                Ok(done) => notes.extend(done),
+                Err(error) => self.host_fault = Some(error),
+            }
         }
         notes
     }
@@ -3555,8 +3864,15 @@ impl BootModel {
     /// the page table, check the CPU's command-queue header and write ours
     /// (`msgq::v2::QueueStateV2::link`). No GSP_INIT_DONE: the 615 kernel does not wait
     /// for it.
-    fn link_queues_v2(&mut self, mem: &GuestMemory, libos_args_pa: u64) -> Result<Vec<String>, String> {
+    fn link_queues_v2(
+        &mut self,
+        mem: &GuestMemory,
+        libos_args_pa: u64,
+    ) -> Result<Vec<String>, String> {
         use crate::msgq::v2::{QueueArgs, QueueStateV2};
+        if self.host_control.is_some() {
+            self.retire_queue()?;
+        }
         let mut notes = Vec::new();
         let rmargs = Self::find_rmargs(mem, libos_args_pa, &mut notes)?;
         let args = QueueArgs::read(mem, rmargs)?;
@@ -3591,6 +3907,10 @@ impl BootModel {
         notes.push(format!(
             "queues linked (v2): cmd {:?}; status header written (size {:#x}, {} slots); pointers in QUEUE_HEAD/TAIL(0), MSGQ_HEAD/TAIL(0); no GSP_INIT_DONE",
             q.cmd, q.stat.size, q.stat.msg_count
+        ));
+        self.queue_table = Some((
+            args.shared_mem_pa,
+            u64::from(args.page_table_entry_count) * 8,
         ));
         self.pages = pages;
         self.queues = Some(crate::msgq::QueueState::from_v2(q));
@@ -3695,10 +4015,23 @@ impl BootModel {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::chip::turing::local_memory_range;
     use crate::falcon;
+
+    pub(crate) fn host_reply_state(b: &BootModel) -> (bool, usize, u32) {
+        let q = b.queues.as_ref().unwrap();
+        (
+            b.pending_host.is_some(),
+            q.held(),
+            q.v2().unwrap().write_ptr,
+        )
+    }
+
+    pub(crate) fn break_host_reply_page(b: &mut BootModel, index: usize) {
+        b.pages[index] = 0xdead_0000_0000;
+    }
 
     /// Compression per VM slice turns the quickstart's scrub key from a requirement into a
     /// warning (compression.rs `guest_key_warnings`); off keeps today's warnings.
@@ -4459,9 +4792,9 @@ mod tests {
         pub b: BootModel,
         pub mem: GuestMemory,
         pub path: std::path::PathBuf,
-        pages: Vec<u64>,
-        cpu: crate::msgq::v2::tests::Cpu,
-        sequence: u32,
+        pub(crate) pages: Vec<u64>,
+        pub(crate) cpu: crate::msgq::v2::tests::Cpu,
+        pub(crate) sequence: u32,
     }
 
     const CMD_HEAD: u64 = 0x0011_0C00;

@@ -678,6 +678,35 @@ Two mechanisms of [gsp-transport-classes.md](gsp-transport-classes.md) ยง6 and ย
 - Measure: `caraxes/tools/gsp-transport.py --rpc-traps` takes the device's
   `rpc ioeventfd: head write` event as the start of an RPC and counts traps per RPC.
 
+### 11.3 Ordered host controls outside Device (`CARAXES_HOST_CONTROL_OFFLOCK=1`)
+
+Experimental, off by default. Requires `--host-exec`, `--host-rm`, `--boot-model`,
+the 615 host ABI and a MsgqV2 guest. Keep `CARAXES_RPC_IOEVENTFD=0` and
+`CARAXES_LEGACY_CACHEABLE=0`. With `CARAXES_ACK_UNANSWERED=1`, include both
+`2080a612` and `2080a613` in `CARAXES_WIN_EXCEPT`; selected recorded or diagnostic
+overrides are rejected.
+
+- Only complete RM_CONTROL requests reaching the existing legacy host-forwarding
+  route qualify: A612 with 54,352 parameter bytes, A613 with 79,936 bytes.
+- One worker owns the existing host RM client. Other calls use its synchronous
+  proxy, preserving host call order and the lifetime of nested parameter storage.
+- The selected call runs outside the Device mutex. An independent completion pump
+  acquires Device to publish the real status and bytes, then deliver the usual
+  interrupt. The worker never accesses guest RAM or waits for reply consumption.
+- A613 retains its ordinary two-record reply. Both records must fit the bounded
+  held queue before admission. Capacity pressure retains the prepared reply;
+  it does not repeat the host call. Publication failure terminates the session.
+- Reset, queue replacement, relevant DMA mapping changes and disconnect drain
+  accepted calls before retiring the queue generation. Shutdown closes admission
+  before releasing host memory. Results from retired generations are discarded.
+- Profiling separates queue wait, host execution, result-to-Device delay and reply
+  serialization. The feature releases Device while waiting; it does not shorten
+  the host ioctl, bypass its locking, cache answers or establish an FPS gain.
+
+Implementation: `host_control.rs`, `BootModel::complete_host_control` and
+`Device::complete_host_controls`. CPU tests exercise the real VFIO server and
+queue serializer with a controllable host stub; GPU qualification is separate.
+
 ## Appendix A: gsp-abi-sizes output for 615.71.09 (generated)
 
 `bash caraxes/tools/gsp-abi-sizes.sh --abi 615 <615 tree>`, minimal flag set. The

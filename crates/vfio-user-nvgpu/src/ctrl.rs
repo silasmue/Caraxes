@@ -60,6 +60,12 @@ pub struct Answer {
     pub note: String,
 }
 
+/// A reached host forwarding leaf either returns an answer or retains its continuation.
+pub enum ControlFlow {
+    Deferred(crate::nvml::DeferredLegacy),
+    Failed(String),
+}
+
 impl Answer {
     fn ok(params: Vec<u8>, label: &'static str, note: impl Into<String>) -> Self {
         Answer {
@@ -2392,7 +2398,51 @@ impl Dispatcher {
     /// facts where they fit (recorded.rs); what stays NOT_SUPPORTED carries the first
     /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
-        let mut answer = self.control_inner(h_client, h_object, cmd, params);
+        match self.begin_control(h_client, h_object, cmd, params, None) {
+            Ok(answer) => answer,
+            Err(_) => unreachable!("synchronous control cannot defer"),
+        }
+    }
+
+    pub(crate) fn begin_control(
+        &mut self,
+        h_client: u32,
+        h_object: u32,
+        cmd: u32,
+        params: &[u8],
+        service: Option<&crate::host_control::Service>,
+    ) -> Result<Answer, ControlFlow> {
+        let answer = self.control_inner(h_client, h_object, cmd, params, service)?;
+        Ok(self.finish_control(h_client, h_object, cmd, params, answer))
+    }
+
+    pub(crate) fn finish_host_control(
+        &mut self,
+        h_client: u32,
+        h_object: u32,
+        request: &crate::nvml::DeferredLegacy,
+        result: crate::host_control::Answer,
+    ) -> Answer {
+        let answer = crate::nvml::finish_legacy(
+            request.cmd,
+            &request.params,
+            result.params,
+            result.status,
+            request.diagnostics,
+        );
+        crate::recorded::record_host(request.cmd, answer.status, &request.params, &answer.params);
+        // Real host results never re-enter recorded or diagnostic fallback.
+        self.finish_control(h_client, h_object, request.cmd, &request.params, answer)
+    }
+
+    fn finish_control(
+        &mut self,
+        h_client: u32,
+        h_object: u32,
+        cmd: u32,
+        params: &[u8],
+        mut answer: Answer,
+    ) -> Answer {
         // Compression per VM slice: the forwarded and replayed FB info is this VM's; without
         // it, the FB info says no compression, as every other answer does (D16).
         match self.compression() {
@@ -2517,33 +2567,40 @@ impl Dispatcher {
         }
     }
 
-    fn control_inner(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+    fn control_inner(
+        &mut self,
+        h_client: u32,
+        h_object: u32,
+        cmd: u32,
+        params: &[u8],
+        service: Option<&crate::host_control::Service>,
+    ) -> Result<Answer, ControlFlow> {
         // The Windows KMD's graphics-preemption pool (GR_GFX_POOL_QUERY_SIZE and the three
         // pool controls) gets recorded.rs's answer: the pool is the KMD's own heap memory,
         // part of the VM's slice; the host context's GFXP comes from a slot bound at its
         // build (gfxpslot.rs). Refusing it unloads the KMD (P39: Code 43).
         if cmd == CMD_GR_CTXSW_PREEMPTION_BIND && self.mirror.is_some() {
-            return self.preemption_bind(params);
+            return Ok(self.preemption_bind(params));
         }
         if matches!(cmd, 0x5080_0101..=0x5080_0104) && self.deferred_context.enabled {
-            return self.register_deferred(h_client, h_object, cmd, params);
+            return Ok(self.register_deferred(h_client, h_object, cmd, params));
         }
         // The channel migration of the deferred-context model (Windows: the deferred API
         // family is refused as legacy_uncalled otherwise, gsp-dtable.py FAMILIES).
         if cmd == crate::deferred::CMD_UPDATE_CHANNEL_INFO && self.deferred_context.enabled {
-            return self.update_channel_info(params);
+            return Ok(self.update_channel_info(params));
         }
         // This control used to be a Windows-only recorded acknowledgement. It changes the
         // device's live VA-space association, so model it before every recorded override.
         if cmd == CMD_DMA_SET_DEFAULT_VASPACE {
-            return self.set_default_vaspace(h_client, h_object, params);
+            return Ok(self.set_default_vaspace(h_client, h_object, params));
         }
         // Compression per VM slice: the compbit-store controls are this VM's, ahead of the
         // chip table (D16 refusals) and of the recorded CARAXES_WIN_COMPBIT answer, which
         // carries the host's store addresses (compression.rs).
         if let Some(view) = self.compression() {
             if let Some(a) = crate::compression::answer(&view, cmd, params) {
-                return a;
+                return Ok(a);
             }
         }
         let facts = crate::recorded::Facts {
@@ -2555,10 +2612,10 @@ impl Dispatcher {
             && !(self.host.is_some() && crate::recorded::PREFER_RECORDED.contains(&cmd))
         {
             if let Some(r) = crate::recorded::answer(cmd, params, &facts) {
-                return r;
+                return Ok(r);
             }
         }
-        let a = self.control_modelled(h_client, h_object, cmd, params);
+        let a = self.control_modelled(h_client, h_object, cmd, params, service)?;
         if a.label.starts_with("host") {
             crate::recorded::record_host(cmd, a.status, params, &a.params);
         }
@@ -2572,9 +2629,9 @@ impl Dispatcher {
         let unmodelled = a.status == NV_ERR_NOT_SUPPORTED
             && (a.label == "unanswered" || a.label.contains("no host"));
         if !(unmodelled || host_refused) || !known {
-            return a;
+            return Ok(a);
         }
-        match crate::recorded::answer(cmd, params, &facts) {
+        Ok(match crate::recorded::answer(cmd, params, &facts) {
             Some(mut r) => {
                 r.note = format!("{} (was: {} [{}])", r.note, a.note, a.label);
                 r
@@ -2600,7 +2657,7 @@ impl Dispatcher {
                 a.note.push_str(&format!("; request {head}"));
                 a
             }
-        }
+        })
     }
 
     fn set_default_vaspace(&mut self, h_client: u32, h_device: u32, params: &[u8]) -> Answer {
@@ -2668,7 +2725,8 @@ impl Dispatcher {
         h_object: u32,
         cmd: u32,
         params: &[u8],
-    ) -> Answer {
+        service: Option<&crate::host_control::Service>,
+    ) -> Result<Answer, ControlFlow> {
         // STOP_CHANNEL: once it returns, the guest kernel writes PREEMPTIVE_REMOVAL into the
         // channel's error notifier itself (kchannelNotifyRc, kernel_channel.c:1903). The RC
         // scan (boot.rs `scan_channel_errors`) must not report that as a host RC.
@@ -2688,11 +2746,11 @@ impl Dispatcher {
                 if let Some((st, note)) =
                     m.forward_control(&self.channels, h_client, h_object, cmd, params)
                 {
-                    return Answer::ok(
+                    return Ok(Answer::ok(
                         params.to_vec(),
                         "host (forwarded to the mirror object; the guest sees NV_OK)",
                         format!("{note}; host status {st:#x}"),
-                    );
+                    ));
                 }
             }
         }
@@ -2709,7 +2767,7 @@ impl Dispatcher {
                 &mut self.uvm,
                 self.host.as_mut(),
             ) {
-                return a;
+                return Ok(a);
             }
         }
         if cmd == v::CMD_DMA_SET_PAGE_DIRECTORY || cmd == v::CMD_DMA_UNSET_PAGE_DIRECTORY {
@@ -2744,12 +2802,12 @@ impl Dispatcher {
                         a.note.push_str(&notes.join("; "));
                     }
                 }
-                return a;
+                return Ok(a);
             }
         }
         // The display controls (docs/caraxes/display-ab.md) live in display/mod.rs.
         if let Some(a) = self.display.control(cmd, params) {
-            return a;
+            return Ok(a);
         }
         // Graphics static-info rows (docs/caraxes/phase5-rpcs.md rows 35, 39-52) live in kgr.rs.
         // Pure emulation with `CARAXES_EMU_GR=1`: a whole TU106 GR from the recordings.
@@ -2772,7 +2830,7 @@ impl Dispatcher {
             // A chip with the MIG model reserves the GR global buffers per GPU instance
             // (families/mig.rs, `global_ctx_buffers`).
             crate::families::mig::global_ctx_buffers(&self.families, cmd, &mut a);
-            return a;
+            return Ok(a);
         }
         // The guest's GR preemption request (cuda.rs, preempt.rs): NV_OK as before, recorded
         // per guest TSG; its compute mode is bound on the host TSG at the build, or now when
@@ -2785,7 +2843,7 @@ impl Dispatcher {
                     a.note.push_str(&format!("; {n}"));
                 }
             }
-            return a;
+            return Ok(a);
         }
         // The CUDA path's synthesized and derived rows (E5c) live in cuda.rs.
         if let Some(a) = crate::cuda::answer_control(
@@ -2795,7 +2853,7 @@ impl Dispatcher {
             &mut self.channels,
             self.host.as_mut(),
         ) {
-            return a;
+            return Ok(a);
         }
         // The controls nvidia-uvm causes (docs/caraxes/uvm.md) live in uvm.rs.
         if let Some(a) = crate::uvm::answer(
@@ -2808,13 +2866,13 @@ impl Dispatcher {
             &mut self.uvm,
             self.host.as_mut(),
         ) {
-            return a;
+            return Ok(a);
         }
         // The feature families the chip models (families/): ahead of the host forwards of
         // public.rs and nvml.rs, whose host card has neither ECC nor MIG, and of the
         // refusals of chipctl.rs.
         if let Some(a) = self.families.control(h_client, h_object, cmd, params) {
-            return a;
+            return Ok(a);
         }
         let n = params.len();
         // The kernel's internal client is known under the handles the device chose; a
@@ -2849,9 +2907,16 @@ impl Dispatcher {
         if let Some(a) =
             crate::public::answer_for_layout(&mut pctx, cmd, params, self.fb_layout.as_ref())
         {
-            return a;
+            return Ok(a);
         }
         // nvidia-smi telemetry and identity (docs/caraxes/nvml.md) live in nvml.rs.
+        if let Some(service) = service.filter(|_| self.host.is_some()) {
+            match crate::nvml::defer_legacy(service, cmd, params, self.rpc_diagnostics) {
+                Ok(Some(request)) => return Err(ControlFlow::Deferred(request)),
+                Ok(None) => {}
+                Err(error) => return Err(ControlFlow::Failed(error)),
+            }
+        }
         if let Some(a) = crate::nvml::answer_with_diagnostics(
             self.chip,
             cmd,
@@ -2861,17 +2926,17 @@ impl Dispatcher {
             &self.profile,
             self.rpc_diagnostics,
         ) {
-            return a;
+            return Ok(a);
         }
         // Real compression (zbc.rs): the guest kernel's ZBC-surface flag, which the
         // chip-data rules acknowledge otherwise.
         if let Some(a) = self.dstate.zbc_referenced(cmd, params) {
-            return a;
+            return Ok(a);
         }
         // Category E refusals per feature family and the category A chip-data table
         // (chipctl.rs, docs/caraxes/gsp-surface.md §3).
         if let Some(a) = crate::chipctl::answer(self.chip, cmd, params) {
-            return a;
+            return Ok(a);
         }
         // Category D: the models (dmodel.rs, rc.rs, zbc.rs; R2 and the open MODEL rows), then
         // the rule table (R0), docs/caraxes/gsp-plan/d-device-model.md.
@@ -2894,9 +2959,9 @@ impl Dispatcher {
             .control(&mut dcx, cmd, params)
             .or_else(|| crate::dmodel::answer(cmd, params))
         {
-            return a;
+            return Ok(a);
         }
-        match cmd {
+        Ok(match cmd {
             // 0x20800A36: chip info for a 610 guest, the fabric-probe sync for a 615
             // guest (the id was reused; `ver::Id0A36`).
             CMD_INTERNAL_GPU_GET_CHIP_INFO => self.id_0a36(crate::ver::layouts().ctrl_0a36, params),
@@ -3179,23 +3244,23 @@ impl Dispatcher {
                 // The fixed SDK ABI includes four trailing alignment bytes. A short
                 // payload must not become a successful all-zero binding in the log.
                 if params.len() != std::mem::size_of::<nvrm_sys::NV2080_CTRL_GR_CTXSW_ZCULL_BIND_PARAMS>() {
-                    return Answer {
+                    return Ok(Answer {
                         status: v::NV_ERR_INVALID_ARGUMENT,
                         params: params.to_vec(),
                         label: "guest (invalid ZCULL binding)",
                         note: format!("gr ctxsw zcull bind: expected 24 bytes, received {}", params.len()),
-                    };
+                    });
                 }
                 let g32 = |o: usize| u32::from_le_bytes(params[o..o + 4].try_into().unwrap());
                 let g64 = |o: usize| u64::from_le_bytes(params[o..o + 8].try_into().unwrap());
                 let mode = g32(16);
                 if mode > 2 {
-                    return Answer {
+                    return Ok(Answer {
                         status: v::NV_ERR_INVALID_ARGUMENT,
                         params: params.to_vec(),
                         label: "guest (invalid ZCULL binding)",
                         note: format!("gr ctxsw zcull bind: invalid mode {mode:#x}"),
-                    };
+                    });
                 }
                 Answer::ok(
                     params.to_vec(),
@@ -3215,7 +3280,7 @@ impl Dispatcher {
                 label: "unanswered",
                 note: format!("control {cmd:#x} on {h_object:#x} (class {class:#x}, {n} bytes): not supported"),
             },
-        }
+        })
     }
 
     /// 0x20800A36 as the guest's driver version means it (`ver::Id0A36`, chosen by the
