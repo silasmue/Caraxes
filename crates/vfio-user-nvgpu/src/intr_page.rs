@@ -291,6 +291,8 @@ pub struct Stats {
     pub again: AtomicU64,
     pub msi_raise: AtomicU64,
     pub msi_edge: AtomicU64,
+    /// SET attempts with pending leaf bits but no top-enabled pending subtree.
+    pub msi_edge_top_masked: AtomicU64,
     pub msi_watchdog: AtomicU64,
     pub msi_refused: AtomicU64,
     pub cas_retries: AtomicU64,
@@ -772,7 +774,11 @@ impl IntrPage {
             None => self.odd(&mut st, Odd::TreeHole),
         }
         self.publish(&st.model);
-        let edge = rearm_by_set && !rearm && st.model.top() & st.model.top_en != 0;
+        let top = if rearm_by_set && !rearm { st.model.top() } else { 0 };
+        if top != 0 && top & st.model.top_en == 0 {
+            bump(&self.stats.msi_edge_top_masked);
+        }
+        let edge = top & st.model.top_en != 0;
         if st.stores_traced < STORES_TRACED {
             st.stores_traced += 1;
             let m = &st.model;
@@ -1005,7 +1011,11 @@ impl IntrPage {
             self.expected[i].store(d, Ordering::Relaxed);
         }
         // The re-arm: a set store while an enabled vector is pending.
-        let edge = rearm_by_set && !raise_msi && st.model.top() & st.model.top_en != 0;
+        let top = if rearm_by_set && !raise_msi { st.model.top() } else { 0 };
+        if top != 0 && top & st.model.top_en == 0 {
+            bump(&self.stats.msi_edge_top_masked);
+        }
+        let edge = top & st.model.top_en != 0;
         let mut msi = false;
         if edge || raise_msi {
             // The page stores above come first; the eventfd write follows them.
@@ -1119,7 +1129,7 @@ impl IntrPage {
             .map(|(what, n)| format!("{} x {what}", l(n)))
             .collect();
         format!(
-            "intr page: {} scan(s) with work (slowest {:.1} us); guest stores applied: {} ack(s), {} LEAF_EN_SET, {} LEAF_EN_CLEAR, {} TOP_EN_SET, {} TOP_EN_CLEAR, {} trigger(s); {} raise fold(s) ({} coalesced while pending, {} pended again at the ack); MSIs: {} for raises, {} re-arms (a set store while a vector is pending), {} by the watchdog, {} at an MSI re-arm ({} re-arm(s)), {} not written (MSI off or no eventfd); host non-stall hints withdrawn from a handler that re-armed without servicing them: {} ({} raise(s) muted); {} trapped access(es) served without the device mutex; {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
+            "intr page: {} scan(s) with work (slowest {:.1} us); guest stores applied: {} ack(s), {} LEAF_EN_SET, {} LEAF_EN_CLEAR, {} TOP_EN_SET, {} TOP_EN_CLEAR, {} trigger(s); {} raise fold(s) ({} coalesced while pending, {} pended again at the ack); MSIs: {} for raises, {} re-arms (a set store while a vector is pending), {} SET re-arms suppressed by top mask, {} by the watchdog, {} at an MSI re-arm ({} re-arm(s)), {} not written (MSI off or no eventfd); host non-stall hints withdrawn from a handler that re-armed without servicing them: {} ({} raise(s) muted); {} trapped access(es) served without the device mutex; {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
             l(&s.scans),
             l(&s.slow_ns_max) as f64 / 1000.0,
             l(&s.acks),
@@ -1133,6 +1143,7 @@ impl IntrPage {
             l(&s.again),
             l(&s.msi_raise),
             l(&s.msi_edge),
+            l(&s.msi_edge_top_masked),
             l(&s.msi_watchdog),
             l(&s.msi_rearm),
             l(&s.rearms),
@@ -1507,11 +1518,15 @@ mod tests {
 
         write(LEAF_EN_SET, 1 << 4);
         assert_eq!(count(&mut msi), 0, "pending leaf in a disabled top subtree");
+        assert_eq!(p.stats.msi_edge_top_masked.load(Ordering::Relaxed), 1);
         write(TOP_EN_SET, 1 << 1);
         assert_eq!(count(&mut msi), 0, "unrelated subtree enable");
+        assert_eq!(p.stats.msi_edge_top_masked.load(Ordering::Relaxed), 2);
         write(TOP_EN_SET, 1);
         assert_eq!(count(&mut msi), 1, "enabling the pending subtree");
         assert_eq!(p.stats.msi_edge.load(Ordering::Relaxed), 1);
+        assert_eq!(p.stats.msi_edge_top_masked.load(Ordering::Relaxed), 2);
+        assert!(p.summary().contains("2 SET re-arms suppressed by top mask"));
         assert!(p.rearm(), "the explicit MSI re-arm still sends while pending");
         assert_eq!(count(&mut msi), 1);
     }
@@ -1528,13 +1543,16 @@ mod tests {
         store(&p, LEAF_EN_SET, 1 << 5);
         p.scan();
         assert_eq!(count(&mut msi), 0, "pending leaf in a disabled top subtree");
+        assert_eq!(p.stats.msi_edge_top_masked.load(Ordering::Relaxed), 1);
         store(&p, TOP_EN_SET, 1 << 1);
         p.scan();
         assert_eq!(count(&mut msi), 0, "unrelated subtree enable");
+        assert_eq!(p.stats.msi_edge_top_masked.load(Ordering::Relaxed), 2);
         store(&p, TOP_EN_SET, 1);
         assert!(p.scan().msi);
         assert_eq!(count(&mut msi), 1, "enabling the pending subtree");
         assert_eq!(p.stats.msi_edge.load(Ordering::Relaxed), 1);
+        assert_eq!(p.stats.msi_edge_top_masked.load(Ordering::Relaxed), 2);
         assert!(!p.rearm(), "tagged-mode explicit re-arm behavior is unchanged");
         assert_eq!(count(&mut msi), 0);
     }

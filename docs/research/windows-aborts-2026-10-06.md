@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Windows workload abort investigation
 
-The intermittent Fire Strike failure remains unexplained. Three later complete
+The intermittent Fire Strike failure remains unexplained. Four later complete
 runs have not reproduced it. The changes below repair diagnostic tools, VAS
 ownership and interrupt masking, and extend doorbell offload. None establishes
 the cause of that abort or a benchmark performance gain.
@@ -121,12 +121,31 @@ fix and earlier controls. C178–C181 use the same immutable backend and VMM.
   ACK/SET/CLEAR writes and the separate explicit re-arm path.
 - Both regression tests fail with the old predicate and pass with the fix. The
   full suite passes: 930 unit tests, one ignored test and two integration tests;
-  the release build passes. Hardware qualification of this fix is pending.
+  the release build passes. C187 qualifies this fix with the mapped FE page in
+  one complete Fire Strike run; see the hardware checks below.
   Aggregate re-arm counts cannot say how many MSI writes the fix will remove.
+- A relaxed counter now records SET attempts with pending leaf bits and no
+  top-enabled pending subtree. It appears in the profile and exit summary.
+  Initial host raises retain their existing delivery contract; this counter
+  and fix apply only to SET-generated re-arms, not every MSI source.
 - A writable shared interrupt page cannot retain repeated same-value stores.
   Offloading the remaining writes requires an ordered register model, for example
   in the VMM, with synchronous read visibility and correct MSI delivery. Do not
   qualify dropping or merging these stores from access counts alone.
+- The current Cloud Hypervisor path is KVM MMIO write exit, PCI bus dispatch,
+  client mutex, then a synchronous vfio-user `REGION_WRITE`. Its read-only memory
+  mapping means a local VMM handler would still take the KVM exit, but could
+  remove the socket round trip. Measure mutex wait and transport latency apart
+  from backend register service before choosing that larger change.
+- Standard ioeventfds carry counts for an offset and optional fixed data match,
+  not arbitrary register masks and ordering. This VMM refuses `ioregionfd` and
+  disallows ioeventfd areas overlapping its mapped pages. Neither is a ready
+  replacement for exact interrupt-tree writes.
+- A local handler needs a negotiated shared-state contract or full VMM ownership
+  of the interrupt model. That includes pending/enabled/re-pended bits, host
+  hints and muting, reset epochs, and MSI enable/delivery. Updating visible
+  memfd words alone races backend host raises. Qualification must cover multiple
+  vCPUs, BAR moves, reset/reconnect, and fallback for unsupported clients.
 
 ## GSP reply queue pressure
 
@@ -182,6 +201,7 @@ diagnostic and these runs are not a performance comparison.
 | --- | ---: | --- |
 | C178 | 2 | Run 2: four separate workload instances, each exit 0; run 1 has no working collector coverage |
 | C180 | 1 | Four separate workload instances, each exit 0; collector task exit 0 and clean stop marker |
+| C187 | 1 | Four separate workload instances, each exit 0; mapped FE page and top-mask fix; monitoring on |
 
 - C178's corrected collector has 1,007 records and a clean 900-second deadline.
   It includes four scored children and 31 separate startup probes, all with
@@ -204,6 +224,19 @@ diagnostic and these runs are not a performance comparison.
   collector was cancelled and no Fire Strike result is accepted. Window presence
   alone does not prove that the requested benchmark page is ready. Confirm the
   page before arming a run.
+- C187 validates all four primary results with the declared monitoring-on
+  configuration: graphics 5,181, GT1 18.019 FPS, GT2 30.048 FPS and Combined
+  17.512 FPS. These remain in the earlier performance range. No gain is promoted.
+  The frozen C148 validator first rejects the changed monitoring bit; a fresh
+  strict validator expects monitoring on and retains every other gate. The
+  original rejection, archive and validation-policy hashes remain preserved.
+- The physical GPU reaches 1,830–1,860 MHz during C187's high-utilization samples;
+  memory remains at 7,000 MHz. Idle returns to 1,410 MHz. These physical samples
+  also include host activity; they do not isolate guest GPU utilization.
+- C187 passes pre/post health, three D3D11 readbacks and clean teardown with no
+  new Xid. The process collector has 1,288 records and clean task exit 0.
+  A complete archive establishes rendered benchmark results, not independently
+  recorded moving-scene evidence. Capture remains disabled.
 
 Private evidence: `C178-run2-process-audit.json`, final C178 trace files,
 `C178-startup30-*`, `C180-run1-process-audit.json`, `C180-process-trace-final/`
@@ -214,8 +247,10 @@ archives and process metadata contain private machine data and remain local.
 
 - Qualify the VAS fix on hardware without claiming it resolves the earlier
   no-`READY` failure. Profile application startup separately from scored runs.
-- Qualify the interrupt-mask fix and mapped FE page under scored rendering.
-  Compare the same start/idle phases before interpreting counts or a score.
+- Measure masked SET attempts with the new counter. Profile VMM mutex/transport
+  time separately from backend register service before moving the model.
+- Extend mapped FE qualification to reboot/reset and multiple guests. Compare
+  matching monitoring, start/idle phases and host clocks before promoting a score.
 - Repeat with SystemInfo monitoring on. Require four matching primary results,
   compatible child start/stop instances, post-health and clean teardown.
 - On a reproduced failure, retain current child exit status, product log,

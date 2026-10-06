@@ -1182,6 +1182,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                         ("intr page: triggers applied", s.triggers.load(Relaxed)),
                         ("intr page: MSIs for raises", s.msi_raise.load(Relaxed)),
                         ("intr page: MSI re-arms (set store while pending)", s.msi_edge.load(Relaxed)),
+                        ("intr page: SET re-arms suppressed by top mask", s.msi_edge_top_masked.load(Relaxed)),
                         ("intr page: MSIs by the watchdog", s.msi_watchdog.load(Relaxed)),
                     ]
                 }));
