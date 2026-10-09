@@ -21,6 +21,27 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Verified state
 
+- C258 closes cleanly in 174 seconds before its first visual checkpoint. The
+  screenshot helper rejects its owned-window check. The verified failure image
+  shows a blank loading window with caption `...`; the old error records the
+  initial census rather than the rejected predicate. Title transition is a
+  plausible cause, not a proven HWND change. The helper now separates explicit
+  PID-bound snapshot ownership from title readiness. Name/start time/session/
+  HWND/native owner/foreground checks remain; click/wheel require exact `3DMark`
+  title twice. Failure diagnostics report the rejection and a fresh census.
+  Independent review, PowerShell/C# grammar, 18 structural checks and all 25
+  mocked handoff checks pass. Native behavior requires the fresh C262 case.
+  The original helper/proof are archived under `ui-helper-history`; C264 will
+  use the same new helper and harness with the clock-only backend. C260 must
+  remain unlaunched because its candidate never qualified.
+- C254 closes cleanly in 477.6 seconds without trace or Run. Standard P settings
+  pass, but six visual callback waits total 157.843 seconds. Details is captured
+  413.903 seconds after owner start; the 450-second preparation bound expires
+  before its callback. This is harness overhead, with no new FPS evidence.
+  C258 will use a fresh GPT-Sol reviewer with a small context and a reviewed
+  600-second preparation allocation. Work1500/session1800, render600, cleanup
+  reserve150, RAM/disk limits, visual40/armed20 and trace remainder650 stay fixed.
+  No frozen C254 inputs are edited. C260 will be the matched clock-only case.
 - C250 closes cleanly in 350.2 seconds before Run. Root's settings review misses
   its 40-second deadline during context compaction; the image shows the expected
   loaded standard P settings. No trace, arm or FPS result. The pinned READY
@@ -140,7 +161,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Continue
 
-1. Complete C254 with one dedicated PNG reviewer. Start the pinned watcher
+1. Complete C262 with `ui_review_fast` as the sole PNG reviewer. Start the pinned watcher
    before the owner; it launches one controller on fresh READY. Review the
    current image and publish immediately, within 40 seconds or 20 seconds for
    the armed page. Root performs other analyses and publishes no live callback.
@@ -149,8 +170,10 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    remainder of at least 650 seconds, fresh archive and all four successful
    workload lifetimes remain required. No frozen edits or automatic retries.
    Verify actual `silas` reads and hashes after freezing each fresh runtime.
-   Record physical clocks, driver health and exact cleanup. C250 contains only
-   preparation evidence; its 1152 missing marker IDs are contention losses.
+   The planned preparation budget is 600 seconds within the unchanged owner
+   work/session budgets. Record physical clocks, driver health and exact cleanup.
+   C250/C254 contain only preparation evidence; their missing marker IDs are
+   contention losses. C254 retains 471865/473367 marker IDs and 716 host spans.
 2. Distinguish control occupancy from serial frame stalls. HEAD costs contain
    physical calls. Marker notifiers are engine-wide; they prove neither GPU
    completion nor guest ACK. Preserve losses and per-stream endpoints.
@@ -161,9 +184,9 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    benchmark code was imported.
 4. Hardware-qualify the reviewed TSG replay correction and compare it with a
    clock-only backend using the same corrected UI flow, workload and host policy.
-   C252 is a source-only clock-backend proposal derived from C250. Derive its
-   eventual fresh case from the candidate's qualified harness and reviewer
-   policy; freeze and check it independently after candidate cleanup. C234,
+   C264 is the planned clock-backend comparison with C262's exact harness and
+   reviewer policy; freeze and check it independently after candidate cleanup.
+   C252/C256/C260 remain source-only predecessor proposals. C234,
    C238 and C242 remain launch-disabled.
    C248 is a source-only clock baseline with that correction; independent review
    confirms all 18 execution/test inputs differ from C246 only by case names.

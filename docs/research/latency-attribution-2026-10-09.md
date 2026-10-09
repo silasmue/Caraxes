@@ -132,11 +132,30 @@ checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
   pairs retain all 716 selected host spans and 371116/372268 marker IDs; 1152
   IDs are lost to contention. Use a sole dedicated PNG reviewer for C254;
   retain every existing workload, resource and time bound.
+- C254 confirms the cold GUI path still exceeds the preparation allocation.
+  Six successful visual reviews take 157.843 seconds; loaded standard P settings
+  pass. Details is captured at owner413.903s, then the 450-second bound expires
+  before its callback. Cleanup is clean in 477.6 seconds, with no trace or Run.
+  Sixty-nine preparation pairs retain 471865/473367 marker IDs; 1502 are lost to
+  contention. All 716 selected host spans remain. C258 will use a fresh small
+  reviewer context and a bounded 600-second preparation allocation within the
+  unchanged 1500-second work/1800-second session budgets. No FPS follows from
+  any preparation timing change.
+- C258 stops at the first snapshot's owned-window check and closes cleanly in
+  174 seconds. Its fresh failure image shows a blank loading window with a
+  transient caption. The old failure census was sampled during acquisition;
+  it cannot prove the rejected predicate or a HWND race. The revised helper
+  retains exact ownership/foreground checks, treats a bound snapshot's title
+  as readiness metadata and still requires `3DMark` immediately before input.
+  Grammar, 18 structural checks and the mocked handoff25 checks pass. Native
+  qualification remains pending. Twenty preparation pairs retain 239542/240226
+  marker IDs, with 684 contention losses and 716 host spans. No trace or Run.
 
 Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
 and `C225-runtime/results/partial-backend-timeline-report.json`, plus
 `C226-report.json`, `C228-report.json`, `C230-report.json`, `C232-report.json`,
-`C244-report.json`, `C246-report.json` and `C250-report.json`
+`C244-report.json`, `C246-report.json`, `C250-report.json`, `C254-report.json`
+and `C258-report.json`
 and `C244-report.json`, `C246-report.json` and `C246-preparation-timing.json`.
 There is no
 complete render timeline or demonstrated improvement from this build yet.

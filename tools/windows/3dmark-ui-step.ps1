@@ -59,17 +59,47 @@ function Get-3DMarkWindows {
 
 function Test-OwnedWindow($target, [switch]$Foreground) {
     $process = $null
+    $script:OwnedWindowRejection = ''
     try {
+        if ($ExpectedPid -gt 0 -and $target.ProcessId -ne $ExpectedPid) {
+            $script:OwnedWindowRejection = 'Expected PID mismatch'; return $false
+        }
         $process = Get-Process -Id $target.ProcessId -ErrorAction Stop
         $process.Refresh()
         if ($process.ProcessName -ine '3DMark' -or $process.SessionId -ne $session -or
-            $process.StartTime.ToUniversalTime().Ticks -ne $target.StartedTicks) { return $false }
-        if (-not [Caraxes3DMarkUi]::IsWindow($target.Window) -or
-            [Caraxes3DMarkUi]::Owner($target.Window) -ne $target.ProcessId -or
-            [Caraxes3DMarkUi]::Title($target.Window) -cne '3DMark') { return $false }
-        return (-not $Foreground -or [Caraxes3DMarkUi]::GetForegroundWindow() -eq $target.Window)
-    } catch { return $false }
+            $process.StartTime.ToUniversalTime().Ticks -ne $target.StartedTicks) {
+            $script:OwnedWindowRejection = 'Process name, session or start time changed'; return $false
+        }
+        if (-not [Caraxes3DMarkUi]::IsWindow($target.Window)) {
+            $script:OwnedWindowRejection = 'Window no longer exists'; return $false
+        }
+        if ([Caraxes3DMarkUi]::Owner($target.Window) -ne $target.ProcessId) {
+            $script:OwnedWindowRejection = 'Window owner changed'; return $false
+        }
+        # A PID-bound loading window can change its caption. Input needs readiness below.
+        if ($ExpectedPid -eq 0 -and [Caraxes3DMarkUi]::Title($target.Window) -cne '3DMark') {
+            $script:OwnedWindowRejection = 'Unbound window title changed'; return $false
+        }
+        if ($Foreground -and [Caraxes3DMarkUi]::GetForegroundWindow() -ne $target.Window) {
+            $script:OwnedWindowRejection = 'Foreground window changed'; return $false
+        }
+        return $true
+    } catch {
+        $script:OwnedWindowRejection = 'Process inspection failed: ' + $_.Exception.GetType().Name
+        return $false
+    }
     finally { if ($null -ne $process) { $process.Dispose() } }
+}
+
+function Test-InputReadyWindow($target) {
+    if (-not (Test-OwnedWindow $target -Foreground)) { return $false }
+    $title = [Caraxes3DMarkUi]::Title($target.Window)
+    if ($title -cne '3DMark') {
+        $caption = $title -replace '[\r\n]', ' '
+        $script:OwnedWindowRejection = 'Input title not ready: ' + $caption.Substring(0, [Math]::Min(80, $caption.Length))
+        return $false
+    }
+    return $true
 }
 
 function Save-UiScreenshot([string]$name) {
@@ -95,6 +125,11 @@ function Save-UiScreenshot([string]$name) {
 
 function Stop-UiStep([string]$reason, $seen) {
     # Diagnostic text is bounded; the failure image is a fresh screen capture.
+    $seen = @(Get-3DMarkWindows)
+    $initial = 'unselected'
+    if ($null -ne $target) {
+        $initial = 'pid={0}/hwnd={1}/started_ticks={2}' -f $target.ProcessId, $target.Window, $target.StartedTicks
+    }
     $observations = (@($seen | Select-Object -First 8) | ForEach-Object {
         $title = ($_.Title -replace '[\r\n]', ' ')
         if ($title.Length -gt 120) { $title = $title.Substring(0, 120) }
@@ -103,7 +138,7 @@ function Stop-UiStep([string]$reason, $seen) {
     $foreground = [Caraxes3DMarkUi]::GetForegroundWindow()
     try { Save-UiScreenshot '3dmark-ui-step-failure.png' }
     catch { Write-Output ('3DMARK_UI_FAILURE_SCREENSHOT unavailable: ' + $_.Exception.Message) }
-    throw "$reason (session=$session; expected_pid=$ExpectedPid; foreground=$foreground; observed=[$observations])"
+    throw "$reason (rejection=$script:OwnedWindowRejection; initial=$initial; session=$session; expected_pid=$ExpectedPid; foreground=$foreground; observed=[$observations])"
 }
 
 # One ten-second budget covers window acquisition and foreground activation.
@@ -112,10 +147,12 @@ $clock = [Diagnostics.Stopwatch]::StartNew()
 $selected = $null
 $target = $null
 $seen = @()
+$script:OwnedWindowRejection = ''
 while ($clock.Elapsed.TotalSeconds -lt 10) {
     $seen = @(Get-3DMarkWindows)
     $candidates = @($seen | Where-Object {
-        $_.Session -eq $session -and $_.Window -ne [IntPtr]::Zero -and $_.Title -ceq '3DMark' -and
+        $_.Session -eq $session -and $_.Window -ne [IntPtr]::Zero -and
+        ($ExpectedPid -gt 0 -or $_.Title -ceq '3DMark') -and
         ($ExpectedPid -eq 0 -or $_.ProcessId -eq $ExpectedPid) -and
         ($null -eq $selected -or ($_.ProcessId -eq $selected.ProcessId -and $_.StartedTicks -eq $selected.StartedTicks))
     })
@@ -139,8 +176,9 @@ if ($null -eq $target) { Stop-UiStep '3DMark UI window/foreground unavailable wi
 
 if (-not (Test-OwnedWindow $target -Foreground)) { Stop-UiStep 'Owned 3DMark window changed before action; no action taken' $seen }
 if ($Action -ne 'snapshot') {
+    if (-not (Test-InputReadyWindow $target)) { Stop-UiStep '3DMark page title not ready for input; no action taken' $seen }
     if (-not [Caraxes3DMarkUi]::SetCursorPos($X, $Y)) { Stop-UiStep 'Could not position the cursor; no action taken' $seen }
-    if (-not (Test-OwnedWindow $target -Foreground)) { Stop-UiStep 'Owned 3DMark foreground changed before input; no action taken' $seen }
+    if (-not (Test-InputReadyWindow $target)) { Stop-UiStep 'Owned 3DMark window or page title changed before input; no action taken' $seen }
     if ($Action -eq 'click') {
         [Caraxes3DMarkUi]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
         [Caraxes3DMarkUi]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
