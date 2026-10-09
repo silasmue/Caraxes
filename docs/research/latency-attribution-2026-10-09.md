@@ -124,10 +124,19 @@ checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
   time; READY-to-controller preparation adds 27.726 seconds of host wall time.
   These are harness delays before rendering. The backend, UI helper, workload
   and host policies stay unchanged.
+- C250 adds a pinned READY watcher and one five-second settings-loading recheck.
+  Controller launch follows observed READY by 0.5 ms; preparation begins about
+  0.42 seconds later. Four visual reviews pass, but root misses the loaded
+  settings image's 40-second review deadline during context compaction. Cleanup
+  is clean in 350.2 seconds. No trace, Run or FPS follows. Forty-seven preparation
+  pairs retain all 716 selected host spans and 371116/372268 marker IDs; 1152
+  IDs are lost to contention. Use a sole dedicated PNG reviewer for C254;
+  retain every existing workload, resource and time bound.
 
 Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
 and `C225-runtime/results/partial-backend-timeline-report.json`, plus
-`C226-report.json`, `C228-report.json`, `C230-report.json`, `C232-report.json`
+`C226-report.json`, `C228-report.json`, `C230-report.json`, `C232-report.json`,
+`C244-report.json`, `C246-report.json` and `C250-report.json`
 and `C244-report.json`, `C246-report.json` and `C246-preparation-timing.json`.
 There is no
 complete render timeline or demonstrated improvement from this build yet.

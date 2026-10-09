@@ -21,6 +21,14 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Verified state
 
+- C250 closes cleanly in 350.2 seconds before Run. Root's settings review misses
+  its 40-second deadline during context compaction; the image shows the expected
+  loaded standard P settings. No trace, arm or FPS result. The pinned READY
+  watcher starts the controller 0.5 ms after observing READY, removing C246's
+  27.7-second executor gap. Owner11/controller13+callback3/UI25/publication43/
+  trace50 CPU checks pass; the native trace-clock check remains unqualified.
+  C254 will retain the same sources, backend and limits with new case identifiers
+  and a dedicated sole PNG reviewer. Root must not publish concurrent callbacks.
 - Source `f7c431d6` completes instrumented stock Windows Fire Strike in C220–C222.
   Driver 617.14, GSP ABI 615, physical RTX 2070, 8 vCPUs/8 GiB RAM/4 GiB reservation.
 - C220 baseline graphics 5696, GT1 19.563662 FPS, GT2 33.734764 FPS.
@@ -132,20 +140,17 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Continue
 
-1. Reduce the measured preparation overhead before another render attempt.
-   C246 never reaches the corrected native trace-clock check; no render timeline
-   exists. Start the controller on fresh READY without intervening diagnostic
-   tool rounds, keep reviews prebriefed, and handle a settings-loading image with
-   a separately reviewed bounded readiness flow. A short native trace-clock
-   qualification can isolate that fix from the full GUI sequence. No frozen
-   runtime edits or automatic retries. Its corrected callback passes 42
-   actual publication checks for all nine caller literals, unsafe names,
-   mismatched evidence, closed sessions and duplicate proof. Root independently
-   reran these checks. Before any future runtime launch, verify actual `silas`
-   readability after root freezes the inputs. Preserve UI preset proof,
-   fresh archive, four successful workload lifetimes, physical clocks, driver
-   health and exact cleanup. Do not modify frozen C232 inputs or fabricate its
-   rejected callback.
+1. Complete C254 with one dedicated PNG reviewer. Start the pinned watcher
+   before the owner; it launches one controller on fresh READY. Review the
+   current image and publish immediately, within 40 seconds or 20 seconds for
+   the armed page. Root performs other analyses and publishes no live callback.
+   An actual settings-loading modal permits one five-second wait and a fresh
+   settings-only recheck. Loaded values, Details return, the native UTC trace
+   remainder of at least 650 seconds, fresh archive and all four successful
+   workload lifetimes remain required. No frozen edits or automatic retries.
+   Verify actual `silas` reads and hashes after freezing each fresh runtime.
+   Record physical clocks, driver health and exact cleanup. C250 contains only
+   preparation evidence; its 1152 missing marker IDs are contention losses.
 2. Distinguish control occupancy from serial frame stalls. HEAD costs contain
    physical calls. Marker notifiers are engine-wide; they prove neither GPU
    completion nor guest ACK. Preserve losses and per-stream endpoints.
@@ -156,8 +161,10 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    benchmark code was imported.
 4. Hardware-qualify the reviewed TSG replay correction and compare it with a
    clock-only backend using the same corrected UI flow, workload and host policy.
-   C234 has the old callback and C238 is an unfinished proposal; both remain
-   launch-disabled. C242 retains the old trace-time bug and must not launch.
+   C252 is a source-only clock-backend proposal derived from C250. Derive its
+   eventual fresh case from the candidate's qualified harness and reviewer
+   policy; freeze and check it independently after candidate cleanup. C234,
+   C238 and C242 remain launch-disabled.
    C248 is a source-only clock baseline with that correction; independent review
    confirms all 18 execution/test inputs differ from C246 only by case names.
    It remains launch-disabled. C230/C232/C240/C244/C246 have no FPS baseline.
