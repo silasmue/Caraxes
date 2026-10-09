@@ -45,6 +45,21 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   65536 output words using the unchanged probe. It closes cleanly in 18 seconds.
   Calibration deviation remains 68–100 µs; no fine latency split or FPS gain.
   Candidate artifact: `C227-build`, backend SHA256 `9d280695f8bc78b9bbcda330668895ee12779ed364cfbe09fd0d9ab4a408744d`.
+- C228 closes before VM/backend launch. The frozen launcher expects a checksum
+  basename missing from C227; binary/source hashes are correct. udev changes the
+  TAP MAC after capture, so exact manual cleanup runs under the original locks.
+  No FPS. Fresh C229-build has both checksum aliases for the unchanged clock
+  binary; the next owner must settle udev before sealing TAP identity.
+- `c8e8ea4d` retains early TSG SET0xa06c0103 requests and adds
+  GET0xa06c0104. Both first-scheduling paths replay the latest accepted revision.
+  Physical refusal/output and exact allocation lifetime are preserved. The
+  independent review caught and verified a fix for display/family allocation
+  bypasses and old children/promoted buffers. 1016 library tests pass, two existing
+  tests ignored. Release and AST update pass. Hardware qualification remains
+  pending; no FPS claim.
+  TSG DUP remains unqualified: VAS-only alias tracking cannot authorize that
+  handle. No stock Windows use was found; implement shared last-alias lifetime
+  if traces establish this requirement.
 
 ## Continue
 
@@ -59,10 +74,9 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
    visibility. Context collector drafts remain disabled and reference closed
    cases; create a fresh mapping and review before execution. No external
    benchmark code was imported.
-4. Review the lost pre-build TSG timeslice request next: `ctrl.rs` only forwards
-   SET0xa06c0103 after a mirror exists; the early CUDA fallback ACK loses it.
-   Exact owned-object lifecycle and host scheduling validation need a separate
-   patch. It is a confirmed missing state replay, not a proven FPS cause.
+4. Hardware-qualify the reviewed TSG replay correction separately after the
+   clock-only render capture. Preserve identical workload and host policy. The
+   lost early request is a confirmed correctness bug, not a proven FPS cause.
 
 Read [render trials](../research/windows-render-trials-2026-10-09.md),
 [latency attribution](../research/latency-attribution-2026-10-09.md), and

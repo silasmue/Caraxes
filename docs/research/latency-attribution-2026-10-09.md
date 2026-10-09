@@ -83,10 +83,16 @@ checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
   first menu navigation succeeded. Preparation snapshots retain 378961 of
   672823 marker observations, so startup coverage is incomplete. Cleanup is
   clean; signed NVIDIA 617.14 remains ProblemCode0 with no Display4101 events.
+- C228 stops before VM/backend launch: its frozen launcher looks for the normal
+  binary basename in `SHA256SUMS`, which C227 only lists with the capability
+  suffix. The binary hash is correct. Early TAP cleanup also detects udev's
+  persistent MAC assignment after identity capture. Exact owned cleanup removes
+  that interface under the retained guest/slot locks; no GPU workload runs.
+  Fresh C229-build provides both verified checksum names for the same binary.
 
 Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
 and `C225-runtime/results/partial-backend-timeline-report.json`, plus
-`C226-report.json`. There is no
+`C226-report.json` and `C228-report.json`. There is no
 complete render timeline or demonstrated improvement from this build yet.
 
 ## Calibrated probe
@@ -163,6 +169,31 @@ of silently switching epochs.
 Immutable backend SHA256:
 `9d280695f8bc78b9bbcda330668895ee12779ed364cfbe09fd0d9ab4a408744d`.
 Private proof: `guest-gpu-clock-fix-audit.json` and `C227-build/cpu-validation.json`.
+
+## Early TSG timeslice requests
+
+Before a host mirror existed, `SET_TIMESLICE` returned success but discarded the
+guest's request. Later scheduling therefore used the physical TSG's default.
+The correction retains the exact eight-byte request and its allocation/revision,
+then applies the latest accepted value before either first host-scheduling path.
+Live SET/GET preserve the physical status and returned payload. A refused SET
+does not overwrite accepted policy or permit first scheduling.
+
+Guest FREE, client FREE and accepted handle replacement retire old policy.
+Replacement also removes old children, tokens and promoted TSG buffers without
+removing the newly installed allocation. Refusal preserves the old allocation.
+Host context eviction retains policy for rebuilding. Display/family allocations
+receive the same retirement check as registry allocations. Unknown initial GET
+keeps the previous fallback: no native default is invented. Independent review
+and 1016 library tests pass; two existing tests remain ignored. Release build
+and AST graph update pass. The patch is committed as `c8e8ea4d`. Hardware
+qualification and any FPS effect remain pending.
+
+TSG DUP handles remain an unqualified compatibility limit: the registry tracks
+VAS aliases only. Timeslice control on such a handle is refused; the old early
+SET fallback falsely acknowledged it without applying policy. No stock Windows
+TSG DUP use was found in the scoped evidence search. A future implementation
+needs shared object lifetime through the last alias, not another silent ACK.
 
 ## Measuring the missing boundaries
 
