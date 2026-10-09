@@ -843,8 +843,11 @@ impl IntrPage {
         self.shared.page_msi.store(false, Ordering::Release);
         let pending = std::array::from_fn(|i| self.shared.take_pending(i) & !TAG);
         let work = pending.iter().any(|&bits| bits != 0);
-        if reservation.publish(vfio_user::local_irq::RecordKind::Fold(pending)).is_err() {
-            producer.terminal();
+        match reservation.publish(vfio_user::local_irq::RecordKind::Fold(pending)) {
+            Ok(ticket) => crate::profile::backend_markers::cause_published(
+                &pending, remote.epoch, ticket, || self.shared.producer_generation(),
+            ),
+            Err(_) => producer.terminal(),
         }
         Scan { work, msi: false }
     }

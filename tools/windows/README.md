@@ -1,8 +1,9 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Windows test pack
 
-PowerShell scripts for the Windows 11 guest on the synthetic GPU (stock driver 617.14). They run as
-SYSTEM through the QEMU guest agent; stock Windows and driver components only (PowerShell 5.1, C# 5).
+PowerShell scripts for the Windows 11 guest on the synthetic GPU (stock driver 617.14),
+plus host-side result validation. Guest scripts use stock components (PowerShell 5.1,
+C# 5) and run as SYSTEM or in the signed-in session through the owned test runner.
 
 ## What the image has (2026-09-28, read-only inspection of windows-plain/win11.qcow2)
 
@@ -31,6 +32,7 @@ SYSTEM through the QEMU guest agent; stock Windows and driver components only (P
 | `cuda-loop.ps1` | cuda-probe.ps1 round after round for `-Minutes` (the soak's CUDA load) |
 | `dxgk-etw.ps1` | `-Action start` a DxgKrnl ETW session (all keywords) into C:\etw\dxgk.etl, `-Action stop` it and summarise the events (names by count, TDR/timeout/reset events) from tracerpt's CSV |
 | `process-trace.ps1` | WMI process starts, stops and unsigned exit status; exit-37 self-test before readiness; bounded recording with a stop file |
+| `validate-firestrike-diagnostic.py` | Host-side qualification of an owned, instrumented Fire Strike packet: fresh archive, four successful process lifetimes, matching preset and driver health |
 | `display-mode.ps1` | the modes EnumDisplaySettings lists, a change to `-Width`x`-Height` and back (signed-in user's session) |
 | `steam-3dmark.ps1` | `-Install` Steam silently, `-Prefer` NVIDIA GPU for 3DMark, `-Collect` result scores |
 | `3dmark-launch.ps1` | Launch installed Steam app 223850 in the signed-in desktop and wait for its 3DMark window; reuse an existing process |
@@ -91,6 +93,20 @@ PACK_WAIT_S=660 python caraxes/runs/win11-2026-09-25/run44.py pack process-trace
   times, not exact process birth or exit times; callback order can differ.
 - Preserve raw files locally: process metadata can contain private machine data.
   These traces diagnose completion; runs with tracing do not establish a speedup.
+
+Validate a completed host-side diagnostic packet with:
+
+```sh
+python3 tools/windows/validate-firestrike-diagnostic.py CASE_RUNTIME_DIR --output REPORT.json
+```
+
+The packet must retain its frozen manifest, run identity, fresh archive, reviewed
+UI page, process trace, pre/post driver health and clean teardown. The validator
+pairs PID lifetimes by event time, including truncated stop names and later PID
+reuse. It rejects incomplete results, nonzero workload exits and identical FPS
+values requiring investigation. The create-only report omits private XML and
+command lines; it qualifies an instrumented local run, without online or native
+render validation.
 
 ## Order (stop at the first failure)
 

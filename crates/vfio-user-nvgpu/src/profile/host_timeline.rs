@@ -6,16 +6,18 @@ use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-pub const CAPACITY: usize = 8192;
+// Enough for the observed ~17k-call render workload; overflow remains explicit.
+pub const CAPACITY: usize = 32768;
 
-struct Clock {
-    mono: Instant,
+#[derive(Clone, Copy)]
+pub(super) struct Clock {
+    pub(super) mono: Instant,
     unix_before_ns: u128,
     unix_after_ns: u128,
 }
 
 impl Clock {
-    fn capture() -> Self {
+    pub(super) fn capture() -> Self {
         let unix = || {
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -30,6 +32,14 @@ impl Clock {
             unix_before_ns,
             unix_after_ns,
         }
+    }
+
+    pub(super) fn header(&self, out: &mut String) {
+        let snapshot = Self::capture();
+        let _ = writeln!(out, "# anchor_unix_before_ns={} anchor_unix_after_ns={} snapshot_mono_ns={} snapshot_unix_before_ns={} snapshot_unix_after_ns={}",
+            self.unix_before_ns, self.unix_after_ns,
+            snapshot.mono.duration_since(self.mono).as_nanos(),
+            snapshot.unix_before_ns, snapshot.unix_after_ns);
     }
 }
 
@@ -64,6 +74,10 @@ impl Timeline {
         }
     }
 
+    pub(super) fn anchor(&self) -> Clock {
+        self.anchor
+    }
+
     pub fn record(&mut self, nr: u32, cmd: u32, status: u32, begin: Instant, end: Instant) {
         if nr != 0x2a || !matches!(cmd, 0x2080_a612 | 0x2080_a613) {
             return;
@@ -87,17 +101,13 @@ impl Timeline {
     }
 
     pub fn tsv(&self, reason: &str) -> String {
-        let snapshot = Clock::capture();
         let mut out = String::new();
         let _ = writeln!(
             out,
             "# SPDX-License-Identifier: MIT\n# host ioctl timeline schema=1 pid={} reason={reason}",
             std::process::id()
         );
-        let _ = writeln!(out, "# anchor_unix_before_ns={} anchor_unix_after_ns={} snapshot_mono_ns={} snapshot_unix_before_ns={} snapshot_unix_after_ns={}",
-            self.anchor.unix_before_ns, self.anchor.unix_after_ns,
-            snapshot.mono.duration_since(self.anchor.mono).as_nanos(),
-            snapshot.unix_before_ns, snapshot.unix_after_ns);
+        self.anchor.header(&mut out);
         let _ = writeln!(
             out,
             "# capacity={} seen={} retained={} dropped={} invalid={}",
@@ -106,6 +116,12 @@ impl Timeline {
             self.spans.len(),
             self.dropped,
             self.invalid
+        );
+        let _ = writeln!(
+            out,
+            "# record_bytes={} storage_capacity_bytes={}",
+            std::mem::size_of::<Span>(),
+            self.spans.capacity() * std::mem::size_of::<Span>()
         );
         out.push_str("# Completed host calls only; callback recording order; use end_ns for observed completion order; snapshots overlap. No guest reply, GPU completion or firmware/lock attribution.\n");
         out.push_str("sequence\tcmd\tstatus\tbegin_ns\tend_ns\tduration_ns\n");

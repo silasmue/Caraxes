@@ -6191,6 +6191,7 @@ impl Mirror {
             return Err("owned GFXP cleanup is quarantined; no host doorbell".into());
         }
         let token = channel.token;
+        let generation = channel.generation;
         if self.doorbell.is_none() {
             let (h, map) = self
                 .hm
@@ -6202,6 +6203,13 @@ impl Mirror {
         }
         let (_, map) = self.doorbell.as_ref().expect("mapped");
         map.write_u32(DOORBELL_OFFSET, token);
+        crate::profile::backend_markers::record(
+            crate::profile::backend_markers::Kind::PhysicalDoorbellWritten,
+            crate::profile::backend_markers::Ids {
+                chid: Some(chid), channel_generation: Some(generation),
+                ..crate::profile::backend_markers::Ids::default()
+            },
+        );
         crate::launch::host_doorbell();
         self.stats.doorbells += 1;
         let hc = self.channels.get_mut(&chid).expect("present");
@@ -7696,6 +7704,7 @@ impl Drop for Mirror {
 /// The event thread: wait on the event ctl fds; drain each record; raise the guest
 /// vector of the engine (non-stall) or count the RC.
 fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, generation: u64, stop: Arc<AtomicBool>) {
+    use crate::profile::backend_markers::{self, Ids, Kind};
     use std::os::fd::AsRawFd;
     let mut fds: Vec<libc::pollfd> = events
         .iter()
@@ -7709,6 +7718,9 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, genera
     let mut gate = crate::launch::gate_hold().map(crate::launch::Gate::new);
     let raise_mask = |mask: u64| {
         for v in (0..64).filter(|v| mask & (1u64 << v) != 0) {
+            backend_markers::record(Kind::VectorRaiseRequested, Ids {
+                producer_generation: Some(generation), vector: Some(v), ..Ids::default()
+            });
             intr.raise_in_generation(generation, v);
         }
     };
@@ -7739,6 +7751,10 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, genera
             }
             let (ev, vector) = &events[i];
             let recs = ev.drain();
+            backend_markers::record(Kind::HostNotifierObserved, Ids {
+                producer_generation: Some(generation), vector: *vector,
+                notifier: Some(ev.notifier), ..Ids::default()
+            });
             match vector {
                 Some(vec) => {
                     crate::launch::host_event();
@@ -7752,6 +7768,10 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, genera
                             Some(held) => raise_mask(held),
                         }
                     }
+                    backend_markers::record(Kind::VectorRaiseRequested, Ids {
+                        producer_generation: Some(generation), vector: Some(*vec),
+                        notifier: Some(ev.notifier), ..Ids::default()
+                    });
                     let msi = intr.raise_in_generation(generation, *vec);
                     crate::launch::raised();
                     intr.note(format!(

@@ -35,6 +35,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+pub mod backend_markers;
 mod host_timeline;
 
 /// The switch.
@@ -42,7 +43,8 @@ pub const PROFILE_ENV: &str = "CARAXES_PROFILE";
 /// The dump prefix (default: `gpu-profile` beside the trace file, else in the working
 /// directory).
 pub const PROFILE_OUT_ENV: &str = "CARAXES_PROFILE_OUT";
-/// Retain selected host ioctl timestamps while the aggregate profile is enabled.
+/// Retain selected host ioctl timestamps and backend observation markers while the
+/// aggregate profile is enabled.
 pub const HOST_TIMELINE_ENV: &str = "CARAXES_PROFILE_HOST_TIMELINE";
 /// A gap between two trapped accesses longer than this is idle time, not the cost of the
 /// later access (rpc-cost.py `--idle-ms 2`).
@@ -537,6 +539,9 @@ pub fn start(prefix: PathBuf) -> std::io::Result<()> {
     } else {
         nvrm_abi::set_ioctl_observer(host_ioctl);
     }
+    if let Some(t) = &p.host_timeline {
+        backend_markers::start(t.anchor());
+    }
     *global() = Some(p);
     *OUT.lock().unwrap_or_else(PoisonError::into_inner) = Some(prefix);
     ON.store(true, Ordering::Relaxed);
@@ -602,6 +607,9 @@ pub fn dump(tag: &str, reason: &str) -> std::io::Result<PathBuf> {
         ),
         None => return Err(std::io::Error::other("profile off")),
     };
+    // Marker writers never acquire PROFILE. Format this independent ring after
+    // dropping the aggregate guard, avoiding a new nested lock order.
+    let markers = backend_markers::snapshot(reason);
     let path = PathBuf::from(format!("{}.{tag}.tsv", prefix.display()));
     let tmp = PathBuf::from(format!("{}.{tag}.tsv.tmp", prefix.display()));
     std::fs::write(&tmp, text)?;
@@ -611,6 +619,12 @@ pub fn dump(tag: &str, reason: &str) -> std::io::Result<PathBuf> {
         let timeline_tmp = PathBuf::from(format!("{}.{tag}.host.tsv.tmp", prefix.display()));
         std::fs::write(&timeline_tmp, timeline)?;
         std::fs::rename(&timeline_tmp, timeline_path)?;
+    }
+    if let Some(markers) = markers {
+        let markers_path = PathBuf::from(format!("{}.{tag}.markers.tsv", prefix.display()));
+        let markers_tmp = PathBuf::from(format!("{}.{tag}.markers.tsv.tmp", prefix.display()));
+        std::fs::write(&markers_tmp, markers)?;
+        std::fs::rename(&markers_tmp, markers_path)?;
     }
     Ok(path)
 }
@@ -980,6 +994,7 @@ mod tests {
             );
             assert!(!on());
             assert!(global().is_none());
+            assert!(backend_markers::snapshot("conflict").is_none());
         } else {
             assert!(mode == "normal" || mode == "timeline");
             start(prefix.clone()).unwrap();
@@ -1003,7 +1018,21 @@ mod tests {
                 }
                 assert_eq!(profile.host_timeline.is_some(), mode == "timeline");
             }
+            backend_markers::record(backend_markers::Kind::PhysicalDoorbellWritten, backend_markers::Ids {
+                chid: Some(7), channel_generation: Some(3), ..backend_markers::Ids::default()
+            });
             assert!(dump("one", "CPU-only test").unwrap().is_file());
+            assert!(dump("two", "CPU-only test").unwrap().is_file());
+            let markers_path = PathBuf::from(format!("{}.one.markers.tsv", prefix.display()));
+            assert_eq!(markers_path.exists(), mode == "timeline");
+            if mode == "timeline" {
+                let markers = std::fs::read_to_string(markers_path).unwrap();
+                let second = std::fs::read_to_string(format!("{}.two.markers.tsv", prefix.display())).unwrap();
+                assert!(markers.contains("seen=1 retained=1 overflow=0 contention=0 poisoned=0 invalid=0"));
+                assert_eq!(markers.lines().filter(|l| !l.starts_with('#')).collect::<Vec<_>>(), second.lines().filter(|l| !l.starts_with('#')).collect::<Vec<_>>());
+            } else {
+                assert!(backend_markers::snapshot("disabled").is_none());
+            }
             let path = PathBuf::from(format!("{}.one.host.tsv", prefix.display()));
             assert_eq!(path.exists(), mode == "timeline");
             if mode == "timeline" {

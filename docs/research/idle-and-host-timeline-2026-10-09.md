@@ -164,7 +164,9 @@ CARAXES_PROFILE_HOST_TIMELINE=1
 CARAXES_PROFILE_OUT=/absolute/evidence/gpu-profile
 ```
 
-- Retains the latest 8,192 completed `0x2080a612` / `0x2080a613` control calls.
+- Retains the latest 32,768 completed `0x2080a612` / `0x2080a613` control calls.
+  The earlier diagnostic build retained 8,192; its hardware snapshots keep that
+  original limit. The larger ring accompanies the new backend markers.
   No ioctl payloads, guest addresses or per-call file writes are recorded.
 - `<prefix>.<tag>.host.tsv` contains monotonic begin/end timestamps, sequence,
   command, status, drop counts, and bracketed Unix-clock calibration at both
@@ -175,6 +177,8 @@ CARAXES_PROFILE_OUT=/absolute/evidence/gpu-profile
   completion order. In-progress or hung calls have no row yet.
 - Each TSV is individually published by rename. The aggregate and timeline
   files are not an atomic pair; collect and hash both after the dump completes.
+  Backend markers share the same anchor but have their own snapshot endpoint.
+  See [latency attribution](latency-attribution-2026-10-09.md) for their scope.
 - Timeline mode refuses startup if another observer already owns the global
   ioctl slot. Ordinary profiling retains the existing observer behavior.
 - Profiling off installs no observer and reads no ioctl clocks. Ordinary
