@@ -69,6 +69,21 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   332 seconds; pre/post driver health remains good and all frozen pins match.
   Forty-three preparation snapshot pairs retain all 716 selected host spans and
   346805/347881 marker IDs; 1076 IDs are lost to contention. See C232-report.
+- C236 stops in preflight before VM/backend launch: root froze the runtime as
+  0500/0400, but `run44.py` preflight runs as `silas`. Cleanup completes in
+  0.261 seconds; frozen inputs remain unchanged. C240 derives the same reviewed
+  scripts with case identifiers changed, root-owned 0555/0444 inputs, and actual
+  UID1000 readability/hash checks of all 42 external and 24 runtime inputs.
+  Owner11/controller6+callback3/UI25/publication42 checks pass.
+- C240 passes five fresh UI captures through the settings tab. The executor
+  spends over 40 seconds reviewing settings, so the controller correctly aborts
+  before trace/arm/Run. All visible settings match the archived C220 standard P
+  configuration; the custom-run button belongs to the selected settings tab.
+  The controller returns to Details before Run. Cleanup completes in 371 seconds
+  with good driver health. Forty-eight paired captures retain all 716 selected
+  host spans and 386020/387046 marker IDs; 1026 IDs are lost to contention.
+  C244 changes case identifiers only and uses a separate actual screenshot
+  reviewer. Its one Windows diagnostic is in progress; no FPS claim yet.
 - `c8e8ea4d` retains early TSG SET0xa06c0103 requests and adds
   GET0xa06c0104. Both first-scheduling paths replay the latest accepted revision.
   Physical refusal/output and exact allocation lifetime are preserved. The
@@ -84,10 +99,11 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
 
 ## Continue
 
-1. Correct the callback name validator in a fresh case. CPU-test the actual
-   callback publication for every literal UI checkpoint, including `dx11-page`,
-   plus unsafe names, mismatched evidence, closed sessions and duplicate proof.
-   Then finish an admitted, bounded render timeline. Preserve UI preset proof,
+1. Finish the fresh C244 render timeline. Its corrected callback passes 42
+   actual publication checks for all nine caller literals, unsafe names,
+   mismatched evidence, closed sessions and duplicate proof. Root independently
+   reran these checks. Before any future runtime launch, verify actual `silas`
+   readability after root freezes the inputs. Preserve UI preset proof,
    fresh archive, four successful workload lifetimes, physical clocks, driver
    health and exact cleanup. Do not modify frozen C232 inputs or fabricate its
    rejected callback.
@@ -101,8 +117,10 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
    benchmark code was imported.
 4. Hardware-qualify the reviewed TSG replay correction and compare it with a
    clock-only backend using the same corrected UI flow, workload and host policy.
-   C234 is a source-only baseline proposal; it must receive the callback fix
-   before use. C230/C232 have no FPS baseline. The lost early request is a
+   C234 has the old callback and C238 is an unfinished proposal; both remain
+   launch-disabled. C242 is the reviewed source-only baseline derived from C240;
+   its 17 scripts differ from C244 only by case identifiers. C230/C232/C240
+   have no FPS baseline. The lost early request is a
    confirmed correctness bug, not a proven FPS cause.
 
 Read [render trials](../research/windows-render-trials-2026-10-09.md),

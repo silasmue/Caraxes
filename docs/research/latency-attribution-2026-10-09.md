@@ -234,7 +234,10 @@ No source evidence shows ordinary mirrored GR work being executed twice.
   have no semaphore identity and cannot establish that dependency.
 - BAR1 pool changes copy pages and can preempt affected TSGs before remapping and
   resynchronizing (`bar1pool.rs`). Measure render-only deltas of copied bytes,
-  warm barriers, preempts and resync time. Startup totals are insufficient.
+  warm barriers, preempts and resync time. C220's broad 592.5-second aggregate
+  bracket records 688 moved pages, 2.6875 MiB and 19.95 ms of copying. Copy time
+  alone is a weak explanation; its nine warm barriers have no duration field.
+  These aggregates include preparation/menu/idle, not exact GT boundaries.
 - Slice compression can downgrade small/misaligned pages, sysmem, uncovered
   ranges and audit-disabled mappings (`compslice.rs`). Count mapped bytes by
   requested/effective kind, backing and downgrade reason. Valid output alone
