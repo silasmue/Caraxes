@@ -345,6 +345,15 @@ was found in this scoped review. See `compslice.rs`, `shadow.rs` and `zbc.rs`.
   bracket records 688 moved pages, 2.6875 MiB and 19.95 ms of copying. Copy time
   alone is a weak explanation; its nine warm barriers have no duration field.
   These aggregates include preparation/menu/idle, not exact GT boundaries.
+- The GSP reply HEAD is BAR0 0x110c80 on TU106; 0x110c04 is command TAIL.
+  C272 records 180685 reply-HEAD reads/3.655 seconds in its broad observation.
+  C278 tests existing synchronous host BAR shared memory first. An autonomous
+  host-only snapshot could avoid the client/backend round trip for exactly this
+  four-byte read through the VMM's existing local route. No such snapshot exists.
+  Publish only after committed v2 status slots; invalidate on queue retirement,
+  reset, unmap and disconnect. Keep other falcon reads on the current path:
+  the full 0x110000 guest page also contains data ports with read side effects.
+  Neither transport nor a host-only snapshot removes KVM exits or driver polling.
 - Private USERD progress reads currently use VRAM through BAR1. `userd.rs`
   reads two words for an idle channel and six after movement; the P37 source
   comment records 9.6 µs for six uncached reads, not a new render measurement.

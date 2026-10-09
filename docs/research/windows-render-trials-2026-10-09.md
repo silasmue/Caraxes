@@ -128,11 +128,31 @@ C270 completes the clock-only comparison with corrected preparation:
   setup. A612/A613 occupy 38.504 seconds in union; A613 median 3.501 ms. Preserve
   that changed bracket and 2381 global marker contention losses.
 
+## C272: ordered host-control worker
+
+| GT1 FPS | GT2 FPS | Physics FPS | Combined FPS | Graphics |
+| ---: | ---: | ---: | ---: | ---: |
+| 19.280205 | 30.086205 | 28.355387 | 17.541880 | 5405 |
+
+- All workload exits, native trace self-test, driver health and exact cleanup
+  pass. The two workers retain CPU2/SCHED_OTHER/nice10 in 122 samples, 54 during
+  rendering, with maximum gap 5.006 seconds. This is sampled policy evidence.
+- No clear graphics gain. C270 also differs in backend; C262 keeps the backend
+  but uses older preparation order. Single runs do not isolate an offlock effect.
+- Existing high-load samples show P0 and median 1845 MHz. No new clock query.
+- In the 317.560-second observation, A612/A613 union is 39.869 seconds; A613
+  median 3.576 ms. Reply HEAD 0x110c80 has 180685 reads/3.655 seconds; command
+  HEAD writes 31985/10.976 seconds. These are nested backend observations, not
+  additive GPU time or critical-path delay. Correct register names/costs are in
+  immutable `C272-report-v2.json`; preserve the original report bytes.
+
 ## Next measurement
 
-C272 is the active variant testing the existing host-control offlock option,
-with its two new workers sharing backend CPU2 and actual nice10/SCHED_OTHER. It can release the device lock during physical A612/A613
-calls; it preserves ordered GSP replies and does not shorten the physical calls.
+C278 tests required host BAR shared memory with the same offlock backend,
+worker CPU2 placement, helper, workload and bounds. Private launcher and owned
+CH identity now require shmem; there is no optional fallback. Native negotiation
+and initial D3D11 readbacks pass; full benchmark qualification remains pending.
+This shortens the transport path but retains KVM exits and backend service.
 Defaults remain unchanged until qualified evidence supports a change.
 
 Retain the baseline pool and polling settings with the bounded backend markers.

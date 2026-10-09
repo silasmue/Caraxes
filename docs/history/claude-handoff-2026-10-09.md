@@ -62,17 +62,33 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   Preserve final `C270-report.json`, SHA256
   `d6f0081033726f5cf629ea3d9416399f18e8bd12da8e213943f813ffef4ca992`.
   Existing high-load samples confirm P0 and median 1830 MHz; no new GPU query.
-- C272 is root-reviewed, frozen and active after C270/C262 qualification and
-  exact cleanup. C231 enables the existing host-control offlock option. Both new
-  workers share existing CPU2, with task identity/mask/SCHED_OTHER/nice10 checks
-  before READY and throughout. Only the owner placement and its CPU fixture
-  change beyond case names; all other corrected C270 sources and bounds remain.
-  Owner11+15 placement cases/controller18+3+15/UI25+17/publication43+16/trace50
-  and actual UID1000 hashes pass. Manifest SHA256:
-  `d4d0a19429a6f8bf958ba54b344aa3b5797421789c3525f35800cd7f621b6567`.
-  Fresh `ui_review_c272` alone reviews PNGs; watcher starts before owner.
-  Native offlock and render qualification are pending. C270 differs in both
-  backend and offlock; compare C262 too and disclose its preparation delta.
+- C272 offlock completes: GT1 19.280205 FPS, GT2 30.086205, Physics 28.355387,
+  Combined 17.541880; graphics 5405. Four workload exits, self-test, driver health
+  and exact cleanup pass; owner closes in 655.276 seconds. No clear graphics
+  jump. Both new workers share CPU2/SCHED_OTHER/nice10 in 122 matching samples,
+  54 during render; maximum sampling gap 5.006 seconds, not continuous proof.
+  Preparation to Run is 311.822 seconds; callbacks 91.272, armed 13.823 seconds.
+  Median high-load graphics clock is 1845 MHz/P0 from existing samples.
+  Keep original `C272-report.json` unchanged, SHA256
+  `b5d1748fe0c2ff8cb56084f41b080d96c0815a7a43e750a0fd735fbb3660eea3`.
+  Corrected `C272-report-v2.json`, SHA256
+  `606b156336a7d27b8e33ea47cd08f313dbc60b10432e1d6f2484d6caefc92c53`,
+  identifies 0x110c04 as command TAIL and adds the full queue quartet.
+  Reply HEAD 0x110c80 has 180685 reads/3.655 seconds; command HEAD writes
+  31985/10.976 seconds. Physical A613 median remains 3.576 ms. Worker execution,
+  queue wait, ready-to-Device and serialization totals overlap these scopes.
+- C278 is the active required BAR shared-memory comparison. Same C231/C215
+  binaries, offlock, CPU2 worker placement and corrected C272 harness. Private
+  launcher requires BAR_SHMEM1 and required VMM mode; owned CH capture enforces
+  exactly one required mode. All other guards and limits remain. Owner11 plus
+  placement15/shared-BAR23, other CPU suites and actual UID1000 hashes pass.
+  Manifest SHA256:
+  `48a396b80d25187ccb2d65aaca2072f1365ddb3f8d386685e2e8835adabc82e5`.
+  Fresh `ui_review_c278` alone reviews PNGs; watcher starts before owner.
+  Native sync-slot-v1 negotiation succeeds; CH profiles report transport=shmem.
+  Initial three D3D11 readbacks pass. Full Fire Strike qualification is pending.
+  This transport still serves reads in the backend and retains KVM exits;
+  it provides no autonomous GSP reply-HEAD snapshot.
 - C258 closes cleanly in 174 seconds before its first visual checkpoint. The
   screenshot helper rejects its owned-window check. The verified failure image
   shows a blank loading window with caption `...`; the old error records the
@@ -214,7 +230,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Continue
 
-1. Complete C272 with fresh `ui_review_c272` as sole PNG reviewer. Start the pinned watcher
+1. Complete C278 with fresh `ui_review_c278` as sole PNG reviewer. Start the pinned watcher
    before the owner; it launches one controller on fresh READY. Review the
    current image and publish immediately, within 40 seconds or 30 seconds for
    the armed page. Root performs other analyses and publishes no live callback.
@@ -237,15 +253,18 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    freshness after evidence reads and again immediately before tool launch,
    after guest observation and guards. C266 remains disabled and unchanged.
    C276 remains disabled until a separate frozen
-   owner and owner-attested Nsight index/PCI/UUID mapping are supplied. General
+   owner and owner-attested Nsight index/PCI/UUID mapping are supplied. Use
+   Nsight metrics help's PCI BDF to join the owner's UUID inventory, never its
+   NVML index. The bounded source plan is `C276-mapping-plan.json`; native output
+   parsing and post-render export integration remain pending. General
    counters and context residency do not establish a stall cause or guest
    ownership. Export only after rendering ends. No external
    benchmark code was imported.
 4. Retain the TSG replay correction for correctness. C270 now provides a
    qualified clock-only comparison with the explicit preparation differences
-   above, with no consistent graphics gain. Evaluate C272 offlock FPS and
-   queue-wait/execution/ready-to-Device/serialization stages before changing any
-   default. A material gain needs a matched repeat; otherwise proceed to the
+   above, with no consistent graphics gain. C272 offlock also has no clear
+   graphics jump. Evaluate C278 transport FPS and queue-register/worker stage
+   costs before changing any default. A material gain needs a matched repeat; otherwise proceed to the
    separate counter pilot and private USERD progress measurements.
    C252/C256/C260 remain source-only predecessor proposals. C234,
    C238 and C242 remain launch-disabled.
