@@ -83,7 +83,21 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   with good driver health. Forty-eight paired captures retain all 716 selected
   host spans and 386020/387046 marker IDs; 1026 IDs are lost to contention.
   C244 changes case identifiers only and uses a separate actual screenshot
-  reviewer. Its one Windows diagnostic is in progress; no FPS claim yet.
+  reviewer. All seven visual gates pass within their deadlines. It then stops
+  before Run: the trace remainder is `7863,5350053`, about 7200 seconds above
+  the actual remainder and invalid for Python's decimal parser. Cleanup completes
+  in 384 seconds; the process trace stops cleanly. No arm, Run or FPS. Fifty-one
+  paired captures retain all 716 selected host spans and 411515/412688 marker
+  IDs; 1173 IDs are lost to contention. See C244-report.
+- C246 fixes only the private controller's trace-time contract: normalize known
+  .NET date kinds to UTC, capture one UTC now, publish invariant UTC strings and
+  a typed JSON number. The host checks schema, aware UTC, a finite 0–700 second
+  interval and agreement with the timestamp pair within 1 ms. The existing
+  minimum of 650 seconds remains. Root reruns owner11/controller6/UI25/
+  publication42/trace50 CPU checks and verifies actual UID1000 reads/hashes of
+  all 25 frozen inputs and 42 external pins. C231 backend and every workload,
+  resource, scheduling and time limit stay unchanged. One fresh Windows
+  diagnostic has started; native timing and rendering qualification are pending.
 - `c8e8ea4d` retains early TSG SET0xa06c0103 requests and adds
   GET0xa06c0104. Both first-scheduling paths replay the latest accepted revision.
   Physical refusal/output and exact allocation lifetime are preserved. The
@@ -99,7 +113,7 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
 
 ## Continue
 
-1. Finish the fresh C244 render timeline. Its corrected callback passes 42
+1. Finish the fresh C246 render timeline. Its corrected callback passes 42
    actual publication checks for all nine caller literals, unsafe names,
    mismatched evidence, closed sessions and duplicate proof. Root independently
    reran these checks. Before any future runtime launch, verify actual `silas`
@@ -118,9 +132,9 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
 4. Hardware-qualify the reviewed TSG replay correction and compare it with a
    clock-only backend using the same corrected UI flow, workload and host policy.
    C234 has the old callback and C238 is an unfinished proposal; both remain
-   launch-disabled. C242 is the reviewed source-only baseline derived from C240;
-   its 17 scripts differ from C244 only by case identifiers. C230/C232/C240
-   have no FPS baseline. The lost early request is a
+   launch-disabled. C242 retains the old trace-time bug and must not launch.
+   A fresh matched clock-only proposal must include C246's timing correction.
+   C230/C232/C240/C244 have no FPS baseline. The lost early request is a
    confirmed correctness bug, not a proven FPS cause.
 
 Read [render trials](../research/windows-render-trials-2026-10-09.md),

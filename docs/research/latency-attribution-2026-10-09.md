@@ -105,10 +105,24 @@ checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
   preparation snapshot pairs retain all 716 selected host spans and
   346805/347881 marker IDs; 1076 IDs are lost to contention. Frozen inputs remain
   unchanged. Fix and exercise the actual callback before another run.
+- C244 passes all seven fresh UI gates, including the unchanged standard P
+  settings and armed page. It stops before Run when the private controller
+  receives a locale-comma trace remainder with a two-hour local/UTC offset.
+  The 384-second session and process trace close cleanly. Fifty-one snapshot
+  pairs retain all 716 selected host spans and 411515/412688 marker IDs; 1173
+  IDs are lost to contention. No arm, Run or FPS result follows.
+- C246 changes only that controller clock contract. The guest normalizes .NET
+  date kinds to UTC and publishes one UTC timestamp pair with a typed JSON
+  remainder. Host validation checks aware UTC, finite 0–700 seconds and agreement
+  within 1 ms; the 650-second pre-Run minimum remains. Fifty actual-function
+  mocked CPU checks reproduce both old failures and exercise malformed or
+  inconsistent samples. Native Windows qualification is pending. The backend,
+  UI helper, workload and host policies remain unchanged.
 
 Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
 and `C225-runtime/results/partial-backend-timeline-report.json`, plus
-`C226-report.json`, `C228-report.json`, `C230-report.json` and `C232-report.json`. There is no
+`C226-report.json`, `C228-report.json`, `C230-report.json`, `C232-report.json`
+and `C244-report.json`. There is no
 complete render timeline or demonstrated improvement from this build yet.
 
 The replacement `tools/windows/3dmark-ui-step.ps1` refreshes process state under
