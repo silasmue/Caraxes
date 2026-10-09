@@ -340,17 +340,22 @@ The six accepted prior reviews consume 141.598 seconds; preparation takes
 412.570 seconds. These are harness timings, not frame latency. Exact cleanup
 passes in 494.139 seconds. No GPU counters or FPS are collected by this pilot.
 
-A separate no-profile comparison is being prepared. The current harness requests
-periodic snapshots whose formatting holds shared profiler and marker locks;
-file writes occur after formatting. This can perturb execution, but its FPS
-effect has not been measured. Disable profile and host timeline together and
-remove every snapshot request, including post-health SIGUSR2. That signal can
-terminate the backend when profiling is disabled. Keep the remaining workload,
-trace, clock, worker, resource and cleanup policies unchanged.
+C296 completes the separate backend-profile-off comparison: GT1 18.775480,
+GT2 32.267513, Physics 34.306366 and Combined 20.259274 FPS. All four workloads,
+trace, fresh archive, driver health and exact cleanup pass. Against C272, graphics
+changes are mixed (-2.6% GT1, +7.3% GT2), with no broad gain or isolated causal
+profiling effect. Snapshot formatting holds shared profiler and marker locks;
+file writes occur afterward. C296 disables profile and host timeline together
+and removes every snapshot request, including post-health SIGUSR2, which can
+terminate an unprofiled backend. The workload, trace, clock, worker, resource
+and cleanup policies remain unchanged.
 The explicit validator mode `--no-host-profile` passes five saved-packet CPU
-fixture tests; the default also requalifies the saved C272 result. Removing
-blocking dumps can increase effective clock/query cadence. Guest tracing and CH
-write profiling remain, so this is a backend-profile-off comparison.
+fixture tests; the default also requalifies the saved C272 result. Observed
+effective cadence also differs: median clock intervals are 1.307
+versus 1.320 seconds; guest queries 11.775 versus 12.534. These are whole-observer
+host intervals without scene or guest/GPU clock mapping. Guest tracing and CH
+write profiling remain. No backend timeline or new GPU counters exist for C296.
+See [render trials](windows-render-trials-2026-10-09.md) for qualification and hashes.
 
 A613 is the opaque GSS legacy PMGR 0x13 control, with a 79936-byte buffer on
 the current 610 ABI (`ver/v610.rs`, `nvml.rs`). Eligible requests forward their

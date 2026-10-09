@@ -21,6 +21,20 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Verified state
 
+- C296 completes the backend-profile-off comparison: GT1 18.775480 FPS,
+  GT2 32.267513, Physics 34.306366, Combined 20.259274; graphics score 5459.
+  Against C272: -2.6%, +7.3%, +21.0%, +15.5%, respectively. Graphics changes
+  are mixed; no broad speedup or isolated profiling effect is established.
+  Four distinct workload exits 0, self-test 37, fresh archive, driver health
+  and exact cleanup pass. Owner closes in 655.179 seconds; no owned VM remains.
+  Backend profiling/timeline and all snapshots are off; guest trace, physical
+  clocks and CH write profiling remain. Effective clock/query cadence changes.
+  C298's direct review loader passes 21 CPU checks and all eight live reviews;
+  their waits total 46.447 seconds, with armed review in 6.286 seconds.
+  Preserve `C296-report.json`, SHA256
+  `a8e90859b990745a0911f59940af0248fd390041bf126d6249e29c1b005532a2`.
+  Root independently verifies all 25 referenced evidence hashes. No native
+  counter capture or backend execution timeline was collected in C296.
 - C262 completes standard Fire Strike with the GPU clock and early TSG fixes.
   GT1 is 18.486073 FPS, GT2 29.838354; graphics score 5250. All four workload
   lifetimes exit 0; driver ProblemCode and Display 4101 remain 0. Exact owned
@@ -256,8 +270,9 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 ## Continue
 
 1. Investigate C278's final-workload startup failure from the preserved archive,
-   process trace and backend/VMM logs. C272 remains the last fully qualified
-   baseline. Any new run needs a fresh frozen runtime, actual UID1000 input proof
+   process trace and backend/VMM logs. C272 remains the profiled baseline; C296
+   is the qualified profile-off comparison. Any new run needs a fresh frozen
+   runtime, actual UID1000 input proof
    and one PNG reviewer. Preserve the strict 40-second normal and 30-second armed
    deadlines, typed guest trace margin and exact teardown; do not retry C278.
    An actual settings-loading modal permits one five-second wait and a fresh
@@ -315,7 +330,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    counters and context residency do not establish a stall cause or guest
    ownership. Export only after rendering ends. No external
    benchmark code was imported.
-   C296's no-profile source draft now passes independent review. Disable backend profiling
+   C296 now completes the reviewed comparison. Disable backend profiling
    and host timeline together, and remove every snapshot request, including the
    owner's post-health SIGUSR2. Without the profile handler that signal can
    terminate the backend. Keep the workload, trace, clock lease, worker placement,
@@ -326,7 +341,9 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    requalification of C272 pass. Fresh runtime pins must include the new validator
    hash; do not alter historical manifests. Removing dumps may increase effective
    clock/query cadence. Guest trace, clock queries and CH write profiling remain
-   enabled. No profiling overhead or speedup has been quantified.
+   enabled. C296's mixed graphics changes and different effective cadence do
+   not isolate profiling overhead. Use C298's direct review loader for a fresh
+   counter pilot, with the unchanged review deadlines; do not retry C284.
 4. Retain the TSG replay correction for correctness. C270 now provides a
    qualified clock-only comparison with the explicit preparation differences
    above, with no consistent graphics gain. C272 offlock also has no clear

@@ -184,9 +184,39 @@ C270 completes the clock-only comparison with corrected preparation:
   `7cbefcb94c76d3f4813341e7a7aefa57c5d2598f3594c65ca770f8a6405929fc`.
   Its 19 evidence hashes independently match. No automatic retry.
 
+## C296: backend profiling disabled
+
+| GT1 FPS | GT2 FPS | Physics FPS | Combined FPS | Graphics |
+| ---: | ---: | ---: | ---: | ---: |
+| 18.775480 | 32.267513 | 34.306366 | 20.259274 | 5459 |
+
+- All four distinct workload lifetimes exit 0. Native trace self-test 37,
+  clean stop, fresh result archive, driver health and exact cleanup pass.
+  Owner closes in 655.179 seconds; NVIDIA remains bound.
+- Compared with C272: GT1 -2.6%, GT2 +7.3%, Physics +21.0%, Combined +15.5%.
+  Graphics score rises 1.0%. This single mixed result establishes no broad
+  graphics gain or isolated profiling effect.
+- Backend profiling, host timeline and every snapshot request are disabled.
+  Backend/CH binaries, worker placement, workload and resource limits match
+  C272. Guest trace, physical clock queries and CH write profiling remain.
+- Effective observer cadence also differs. Median clock sample
+  interval is 1.307 seconds versus 1.320; guest query interval is 11.775 versus
+  12.534. These cover each whole observer window, without scene segmentation.
+- All 198 clock samples report P0; graphics reaches 1875 MHz and memory stays
+  at 7000 MHz. Device-wide clocks do not identify a particular workload.
+- The direct C298 review loader passes 21 CPU checks and all eight live reviews.
+  Accepted callback waits total 46.447 seconds; preparation to Run is 307.655
+  seconds. The armed review takes 6.286 seconds within its unchanged 30-second
+  limit. These preparation costs are separate from render performance.
+- Preserve `C296-report.json`, SHA256
+  `a8e90859b990745a0911f59940af0248fd390041bf126d6249e29c1b005532a2`.
+  All 25 referenced evidence hashes independently match. No GPU counter capture
+  or backend execution timeline was collected in this run.
+
 ## Next measurement
 
-Keep C272 as the last fully qualified baseline. Investigate C278's startup
+Keep C272 as the profiled baseline and C296 as the qualified profile-off
+comparison. Investigate C278's startup
 failure from existing evidence before another transport comparison. A separate
 counter pilot uses C282's bounded BDF/UUID parser and C292's gated
 tool lifecycle; both pass independent CPU checks. Native output is unqualified.
@@ -198,17 +228,16 @@ times out. Native mapping, ten-second capture and post-render export never start
 The pilot remains unqualified.
 Defaults remain unchanged until qualified evidence supports a change.
 
-Prepare a matched run with backend profiling and host timeline disabled. The
-current observer requests repeated snapshots; formatting holds shared profiler
-and marker locks. Remove all snapshot requests, including the owner's post-health
-SIGUSR2, because the signal can terminate an unprofiled backend. Retain workload,
-trace, clocks, worker placement, UI checks, resource bounds and exact cleanup.
-This comparison has not run; no instrumentation cost or speedup is established.
+C296 completes the comparison with backend profiling and host timeline disabled.
+Retain its removal of every snapshot request, including post-health SIGUSR2:
+the signal can terminate an unprofiled backend. Workload, trace, clocks, worker
+placement, UI checks, resource bounds and exact cleanup remain required.
 The validator's explicit `--no-host-profile` mode requires both saved and
 declared profile/timeline flags to be 0 with no output prefix. Five CPU fixture
 tests and offline requalification of C272 pass; all other result gates remain.
-Clock/query cadence may increase when dumps are removed. Guest trace, physical
-clock queries and CH write profiling remain enabled.
+The observed cadence difference and mixed graphics changes prevent isolating
+profiling overhead from this single pair. Guest trace, physical clock queries
+and CH write profiling remain enabled.
 
 Retain the baseline pool and polling settings with the bounded backend markers.
 Record physical doorbell writes, host notifier observations and local cause
