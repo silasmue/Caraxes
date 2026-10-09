@@ -29,6 +29,20 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
 
 ## Verified state
 
+- C316 completes the fixed installed-file probe. Native decode/hash/AST and the
+  stable file checks pass; the exact UTF-8 reply is retained before validation.
+  Fire Strike x64 is 5853696 bytes, file/product version `1.1.0.0`, SHA256
+  `e68d2fad78ab1d73d0f053c922f8be03e8e5b791f576f4779f092328c0f73ef5`.
+  Its status is `NotSigned`, signature type `None`, with no signer certificate.
+  This identifies the installed file; it does not recover C310's discarded live
+  reply or attest loaded process memory. Query time is 7.094 seconds; the owner
+  closes cleanly in 72.878 seconds with healthy driver and exact cleanup. Root
+  verifies all 26 evidence hashes. `C316-report.json` SHA256
+  `0d1a38fbbfed726da00e538e10f99081e5813857deadb6b969bea6c3da619b27`.
+  Prepare C318/C320: bind capture to this reviewed path/hash/size/version tuple,
+  recheck live PID/start/path, and save bounded raw replies before validation.
+  Record Authenticode status as information. Keep host lease, ownership, fresh
+  GPU mapping and all resource/time limits. Neither draft has hardware GO yet.
 - C314's short installed-file query fails in the GZip wrapper before the native
   AST or file probe. Numeric `0` is ambiguous between the compression-mode and
   compression-level constructor overloads. Complete raw stdout/stderr, 144/412
@@ -40,8 +54,8 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   C316 uses explicit `CompressionMode::Decompress`; its command is 7102 characters,
   below the documented 8191-character limit. The source-only controller retains
   length/hash/AST checks and all query/output/ownership bounds. Owner11,
-  placement15, query12 and 62 current UID1000 checks pass; native qualification
-  still needs a fresh frozen runtime and explicit GO. No signature rule changes.
+  placement15, query12 and 62 current UID1000 source checks pass. The frozen
+  C316 runtime subsequently passes final review and the native probe above.
 - C310/C312 close after fresh native mapping succeeds but capture admission
   rejects the ICF executable signature before Nsight Popen. The exact signature
   status/path/signer reply is lost: the collector writes it only after validation
@@ -50,8 +64,8 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   completes in 554.812 seconds without errors and driver health passes. All owned
   processes/TAP are gone and NVIDIA stays host-bound. `C310-report.json` SHA256
   `24d9bca0ac0c546f21b1f42e32bd4d5cb31f1faa44d3bdd27bda36d8f8acbc41`;
-  root independently verifies its 41 evidence hashes. Next: short fixed-path
-  installed-file signature/hash diagnostic with no UI/Run/native capture.
+  root independently verifies its 41 evidence hashes. C316 subsequently resolves
+  the installed-file status without UI/Run/native capture.
   All nine CPU suites, 97 pin hashes, 102 current UID1000 proof
   rows and 32 frozen file modes pass. Final review `C310-final-runtime-review.json`
   has SHA256 `66b63826f820fc5acfe1dae440cc74557fed3d0533b0a0871a44817ed36cda55`.

@@ -7,8 +7,15 @@ validation or any installed-file read. C316 uses explicit
 `CompressionMode::Decompress`, matching the
 [Microsoft constructor overload](https://learn.microsoft.com/en-us/dotnet/api/system.io.compression.gzipstream.-ctor?view=netframework-4.8.1).
 The 7102-character command retains the exact source hash and all bounded query
-and cleanup checks. Native qualification and the actual signature status remain
-pending. This is a diagnostic transport fix, with no measured FPS effect.
+and cleanup checks. C316's native probe passes in 7.094 seconds. The installed
+Fire Strike x64 file reports `NotSigned`, version `1.1.0.0`, size 5853696 bytes,
+SHA256 `e68d2fad78ab1d73d0f053c922f8be03e8e5b791f576f4779f092328c0f73ef5`.
+Its complete raw reply is saved; driver health and exact cleanup pass. The
+collector's `Valid`-only predicate therefore rejects this installed payload.
+C310's lost live reply remains unknown. The next diagnostic will bind the live
+process to this reviewed file tuple and retain failed replies, while preserving
+host ownership and fresh device mapping. This fixes measurement admission; it
+does not improve or measure FPS.
 
 The long Linux ALU probe reports 239.231 µs native versus 335.146 µs guest CPU
 submit-through-fence medians: about 40% more time, or 71% of native throughput.
