@@ -105,14 +105,33 @@ native UI/trace flow. Backend SHA256:
   critical-path delay. Global marker contention loses 2282 sequence IDs.
 - No speedup is established. C264's clock-only comparison stops before Run:
   its armed callback takes 22.976 seconds, exceeding the 20-second gate. Driver
-  health and exact cleanup pass; there are no baseline FPS values. C270 is the
-  next clock-only proposal with an explicit preparation correction; render
-  settings, tracing, affinity, resource limits and host policy remain fixed.
+  health and exact cleanup pass; there are no C264 baseline FPS values.
+
+C270 completes the clock-only comparison with corrected preparation:
+
+| GT1 FPS | GT2 FPS | Physics FPS | Combined FPS | Graphics |
+| ---: | ---: | ---: | ---: | ---: |
+| 18.219490 | 31.251526 | 31.385401 | 19.529490 | 5294 |
+
+- All four workload lifetimes exit 0, self-test 37 and driver health/cleanup pass.
+  Owner closes in 647.639 seconds. Preparation to Run request is 278.768 seconds;
+  seven callback waits total 44.741 seconds, armed 6.985. Corrected deadlines and
+  native trace gate pass; no exact gate sample was saved.
+- All 173 existing clock samples succeed. The 57 high-load samples report P0,
+  1800–1860 MHz graphics (median 1830), memory 7000 MHz. These are device-wide
+  observations, not scene or guest ownership attribution. Summary:
+  `C270-physical-clocks-summary.json`.
+- C262 versus C270 has no consistent graphics gain. Backend, preparation order
+  and reviewer differ; neither this pair nor the Physics variation establishes
+  a TSG effect. Keep the correctness fix; no performance default changes.
+- Before/after observation includes 324.575 seconds, now starting before trace
+  setup. A612/A613 occupy 38.504 seconds in union; A613 median 3.501 ms. Preserve
+  that changed bracket and 2381 global marker contention losses.
 
 ## Next measurement
 
-After the matched comparison, test the existing host-control offlock option as
-a separate variant. It can release the device lock during physical A612/A613
+C272 is the active variant testing the existing host-control offlock option,
+with its two new workers sharing backend CPU2 and actual nice10/SCHED_OTHER. It can release the device lock during physical A612/A613
 calls; it preserves ordered GSP replies and does not shorten the physical calls.
 Defaults remain unchanged until qualified evidence supports a change.
 

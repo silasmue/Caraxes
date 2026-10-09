@@ -266,8 +266,10 @@ Build-time replay and repeated requests prevent one-to-one count comparison.
 Standard Fire Strike now qualifies in C262. GT1 is 18.486073 FPS and GT2 is
 29.838354; all four workload lifetimes exit 0 with clean driver health and exact
 owned teardown. C264's clock-only comparison aborts on a late armed review before
-Run. C270 is the next proposal with corrected preparation. A completed comparison
-is required before attributing an FPS effect to TSG replay.
+Run. C270 now completes with GT1 18.219490 FPS and GT2 31.251526. This single
+comparison shows no consistent graphics gain; backend, preparation order and
+fresh reviewer differ. Retain TSG replay for correctness without a causal FPS
+claim. C272 tests existing host-control offlock with both new workers on CPU2.
 
 ## C262 render observation
 
@@ -297,6 +299,27 @@ SET fallback falsely acknowledged it without applying policy. No stock Windows
 TSG DUP use was found in the scoped evidence search. A future implementation
 needs shared object lifetime through the last alias, not another silent ACK.
 
+## C270 comparison
+
+All four workload lifetimes succeed and exact teardown passes with healthy
+stock driver. The corrected preparation takes 278.768 seconds to Run request;
+seven callback waits total 44.741 seconds, including 6.985 for the armed page.
+The native trace-time gate passes; its exact sample was not persisted. Derived
+same-guest deadline minus click is 657.442 seconds, not a host clock mapping.
+
+The clipped observation is 324.575 seconds because its before pair now precedes
+trace start and armed review. A612/A613 union is 38.504 seconds; A613 median is
+3.501 ms. That larger bracket prevents a direct occupancy-percentage comparison
+with C262. All 16410 host spans are retained; 2381 global marker IDs are missing
+through contention. Neither observation proves critical-path frame delay.
+
+C272 releases Device during the same physical calls while preserving ordered
+replies and allocation retirement. Both new threads are pinned to the existing
+backend CPU2 with actual SCHED_OTHER/nice10 checks. Record its existing queue
+wait, physical execution, ready-to-Device and serialization stages. The C270
+comparison also changes the TSG backend; C262 retains that backend but has the
+older preparation order. Disclose these factors before attributing a difference.
+
 ## Remaining candidates
 
 These source paths are measurable candidates, not established render bottlenecks.
@@ -322,6 +345,18 @@ was found in this scoped review. See `compslice.rs`, `shadow.rs` and `zbc.rs`.
   bracket records 688 moved pages, 2.6875 MiB and 19.95 ms of copying. Copy time
   alone is a weak explanation; its nine warm barriers have no duration field.
   These aggregates include preparation/menu/idle, not exact GT boundaries.
+- Private USERD progress reads currently use VRAM through BAR1. `userd.rs`
+  reads two words for an idle channel and six after movement; the P37 source
+  comment records 9.6 µs for six uncached reads, not a new render measurement.
+  Polling takes the slot lock; some device-side paths also hold Device. Measure
+  generation-bound forward-to-fetch and progress-publication delays before
+  changing this path. GET/GP_GET movement does not prove workload completion.
+  The existing non-shadow channel path accepts a sysmem USERD OS descriptor,
+  and `hostmem.rs` already has a private OS-descriptor page allocator. A private
+  pinned sysmem USERD is therefore a plausible experiment, with no demonstrated
+  native acceptance or speedup yet. Cover initial channel creation, migration,
+  coherency, host allocation failure and retirement before enabling it. Preserve
+  the guest/private-page split and keep the current allocator as the default.
 - Slice compression can downgrade small/misaligned pages, sysmem, uncovered
   ranges and audit-disabled mappings (`compslice.rs`). Count mapped bytes by
   requested/effective kind, backing and downgrade reason. Valid output alone

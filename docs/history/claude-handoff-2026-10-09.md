@@ -47,15 +47,32 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   and consumption, and writer join/catalogue/paired-before work moved before
   trace start. Native trace700/minimum650 and prep600 stay fixed. C268's offlock
   proposal stays disabled because its C264 qualification prerequisite failed.
-- C270 is independently reviewed and root-frozen. Five CPU suites pass:
-  owner11/controller18+3+15/UI25+17/publication43+16/trace50. The additional
-  cases exercise actual late publication/consumption and link/file races;
-  native corrected preparation remains pending. Actual UID1000 verifies 26
-  runtime inputs, 42 external pins and three binaries. Runtime manifest SHA256:
-  `030b8df7b55c83ee34d11c154f76177bd7b48e8e145ba8da0598285894aebe5f`.
-  A fresh `ui_review_c270` is the sole reviewer. The watcher starts before the
-  owner; one clock-only run is now active. C272 is the next source-only offlock
-  variant, with both new workers pinned to existing CPU2 before READY.
+- C270 completes the clock-only comparison: GT1 18.219490 FPS, GT2 31.251526,
+  Physics 31.385401, Combined 19.529490; graphics 5294. All four workload
+  lifetimes exit 0, self-test 37, driver ProblemCode/Display4101 0 and exact
+  cleanup pass. Owner closes in 647.639 seconds. The corrected preparation
+  qualifies: Run request in 278.768 seconds, seven callback waits 44.741 seconds,
+  armed review 6.985 seconds. The native 650–700-second gate passes; its exact
+  sample remains unpersisted. Same-guest deadline minus click is 657.442 seconds.
+  TSG replay shows no consistent graphics gain in this single comparison.
+  Backend, preparation order and fresh reviewer differ; retain the correctness
+  fix without a causal FPS claim. The observation is now 324.575 seconds,
+  including the pretrace gap: A612/A613 union 38.504 seconds, A613 median 3.501 ms.
+  All 16410 host spans are retained; 2381 missing marker IDs are contention losses.
+  Preserve final `C270-report.json`, SHA256
+  `d6f0081033726f5cf629ea3d9416399f18e8bd12da8e213943f813ffef4ca992`.
+  Existing high-load samples confirm P0 and median 1830 MHz; no new GPU query.
+- C272 is root-reviewed, frozen and active after C270/C262 qualification and
+  exact cleanup. C231 enables the existing host-control offlock option. Both new
+  workers share existing CPU2, with task identity/mask/SCHED_OTHER/nice10 checks
+  before READY and throughout. Only the owner placement and its CPU fixture
+  change beyond case names; all other corrected C270 sources and bounds remain.
+  Owner11+15 placement cases/controller18+3+15/UI25+17/publication43+16/trace50
+  and actual UID1000 hashes pass. Manifest SHA256:
+  `d4d0a19429a6f8bf958ba54b344aa3b5797421789c3525f35800cd7f621b6567`.
+  Fresh `ui_review_c272` alone reviews PNGs; watcher starts before owner.
+  Native offlock and render qualification are pending. C270 differs in both
+  backend and offlock; compare C262 too and disclose its preparation delta.
 - C258 closes cleanly in 174 seconds before its first visual checkpoint. The
   screenshot helper rejects its owned-window check. The verified failure image
   shows a blank loading window with caption `...`; the old error records the
@@ -197,7 +214,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Continue
 
-1. Complete C270 with fresh `ui_review_c270` as sole PNG reviewer. Start the pinned watcher
+1. Complete C272 with fresh `ui_review_c272` as sole PNG reviewer. Start the pinned watcher
    before the owner; it launches one controller on fresh READY. Review the
    current image and publish immediately, within 40 seconds or 30 seconds for
    the armed page. Root performs other analyses and publishes no live callback.
@@ -215,16 +232,21 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    completion nor guest ACK. Preserve losses and per-stream endpoints.
 3. Retain the corrected GPU clock domain, then obtain comparable native/guest
    samples and pilot GPU context
-   visibility. C266 is a source-only ten-second `tu10x`/200 Hz and context-switch
-   proposal with 57 CPU checks. It remains disabled until a separate frozen
+   visibility. C276 is a source-only ten-second `tu10x`/200 Hz and context-switch
+   proposal with 61 CPU checks. It fixes C266's mapping-age check: validate
+   freshness after evidence reads and again immediately before tool launch,
+   after guest observation and guards. C266 remains disabled and unchanged.
+   C276 remains disabled until a separate frozen
    owner and owner-attested Nsight index/PCI/UUID mapping are supplied. General
    counters and context residency do not establish a stall cause or guest
    ownership. Export only after rendering ends. No external
    benchmark code was imported.
-4. Compare the hardware-qualified TSG replay correction with a
-   clock-only backend using the same corrected UI flow, workload and host policy.
-   C264 closed without a baseline. C270 retains its clock-only backend and
-   rendering policy with the explicit preparation fixes above.
+4. Retain the TSG replay correction for correctness. C270 now provides a
+   qualified clock-only comparison with the explicit preparation differences
+   above, with no consistent graphics gain. Evaluate C272 offlock FPS and
+   queue-wait/execution/ready-to-Device/serialization stages before changing any
+   default. A material gain needs a matched repeat; otherwise proceed to the
+   separate counter pilot and private USERD progress measurements.
    C252/C256/C260 remain source-only predecessor proposals. C234,
    C238 and C242 remain launch-disabled.
    C248 is a source-only clock baseline with that correction; independent review
