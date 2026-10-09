@@ -33,7 +33,18 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   4 vCPU/4 GiB RAM. All output words pass. All ten samples prove incompatible
   DEVICE calibration (`~1.685e10` ticks) and physical GPU query (`~1.79156e18`)
   epochs at 1 ns/tick, 64 bits. Guest boundary attribution is invalid. The GPU
-  clock correction is in progress; no FPS effect is established.
+  clock correction below now passes the repeated hardware check; no FPS effect
+  is established.
+- `d42dc40b` separates logical GSP CPU/interval time from a private RO physical
+  GPU clock. All identified GPU timestamp paths share it; pure emulation and
+  reset continuity are preserved. 1010 library tests, 15 client tests, release
+  build, independent review and AST update pass. `f2b22d28` extends the offline
+  analyzer to complete paired captures with explicit input/resource limits;
+  eight analyzer tests pass.
+- Fresh `linux-calibration-oct09b` passes all ten raw timestamp brackets and
+  65536 output words using the unchanged probe. It closes cleanly in 18 seconds.
+  Calibration deviation remains 68–100 µs; no fine latency split or FPS gain.
+  Candidate artifact: `C227-build`, backend SHA256 `9d280695f8bc78b9bbcda330668895ee12779ed364cfbe09fd0d9ab4a408744d`.
 
 ## Continue
 
@@ -43,9 +54,8 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
 2. Distinguish control occupancy from serial frame stalls. HEAD costs contain
    physical calls. Marker notifiers are engine-wide; they prove neither GPU
    completion nor guest ACK. Preserve losses and per-stream endpoints.
-3. Correct the proven guest GPU-clock mismatch and repeat the original calibrated
-   probe in a fresh stock guest. Keep logical GSP OS time separate from physical
-   GPU time. Then obtain comparable native/guest samples and pilot GPU context
+3. Retain the corrected GPU clock domain, then obtain comparable native/guest
+   samples and pilot GPU context
    visibility. Context collector drafts remain disabled and reference closed
    cases; create a fresh mapping and review before execution. No external
    benchmark code was imported.

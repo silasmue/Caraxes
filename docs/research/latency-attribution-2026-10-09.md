@@ -126,9 +126,9 @@ samples have incompatible calibrated DEVICE and query timestamp epochs:
 
 Vulkan requires DEVICE calibration and command-buffer timestamp queries to use
 comparable values. [Time-domain contract](https://docs.vulkan.org/refpages/latest/refpages/source/VkTimeDomainKHR.html).
-Code inspection finds process-relative time in PTIMER, usermode TIME and synthetic
-time-correlation replies, while mirror timestamp commands execute on the physical
-GPU. Correcting the GPU clock source is the next patch; its FPS effect is unproven.
+The previous code used process-relative time in PTIMER, usermode TIME and synthetic
+time-correlation replies, while mirror timestamp commands executed on the physical
+GPU. The correction below fixes that domain mismatch; its FPS effect is unproven.
 GPU elapsed differences and the output oracle remain valid, but a CPU/GPU boundary
 split from these pairs would be wrong.
 
@@ -136,6 +136,33 @@ The 22-second session closes cleanly: owned backend/VMM and TAP are gone, NVIDIA
 remains bound, and no new host Xid appears. Floppy keeps priority. SCHED_IDLE/nice19
 makes this a clock-domain and correctness check, not a matched latency baseline.
 Private audit: `guest-gpu-clock-domain-audit.json` under the artifact directory.
+
+## GPU clock correction
+
+Source `d42dc40b` selects one private read-only physical usermode timer lease for
+host-backed GPU timestamps. PTIMER, VF/UMPage, GPU correlation fields, software
+semaphores, window/core display notifiers and RUSD use that provider. Logical GSP
+CPU time, display intervals and watchdog deadlines remain separate. Pure-emulation
+behavior and reset continuity are covered by tests. The physical mapping is never
+offered to the guest. Unstable reads are bounded and terminate the backend instead
+of silently switching epochs.
+
+- 1010 library tests and 15 client tests pass, with two existing tests ignored.
+  Release build, independent source review and AST graph update pass.
+- Fresh `linux-calibration-oct09b` uses the original probe binary and fixed stock
+  615/no-helper, 4 vCPU/4 GiB headless policy. All ten GPU intervals now lie inside
+  their raw DEVICE calibration brackets; previously none did. All 65536 words
+  pass with the same checksum `365943ba07dd5422`.
+- GPU median remains about 210 µs. This SCHED_IDLE/nice19 capability pilot does
+  not establish a CPU latency or FPS improvement. Calibration deviation remains
+  68–100 µs, too large for a fine boundary split.
+- The 18-second session closes cleanly, including exact backend/VMM and TAP
+  removal. The host GPU remains NVIDIA-bound. UMPage is off in this pilot; its
+  1 µs minimum publication interval does not guarantee maximum clock freshness.
+
+Immutable backend SHA256:
+`9d280695f8bc78b9bbcda330668895ee12779ed364cfbe09fd0d9ab4a408744d`.
+Private proof: `guest-gpu-clock-fix-audit.json` and `C227-build/cpu-validation.json`.
 
 ## Measuring the missing boundaries
 
