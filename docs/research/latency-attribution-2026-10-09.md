@@ -89,11 +89,27 @@ checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
   persistent MAC assignment after identity capture. Exact owned cleanup removes
   that interface under the retained guest/slot locks; no GPU workload runs.
   Fresh C229-build provides both verified checksum names for the same binary.
+- C230 validates the checksum/udev corrections, boots Windows and passes three
+  D3D11 readbacks. It stops before Run: launcher READY identifies PID8356, but
+  the next UI helper finds no matching main window. No failure-time window census
+  was collected, so the cause is unknown. The 194-second session closes cleanly;
+  pre/post NVIDIA health remains ProblemCode0 with no Display4101 events.
+  Nineteen preparation snapshot pairs retain all 716 selected host spans and
+  248352/249130 marker IDs; 778 IDs are lost to contention. Ring overwrite does
+  not add union loss. This is preparation evidence, with no render FPS.
 
 Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
 and `C225-runtime/results/partial-backend-timeline-report.json`, plus
-`C226-report.json` and `C228-report.json`. There is no
+`C226-report.json`, `C228-report.json` and `C230-report.json`. There is no
 complete render timeline or demonstrated improvement from this build yet.
+
+The replacement `tools/windows/3dmark-ui-step.ps1` refreshes process state under
+one ten-second window/foreground bound. It checks the interactive session, exact
+title, PID/start time and native HWND owner before input. `ExpectedPid` supports
+the launcher's exact handoff. Screenshots report their hash, size and UTC;
+failures include bounded process/window observations and a separate fresh image.
+Thirteen CPU grammar/structure checks and independent source review pass. Native
+PowerShell/Add-Type/Win32 behavior still needs the next stock Windows pilot.
 
 ## Calibrated probe
 

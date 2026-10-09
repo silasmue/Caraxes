@@ -50,6 +50,17 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   TAP MAC after capture, so exact manual cleanup runs under the original locks.
   No FPS. Fresh C229-build has both checksum aliases for the unchanged clock
   binary; the next owner must settle udev before sealing TAP identity.
+- C230 proves those startup corrections and passes three D3D11 readbacks.
+  Launcher READY reports PID8356, then the legacy screenshot helper cannot find
+  its main window. No failure-time census establishes why. No Run/FPS. All owned
+  resources close cleanly in 194 seconds; pre/post driver health remains good.
+  Preparation retains 19 paired snapshots, all 716 selected host spans and
+  248352/249130 marker IDs; 778 lost to contention. See C230-report.
+- `tools/windows/3dmark-ui-step.ps1` replaces the immediate legacy selection
+  with a ten-second same-session window/foreground bound, optional launcher PID
+  pin and actual screenshot hash/size/time proof. Failure captures bounded window
+  diagnostics and a separate fresh image. Thirteen CPU grammar/structure checks
+  pass; native PowerShell/Win32 qualification remains pending.
 - `c8e8ea4d` retains early TSG SET0xa06c0103 requests and adds
   GET0xa06c0104. Both first-scheduling paths replay the latest accepted revision.
   Physical refusal/output and exact allocation lifetime are preserved. The
@@ -63,7 +74,8 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
 
 ## Continue
 
-1. Finish an admitted, bounded render timeline before another performance flag
+1. Qualify the bounded UI helper and exact launcher-PID handoff, then finish an
+   admitted, bounded render timeline before another performance flag
    trial. Preserve UI preset proof, fresh archive, four successful workload
    lifetimes, physical clocks, driver health and exact cleanup.
 2. Distinguish control occupancy from serial frame stalls. HEAD costs contain
