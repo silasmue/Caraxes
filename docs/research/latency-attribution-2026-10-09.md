@@ -265,8 +265,9 @@ records 206 successful physical SET calls and 244 successful guest SET requests.
 Build-time replay and repeated requests prevent one-to-one count comparison.
 Standard Fire Strike now qualifies in C262. GT1 is 18.486073 FPS and GT2 is
 29.838354; all four workload lifetimes exit 0 with clean driver health and exact
-owned teardown. C264 uses the same harness with the clock-only backend. Its
-matched comparison is required before attributing an FPS effect to TSG replay.
+owned teardown. C264's clock-only comparison aborts on a late armed review before
+Run. C270 is the next proposal with corrected preparation. A completed comparison
+is required before attributing an FPS effect to TSG replay.
 
 ## C262 render observation
 

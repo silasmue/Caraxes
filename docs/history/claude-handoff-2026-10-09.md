@@ -25,7 +25,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   GT1 is 18.486073 FPS, GT2 29.838354; graphics score 5250. All four workload
   lifetimes exit 0; driver ProblemCode and Display 4101 remain 0. Exact owned
   cleanup passes in 671 seconds. These are instrumented local results, with no
-  established speedup. C264 is the matched clock-only baseline now in progress.
+  established speedup. A completed clock-only baseline remains pending.
   The new helper, eight visual callbacks and native UTC trace check pass. The
   gate establishes 650–700 seconds remaining; the exact returned sample was not
   saved. Guest deadline minus Run receipt is 656.083 seconds, a separate derived
@@ -36,7 +36,26 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   time. All 16690 host spans are retained; 2282 globally missing marker IDs equal
   contention losses. Marker overwrite alone is not missing union coverage.
   Preserve `C262-report.json`, SHA256
-  `929300eea1ec088d3d7ffb30a5bdc1a1593d1395cf4ac4525d73799a4bfe8666`.
+  `db4e7af7fb9e78c06e3dd760df5b13e96e98ecdd67f8c1f4380a23bf7d5cf565`.
+- C264 stops before Run because its armed review takes 22.976 seconds, beyond
+  the 20-second gate. All eight callback waits total 162.094 seconds, versus
+  C262's 53.544. Reusing the image agent is a possible contributor, not a proven
+  cause. Trace stops cleanly; driver health and exact cleanup pass in 473 seconds.
+  No baseline FPS. The publisher incorrectly reports success for the late
+  callback; the controller rejects it. C270 is the correction with a
+  fresh reviewer, an explicit 30-second armed deadline enforced at publication
+  and consumption, and writer join/catalogue/paired-before work moved before
+  trace start. Native trace700/minimum650 and prep600 stay fixed. C268's offlock
+  proposal stays disabled because its C264 qualification prerequisite failed.
+- C270 is independently reviewed and root-frozen. Five CPU suites pass:
+  owner11/controller18+3+15/UI25+17/publication43+16/trace50. The additional
+  cases exercise actual late publication/consumption and link/file races;
+  native corrected preparation remains pending. Actual UID1000 verifies 26
+  runtime inputs, 42 external pins and three binaries. Runtime manifest SHA256:
+  `030b8df7b55c83ee34d11c154f76177bd7b48e8e145ba8da0598285894aebe5f`.
+  A fresh `ui_review_c270` is the sole reviewer. The watcher starts before the
+  owner; one clock-only run is now active. C272 is the next source-only offlock
+  variant, with both new workers pinned to existing CPU2 before READY.
 - C258 closes cleanly in 174 seconds before its first visual checkpoint. The
   screenshot helper rejects its owned-window check. The verified failure image
   shows a blank loading window with caption `...`; the old error records the
@@ -178,9 +197,9 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Continue
 
-1. Complete C264 with `ui_review_fast` as the sole PNG reviewer. Start the pinned watcher
+1. Complete C270 with fresh `ui_review_c270` as sole PNG reviewer. Start the pinned watcher
    before the owner; it launches one controller on fresh READY. Review the
-   current image and publish immediately, within 40 seconds or 20 seconds for
+   current image and publish immediately, within 40 seconds or 30 seconds for
    the armed page. Root performs other analyses and publishes no live callback.
    An actual settings-loading modal permits one five-second wait and a fresh
    settings-only recheck. Loaded values, Details return, the native UTC trace
@@ -204,8 +223,8 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    benchmark code was imported.
 4. Compare the hardware-qualified TSG replay correction with a
    clock-only backend using the same corrected UI flow, workload and host policy.
-   C264 is frozen and independently checked after C262 cleanup, with the same
-   harness and reviewer policy. Only its backend and three associated pins differ.
+   C264 closed without a baseline. C270 retains its clock-only backend and
+   rendering policy with the explicit preparation fixes above.
    C252/C256/C260 remain source-only predecessor proposals. C234,
    C238 and C242 remain launch-disabled.
    C248 is a source-only clock baseline with that correction; independent review

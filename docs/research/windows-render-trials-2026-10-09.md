@@ -93,12 +93,21 @@ native UI/trace flow. Backend SHA256:
   ProblemCode and Display 4101 stay 0; exact owned cleanup passes in 671 seconds.
 - Backend/VM policy is now nice10/SCHED_OTHER, with bounded marker captures.
   C220's nice0 policy and older source are not a matched comparator.
+- All 167 existing physical-clock samples succeed. The 51 samples at GPU
+  utilization of at least 80% report P0, graphics 1815–1860 MHz (median 1845),
+  memory 7000 MHz and median power 119.32 W. Maximum query-start gap is 2.877 s.
+  These device-wide samples include host work and do not identify exact scene
+  intervals or useful instruction issue. The card boosts in this diagnostic.
+  Private summary: `C262-physical-clocks-summary.json`.
 - The 282.166-second backend observation retains every selected host span.
   A612/A613 union occupancy is 39.236 seconds, with A613 median 3.478 ms. This
   includes launch/result handling and establishes neither GPU execution nor
   critical-path delay. Global marker contention loses 2282 sequence IDs.
-- No speedup is established. C264 is the matched clock-only comparison, using
-  identical UI, tracing, affinity, resource limits and host policy.
+- No speedup is established. C264's clock-only comparison stops before Run:
+  its armed callback takes 22.976 seconds, exceeding the 20-second gate. Driver
+  health and exact cleanup pass; there are no baseline FPS values. C270 is the
+  next clock-only proposal with an explicit preparation correction; render
+  settings, tracing, affinity, resource limits and host policy remain fixed.
 
 ## Next measurement
 
