@@ -121,6 +121,12 @@ device did while that client lived, including other clients' work.
 - A workload's profile is the dump after it minus the dump before it.
 - The trace is unchanged and independent.
 
+`CARAXES_PROFILE_HOST_TIMELINE=1` additionally retains up to 8,192 completed
+host A612/A613 ioctl intervals and writes `<prefix>.<tag>.host.tsv`. It needs
+`CARAXES_PROFILE=1`. The buffer is absent by default. Snapshots overlap;
+deduplicate by process instance and sequence, and collect both TSVs after the
+dump completes. See [timing scope and calibration](../research/idle-and-host-timeline-2026-10-09.md#exact-host-ioctl-timeline).
+
 ### 1.2 The tool
 
 `caraxes/tools/profile-rank.py DUMP [--base DUMP] [--scope device|clients|client:0x..]` ranks rows

@@ -51,3 +51,22 @@ keeping NVIDIA's original metric names and units. Missing or ambiguous unit
 definitions fail the analysis. JSON includes sample cadence, gaps, invalid-value
 counts, coverage and diagnostics. These counters cover the whole physical GPU;
 the summary does not attribute activity to a guest or subtract an idle baseline.
+
+## Linux idle CPU census
+
+`idle-census.py --seconds 60 --threads` reads guest CPU, process/thread and
+interrupt counters from `/proc`. On the host, restrict process rows with
+repeated `--pid` arguments using exact VM/backend PIDs from the owner harness.
+Redirect JSON to a fresh evidence file. It does not access the GPU or change
+services. Duration is bounded to 1–120 seconds; `100%` means one CPU.
+
+Compare headless idle before and after a verified GPU job with GNOME Wayland
+idle. Keep guest CPU separate from host reader spinning and steal time.
+See [the idle diagnostic plan](../../docs/research/idle-and-host-timeline-2026-10-09.md)
+for attribution limits and optional host ioctl timestamps.
+
+CPU-only accounting checks:
+
+```sh
+python3 -m unittest discover -s tools/graphics -p test_idle_census.py -v
+```

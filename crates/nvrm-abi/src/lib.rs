@@ -128,12 +128,28 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// `profile.rs`); unset, the cost per ioctl is one atomic load.
 pub type IoctlObserver = fn(nr: u32, key: u32, status: u32, dur: std::time::Duration);
 
-static IOCTL_OBSERVER: std::sync::OnceLock<IoctlObserver> = std::sync::OnceLock::new();
+/// Exact monotonic boundaries around the ioctl and its errno snapshot. The callback
+/// runs after these boundaries; callback and argument decoding time are excluded.
+pub type IoctlSpanObserver =
+    fn(nr: u32, key: u32, status: u32, begin: std::time::Instant, end: std::time::Instant);
+
+enum Observer {
+    Duration(IoctlObserver),
+    Span(IoctlSpanObserver),
+}
+
+static IOCTL_OBSERVER: std::sync::OnceLock<Observer> = std::sync::OnceLock::new();
 
 /// Install the process-wide ioctl observer. The first call wins; returns whether this one
 /// did.
 pub fn set_ioctl_observer(f: IoctlObserver) -> bool {
-    IOCTL_OBSERVER.set(f).is_ok()
+    IOCTL_OBSERVER.set(Observer::Duration(f)).is_ok()
+}
+
+/// Install timestamp observation instead of duration observation. Both installers
+/// share one slot: the first call wins. With neither installed, no clock is read.
+pub fn set_ioctl_span_observer(f: IoctlSpanObserver) -> bool {
+    IOCTL_OBSERVER.set(Observer::Span(f)).is_ok()
 }
 
 // Device FD
@@ -224,7 +240,10 @@ impl NvDevice {
             cmd as libc::Ioctl,
             arg as *mut T as *mut libc::c_void,
         );
-        if let (Some(f), Some(t0)) = (observer, t0) {
+        // Observer code may change errno. Preserve the syscall error before it runs.
+        let error = (r < 0).then(std::io::Error::last_os_error);
+        let t1 = t0.map(|_| std::time::Instant::now());
+        if let (Some(f), Some(t0), Some(t1)) = (observer, t0, t1) {
             // The key and the RM status from the caller's argument, which the safety
             // contract makes a valid `T` for `nr`: NVOS54 `cmd` and `status` for a
             // control, NVOS64 `hClass` and `status` for an allocation, NVOS00 `status`
@@ -249,13 +268,14 @@ impl NvDevice {
                 sys::NV_ESC_RM_FREE => (0, at(offset_of!(sys::NVOS00_PARAMETERS, status))),
                 _ => (0, 0),
             };
-            f(nr, key, if r < 0 { u32::MAX } else { status }, t0.elapsed());
+            let status = if r < 0 { u32::MAX } else { status };
+            match f {
+                Observer::Duration(f) => f(nr, key, status, t1.duration_since(t0)),
+                Observer::Span(f) => f(nr, key, status, t0, t1),
+            }
         }
-        if r < 0 {
-            return Err(Error::Ioctl {
-                nr,
-                source: std::io::Error::last_os_error(),
-            });
+        if let Some(source) = error {
+            return Err(Error::Ioctl { nr, source });
         }
         Ok(())
     }
@@ -397,5 +417,66 @@ mod ioc_tests {
             ioc_size(iowr::<nvgpu::IoctlRegisterFd>(nvgpu::NV_ESC_REGISTER_FD)),
             4
         );
+    }
+
+    /// Each installer is exercised in its own process, keeping the global observer
+    /// slot isolated from parallel tests. /dev/null requires no NVIDIA hardware.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn observer_cannot_replace_the_ioctl_errno() {
+        const MODE: &str = "NVRM_ABI_TEST_OBSERVER_ERRNO_MODE";
+        match std::env::var(MODE).as_deref() {
+            Ok("duration") => {
+                assert!(set_ioctl_observer(|_, _, status, _| {
+                    assert_eq!(status, u32::MAX);
+                    // SAFETY: errno is local to this thread.
+                    unsafe {
+                        *libc::__errno_location() = libc::EACCES;
+                    }
+                }));
+                assert!(!set_ioctl_span_observer(|_, _, _, _, _| {}));
+            }
+            Ok("span") => {
+                assert!(set_ioctl_span_observer(|_, _, status, begin, end| {
+                    assert_eq!(status, u32::MAX);
+                    assert!(end >= begin);
+                    // SAFETY: errno is local to this thread.
+                    unsafe {
+                        *libc::__errno_location() = libc::EACCES;
+                    }
+                }));
+                assert!(!set_ioctl_observer(|_, _, _, _| {}));
+            }
+            Err(_) => {
+                for mode in ["duration", "span"] {
+                    let output = std::process::Command::new(std::env::current_exe().unwrap())
+                        .args([
+                            "--exact",
+                            "ioc_tests::observer_cannot_replace_the_ioctl_errno",
+                        ])
+                        .env(MODE, mode)
+                        .output()
+                        .unwrap();
+                    assert!(
+                        output.status.success(),
+                        "stdout: {}\nstderr: {}",
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                    assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed;"));
+                }
+                return;
+            }
+            _ => panic!("unexpected observer test mode"),
+        }
+        let device = NvDevice::open("/dev/null").unwrap();
+        let mut argument = 0u32;
+        // SAFETY: an initialized u32 for a deliberately unsupported, pointer-free
+        // ioctl. /dev/null rejects it before inspecting the argument.
+        let error = unsafe { device.ioctl_raw(0x7f, &mut argument) }.unwrap_err();
+        match error {
+            Error::Ioctl { source, .. } => assert_eq!(source.raw_os_error(), Some(libc::ENOTTY)),
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }

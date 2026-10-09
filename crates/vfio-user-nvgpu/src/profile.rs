@@ -35,11 +35,15 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+mod host_timeline;
+
 /// The switch.
 pub const PROFILE_ENV: &str = "CARAXES_PROFILE";
 /// The dump prefix (default: `gpu-profile` beside the trace file, else in the working
 /// directory).
 pub const PROFILE_OUT_ENV: &str = "CARAXES_PROFILE_OUT";
+/// Retain selected host ioctl timestamps while the aggregate profile is enabled.
+pub const HOST_TIMELINE_ENV: &str = "CARAXES_PROFILE_HOST_TIMELINE";
 /// A gap between two trapped accesses longer than this is idle time, not the cost of the
 /// later access (rpc-cost.py `--idle-ms 2`).
 pub const IDLE_GAP: Duration = Duration::from_millis(2);
@@ -214,6 +218,7 @@ pub struct Profile {
     open: BTreeMap<u32, (u64, HashMap<Key, Cell>)>,
     closed: VecDeque<Lifetime>,
     dropped: u64,
+    host_timeline: Option<host_timeline::Timeline>,
 }
 
 impl Default for Profile {
@@ -232,6 +237,7 @@ impl Profile {
             open: BTreeMap::new(),
             closed: VecDeque::new(),
             dropped: 0,
+            host_timeline: None,
         }
     }
 
@@ -518,9 +524,21 @@ pub fn start(prefix: PathBuf) -> std::io::Result<()> {
             return Err(std::io::Error::other("pthread_sigmask(SIGUSR2)"));
         }
     }
-    *global() = Some(Profile::new());
+    let timeline = std::env::var(HOST_TIMELINE_ENV).is_ok_and(|v| v == "1");
+    let mut p = Profile::new();
+    if timeline {
+        p.host_timeline = Some(host_timeline::Timeline::new(host_timeline::CAPACITY));
+        if !nvrm_abi::set_ioctl_span_observer(host_ioctl_span) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                "host timeline requires the process-wide ioctl observer slot",
+            ));
+        }
+    } else {
+        nvrm_abi::set_ioctl_observer(host_ioctl);
+    }
+    *global() = Some(p);
     *OUT.lock().unwrap_or_else(PoisonError::into_inner) = Some(prefix);
-    nvrm_abi::set_ioctl_observer(host_ioctl);
     ON.store(true, Ordering::Relaxed);
     Ok(())
 }
@@ -577,14 +595,23 @@ pub fn dump(tag: &str, reason: &str) -> std::io::Result<PathBuf> {
         .clone()
         .ok_or_else(|| std::io::Error::other("profile off"))?;
     refresh_sources();
-    let text = match global().as_ref() {
-        Some(p) => p.tsv(reason, Instant::now()),
+    let (text, timeline) = match global().as_ref() {
+        Some(p) => (
+            p.tsv(reason, Instant::now()),
+            p.host_timeline.as_ref().map(|t| t.tsv(reason)),
+        ),
         None => return Err(std::io::Error::other("profile off")),
     };
     let path = PathBuf::from(format!("{}.{tag}.tsv", prefix.display()));
     let tmp = PathBuf::from(format!("{}.{tag}.tsv.tmp", prefix.display()));
     std::fs::write(&tmp, text)?;
     std::fs::rename(&tmp, &path)?;
+    if let Some(timeline) = timeline {
+        let timeline_path = PathBuf::from(format!("{}.{tag}.host.tsv", prefix.display()));
+        let timeline_tmp = PathBuf::from(format!("{}.{tag}.host.tsv.tmp", prefix.display()));
+        std::fs::write(&timeline_tmp, timeline)?;
+        std::fs::rename(&timeline_tmp, timeline_path)?;
+    }
     Ok(path)
 }
 
@@ -883,9 +910,110 @@ fn host_ioctl(nr: u32, key: u32, status: u32, dur: Duration) {
     record(Key::Host { nr, key }, dur, 0, Some(status), "");
 }
 
+fn host_ioctl_span(nr: u32, key: u32, status: u32, begin: Instant, end: Instant) {
+    if !on() {
+        return;
+    }
+    if let Some(p) = global().as_mut() {
+        p.record(
+            Key::Host { nr, key },
+            end.duration_since(begin),
+            0,
+            Some(status),
+            "",
+        );
+        if let Some(t) = &mut p.host_timeline {
+            t.record(nr, key, status, begin, end);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_timeline_opt_in_dump_and_observer_conflict() {
+        const MODE: &str = "NVRM_PROFILE_TEST_HOST_TIMELINE_MODE";
+        let mode = match std::env::var(MODE) {
+            Ok(mode) => mode,
+            Err(_) => {
+                // The observer and profile are process-wide. Each case gets fresh globals.
+                for mode in ["normal", "timeline", "conflict"] {
+                    let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+                    child
+                        .args([
+                            "--exact",
+                            "profile::tests::host_timeline_opt_in_dump_and_observer_conflict",
+                        ])
+                        .env(MODE, mode)
+                        .env_remove(HOST_TIMELINE_ENV);
+                    if mode != "normal" {
+                        child.env(HOST_TIMELINE_ENV, "1");
+                    }
+                    let output = child.output().unwrap();
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    assert!(
+                        output.status.success() && stdout.contains("1 passed;"),
+                        "{mode}: stdout: {stdout}\nstderr: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                }
+                return;
+            }
+        };
+        let root = std::env::temp_dir().join(format!(
+            "nvgpu-host-timeline-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let prefix = root.join("profile");
+        if mode == "conflict" {
+            assert!(nvrm_abi::set_ioctl_observer(|_, _, _, _| {}));
+            assert_eq!(
+                start(prefix).unwrap_err().kind(),
+                std::io::ErrorKind::AlreadyExists
+            );
+            assert!(!on());
+            assert!(global().is_none());
+        } else {
+            assert!(mode == "normal" || mode == "timeline");
+            start(prefix.clone()).unwrap();
+            let device = nvrm_abi::NvDevice::open("/dev/null").unwrap();
+            for cmd in [0x2080_a612, 0x2080_a613, 0x2080_0101] {
+                let mut params = nvrm_abi::sys::NVOS54_PARAMETERS::default();
+                params.cmd = cmd;
+                // SAFETY: initialized control parameters. /dev/null rejects the ioctl;
+                // no NVIDIA device, argument pointers or privileged operation is used.
+                assert!(
+                    unsafe { device.ioctl_raw(nvrm_abi::sys::NV_ESC_RM_CONTROL, &mut params) }.is_err()
+                );
+            }
+            {
+                let guard = global();
+                let profile = guard.as_ref().unwrap();
+                for cmd in [0x2080_a612, 0x2080_a613, 0x2080_0101] {
+                    let cell = &profile.rows[&Key::Host { nr: 0x2a, key: cmd }];
+                    assert_eq!(cell.count, 1);
+                    assert_eq!(cell.status, [(u32::MAX, 1)]);
+                }
+                assert_eq!(profile.host_timeline.is_some(), mode == "timeline");
+            }
+            assert!(dump("one", "CPU-only test").unwrap().is_file());
+            let path = PathBuf::from(format!("{}.one.host.tsv", prefix.display()));
+            assert_eq!(path.exists(), mode == "timeline");
+            if mode == "timeline" {
+                let text = std::fs::read_to_string(path).unwrap();
+                assert!(text.contains("seen=2 retained=2 dropped=0 invalid=0"));
+                assert_eq!(text.lines().filter(|l| !l.starts_with('#')).count(), 3);
+            }
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     fn ms(n: u64) -> Duration {
         Duration::from_millis(n)
