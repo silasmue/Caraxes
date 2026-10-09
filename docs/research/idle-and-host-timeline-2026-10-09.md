@@ -13,6 +13,9 @@ CPU. It did expose persistent NVIDIA interrupts after a verified GPU job.
 The tested backend was the pinned C209 baseline, not the new diagnostic build.
 The ioctl error fix and diagnostics make no FPS or idle CPU improvement claim.
 See the [hardware results](idle-hardware-2026-10-09.md) for evidence and limits.
+The corrected source subsequently booted Windows and verified three D3D11
+readbacks. Settled Windows CPU remained at 5.16% across four vCPUs; no causal
+improvement claim follows. See the [Windows diagnostic](idle-windows-2026-10-09.md).
 
 ## Source findings
 
