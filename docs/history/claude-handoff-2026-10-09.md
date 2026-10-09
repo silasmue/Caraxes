@@ -21,16 +21,31 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Verified state
 
-- C310/C312 are frozen, independently reviewed and admitted for one new Windows
-  counter pilot. All nine CPU suites, 97 pin hashes, 102 current UID1000 proof
+- C310/C312 close after fresh native mapping succeeds but capture admission
+  rejects the ICF executable signature before Nsight Popen. The exact signature
+  status/path/signer reply is lost: the collector writes it only after validation
+  and discards stderr. Do not infer unsigned payload or certificate-chain failure.
+  No capture/export/archive/FPS qualifies. Eight fresh PNG reviews pass; cleanup
+  completes in 554.812 seconds without errors and driver health passes. All owned
+  processes/TAP are gone and NVIDIA stays host-bound. `C310-report.json` SHA256
+  `24d9bca0ac0c546f21b1f42e32bd4d5cb31f1faa44d3bdd27bda36d8f8acbc41`;
+  root independently verifies its 41 evidence hashes. Next: short fixed-path
+  installed-file signature/hash diagnostic with no UI/Run/native capture.
+  All nine CPU suites, 97 pin hashes, 102 current UID1000 proof
   rows and 32 frozen file modes pass. Final review `C310-final-runtime-review.json`
   has SHA256 `66b63826f820fc5acfe1dae440cc74557fed3d0533b0a0871a44817ed36cda55`.
   Parent SHA256 `71e57f76455b90b97c74dfff706a906db6d2ac56d9e4e3af55dc2c19fef0776f`;
   child `991cd41f56888f3ef40dd69454c97146f0fbfb66fd940ff99816d14241b60287`.
   Reviewer READY precedes explicit GO; watcher precedes the single owner.
-  Admission RAM is 18.559 GiB; root/vmstore free 22.505/130.906 GiB. C231/C215,
-  policies and bounds remain unchanged. At this checkpoint Windows is starting;
-  fresh mapping/capture/export/results remain unqualified. No automatic retry.
+  Admission RAM is 18.559 GiB; minimum RAM/root free 8.551/22.156 GiB. C231/C215,
+  policies and bounds remain unchanged. No automatic retry. Exact query/predicate
+  and missing-reply evidence: `C310-signed-presence-source-evidence.json`.
+  Offline compression check: C272/C296/C302/C310 pin `slice`; C272 reports
+  4 GiB covered with maps enabled. Direct host PTE audit is unavailable and
+  retains zero samples. No explicit downgrade/error rows establish fallback;
+  small/unaligned/sysmem/uncovered leaves can downgrade in `kind_use`. Do not
+  claim a compression bottleneck. See `C310-compression-offline-review.json`
+  and the latency-attribution note for exact source/log hashes and limits.
 - C302/C304 close cleanly after the mapping parser rejects native Nsight help's
   leading tabs. Both native enumeration commands exit 0 and identify the target
   RTX 2070. One Fire Strike child starts, without a paired exit before trace

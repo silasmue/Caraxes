@@ -364,8 +364,30 @@ pass. The incomplete workload yields no FPS or GPU counters. Root verifies all
 29 evidence hashes in `C302-report.json`. The canonical pure parser in
 `tools/graphics/nsys-device-map.py` accepts one leading help tab or four spaces,
 while preserving bounded input, control rejection and the complete BDF/UUID join.
-Twelve CPU tests and unchanged captured-output regression pass. A fresh C310/C312
-pilot still needs new mapping evidence; historical output cannot attest it.
+Twelve CPU tests and unchanged captured-output regression pass. Historical
+output cannot attest a future device mapping.
+
+C310/C312 subsequently qualifies fresh Nsight-help/inventory mapping for the
+target PCI BDF/UUID and namespace index 0. Capture admission then rejects
+`3DMarkICFWorkload.exe`'s signature before Popen. The query's precise status,
+path and signer are not retained: `guest_observation` writes the reply only
+after validation and discards stderr. No unsigned-payload or certificate-chain
+conclusion is supported. All eight fresh visual reviews, driver health and
+exact cleanup pass; no capture/export/archive/FPS qualifies. Root verifies the
+41 evidence hashes in `C310-report.json`. Preserve failed bounded query replies
+before validation; use a short fixed-path installed-file signature/hash query
+before another full benchmark. Keep host process isolation and freshness checks.
+
+Compression activation is present: C272/C296/C302/C310 all pin
+`CARAXES_COMPRESSION=slice`. C272's preserved log reports 4 GiB covered and
+compressible maps enabled, but the host PTE audit is unavailable (test-only
+control refused with 0x7e); all 81 VAS summaries retain zero samples. There are
+no explicit downgrade/error rows. This does not prove every effective PTE kind
+or exclude fallback. `compslice.rs::kind_use` downgrades compressed kinds on
+small, unaligned, sysmem or uncovered leaves. Missing activation is therefore
+not an explanation for these cases; effective surface compression still needs
+measurement. Private evidence: `C310-compression-offline-review.json`, SHA256
+`6b2ec16939e597a0841cbf9f50e9d225c044df54780eaf6c5b02730c29bcac00`.
 
 A613 is the opaque GSS legacy PMGR 0x13 control, with a 79936-byte buffer on
 the current 610 ABI (`ver/v610.rs`, `nvml.rs`). Eligible requests forward their

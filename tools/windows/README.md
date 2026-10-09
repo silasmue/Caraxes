@@ -32,6 +32,7 @@ C# 5) and run as SYSTEM or in the signed-in session through the owned test runne
 | `cuda-loop.ps1` | cuda-probe.ps1 round after round for `-Minutes` (the soak's CUDA load) |
 | `dxgk-etw.ps1` | `-Action start` a DxgKrnl ETW session (all keywords) into C:\etw\dxgk.etl, `-Action stop` it and summarise the events (names by count, TDR/timeout/reset events) from tracerpt's CSV |
 | `process-trace.ps1` | WMI process starts, stops and unsigned exit status; exit-37 self-test before readiness; bounded recording with a stop file |
+| `firestrike-file-identity.ps1` | Fixed installed Fire Strike x64 path, two SHA256 reads, stable file metadata/version and exact Authenticode details; refuses live ICF workloads; starts no benchmark |
 | `validate-firestrike-diagnostic.py` | Host-side qualification of an owned, instrumented Fire Strike packet: fresh archive, four successful process lifetimes, matching preset and driver health |
 | `display-mode.ps1` | the modes EnumDisplaySettings lists, a change to `-Width`x`-Height` and back (signed-in user's session) |
 | `steam-3dmark.ps1` | `-Install` Steam silently, `-Prefer` NVIDIA GPU for 3DMark, `-Collect` result scores |
@@ -69,6 +70,10 @@ An existing current-session process is reused. SYSTEM/session 0, a missing
 Steam executable and a Steam error window fail explicitly.
 
 ## Process exit tracing
+
+`firestrike-file-identity.ps1` emits bounded JSON for an owned read-only query.
+Its signature status is evidence, including non-Valid results; it does not approve
+a payload. Use an external timeout and retain stdout/stderr before validation.
 
 Run `process-trace.ps1` as LocalSystem in a dedicated PowerShell 5.1 process during
 an owned diagnostic session. Use a fresh output directory and allow the task
