@@ -5,7 +5,8 @@
 `vk-unit-timing` is an original, headless TU106/NVIDIA Vulkan diagnostic. Build
 it with `build.sh /absolute/output/vk-unit-timing`; the script embeds both
 locally compiled SPIR-V shaders in the executable. `--self-test` runs only CPU
-arithmetic and timestamp-wrap checks. No Vulkan API is called by that mode.
+arithmetic, timestamp-wrap and calibration-capability checks. No Vulkan API is
+called by that mode.
 
 Examples for an owner-controlled native/guest harness:
 
@@ -25,6 +26,14 @@ samples separate and reports CPU submit, fence wait, query retrieval, GPU ticks
 and elapsed time. Upload, preconditioning and complete output readback happen
 outside the measured command buffer. Every word is checked against a CPU
 reference. Exit status 0 requires all samples and exact verification.
+
+Add `--calibrate` to record CPU endpoints and raw CPU/GPU clock pairs before and
+after each sample. It requires `VK_KHR_calibrated_timestamps` or the EXT fallback,
+with both DEVICE and Linux CLOCK_MONOTONIC domains. Each pair includes API-call
+brackets and `max_deviation_ns`. Calibration is off by default and fails explicitly
+when unsupported. Assess uncertainty, drift, timestamp wrap and calibration age
+before correlating endpoints. Guest CLOCK_MONOTONIC still needs a separate mapping
+to the host backend clock; these rows do not establish a latency split.
 
 Per-job wall/GPU time must stay under one second; fences have a ten-second
 failure bound. A 120-second maximum alarm and internal deadline bound the

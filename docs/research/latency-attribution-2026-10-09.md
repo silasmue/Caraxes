@@ -56,11 +56,54 @@ One-second buckets show control occupancy and event counts. Doorbell interarriva
 gaps are grouped by channel incarnation; they are not queue latency. No nearest
 event matching invents a dispatch/completion relationship.
 
+## Hardware check
+
+The immutable marker build uses source `b73a1da7`, backend SHA256
+`a91fc1efa94e339facf0886e90cd7aa58b60b441892e84010634a5502ee1e7ac`.
+It passes 1001 library tests, with two existing tests ignored, and six analyzer
+checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
+
+- C223 fails preflight before backend/VMM launch because the new artifact lacks
+  the launcher's `SHA256SUMS`. The fresh C224 packet pins that file and records
+  TAP identity after link-up, allowing early-failure cleanup after MAC assignment.
+- C224 reaches its preparation deadline and exits cleanly before any benchmark.
+- C225's first SIGUSR2 dump proves both streams share the exact anchor. It retains
+  32330 markers without overflow, contention, poison or invalid rows, plus two
+  completed host calls. Ring storage is 8 MiB markers and 1.5 MiB host spans.
+  This 62.768-second startup snapshot precedes the D3D smoke and render setup.
+- C225 later aborts at the 6 GiB RAM floor, before Run or trace arming. Owned VM,
+  backend, TPM and TAP are gone; the physical GPU remains NVIDIA-bound. Floppy
+  priority and resource limits remain unchanged. No FPS comparison follows.
+
+Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
+and `C225-runtime/results/partial-backend-timeline-report.json`. There is no
+complete render timeline or demonstrated improvement from this build yet.
+
+## Calibrated probe
+
+`vk-unit-timing --calibrate` now records raw DEVICE/CLOCK_MONOTONIC pairs before
+and after each sample, calibration call brackets, `max_deviation_ns`, and absolute
+CPU endpoints. It prefers KHR with an EXT fallback and requires both exact time
+domains. Default-off output stays compatible. CPU checks cover capability
+selection and reject CLOCK_MONOTONIC_RAW as a substitute for the probe's clock.
+
+A native RTX 2070 pilot passes complete verification of 65536 words, with no
+mismatches. KHR calibration works; reported deviations are 2048–2080 ns. Both
+measured GPU intervals are about 210 µs, and their endpoints lie between the raw
+calibration pairs. The build passes `-Wall -Wextra -Werror` and CPU self-tests.
+
+This is a capability and ordering check, not a new native performance baseline.
+CPU15/SCHED_IDLE/nice19 preserves Floppy priority and can delay CPU observation
+of completed work. No matching guest run exists yet. Pair-derived offsets do not
+bound drift between calls; retain that uncertainty before assigning a delay.
+Evidence: `vulkan-calibration/cpu-validation.json` and
+`vulkan-calibration/native-pilot/audit.json` under the private artifact directory.
+
 ## Measuring the missing boundaries
 
 1. **GPU execution and guest completion:** keep the original verified Vulkan and
-   D3D probes. Compare the same work at comparable physical clocks. Add optional
-   calibrated timestamps to locate GPU endpoints within each guest sample.
+   D3D probes. Compare the same work at comparable physical clocks. Run the new
+   optional calibration in the guest to locate GPU endpoints within each sample.
    Vulkan requires supported device/host time domains and records `maxDeviation`;
    decline finer attribution when uncertainty approaches the delay. Guest clock
    calibration still needs a bounded guest-to-host mapping to join backend events.

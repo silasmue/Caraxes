@@ -23,7 +23,10 @@ struct options {
     int stream;
     uint32_t mib, iterations, samples, warmup, seconds;
     int mib_given, iterations_given;
+    int calibrate;
 };
+
+enum calibration_api { CALIBRATION_NONE, CALIBRATION_KHR, CALIBRATION_EXT };
 
 struct gpu {
     VkInstance instance;
@@ -48,6 +51,8 @@ struct gpu {
     VkFence timed_fence;
     VkDeviceSize bytes;
     uint64_t allocation_bytes;
+    const char *calibration_extension;
+    PFN_vkGetCalibratedTimestampsKHR calibrated_timestamps;
 };
 
 struct params { uint32_t count, iterations; };
@@ -91,9 +96,10 @@ static uint32_t parse_u32(const char *text, uint32_t min, uint32_t max)
 static void usage(void)
 {
     puts("usage: vk-unit-timing --mode alu|stream [--iterations 32|256|1024]"
-         " [--mib 16|64] [--samples 1..32] [--warmup 1..16] [--seconds 1..120]\n"
+         " [--mib 16|64] [--samples 1..32] [--warmup 1..16] [--seconds 1..120] [--calibrate]\n"
          "ALU uses 65536 u32 elements; stream uses two device-local buffers of --mib each.\n"
          "Defaults: alu, iterations=256, mib=16, samples=7, warmup=2, seconds=120.\n"
+         "--calibrate requires DEVICE and Linux CLOCK_MONOTONIC calibration domains; emits raw pairs.\n"
          "--self-test is CPU-only. Output is JSONL. Exit 0=PASS, 1=validation/budget,"
          " 2=setup, 3=timeout/device lost.");
 }
@@ -123,6 +129,8 @@ static struct options parse(int argc, char **argv)
             o.warmup = parse_u32(argv[++i], 1, 16);
         } else if (!strcmp(argv[i], "--seconds") && i + 1 < argc) {
             o.seconds = parse_u32(argv[++i], 1, 120);
+        } else if (!strcmp(argv[i], "--calibrate")) {
+            o.calibrate = 1;
         } else {
             usage();
             failure(2, "unrecognized or incomplete argument");
@@ -156,6 +164,30 @@ static uint64_t timestamp_delta(uint64_t start, uint64_t end, uint32_t bits)
     return bits == 64 ? end - start : (end - start) & ((UINT64_C(1) << bits) - 1);
 }
 
+static enum calibration_api calibration_extension(const VkExtensionProperties *extensions,
+                                                  uint32_t count)
+{
+    int ext = 0;
+    for (uint32_t i = 0; i < count; i++) {
+        if (!strcmp(extensions[i].extensionName, VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME))
+            return CALIBRATION_KHR;
+        if (!strcmp(extensions[i].extensionName, VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME))
+            ext = 1;
+    }
+    return ext ? CALIBRATION_EXT : CALIBRATION_NONE;
+}
+
+static int calibration_domains(const VkTimeDomainKHR *domains, uint32_t count)
+{
+    int device = 0, monotonic = 0;
+    for (uint32_t i = 0; i < count; i++) {
+        device |= domains[i] == VK_TIME_DOMAIN_DEVICE_KHR;
+        monotonic |= domains[i] == VK_TIME_DOMAIN_CLOCK_MONOTONIC_KHR;
+    }
+    // CLOCK_MONOTONIC_RAW cannot be joined to the now_ns() clock.
+    return device && monotonic;
+}
+
 static int self_test(void)
 {
     struct options alu = {.stream = 0, .iterations = 32};
@@ -166,6 +198,19 @@ static int self_test(void)
     ok &= expected(17, &alu) == UINT32_C(0x96f5a893);
     ok &= timestamp_delta(250, 5, 8) == 11;
     ok &= timestamp_delta(UINT64_MAX - 3, 2, 64) == 6;
+    VkExtensionProperties extensions[2] = {
+        {.extensionName = VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME},
+        {.extensionName = VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME},
+    };
+    ok &= calibration_extension(extensions, 0) == CALIBRATION_NONE;
+    ok &= calibration_extension(extensions, 1) == CALIBRATION_EXT;
+    ok &= calibration_extension(extensions, 2) == CALIBRATION_KHR;
+    VkTimeDomainKHR domains[3] = {VK_TIME_DOMAIN_DEVICE_KHR,
+        VK_TIME_DOMAIN_CLOCK_MONOTONIC_RAW_KHR, VK_TIME_DOMAIN_CLOCK_MONOTONIC_KHR};
+    ok &= !calibration_domains(domains, 1);
+    ok &= !calibration_domains(domains, 2);
+    ok &= calibration_domains(domains, 3);
+    ok &= !calibration_domains(domains + 2, 1);
     printf("{\"type\":\"self_test\",\"pass\":%s}\n", ok ? "true" : "false");
     return ok ? 0 : 1;
 }
@@ -203,6 +248,35 @@ static void create_buffer(struct gpu *g, VkDeviceSize bytes, VkBufferUsageFlags 
         .allocationSize = req.size, .memoryTypeIndex = *selected_type};
     VK(vkAllocateMemory(g->device, &ai, NULL, memory));
     VK(vkBindBufferMemory(g->device, *buffer, *memory, 0));
+}
+
+static enum calibration_api prepare_calibration(struct gpu *g)
+{
+    uint32_t count = 0;
+    VK(vkEnumerateDeviceExtensionProperties(g->physical, NULL, &count, NULL));
+    if (!count || count > 1024) failure(2, "unexpected device-extension count");
+    VkExtensionProperties *extensions = calloc(count, sizeof(*extensions));
+    if (!extensions) failure(2, "device-extension storage unavailable");
+    VK(vkEnumerateDeviceExtensionProperties(g->physical, NULL, &count, extensions));
+    enum calibration_api api = calibration_extension(extensions, count);
+    free(extensions);
+    if (api == CALIBRATION_NONE) failure(2, "requested calibrated timestamps extension absent");
+    g->calibration_extension = api == CALIBRATION_KHR
+        ? VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME : VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME;
+    // KHR and EXT use compatible aliased structures, domains and signatures.
+    const char *name = api == CALIBRATION_KHR
+        ? "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR" : "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT";
+    PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR get_domains =
+        (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR)vkGetInstanceProcAddr(g->instance, name);
+    if (!get_domains) failure(2, "calibratable-domain function unavailable");
+    count = 0;
+    VK(get_domains(g->physical, &count, NULL));
+    if (!count || count > 32) failure(2, "unexpected calibration-domain count");
+    VkTimeDomainKHR domains[32];
+    VK(get_domains(g->physical, &count, domains));
+    if (!calibration_domains(domains, count))
+        failure(2, "DEVICE and CLOCK_MONOTONIC calibration domains required");
+    return api;
 }
 
 static void create_gpu(struct gpu *g, const struct options *o)
@@ -270,7 +344,20 @@ static void create_gpu(struct gpu *g, const struct options *o)
         .queueFamilyIndex = g->family, .queueCount = 1, .pQueuePriorities = &priority};
     VkDeviceCreateInfo di = {.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount = 1, .pQueueCreateInfos = &qi};
+    enum calibration_api calibration = CALIBRATION_NONE;
+    if (o->calibrate) {
+        calibration = prepare_calibration(g);
+        di.enabledExtensionCount = 1;
+        di.ppEnabledExtensionNames = &g->calibration_extension;
+    }
     VK(vkCreateDevice(g->physical, &di, NULL, &g->device));
+    if (o->calibrate) {
+        const char *name = calibration == CALIBRATION_KHR
+            ? "vkGetCalibratedTimestampsKHR" : "vkGetCalibratedTimestampsEXT";
+        g->calibrated_timestamps =
+            (PFN_vkGetCalibratedTimestampsKHR)vkGetDeviceProcAddr(g->device, name);
+        if (!g->calibrated_timestamps) failure(2, "calibrated-timestamps function unavailable");
+    }
     vkGetDeviceQueue(g->device, g->family, 0, &g->queue);
     VkCommandPoolCreateInfo ci = {.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .queueFamilyIndex = g->family};
@@ -363,6 +450,13 @@ static void create_gpu(struct gpu *g, const struct options *o)
            (g->memory.memoryTypes[g->stage_type].propertyFlags &
             VK_MEMORY_PROPERTY_HOST_CACHED_BIT) ? "true" : "false",
            o->samples, o->warmup, o->seconds);
+    if (o->calibrate)
+        printf("{\"type\":\"calibration_meta\",\"extension\":\"%s\","
+               "\"device_domain\":\"DEVICE\",\"host_domain\":\"CLOCK_MONOTONIC\","
+               "\"host_unit\":\"ns\",\"device_unit\":\"ticks\",\"max_deviation_unit\":\"ns\","
+               "\"scope\":\"before_and_after_each_sample_batch\","
+               "\"limits\":\"Raw pairs only: assess deviation, drift, timestamp wrap and calibration age before correlation; guest CLOCK_MONOTONIC is not the host backend clock; no latency split inferred\"}\n",
+               g->calibration_extension);
 }
 
 static VkCommandBuffer begin_commands(struct gpu *g)
@@ -482,6 +576,41 @@ static void prepare_timed(struct gpu *g, const struct options *o)
            (now_ns() - begin) / 1000.0);
 }
 
+struct calibration_pair {
+    uint64_t call_begin_ns, call_end_ns;
+    uint64_t device_ticks, host_ns, max_deviation_ns;
+};
+
+static struct calibration_pair capture_calibration(struct gpu *g, uint64_t deadline)
+{
+    VkCalibratedTimestampInfoKHR info[2] = {
+        {.sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_KHR,
+         .timeDomain = VK_TIME_DOMAIN_DEVICE_KHR},
+        {.sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_KHR,
+         .timeDomain = VK_TIME_DOMAIN_CLOCK_MONOTONIC_KHR},
+    };
+    uint64_t values[2] = {0};
+    struct calibration_pair pair = {.call_begin_ns = now_ns()};
+    if (pair.call_begin_ns >= deadline) failure(1, "wall budget exhausted before calibration");
+    VK(g->calibrated_timestamps(g->device, 2, info, values, &pair.max_deviation_ns));
+    pair.call_end_ns = now_ns();
+    if (pair.call_end_ns >= deadline) failure(1, "wall budget exhausted during calibration");
+    pair.device_ticks = values[0];
+    pair.host_ns = values[1];
+    return pair;
+}
+
+static void emit_calibration(const struct calibration_pair *pair, const char *phase,
+                             uint32_t index, const char *side)
+{
+    printf("{\"type\":\"calibration\",\"phase\":\"%s\",\"index\":%u,\"side\":\"%s\","
+           "\"cpu_call_begin_ns\":%" PRIu64 ",\"cpu_call_end_ns\":%" PRIu64 ","
+           "\"device_ticks\":%" PRIu64 ",\"host_monotonic_ns\":%" PRIu64 ","
+           "\"max_deviation_ns\":%" PRIu64 "}\n",
+           phase, index, side, pair->call_begin_ns, pair->call_end_ns,
+           pair->device_ticks, pair->host_ns, pair->max_deviation_ns);
+}
+
 static int measured_batch(struct gpu *g, const struct options *o, uint64_t deadline)
 {
     VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -489,7 +618,11 @@ static int measured_batch(struct gpu *g, const struct options *o, uint64_t deadl
     for (uint32_t i = 0; i < o->warmup + o->samples; i++) {
         if (now_ns() >= deadline) failure(1, "global wall budget exhausted");
         VK(vkResetFences(g->device, 1, &g->timed_fence));
+        struct calibration_pair before = {0}, after = {0};
+        if (o->calibrate) before = capture_calibration(g, deadline);
         uint64_t begin = now_ns();
+        if (o->calibrate && begin >= deadline)
+            failure(1, "wall budget exhausted before calibrated submission");
         VK(vkQueueSubmit(g->queue, 1, &si, g->timed_fence));
         uint64_t submitted = now_ns();
         if (submitted >= deadline) failure(1, "global wall budget exhausted during submit");
@@ -503,6 +636,7 @@ static int measured_batch(struct gpu *g, const struct options *o, uint64_t deadl
                                  VK_QUERY_RESULT_64_BIT |
                                  VK_QUERY_RESULT_WITH_AVAILABILITY_BIT));
         uint64_t queried = now_ns();
+        if (o->calibrate) after = capture_calibration(g, deadline);
         if (!q[0][1] || !q[1][1]) failure(1, "timestamp unavailable after fence");
         long double wrap_ns = ldexpl((long double)g->properties.limits.timestampPeriod,
                                      (int)g->timestamp_bits);
@@ -513,16 +647,26 @@ static int measured_batch(struct gpu *g, const struct options *o, uint64_t deadl
         double gpu_us = ticks * (double)g->properties.limits.timestampPeriod / 1000.0;
         if (finished - begin >= UINT64_C(1000000000) || gpu_us >= 1000000.0)
             failure(1, "one probe job exceeded 1 second");
+        const char *phase = i < o->warmup ? "warmup" : "measured";
+        uint32_t index = i < o->warmup ? i : i - o->warmup;
+        if (o->calibrate) {
+            emit_calibration(&before, phase, index, "before");
+            emit_calibration(&after, phase, index, "after");
+        }
         printf("{\"type\":\"sample\",\"phase\":\"%s\",\"index\":%u,"
                "\"cpu_submit_us\":%.3f,\"cpu_fence_wait_us\":%.3f,"
                "\"cpu_submit_wait_us\":%.3f,\"cpu_query_us\":%.3f,"
                "\"gpu_us\":%.3f,\"gpu_ticks\":%" PRIu64 ","
-               "\"gpu_start_ticks\":%" PRIu64 ",\"gpu_end_ticks\":%" PRIu64 "}\n",
-               i < o->warmup ? "warmup" : "measured",
-               i < o->warmup ? i : i - o->warmup,
+               "\"gpu_start_ticks\":%" PRIu64 ",\"gpu_end_ticks\":%" PRIu64,
+               phase, index,
                (submitted - begin) / 1000.0, (finished - submitted) / 1000.0,
                (finished - begin) / 1000.0, (queried - finished) / 1000.0,
                gpu_us, ticks, q[0][0], q[1][0]);
+        if (o->calibrate)
+            printf(",\"cpu_begin_ns\":%" PRIu64 ",\"cpu_submitted_ns\":%" PRIu64 ","
+                   "\"cpu_fence_finished_ns\":%" PRIu64 ",\"cpu_query_done_ns\":%" PRIu64,
+                   begin, submitted, finished, queried);
+        puts("}");
     }
     return 1;
 }
