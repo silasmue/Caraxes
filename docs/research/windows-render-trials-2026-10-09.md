@@ -170,20 +170,45 @@ C270 completes the clock-only comparison with corrected preparation:
   `079f77e13ce8d9c699d592cdc5e30f70cdf5ecb28644ca85dcf16ab1686b2d0c`
   and `10d2139d3eca821699f7b6cb49f3c4d5a7258e86a53a0184c551f11b4394973c`.
 
+## C284: counter pilot, preparation only
+
+- The armed visual review misses its 30-second deadline; Run is never requested.
+  No mapping, GPU counter capture, export, result archive or FPS is produced.
+- Six earlier reviews pass, consuming 141.598 seconds in total. Controller
+  preparation takes 412.570 seconds. These timings concern test preparation,
+  not rendering latency.
+- Native trace self-test and clean stop pass. Exact cleanup closes in 494.139
+  seconds with no owner errors and NVIDIA bound. Minimum RAM is 6.868 GiB,
+  above the 6 GiB floor; minimum vmstore free space is 133.501 GiB.
+- Preserve `C284-report.json`, SHA256
+  `7cbefcb94c76d3f4813341e7a7aefa57c5d2598f3594c65ca770f8a6405929fc`.
+  Its 19 evidence hashes independently match. No automatic retry.
+
 ## Next measurement
 
 Keep C272 as the last fully qualified baseline. Investigate C278's startup
 failure from existing evidence before another transport comparison. A separate
 counter pilot uses C282's bounded BDF/UUID parser and C292's gated
-tool lifecycle pass independent CPU checks; native output is unqualified.
+tool lifecycle; both pass independent CPU checks. Native output is unqualified.
 C284 adds a dedicated coordinator and export before teardown. Initialization
 cancellation, integer trigger timing and explicit descendant cleanup are now
 corrected in source; 26 new CPU cases pass independently. Frozen bindings and
-actual UID1000 input proof now pass. C284's watcher starts before the single
-owned VM; admission has started with `ui_review_c278` as current-case sole PNG
-reviewer. Native mapping, ten-second capture and post-render export are pending.
-This diagnostic remains excluded from FPS comparisons.
+actual UID1000 input proof pass. C284 closes before Run after its armed review
+times out. Native mapping, ten-second capture and post-render export never start.
+The pilot remains unqualified.
 Defaults remain unchanged until qualified evidence supports a change.
+
+Prepare a matched run with backend profiling and host timeline disabled. The
+current observer requests repeated snapshots; formatting holds shared profiler
+and marker locks. Remove all snapshot requests, including the owner's post-health
+SIGUSR2, because the signal can terminate an unprofiled backend. Retain workload,
+trace, clocks, worker placement, UI checks, resource bounds and exact cleanup.
+This comparison has not run; no instrumentation cost or speedup is established.
+The validator's explicit `--no-host-profile` mode requires both saved and
+declared profile/timeline flags to be 0 with no output prefix. Five CPU fixture
+tests and offline requalification of C272 pass; all other result gates remain.
+Clock/query cadence may increase when dumps are removed. Guest trace, physical
+clock queries and CH write profiling remain enabled.
 
 Retain the baseline pool and polling settings with the bounded backend markers.
 Record physical doorbell writes, host notifier observations and local cause

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Qualify one instrumented local Fire Strike packet; never print private XML or command lines.
+"""Qualify one local Fire Strike diagnostic; never print private XML or command lines.
 
 validate(case_runtime_dir) is read-only. CLI requires a create-only --output path.
+Backend profiling is required unless --no-host-profile is explicitly selected.
 XML helpers/configuration derive from project validate-firestrike-monitor-on-C187.py.
 """
 import argparse
@@ -187,7 +188,7 @@ def lifetimes(rows):
     return paired
 
 
-def validate(case_runtime_dir):
+def validate(case_runtime_dir, *, no_host_profile=False):
     """Read saved evidence and return a curated diagnostic report, without writes."""
     runtime = Path(case_runtime_dir)
     result_dir = runtime / 'results'
@@ -209,7 +210,14 @@ def validate(case_runtime_dir):
     require(start.get('hypervisor') == 'cloud-hypervisor' and env.get('WIN_HOST_MODE') == 'exec', 'not a host-backed virtual GPU diagnostic')
     expected_env = manifest.get('env_extra')
     require(isinstance(expected_env, dict) and all(env.get(key) == value for key, value in expected_env.items()), 'saved runtime flags differ from manifest')
-    require(env.get('CARAXES_PROFILE') == '1' and expected_env.get('CARAXES_PROFILE') == '1', 'diagnostic profiling not established')
+    if no_host_profile:
+        require(all(flags.get('CARAXES_PROFILE') == '0'
+                    and flags.get('CARAXES_PROFILE_HOST_TIMELINE') == '0'
+                    and 'CARAXES_PROFILE_OUT' not in flags
+                    for flags in (env, expected_env)),
+                'backend profiling is not explicitly disabled')
+    else:
+        require(env.get('CARAXES_PROFILE') == '1' and expected_env.get('CARAXES_PROFILE') == '1', 'diagnostic profiling not established')
     backend = manifest.get('backend', {})
     require(isinstance(backend, dict) and isinstance(backend.get('sha256'), str) and SHA_RE.fullmatch(backend['sha256']), 'invalid pinned backend digest')
     require(env.get('WIN_GPU_SERVER') == backend.get('path') and start.get('sha256') == backend['sha256'], 'saved backend identity mismatch')
@@ -326,6 +334,7 @@ def validate(case_runtime_dir):
                      'saved-start.json': digest(run_path / 'start.json', MAX_XML)})
     return {'schema': 'caraxes-firestrike-diagnostic-qualification-v1', 'case': case,
             'qualification': 'qualified_instrumented_local_run', 'completion': 'complete',
+            'host_profile_enabled': not no_host_profile,
             'scored': False, 'online_validated': False, 'native': False,
             'result_sha256': archive_sha, 'backend_sha256': backend['sha256'],
             'cloud_hypervisor_sha256': hypervisor['sha256'],
@@ -345,10 +354,12 @@ def validate(case_runtime_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case_runtime_dir', type=Path)
+    parser.add_argument('--no-host-profile', action='store_true',
+                        help='Require backend profile/timeline off; retain all render and health checks')
     parser.add_argument('--output', required=True, type=Path, help='Create-only curated render-qualification.json')
     args = parser.parse_args()
     try:
-        report = validate(args.case_runtime_dir)
+        report = validate(args.case_runtime_dir, no_host_profile=args.no_host_profile)
         with args.output.open('x', encoding='utf-8') as stream:
             stream.write(json.dumps(report, indent=2, allow_nan=False) + '\n')
         print('FIRESTRIKE_DIAGNOSTIC_QUALIFIED ' + report['case'])

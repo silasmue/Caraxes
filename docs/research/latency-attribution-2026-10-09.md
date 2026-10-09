@@ -334,9 +334,23 @@ to protect the render observer. Initialization cancellation and bounded parent
 cleanup supervision are corrected, with explicit descendant-exit proof even
 after nonzero coordinator exit; integer trigger timing also avoids float
 rounding. Independent 26 counter cases and inherited controller checks pass.
-Actual UID1000 pins/access pass. C284's watcher starts before the one owned VM;
-admission has started. Native mapping/capture/export remain pending. No GPU
-counters have been collected by this pilot yet.
+Actual UID1000 pins/access pass. C284 closes before Run after the armed review
+misses its 30-second deadline. No native mapping, capture or export starts.
+The six accepted prior reviews consume 141.598 seconds; preparation takes
+412.570 seconds. These are harness timings, not frame latency. Exact cleanup
+passes in 494.139 seconds. No GPU counters or FPS are collected by this pilot.
+
+A separate no-profile comparison is being prepared. The current harness requests
+periodic snapshots whose formatting holds shared profiler and marker locks;
+file writes occur after formatting. This can perturb execution, but its FPS
+effect has not been measured. Disable profile and host timeline together and
+remove every snapshot request, including post-health SIGUSR2. That signal can
+terminate the backend when profiling is disabled. Keep the remaining workload,
+trace, clock, worker, resource and cleanup policies unchanged.
+The explicit validator mode `--no-host-profile` passes five saved-packet CPU
+fixture tests; the default also requalifies the saved C272 result. Removing
+blocking dumps can increase effective clock/query cadence. Guest tracing and CH
+write profiling remain, so this is a backend-profile-off comparison.
 
 A613 is the opaque GSS legacy PMGR 0x13 control, with a 79936-byte buffer on
 the current 610 ABI (`ver/v610.rs`, `nvml.rs`). Eligible requests forward their

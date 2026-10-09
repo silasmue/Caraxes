@@ -25,7 +25,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   GT1 is 18.486073 FPS, GT2 29.838354; graphics score 5250. All four workload
   lifetimes exit 0; driver ProblemCode and Display 4101 remain 0. Exact owned
   cleanup passes in 671 seconds. These are instrumented local results, with no
-  established speedup. A completed clock-only baseline remains pending.
+  established speedup. C270 supplies the later clock-only comparison.
   The new helper, eight visual callbacks and native UTC trace check pass. The
   gate establishes 650–700 seconds remaining; the exact returned sample was not
   saved. Guest deadline minus Run receipt is 656.083 seconds, a separate derived
@@ -92,7 +92,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   All fresh visual gates pass; the reviewer stops after armed publication.
   Native sync-slot-v1 negotiation succeeds; CH profiles report transport=shmem.
   Initial three D3D11 readbacks pass. The failed final workload does not establish
-  transport corruption; its cause remains unresolved. No profiler ran.
+  transport corruption; its cause remains unresolved. No Nsight capture ran.
   This transport still serves reads in the backend and retains KVM exits;
   it provides no autonomous GSP reply-HEAD snapshot.
   Closure takes 790.753 seconds. Preserve `C278-report.json`, SHA256
@@ -104,6 +104,16 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   not identify a new C278 remapping fault. C278's two VMM matches are early BAR
   relocation warnings; no narrow shmem/transport failure matches were found.
   These log observations do not establish the final workload's failure cause.
+- C284 stops before Run when the armed visual review exceeds 30 seconds.
+  No native mapping, counter capture, export, result archive or FPS is produced.
+  Six prior reviews pass but consume 141.598 seconds; controller preparation
+  takes 412.570 seconds. This is test preparation time, not GPU frame latency.
+  The native trace self-test and clean stop pass. Owner closes in 494.139 seconds
+  with no cleanup errors; backend/VM/TAP/TPM are gone and NVIDIA remains bound.
+  Minimum RAM is 6.868 GiB, above the unchanged 6 GiB floor. Preserve
+  `C284-report.json`, SHA256
+  `7cbefcb94c76d3f4813341e7a7aefa57c5d2598f3594c65ca770f8a6405929fc`.
+  Root independently verifies its 19 evidence hashes. No automatic retry.
 - C258 closes cleanly in 174 seconds before its first visual checkpoint. The
   screenshot helper rejects its owned-window check. The verified failure image
   shows a blank loading window with caption `...`; the old error records the
@@ -290,9 +300,10 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    Independent 26 counter cases and inherited controller18/callback3/preparation15
    checks pass. C284 source review SHA256:
    `81c3696fb02d074f934191a99663c56399a14a61639f080b6deb8a05b62051d1`.
-   C284/C292 runtime bindings and actual UID1000 proof pass. Watcher starts
-   before the single owned VM; admission has started. Current-case sole PNG
-   reviewer is `ui_review_c278`; root publishes no live callbacks. Parent SHA256
+   C284/C292 runtime bindings and actual UID1000 proof pass. The watcher starts
+   before the single owned VM. Sole reviewer `ui_review_c278` misses the final
+   armed deadline; C284 closes before Run. Root publishes no live callbacks.
+   Parent SHA256
    `559c570c3f4da596693b4616841ef315769b2393fd461036605a2bcd15d5e76d`,
    child `9e9dfa85ab690c29d1ade94e22619c2da71ca47287447bb328fc80711d285ad8`.
    Separate final runtime review `C284-final-runtime-review.json`, SHA256
@@ -300,10 +311,22 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    completes the preserved candidate metadata without changing either manifest.
    Two copied child tests assume a draft path; their failures are preserved.
    Original draft61/28 and actual promoted pin/helper-input checks pass.
-   Native mapping, capture and post-render export are pending. General
+   Native mapping, capture and post-render export never start. General
    counters and context residency do not establish a stall cause or guest
    ownership. Export only after rendering ends. No external
    benchmark code was imported.
+   C296's no-profile source draft now passes independent review. Disable backend profiling
+   and host timeline together, and remove every snapshot request, including the
+   owner's post-health SIGUSR2. Without the profile handler that signal can
+   terminate the backend. Keep the workload, trace, clock lease, worker placement,
+   resource limits, fresh UI checks and exact cleanup unchanged. The result
+   validator now supports explicit `--no-host-profile`; both saved and declared
+   profile/timeline flags must be 0, with no profile output key. Default validation
+   still requires profiling. Five synthetic saved-packet tests and offline
+   requalification of C272 pass. Fresh runtime pins must include the new validator
+   hash; do not alter historical manifests. Removing dumps may increase effective
+   clock/query cadence. Guest trace, clock queries and CH write profiling remain
+   enabled. No profiling overhead or speedup has been quantified.
 4. Retain the TSG replay correction for correctness. C270 now provides a
    qualified clock-only comparison with the explicit preparation differences
    above, with no consistent graphics gain. C272 offlock also has no clear
