@@ -418,6 +418,33 @@ was found in this scoped review. See `compslice.rs`, `shadow.rs` and `zbc.rs`.
   requested/effective kind, backing and downgrade reason. Valid output alone
   does not establish equivalent memory traffic. Retain physical PTE audit proof.
 
+## USERD cancellation correction
+
+C300 fixes pending-migration cancellation in `mirror.rs` and its dispatcher:
+
+- API IDs are local to an owner/object. Cancellation previously searched all
+  channels by API alone, which could select another registration's ring.
+- The old path took the pending page and attempted its retirement even when
+  the host object was missing or REMOVE_API failed. Those failures now retain
+  the page and poller-visible slot.
+- Exact host cancellation now precedes local software-ring removal. A local
+  equal-API switch can no longer bypass an existing host registration, and a
+  host error does not consume that local switch. This overlap was identified
+  in source; it was not observed in a native run.
+
+The pending ring records owner/object/API and physical host generation/object.
+The actual selector checks the scoped identity. Removal validates its live host
+identity, calls the host outside the slot lock, then rechecks the pending stamp
+before taking storage. The regression exercises equal APIs on different owners,
+missing/stale host identity, host refusal, retry, and mutation during removal.
+Independent review, 49 Mirror, six USERD and ten deferred-context tests pass;
+one existing Mirror benchmark remains ignored. No hardware test or performance
+gain follows yet.
+
+Successful REMOVE_API after the host already switched to the pending page still
+uses the prior retirement assumption. This fix does not establish that native
+contract. Private evidence: `C300-userd-cpu-review-v2.json` in the trial directory.
+
 ## Measuring the missing boundaries
 
 1. **GPU execution and guest completion:** keep the original verified Vulkan and

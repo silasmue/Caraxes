@@ -21,6 +21,24 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Verified state
 
+- C300 fixes pending USERD cancellation in `mirror.rs`. API IDs are scoped to
+  owner/object; matching only the API could select another channel's ring.
+  The old path also took and retired the pending page despite missing or failed
+  host REMOVE_API. Selection now checks owner/object/API, and removal checks
+  host object/generation, calls the host outside the slot lock, then rechecks
+  the exact pending identity before taking its storage. Failed removal retains
+  the page and poller-visible slot.
+  Exact host cancellation also precedes local software-ring removal, so an equal
+  local API cannot bypass a pending host registration. Host errors preserve the
+  local switch; only an absent host match uses the software fallback.
+  Independent review, 49 Mirror, six USERD and ten deferred-context tests pass.
+  One existing Mirror benchmark remains ignored. The regressions cover same-API
+  owners, missing/stale host identity, host refusal, retry and changed pending
+  state. CPU build output is `C300-cpu-target` on vmstore, with low priority.
+  No backend artifact is promoted and no hardware speedup is claimed. Successful
+  REMOVE_API after the host already switched rings retains the old assumption;
+  that native contract still needs separate review. Private proof:
+  `C300-userd-cpu-review-v2.json`.
 - C296 completes the backend-profile-off comparison: GT1 18.775480 FPS,
   GT2 32.267513, Physics 34.306366, Combined 20.259274; graphics score 5459.
   Against C272: -2.6%, +7.3%, +21.0%, +15.5%, respectively. Graphics changes
@@ -287,6 +305,10 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 2. Distinguish control occupancy from serial frame stalls. HEAD costs contain
    physical calls. Marker notifiers are engine-wide; they prove neither GPU
    completion nor guest ACK. Preserve losses and per-stream endpoints.
+   C300 closes two cancellation defects, without proving a render bottleneck.
+   Review the already-switched NV_OK retirement contract before extending USERD
+   backing experiments. Keep VIDMEM as the default; pinned private system memory
+   remains an unimplemented candidate requiring native coherency/lifetime checks.
 3. Retain the corrected GPU clock domain, then obtain comparable native/guest
    samples and pilot GPU context
    visibility. C276 is a source-only ten-second `tu10x`/200 Hz and context-switch
@@ -344,6 +366,15 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    enabled. C296's mixed graphics changes and different effective cadence do
    not isolate profiling overhead. Use C298's direct review loader for a fresh
    counter pilot, with the unchanged review deadlines; do not retry C284.
+   Fresh `C302-draft` and distinct `C304-counter-draft` are source-reviewed and
+   launch-disabled. All 26 scripts match C284/C292 with case/path replacements;
+   24 ASTs, 81 manifest hashes, eight CPU suites and 88 UID1000 source reads pass.
+   `C302-source-review.json` SHA256:
+   `144cb8d96b5cdf856edc756f469a9c58f8d8b7086f254c8bbbc78db817d5539f`.
+   They retain C231/C215, profiling/timeline, original policies and the C298
+   loader. No runtime or new capture exists. Freeze/review separate runtimes
+   before GO; fresh native mapping, capture, export and descendant cleanup remain
+   unqualified. This pilot is a perturbed diagnostic, not a comparative FPS run.
 4. Retain the TSG replay correction for correctness. C270 now provides a
    qualified clock-only comparison with the explicit preparation differences
    above, with no consistent graphics gain. C272 offlock also has no clear

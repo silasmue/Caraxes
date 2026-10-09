@@ -1244,6 +1244,11 @@ struct NextRing {
     /// differs.
     initial_get: u32,
     api: u32,
+    /// Registration identity: API numbers are scoped to the guest 0x5080 object.
+    owner: u32,
+    object: u32,
+    owner_generation: u64,
+    host_object: u32,
     gpfifo_va: u64,
     since: Instant,
 }
@@ -1346,6 +1351,7 @@ impl UserdSlot {
                 harvested: None,
                 initial_get: 0,
                 api: 0,
+                owner: 0, object: 0, owner_generation: 0, host_object: 0,
                 gpfifo_va: 0x20000,
                 since: Instant::now(),
             }))
@@ -1435,6 +1441,52 @@ fn sync_private_userd_data(gm: &mut GpuMem) {
     crate::bar1pool::sync_untracked(gm.fb);
     gm.fb.bar2_flush_settled(crate::bar2area::Settle::Doorbell);
     gm.fb.flush();
+}
+
+/// Cancel a precise host registration. The slot cell is never held over `remove`;
+/// the caller's closure may take HostMemory's mutex and perform a physical ioctl.
+fn remove_registered_next(
+    slot: &UserdSlot,
+    owner: u32,
+    object: u32,
+    api: u32,
+    live: Option<(u64, u32)>,
+    remove: impl FnOnce(u32) -> u32,
+) -> Result<HostUserd, String> {
+    let snapshot = slot.with(|u| u.next.as_ref().filter(|n| {
+        n.owner == owner && n.object == object && n.api == api
+    }).map(|n| (n.owner_generation, n.host_object, n.storage.handle(), n.guest, n.gpfifo_va))).flatten()
+        .ok_or("no matching pending host ring migration")?;
+    if live != Some((snapshot.0, snapshot.1)) {
+        return Err("the deferred object's host generation or object changed".into());
+    }
+    let status = remove(snapshot.1);
+    if status != sys::NV_OK {
+        return Err(format!("host REMOVE_API {api:#x}: {}", status_name(status)));
+    }
+    // The pending ring may have changed while the host ioctl ran. Never retire a
+    // different registration; preserve it for teardown or a later explicit decision.
+    slot.with(|u| {
+        let same = u.next.as_ref().is_some_and(|n| {
+            (n.owner, n.object, n.api, n.owner_generation, n.host_object,
+                n.storage.handle(), n.guest, n.gpfifo_va)
+                == (owner, object, api, snapshot.0, snapshot.1, snapshot.2, snapshot.3, snapshot.4)
+        });
+        same.then(|| u.next.take().unwrap().storage)
+    }).flatten().ok_or("pending host ring migration changed during REMOVE_API".into())
+}
+
+fn find_registered_next<'a>(
+    slots: impl Iterator<Item = (u32, &'a Arc<UserdSlot>)>,
+    owner: u32,
+    object: u32,
+    api: u32,
+) -> Option<(u32, Arc<UserdSlot>)> {
+    slots.into_iter().find_map(|(chid, slot)| {
+        slot.with(|u| u.next.as_ref().is_some_and(|n| {
+            n.owner == owner && n.object == object && n.api == api
+        })).filter(|found| *found).map(|_| (chid, slot.clone()))
+    })
 }
 
 impl ShadowUserd {
@@ -4821,6 +4873,7 @@ impl Mirror {
             harvested: None,
             initial_get: get,
             api,
+            owner, object, owner_generation: owner_host.generation, host_object,
             gpfifo_va: info.gp_fifo_offset,
             since: Instant::now(),
         };
@@ -4833,30 +4886,31 @@ impl Mirror {
         ))
     }
 
-    /// A REMOVE_API of a ring migration registered on the host: the host's registration is
-    /// removed on the owner's host 0x5080 object as GSP-RM removes it, and the new ring's
-    /// private USERD goes (the host never moved). `None` when `api` is no migration here.
+    /// REMOVE_API for this guest 0x5080 registration. Failed or missing host
+    /// removal retains the pending private USERD and its poller-visible slot.
+    /// A successful response retains the prior assumption that the host has not
+    /// switched to this page; the NV_OK already-switched contract needs review.
     pub fn cancel_migration(&mut self, owner: u32, object: u32, api: u32) -> Option<Result<String, String>> {
-        let chid = *self
-            .channels
-            .iter()
-            .find(|(_, hc)| hc.with_userd(|u| u.next.as_ref().is_some_and(|n| n.api == api)) == Some(true))?
-            .0;
-        let host_object = self.channels.get(&owner).and_then(|hc| hc.engine_map.get(&object).copied());
-        let next = self.channels.get(&chid).and_then(|hc| hc.with_userd(|u| u.next.take()).flatten());
-        let mut h = self.hm.lock().unwrap();
-        let st = host_object.map(|o| {
-            let mut p = api.to_le_bytes();
-            h.control(o, crate::deferred::CMD_REMOVE_API, &mut p)
+        let slots = self.channels.iter().filter_map(|(chid, hc)| {
+            hc.userd.as_ref().map(|slot| (*chid, slot))
         });
-        if let Some(n) = next {
-            let _ = h.free_host_userd(n.storage);
-        }
-        Some(match st {
-            Some(st) if st == sys::NV_OK => Ok(format!("deferred API {api:#x} (ring migration of chid {chid}) removed on the host")),
-            Some(st) => Err(format!("host REMOVE_API {api:#x}: {}", status_name(st))),
-            None => Err("the deferred object has no host object".into()),
-        })
+        let (chid, slot) = find_registered_next(slots, owner, object, api)?;
+        let live = self.channels.get(&owner).and_then(|hc| {
+            hc.engine_map.get(&object).map(|host_object| (hc.generation, *host_object))
+        });
+        // The callback takes HostMemory only after the slot's snapshot lock is released.
+        let storage = match remove_registered_next(&slot, owner, object, api, live, |host_object| {
+            let h = self.hm.lock().unwrap();
+            let mut p = api.to_le_bytes();
+            h.control(host_object, crate::deferred::CMD_REMOVE_API, &mut p)
+        }) {
+            Ok(storage) => storage,
+            Err(e) => return Some(Err(e)),
+        };
+        // Keep the existing NV_OK reply and tracked free behavior. A failed RM
+        // free leaves its handle tracked for client teardown.
+        let _ = self.hm.lock().unwrap().free_host_userd(storage);
+        Some(Ok(format!("deferred API {api:#x} (ring migration of chid {chid}) removed on the host")))
     }
 
     /// Migrations the host completed: once the host fetched on a new ring, it becomes the
@@ -7992,7 +8046,7 @@ mod tests {
             next: Some(Box::new(NextRing {
                 storage: crate::hostmem::HostUserd::for_test(new_page), guest: next_guest,
                 entries: 64, published_put: None, harvested: None, initial_get: 0,
-                api: 0x4000_007e, gpfifo_va: 0x20000, since: Instant::now(),
+                api: 0x4000_007e, owner: 0, object: 0, owner_generation: 0, host_object: 0, gpfifo_va: 0x20000, since: Instant::now(),
             })),
         };
         u.storage.write_u32(0x8c, 5);
@@ -8070,6 +8124,61 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    #[test]
+    fn remove_registered_next_scopes_and_retains_on_host_failure() {
+        fn slot(owner: u32, object: u32) -> Arc<UserdSlot> {
+            let old: &'static mut [u8; 4096] = Box::leak(Box::new([0; 4096]));
+            let new: &'static mut [u8; 4096] = Box::leak(Box::new([0; 4096]));
+            UserdSlot::new(ShadowUserd {
+                storage: crate::hostmem::HostUserd::for_test(old), guest: 0, entries: 8,
+                published_put: None, harvested: None,
+                next: Some(Box::new(NextRing {
+                    storage: crate::hostmem::HostUserd::for_test(new), guest: 0x1000,
+                    entries: 8, published_put: None, harvested: None, initial_get: 0,
+                    api: 7, owner, object, owner_generation: 3, host_object: 19,
+                    gpfifo_va: 0, since: Instant::now(),
+                })),
+            }, true)
+        }
+        let a = slot(11, 13);
+        let b = slot(12, 14); // The same API number on a different 0x5080 object.
+        let slots = [(2, &b), (8, &a)];
+        let (chid, selected) = find_registered_next(slots.into_iter(), 11, 13, 7).unwrap();
+        assert_eq!(chid, 8, "skip an earlier channel with the same API on another owner");
+        assert!(Arc::ptr_eq(&selected, &a));
+        assert!(find_registered_next(slots.into_iter(), 11, 14, 7).is_none());
+        let mut calls = 0;
+        assert!(remove_registered_next(&a, 11, 13, 7, None, |_| { calls += 1; sys::NV_OK }).is_err());
+        assert_eq!(calls, 0, "missing live object must not issue host REMOVE");
+        assert!(remove_registered_next(&a, 11, 13, 7, Some((4, 19)), |_| { calls += 1; sys::NV_OK }).is_err());
+        assert_eq!(calls, 0, "wrong generation must not issue host REMOVE");
+        assert!(remove_registered_next(&a, 11, 13, 7, Some((3, 20)), |_| { calls += 1; sys::NV_OK }).is_err());
+        assert_eq!(calls, 0, "wrong host object must not issue host REMOVE");
+        assert!(remove_registered_next(&a, 11, 13, 7, Some((3, 19)), |_| {
+            assert!(a.cell.try_lock().is_ok(), "the slot lock must be free during host REMOVE");
+            calls += 1;
+            crate::gspmem::NV_ERR_NOT_SUPPORTED
+        }).is_err());
+        assert_eq!(calls, 1);
+        assert!(a.with(|u| u.next.is_some()).unwrap());
+        assert!(b.with(|u| u.next.is_some()).unwrap());
+        assert!(remove_registered_next(&a, 11, 13, 7, Some((3, 19)), |_| {
+            assert!(a.cell.try_lock().is_ok()); calls += 1; sys::NV_OK
+        }).is_ok());
+        assert_eq!(calls, 2);
+        assert!(a.with(|u| u.next.is_none()).unwrap());
+        assert!(b.with(|u| u.next.is_some()).unwrap(), "equal API on another owner is untouched");
+        assert!(remove_registered_next(&b, 11, 13, 7, Some((3, 19)), |_| {
+            panic!("wrong owner must not issue host REMOVE")
+        }).is_err());
+        assert!(remove_registered_next(&b, 12, 14, 7, Some((3, 19)), |_| {
+            assert!(b.cell.try_lock().is_ok());
+            b.with(|u| u.next.as_mut().unwrap().guest = 0x2000);
+            sys::NV_OK
+        }).is_err(), "a changed pending registration must not be taken");
+        assert!(b.with(|u| u.next.is_some()).unwrap());
+    }
+
     /// KNOWN BUG #1 (Windows step 23): a ring migration of a host channel. Until the host
     /// fetched on the new ring both rings are published and harvested (the host reads the
     /// old USERD up to the deferred method and the new one after it); once its GPGet moved
@@ -8099,6 +8208,7 @@ mod tests {
                 harvested: None,
                 initial_get: 0,
                 api: 0x4000_007e,
+                owner: 0, object: 0, owner_generation: 0, host_object: 0,
                 gpfifo_va: 0x2_2538_0000,
                 since: Instant::now(),
             })),

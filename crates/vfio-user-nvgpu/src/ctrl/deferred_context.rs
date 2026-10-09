@@ -8,6 +8,18 @@ use crate::deferred::{self, Request};
 use crate::fb::Target;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// An exact host registration takes precedence over a local software switch.
+/// A host error must retain both pending states for retry or teardown.
+fn cancel_pending_ring(
+    host: Option<Result<String, String>>,
+    cancel_local: impl FnOnce() -> bool,
+    api: u32,
+) -> Option<Result<String, String>> {
+    host.or_else(|| {
+        cancel_local().then(|| Ok(format!("deferred API {api:#x} (ring migration) removed")))
+    })
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct TargetStamp {
     chid: u32,
@@ -225,14 +237,13 @@ impl Dispatcher {
                     .try_into()
                     .map_err(|_| "remove API requires four bytes")?;
                 let api = u32::from_le_bytes(bytes);
-                if self.channels.remove_ring_switch(chid, api) {
-                    return Ok(format!("deferred API {api:#x} (ring migration) removed"));
-                }
-                if let Some(n) = self
+                let host = self
                     .mirror
                     .as_mut()
-                    .and_then(|m| m.cancel_migration(chid, object, api))
-                {
+                    .and_then(|m| m.cancel_migration(chid, object, api));
+                if let Some(n) = cancel_pending_ring(
+                    host, || self.channels.remove_ring_switch(chid, api), api,
+                ) {
                     return n;
                 }
                 return self
@@ -1042,6 +1053,27 @@ mod tests {
             &migration(1, 0x40).encode(),
         );
         assert_eq!(a.status, 0x40);
+    }
+
+    #[test]
+    fn host_ring_cancellation_precedes_a_matching_software_switch() {
+        for host in [Ok("host removed".to_owned()), Err("host refused".to_owned())] {
+            let expected = host.clone();
+            assert_eq!(cancel_pending_ring(Some(host), || {
+                panic!("a host match must not consume the local switch")
+            }, 7), Some(expected));
+        }
+        let mut local_calls = 0;
+        assert!(cancel_pending_ring(None, || {
+            local_calls += 1;
+            true
+        }, 7).unwrap().is_ok());
+        assert_eq!(local_calls, 1);
+        assert!(cancel_pending_ring(None, || {
+            local_calls += 1;
+            false
+        }, 7).is_none(), "non-migrations must reach the remaining API lookup");
+        assert_eq!(local_calls, 2);
     }
 
     #[test]
