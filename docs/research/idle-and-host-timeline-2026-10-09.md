@@ -8,10 +8,11 @@ interrupt handling still run in the guest. Incorrect completion state,
 repeated notifications or delayed replies can make that driver poll or retry.
 Low trap counts alone do not exclude a busy loop over shared memory.
 
-The reported high guest idle CPU has not been reproduced or fixed on this
-revision. Hardware runs remain behind the concurrent Floppy work. This change
-adds CPU-only diagnostics and fixes an ioctl error-reporting bug; it makes no
-FPS or idle CPU improvement claim.
+The October 9 four-vCPU headless hardware test did not reproduce high guest
+CPU. It did expose persistent NVIDIA interrupts after a verified GPU job.
+The tested backend was the pinned C209 baseline, not the new diagnostic build.
+The ioctl error fix and diagnostics make no FPS or idle CPU improvement claim.
+See the [hardware results](idle-hardware-2026-10-09.md) for evidence and limits.
 
 ## Source findings
 
@@ -62,10 +63,11 @@ request/status sequence feeding it.
 
 ## Controlled idle comparison
 
-Run only when Floppy is no longer using the required host resources. Keep the
-NVIDIA host driver bound, use one owned host-backed VM and retain the existing
-8 GiB RAM / 4 GiB framebuffer limits. Record source, binary hashes, driver,
-vCPU count, clocks, poll mode and interrupt gate setting.
+Floppy has priority. Run a bounded, low-priority hardware diagnostic only while
+the host resource floors are met. Keep the NVIDIA host driver bound, use one
+owned host-backed VM and retain the existing 8 GiB RAM / 4 GiB framebuffer
+limits. Record source, binary hashes, driver, vCPU count, clocks, poll mode and
+interrupt gate setting.
 
 1. Boot the stock-driver Linux image into `multi-user.target`, without the
    guest helper module. Initialize the GPU outside the measured window.
