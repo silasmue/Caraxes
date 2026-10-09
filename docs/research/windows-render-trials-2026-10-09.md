@@ -177,7 +177,10 @@ failure from existing evidence before another transport comparison. A separate
 counter pilot is source-only. C282's bounded BDF/UUID parser and C292's gated
 tool lifecycle pass independent CPU checks; native output is unqualified.
 C284 adds a dedicated coordinator and export before teardown. Initialization
-cancellation and parent cleanup supervision still need correction before freeze.
+cancellation, integer trigger timing and explicit descendant cleanup are now
+corrected in source; 26 new CPU cases pass independently. Frozen bindings and
+actual UID1000 input proof are being prepared. Native mapping, capture and export
+still need qualification in the bounded pilot.
 No profiler has run in this case.
 Defaults remain unchanged until qualified evidence supports a change.
 

@@ -331,8 +331,25 @@ allows cleanup of its dedicated tool subtree. Independent CPU checks pass
 61 collector and 28 gate cases. C282's BDF/UUID parser also passes; native help
 grammar remains unqualified. C284 places the collector in a separate coordinator
 to protect the render observer. Initialization cancellation and bounded parent
-cleanup supervision still need correction before freeze. No GPU counters have
-been collected by this pilot.
+cleanup supervision are corrected, with explicit descendant-exit proof even
+after nonzero coordinator exit; integer trigger timing also avoids float
+rounding. Independent 26 counter cases and inherited controller checks pass.
+Frozen bindings are being prepared. No GPU counters have been collected by
+this pilot.
+
+A613 is the opaque GSS legacy PMGR 0x13 control, with a 79936-byte buffer on
+the current 610 ABI (`ver/v610.rs`, `nvml.rs`). Eligible requests forward their
+exact bytes/status; no field interpretation or version translation is defined.
+It is excluded from the experimental cache candidates. The measured host span
+starts immediately before `libc::ioctl` and ends after return/errno capture
+(`nvrm-abi/src/lib.rs`, `profile.rs`). Its 3.576 ms C272 median therefore includes
+host syscall residence, with kernel waits and scheduling; emulator admission,
+Device lock wait, payload preparation and reply publication are outside it.
+Worker submit/start/ready times currently feed aggregates, not per-call records.
+Future correlation needs a shared ticket ID in a bounded trace; the existing
+host timeline alone provides cadence and duration, without payload fingerprints
+or guest reply times. These observations do not justify caching opaque replies
+or establish critical-path GPU stalls.
 
 C220's saved backend log confirms compression is enabled, with comptags covering
 the full 4096 MiB physical reservation. An unavailable PTE audit does not disable

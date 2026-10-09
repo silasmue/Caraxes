@@ -283,9 +283,15 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    `eea92680cb309136d9585c6c173e2eab2c05f1f557952f2d425ef333dcfffdf1`.
    C292 is still disabled, with no native tool qualification. `C284-draft`
    integrates it through a separate coordinator so the render observer remains
-   outside tool cleanup. Cancellation during initialization and parent cleanup
-   supervision need correction before freeze. Native mapping and post-render
-   export remain unqualified. General
+   outside tool cleanup. Source review corrects lost initialization cancellation,
+   a Unix-nanosecond float trigger failure, and cleanup inferred from coordinator
+   exit. A 25-second cleanup grace stays inside the original owner reserve;
+   explicit descendant-exit proof is required even after a nonzero exit.
+   Independent 26 counter cases and inherited controller18/callback3/preparation15
+   checks pass. C284 source review SHA256:
+   `81c3696fb02d074f934191a99663c56399a14a61639f080b6deb8a05b62051d1`.
+   Frozen parent/collector bindings and actual UID1000 proof are being prepared.
+   Native mapping and post-render export remain unqualified. General
    counters and context residency do not establish a stall cause or guest
    ownership. Export only after rendering ends. No external
    benchmark code was imported.
