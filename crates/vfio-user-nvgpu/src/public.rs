@@ -493,6 +493,7 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
                 get32(params, p::IDLE_CHANNELS_TIMEOUT),
             );
             let mut mirrored = Vec::new();
+            let mut software_busy = Vec::new();
             for i in 0..num {
                 let h = get32(params, 4 + 4 * i);
                 match channel_of(ctx.reg, h_client, h) {
@@ -506,13 +507,21 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
                         )
                     }
                     Some(c) if c.mirrored => mirrored.push((h_client, h)),
+                    Some(c) if ctx.reg.and_then(|r| r.software_channel_idle(c.chid)) != Some(true) => {
+                        software_busy.push(c.chid);
+                    }
                     Some(_) => {}
                 }
             }
             if mirrored.is_empty() {
+                if !software_busy.is_empty() {
+                    return err(row, NV_ERR_TIMEOUT, params,
+                        "guest (software channels still have retained work)",
+                        format!("busy software chids {software_busy:?}; timeout {timeout} us"));
+                }
                 return ok(
                     params.to_vec(),
-                    "guest (software channels are idle: the executor runs a push to completion at its doorbell)",
+                    "guest (the software registry has no retained work on the named channels)",
                     format!("{num} channel(s) idle"),
                 );
             }
@@ -525,12 +534,19 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
                 Some((NV_OK, note)) => (NV_OK, "host (the host RM's idle on the guest channels' own mirrors)", note),
                 Some((NV_ERR_TIMEOUT, note)) => (NV_ERR_TIMEOUT, "host (the host RM's idle on the own mirrors timed out)", note),
                 Some((st, note)) => (
-                    NV_ERR_TIMEOUT,
-                    "host (the host RM refused the idle of the own mirrors: not shown idle)",
+                    st,
+                    "host (the host RM refused the idle of the own mirrors)",
                     format!("host status {st:#x}: {note}"),
                 ),
-                None => (NV_OK, "guest (no host mirror object: nothing runs on the host)", "no host object".into()),
+                None => (NV_ERR_NOT_SUPPORTED,
+                    "guest (no authoritative host idle result for registered mirrored channels)",
+                    "no host idle result".into()),
             };
+            if status == NV_OK && !software_busy.is_empty() {
+                return err(row, NV_ERR_TIMEOUT, params,
+                    "guest (host channels idled, software channels still have retained work)",
+                    format!("busy software chids {software_busy:?}; timeout {timeout} us: {what}"));
+            }
             Answer {
                 status,
                 params: params.to_vec(),
@@ -1806,6 +1822,7 @@ mod tests {
     struct Mirror2 {
         calls: Vec<String>,
         idle_status: u32,
+        idle_missing: bool,
     }
     impl MirrorObjects for Mirror2 {
         fn forward(&mut self, _: u32, o: u32, cmd: u32, _: &[u8]) -> Option<(u32, String)> {
@@ -1816,7 +1833,7 @@ mod tests {
         }
         fn idle(&mut self, list: &[(u32, u32)], flags: u32, t: u32) -> Option<(u32, String)> {
             self.calls.push(format!("idle {list:x?} {flags:#x} {t}"));
-            Some((self.idle_status, "fake host idle".into()))
+            (!self.idle_missing).then(|| (self.idle_status, "fake host idle".into()))
         }
         fn schedule(&mut self, list: &[(u32, u32)], d: bool, only: bool) -> Option<(u32, String)> {
             self.calls.push(format!("schedule {list:x?} {d} {only}"));
@@ -1908,7 +1925,8 @@ mod tests {
 
     /// FIFO_IDLE_CHANNELS: software channels are idle; mirrored ones go to the host idle
     /// with the capped timeout, whose NV_OK and NV_ERR_TIMEOUT are the guest's, another
-    /// status is not idle; an unknown channel is 0x33 before any host call.
+    /// status is preserved; a missing host result cannot establish idle; an unknown
+    /// channel is 0x33 before any host call.
     #[test]
     fn idle_channels_control() {
         let reg = world();
@@ -1934,13 +1952,50 @@ mod tests {
         let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &req(&[0x40], 300));
         assert_eq!(a.status, NV_ERR_TIMEOUT);
         assert_eq!(m.calls, ["idle [(c1, 40)] 0x5 300"]);
-        let mut m = Mirror2 { idle_status: 0x56, ..Default::default() };
+        for status in [NV_ERR_NOT_SUPPORTED, NV_ERR_INVALID_ARGUMENT,
+            NV_ERR_INVALID_OBJECT_HANDLE, 0x66] {
+            let mut m = Mirror2 { idle_status: status, ..Default::default() };
+            let params = req(&[0x40], 300);
+            let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &params);
+            assert_eq!(a.status, status, "a refused host idle preserves its error");
+            assert_eq!(a.params, params, "idle input fields are preserved");
+        }
+        let mut m = Mirror2 { idle_missing: true, ..Default::default() };
         let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &req(&[0x40], 300));
-        assert_eq!(a.status, NV_ERR_TIMEOUT, "a refused host idle is not idle");
+        assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "a missing host idle is not successful");
         let mut m = Mirror2::default();
         let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &req(&[0x40, 0x99], 300));
         assert_eq!(a.status, NV_ERR_INVALID_OBJECT_HANDLE);
         assert!(m.calls.is_empty());
+    }
+
+    #[test]
+    fn idle_channels_control_checks_pending_software_work() {
+        let mut reg = world();
+        let mut fb = crate::fb::FakeFb::new(1 << 20);
+        let sys = crate::guestmem::GuestMemory::new();
+        let ch = reg.channel_mut(3).unwrap();
+        ch.gpfifo_entries = 8;
+        ch.userd = Some(crate::fb::Target::Fb(0x1000));
+        assert!(fb.write(0x108C, &1u32.to_le_bytes()));
+        // Record submission without running it: one software GPFIFO entry remains.
+        reg.note_rung(&crate::channel::GpuMem { fb: &mut fb, sys: &sys }, 3);
+        let mut attrs = St::default();
+        let mut mirror = Mirror2::default();
+        let mut params = vec![0; p::IDLE_CHANNELS_SIZE];
+        put32(&mut params, 0, 1);
+        put32(&mut params, 4, 0x41);
+        put32(&mut params, p::IDLE_CHANNELS_TIMEOUT, 1_000_000);
+        let a = round2(&mut attrs, &reg, &mut mirror, SUB, 0x0080_1714, &params);
+        assert_eq!(a.status, NV_ERR_TIMEOUT, "{}", a.note);
+        assert_eq!(a.params, params);
+        assert!(mirror.calls.is_empty());
+        // A successful host idle must not hide the software entry in a mixed list.
+        put32(&mut params, 0, 2);
+        put32(&mut params, 8, 0x40);
+        let a = round2(&mut attrs, &reg, &mut mirror, SUB, 0x0080_1714, &params);
+        assert_eq!(a.status, NV_ERR_TIMEOUT, "{}", a.note);
+        assert_eq!(mirror.calls.len(), 1);
     }
 
     /// DISABLE_USERMODE_CHANNELS and the scheduling toggle write the device's one set of

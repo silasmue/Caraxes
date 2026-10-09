@@ -602,6 +602,22 @@ pub const IDLE_PARAMS_SIZE: usize = 16396;
 pub const IDLE_MAX_CHANNELS: usize = 4096;
 pub const IDLE_PARAMS_FLAGS: usize = 4 + 4 * IDLE_MAX_CHANNELS;
 pub const IDLE_PARAMS_TIMEOUT: usize = IDLE_PARAMS_FLAGS + 4;
+
+/// Resolve the entire guest list before idling anything on the host.
+fn idle_targets(
+    list: &[(u32, u32)],
+    mut resolve: impl FnMut(u32, u32) -> Option<(u32, u32)>,
+) -> Result<Vec<(u32, u32)>, (u32, String)> {
+    if list.len() > IDLE_MAX_CHANNELS {
+        return Err((crate::gspmem::NV_ERR_INVALID_ARGUMENT, "idle channel list exceeds the host structure".into()));
+    }
+    list.iter().map(|&(client, channel)| {
+        resolve(client, channel).ok_or_else(|| (
+            crate::gspmem::NV_ERR_NOT_SUPPORTED,
+            format!("idle has no host mirror for guest channel {client:#x}/{channel:#x}"),
+        ))
+    }).collect()
+}
 /// `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS` and its params {bDisable @0, numChannels @4,
 /// bOnlyDisableScheduling @8, bRewindGpPut @9, pRunlistPreemptEvent @16,
 /// hClientList\[64\] @24, hChannelList\[64\] @280}, 536 bytes (ctrl2080fifo.h:235-251).
@@ -6388,8 +6404,9 @@ impl Mirror {
     /// flags 0x109: NON_PRIVILEGED, g_device_nvoc.c) on the mirror's own host device, over
     /// the mirror's own host channel handles of the same host client only; the host RM
     /// deschedules them and waits for their pending work (kernel_fifo_ctrl.c:131-186
-    /// forwards it to the host GSP). Channels of the list without a mirror are left out;
-    /// `None` when none has one. `timeout_us` is the caller's, already capped.
+    /// forwards it to the host GSP). Every listed channel must resolve; success on a
+    /// partial list cannot establish idle for the omitted work. `timeout_us` is capped
+    /// by the caller.
     pub fn idle_channels(
         &self,
         reg: &Registry,
@@ -6397,11 +6414,10 @@ impl Mirror {
         flags: u32,
         timeout_us: u32,
     ) -> Option<(u32, String)> {
-        let hosts: Vec<(u32, u32)> = list
-            .iter()
-            .filter_map(|&(c, h)| self.host_channel_of(reg, c, h))
-            .take(IDLE_MAX_CHANNELS)
-            .collect();
+        let hosts = match idle_targets(list, |c, h| self.host_channel_of(reg, c, h)) {
+            Ok(hosts) => hosts,
+            Err(error) => return Some(error),
+        };
         if hosts.is_empty() {
             return None;
         }
@@ -7796,6 +7812,24 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn idle_targets_require_every_channel_without_truncation() {
+        let list = [(1, 10), (2, 20), (3, 30)];
+        assert_eq!(
+            idle_targets(&list, |client, channel| Some((client + 100, channel + 200))).unwrap(),
+            vec![(101, 210), (102, 220), (103, 230)]
+        );
+        let missing = idle_targets(&list, |client, channel| {
+            (client != 3).then_some((client, channel))
+        }).unwrap_err();
+        assert_eq!(missing.0, crate::gspmem::NV_ERR_NOT_SUPPORTED);
+        assert!(missing.1.contains("0x3/0x1e"));
+        let too_long = vec![(1, 10); IDLE_MAX_CHANNELS + 1];
+        let rejected = idle_targets(&too_long, |_, _| panic!("oversized list must not resolve"))
+            .unwrap_err();
+        assert_eq!(rejected.0, crate::gspmem::NV_ERR_INVALID_ARGUMENT);
+    }
 
     #[test]
     fn capture_publishes_the_sampled_userd_when_the_guest_advances_during_capture() {

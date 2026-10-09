@@ -99,6 +99,11 @@ impl GuestMemory {
         self.view.clone().expect("set above")
     }
 
+    /// An already prepared current view; an immutable DMA consumer cannot create one.
+    pub fn published_view(&self) -> Option<MemView> {
+        self.view.clone()
+    }
+
     fn republish(&self) {
         if let Some(v) = &self.view {
             let snap = Arc::new(self.snapshot());
@@ -312,6 +317,18 @@ impl GuestMemory {
             }
             None => false,
         }
+    }
+
+    /// Publish an aligned shared-memory marker atomically, after its payload writes.
+    pub fn write_u64_release(&self, pa: u64, value: u64) -> bool {
+        let Some(p) = self.locate(pa, 8) else { return false };
+        if (p as usize) % std::mem::align_of::<AtomicU64>() != 0 {
+            return false;
+        }
+        // SAFETY: locate owns the complete mapped range for this access, alignment is
+        // checked, and the marker is shared with an external DMA/CPU reader.
+        unsafe { AtomicU64::from_ptr(p.cast()).store(value.to_le(), Ordering::Release) };
+        true
     }
 
     pub fn read_u32(&self, pa: u64) -> Option<u32> {

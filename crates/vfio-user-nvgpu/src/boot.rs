@@ -1504,6 +1504,15 @@ impl BootModel {
         self.host_control.clone()
     }
 
+    /// Prepare the changing memory view only for the opt-in RUSD publisher.
+    pub fn prepare_rusd_memory(&self, mem: &mut GuestMemory) {
+        if self.rusd.enabled() { mem.view(); }
+    }
+
+    pub fn retire_rusd_unmap(&mut self, mem: &GuestMemory, address: u64, size: u64) {
+        self.rusd.retire_unmap(mem, address, size);
+    }
+
     pub fn host_control_error(&self) -> Option<String> {
         self.host_fault
             .clone()
@@ -2837,7 +2846,7 @@ impl BootModel {
                                 .ok_or_else(|| format!("the new USERD {t:?} is unreadable"))?;
                             Ok((t, get))
                         });
-                        let a = match gm
+                        let mut a = match gm
                             .or_else(|| crate::chip::physical::answer(self.chip.data(), cmd, params))
                         {
                             Some(a) => a,
@@ -2870,6 +2879,38 @@ impl BootModel {
                             self.host_fault = Some(error);
                             break;
                         }
+                        if self.rusd.enabled() && a.status == rpc::NV_OK {
+                            if cmd == v::CMD_INTERNAL_INIT_USER_SHARED_DATA {
+                                let abi = crate::ver::guest();
+                                let fb = self.ctrl.profile.fb_bytes;
+                                let f = crate::rusd::Facts {
+                                    bar1_kib: 0x4_0000,
+                                    bar1_avail_kib: 0x3_9F80,
+                                    pma_total: fb,
+                                    pma_free: fb - fb / 8,
+                                };
+                                match crate::rusd::Rusd::decode_init(abi, params)
+                                    .and_then(|(init, pa)| self.rusd.init(mem, abi, init, pa, &f)) {
+                                    Ok(note) => notes.push(note),
+                                    Err(error) => {
+                                        a.status = v::NV_ERR_INVALID_ARGUMENT;
+                                        a.note = format!("rusd: init refused: {error}");
+                                        a.label = "guest (RUSD validation)";
+                                    }
+                                }
+                            } else if cmd == v::CMD_INTERNAL_USER_SHARED_DATA_SET_DATA_POLL {
+                                let poll = params.get(..12).ok_or("truncated RUSD polling parameters")
+                                    .map(|p| (u64::from_le_bytes(p[..8].try_into().unwrap()), u32::from_le_bytes(p[8..12].try_into().unwrap())));
+                                match poll.and_then(|(mask, interval)| self.rusd.set_poll(mask, interval).map_err(|_| "invalid RUSD internal polling interval").map(|()| (mask, interval))) {
+                                    Ok((mask, interval)) => notes.push(format!("rusd: poll mask {mask:#x}, interval {interval} ms")),
+                                    Err(error) => {
+                                        a.status = v::NV_ERR_INVALID_ARGUMENT;
+                                        a.note = format!("rusd: poll refused: {error}");
+                                        a.label = "guest (RUSD validation)";
+                                    }
+                                }
+                            }
+                        }
                         if let Some(t) = t_ctl {
                             crate::profile::record(
                                 crate::profile::Key::Control(cmd),
@@ -2890,29 +2931,6 @@ impl BootModel {
                         }
                         if a.label == "unanswered" {
                             self.unanswered.push(a.note.clone());
-                        }
-                        if crate::rusd::enabled() {
-                            let now = self.ctrl.channels.now_ns();
-                            if cmd == v::CMD_INTERNAL_INIT_USER_SHARED_DATA {
-                                let pa = params
-                                    .get(v::RUSD_PHYS_ADDR..v::RUSD_PHYS_ADDR + 8)
-                                    .map_or(0, |b| u64::from_le_bytes(b.try_into().unwrap()));
-                                let fb = self.ctrl.profile.fb_bytes;
-                                let f = crate::rusd::Facts {
-                                    bar1_kib: 0x4_0000,
-                                    bar1_avail_kib: 0x3_9F80,
-                                    pma_total: fb,
-                                    pma_free: fb - fb / 8,
-                                };
-                                notes.push(self.rusd.init(mem, pa, now, &f));
-                            } else if cmd == v::CMD_INTERNAL_USER_SHARED_DATA_SET_DATA_POLL {
-                                let mask = params
-                                    .get(..8)
-                                    .map_or(0, |b| u64::from_le_bytes(b.try_into().unwrap()));
-                                self.rusd.set_poll(mask);
-                                notes.push(format!("rusd: poll mask {mask:#x}"));
-                            }
-                            self.rusd.refresh(mem, now);
                         }
                         if cmd & v::CMD_GSS_LEGACY_BIT != 0 && frame.rmctrl_flags.is_some() {
                             let flags = crate::nvml::legacy_reply_flags(cmd, a.status);
@@ -3148,10 +3166,9 @@ impl BootModel {
                         Some((st, msg.payload[..n].to_vec()))
                     }
                     crate::gsprpc::FN_IDLE_CHANNELS => {
-                        // Resolved through the channel registry, idle when USERD GPGet
-                        // caught up with GPPut; mirrored channels through the host RM's
-                        // idle on the mirror's own host objects (gsprpc.rs; rpc-functions.md
-                        // §4.2).
+                        // Mirrored completion requires authoritative host RM idle on
+                        // the mirror objects. Software completion additionally checks
+                        // retained work and readable live USERD pointers.
                         let chans = &self.ctrl.channels;
                         let mirror = self.ctrl.mirror.as_ref();
                         let fb = &mut self.fb;
@@ -3161,21 +3178,20 @@ impl BootModel {
                         let (st, note) = crate::gsprpc::idle_channels(&msg.payload, |c, h| {
                             let ch = chans.channels().find(|x| x.h_client == c && x.h_object == h)?;
                             let word = |off: u64| match ch.userd {
-                                Some(crate::fb::Target::Fb(pa)) => Some(crate::fb::Target::Fb(pa + off)),
-                                Some(crate::fb::Target::Sys(pa)) => Some(crate::fb::Target::Sys(pa + off)),
+                                Some(crate::fb::Target::Fb(pa)) => pa.checked_add(off).map(crate::fb::Target::Fb),
+                                Some(crate::fb::Target::Sys(pa)) => pa.checked_add(off).map(crate::fb::Target::Sys),
                                 _ => None,
                             };
                             let gm = crate::channel::GpuMem { fb: &mut *fb, sys: mem };
                             // NV_RAMUSERD GP_GET 0x88, GP_PUT 0x8C (clc46f.h:61-62).
-                            let (get, put) = match (word(0x88), word(0x8C)) {
-                                (Some(g), Some(p)) => (gm.read_u32(g).unwrap_or(0), gm.read_u32(p).unwrap_or(0)),
-                                _ => (0, 0),
-                            };
+                            let (get, put) = if ch.mirrored { (0, 0) }
+                                else { (gm.read_u32(word(0x88)?)?, gm.read_u32(word(0x8C)?)?) };
                             Some(crate::gsprpc::ChannelIdle {
                                 chid: ch.chid,
                                 mirrored: ch.mirrored,
                                 gp_get: get,
                                 gp_put: put,
+                                software_busy: !ch.mirrored && chans.software_channel_idle(ch.chid) != Some(true),
                             })
                         }, host_idle);
                         notes.push(note);

@@ -14,9 +14,9 @@
 //!   store every iteration and bounce the cache line with every guest reader). The guest reads TIME_1, TIME_0, TIME_1 and
 //!   retries while TIME_1 changed (`ptimerReadTimer`, the GPU's own protocol); two 32-bit
 //!   stores would let it see a torn pair at a TIME_0 wrap (4.3 s apart), the one 64-bit
-//!   store cannot. While the reactor blocks (at most its sleep bound, 1 ms) the clock
-//!   stands: a reader sees time that does not advance for up to that long, never time
-//!   that goes back.
+//!   store cannot. While the reactor sleeps or runs a blocking driver callback,
+//!   the clock stands. The 1 ms sleep bound does not bound device-lock waits,
+//!   callback execution or host scheduling delay.
 //! - The doorbell: a guest write lands in memory. The reactor takes the word
 //!   ([`UmPage::take_doorbell`]: compare-and-swap to [`SENTINEL`]) and rings the channel its
 //!   value names at once, as a trapped write of that value would (boot.rs
@@ -50,7 +50,7 @@ pub const SENTINEL: u32 = u32::MAX;
 pub const WATCHDOG: Duration = Duration::from_millis(10);
 /// The scan after a doorbell, for the writes its hint did not name (coalesced).
 pub const FOLLOW_UP: Duration = Duration::from_micros(100);
-/// The clock is published at most this often: readers see the device clock within it.
+/// Minimum spacing between publications; this does not bound clock freshness.
 pub const TIME_EVERY: Duration = Duration::from_micros(1);
 
 /// `CARAXES_USERMODE_PAGE`: off, or on with the interrupt page and the boot model.

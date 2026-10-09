@@ -1052,6 +1052,8 @@ impl Device {
             boot.set_rpc_diagnostics(trace.records_events());
         }
         let irq_fds = (0..VFIO_PCI_NUM_IRQS).map(|_| Vec::new()).collect();
+        let mut mem = GuestMemory::new();
+        if let Some(boot) = bar0.boot() { boot.prepare_rusd_memory(&mut mem); }
         Device {
             host_control: bar0.boot().and_then(|b| b.host_control()),
             cfg_reset: cfg.clone(),
@@ -1059,7 +1061,7 @@ impl Device {
             bar0,
             trace,
             dma: Vec::new(),
-            mem: GuestMemory::new(),
+            mem,
             irq_fds,
             guest_ram: GuestRam::Plain,
             guest_dma_gpa: false,
@@ -2780,6 +2782,9 @@ impl ServerBackend for Device {
         // QEMU also reports ROM/MMIO extents without a RAM fd. Their lifecycle
         // does not change any registered pages or translation table.
         if self.dma.iter().any(|m| m.address == address && m.size == size && m.fd.is_some()) {
+            if let Some(boot) = self.bar0.boot_mut() {
+                boot.retire_rusd_unmap(&self.mem, address, size);
+            }
             self.cancel_guest_ram(address, size)?;
             self.remove_guest_ram(address, size)?;
         }

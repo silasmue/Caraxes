@@ -1265,6 +1265,23 @@ impl Registry {
         self.channels.get_mut(&chid)
     }
 
+    /// Whether submitted software work has finished. Unrung guest stores are not a
+    /// submission; GSP's idle RPC additionally reads the current USERD pointers.
+    pub fn software_channel_idle(&self, chid: u32) -> Option<bool> {
+        let ch = self.channels.get(&chid)?;
+        if ch.mirrored {
+            return None;
+        }
+        Some(
+            !ch.software_failed
+                && ch.resume.is_none()
+                && ch.acquire_wait.is_none()
+                && !ch.budget_stop
+                && ch.deferred.is_none()
+                && ch.gp_get == ch.gp_put_seen % ch.gpfifo_entries.max(1),
+        )
+    }
+
     /// The channel and its USERD GPPut as the guest published it, when both are known. A
     /// USERD in VRAM is read through the FB store's watched copy (`FakeFb::watched_dword`,
     /// a map lookup after the first read); one in guest RAM is read directly.
@@ -1301,7 +1318,10 @@ impl Registry {
         // Only the token-less ioeventfd reader compares against `gp_put_seen` (`pending`),
         // and it excludes the token pool (main.rs): with the pool on, the fast ring path
         // (launch.rs `FAST_ENV`) spares the read, an uncached one for a USERD in the pool.
-        if crate::launch::fast() && self.tokens.is_some() {
+        if crate::launch::fast()
+            && self.tokens.is_some()
+            && self.channels.get(&chid).is_some_and(|ch| ch.mirrored)
+        {
             return;
         }
         if let Some((_, gp_put)) = self.gp_put_of(mem, chid) {
@@ -2433,6 +2453,9 @@ impl Registry {
             notes.push(format!("chid {chid}: USERD {userd:?} unreadable"));
             return notes;
         };
+        // The software idle predicate follows the put actually consumed by this run,
+        // including clock-driven retries that do not pass through note_rung.
+        ch.gp_put_seen = gp_put;
         let entries = ch.gpfifo_entries.max(1);
         let mut guard = 0u32;
         let mut held = false;
@@ -4819,6 +4842,7 @@ mod tests {
             if reg.blocked_software_channels().is_empty() {
                 break;
             }
+            assert_eq!(reg.software_channel_idle(9), Some(false), "sliced CE work is not idle");
             assert_eq!(
                 sys.read_u32(0x4000_1004),
                 Some(0),
@@ -4828,6 +4852,7 @@ mod tests {
             assert!(runs < 64, "never finished");
         }
         assert!(runs > 1, "the fill was not sliced");
+        assert_eq!(reg.software_channel_idle(9), Some(true));
         assert!(ce_slices_pending());
         assert_eq!(sys.read_u32(0x4000_1004), Some(1));
         assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
@@ -5333,6 +5358,7 @@ mod tests {
         let (mut fb, sys, path, mut reg) = software_fixture("ce-acquire-recheck", &pb);
         reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
         assert_eq!(reg.blocked_software_channels(), vec![9]);
+        assert_eq!(reg.software_channel_idle(9), Some(false));
         assert_eq!(
             reg.channel(9).and_then(|c| c.acquire_wait).map(|w| (w.va, w.payload, w.op)),
             Some((0x1000_9000, 7, AcquireOp::Geq))
@@ -5345,6 +5371,7 @@ mod tests {
         reg.doorbell(&mut GpuMem { fb: &mut fb, sys: &sys }, 9);
         assert!(reg.blocked_software_channels().is_empty());
         assert_eq!(reg.channel(9).and_then(|c| c.acquire_wait), None);
+        assert_eq!(reg.software_channel_idle(9), Some(true));
         assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
         std::fs::remove_file(path).ok();
     }

@@ -57,9 +57,9 @@ pub const IDLE_NCHANNELS: usize = 8;
 pub const IDLE_LIST: usize = 12;
 pub const IDLE_ENTRY: usize = 12;
 
-/// The longest the device waits for mirrored channels to drain, whatever the request's
-/// timeout: the wait holds the service thread (the software executor cannot run in
-/// the meantime, and needs not: it runs to completion at every doorbell).
+/// Cap on the timeout passed to the host RM. The call holds the service thread and
+/// device lock, so software continuations must wait until it returns. Host lock/ioctl
+/// overhead is additional; this is not a hard wall-clock deadline for the whole RPC.
 pub const IDLE_WAIT_CAP: std::time::Duration = std::time::Duration::from_millis(50);
 
 /// One channel's state as the registry and its USERD show it.
@@ -69,6 +69,9 @@ pub struct ChannelIdle {
     pub mirrored: bool,
     pub gp_get: u32,
     pub gp_put: u32,
+    /// Software registry work retained after a doorbell (slices, acquires, deferred
+    /// methods or failed execution), independently of the USERD progress snapshot.
+    pub software_busy: bool,
 }
 
 /// `IDLE_CHANNELS` (sender rpc.c:4488, from kfifoIdleChannelsPerDevice_KERNEL,
@@ -77,16 +80,15 @@ pub struct ChannelIdle {
 /// unknown channels are `NV_ERR_INVALID_OBJECT_HANDLE` (0x33), whatever else the list
 /// holds, and nothing is asked of the host then.
 ///
-/// * A software channel is idle when its USERD GPGet caught up with GPPut (the executor
-///   runs a push to completion at its doorbell; a channel still behind is busy at once).
+/// * A software channel is idle when its probed progress has caught up with its submitted
+///   work; a blocked or sliced push remains busy while this service thread holds the device.
 /// * The channels that run on a host mirror go to `host_idle` in one call, with the
 ///   request's flags and the timeout capped at [`IDLE_WAIT_CAP`] (the call holds the
 ///   service thread): the host RM's own idle (`NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` on the
 ///   device's own host device object, over the mirror's own host channel handles only,
-///   mirror.rs `Mirror::idle_channels`). Its `NV_OK` means idle, its `NV_ERR_TIMEOUT`
-///   is the guest's `NV_ERR_TIMEOUT`. When the mirror has no host object for them
-///   (`None`) or the host refuses the call, the device polls their USERD instead for
-///   `min(timeout, IDLE_WAIT_CAP)`.
+///   mirror.rs `Mirror::idle_channels`). The host's status is the guest's status. A
+///   missing host idle result is refused: equal USERD fetch pointers cannot establish
+///   completion of pending engine work or the requested descheduling operation.
 pub fn idle_channels(
     payload: &[u8],
     mut probe: impl FnMut(u32, u32) -> Option<ChannelIdle>,
@@ -120,66 +122,63 @@ pub fn idle_channels(
         }
     }
     let mut host_note = String::new();
-    let mut host_idle_ok = false;
     if !mirrored.is_empty() {
         let capped = limit.as_micros().min(u32::MAX as u128) as u32;
         match host_idle(&mirrored, flags, capped) {
             Some((NV_OK, note)) => {
-                host_idle_ok = true;
                 host_note = format!("; host idle: {note}");
             }
-            Some((NV_ERR_TIMEOUT, note)) => {
+            Some((status, note)) => {
                 return (
-                    NV_ERR_TIMEOUT,
+                    status,
                     format!(
-                        "idle channels flags {flags:#x} timeout {timeout_us} us: host idle of {} mirror channel(s) timed out after {:?} (capped at {capped} us): {note}",
+                        "idle channels flags {flags:#x} timeout {timeout_us} us: host idle of {} mirror channel(s) returned {status:#x} after {:?} (capped at {capped} us): {note}",
                         mirrored.len(),
                         start.elapsed()
                     ),
                 )
             }
-            Some((st, note)) => host_note = format!("; host idle refused {st:#x} ({note}), USERD polled instead"),
-            None => host_note = "; no host mirror object, USERD polled".into(),
+            None => return (
+                NV_ERR_NOT_SUPPORTED,
+                format!("idle channels flags {flags:#x}: no authoritative host idle result for {} mirror channel(s)", mirrored.len()),
+            ),
         }
     }
-    loop {
-        let mut busy = Vec::new();
-        for &(c, h) in &list {
-            match probe(c, h) {
-                None => {
-                    return (
-                        NV_ERR_INVALID_OBJECT_HANDLE,
-                        format!("idle channels flags {flags:#x}: {c:#x}/{h:#x} is no channel of this device"),
-                    )
-                }
-                Some(s) if s.mirrored && host_idle_ok => {}
-                Some(s) if s.gp_get != s.gp_put => busy.push(s),
-                Some(_) => {}
+    let mut busy = Vec::new();
+    for &(c, h) in &list {
+        match probe(c, h) {
+            None => {
+                return (
+                    NV_ERR_INVALID_OBJECT_HANDLE,
+                    format!("idle channels flags {flags:#x}: {c:#x}/{h:#x} is no channel of this device"),
+                )
             }
+            Some(s) if s.mirrored => {}
+            Some(s) if s.software_busy || s.gp_get != s.gp_put => busy.push(s),
+            Some(_) => {}
         }
-        let waited = start.elapsed();
-        if busy.is_empty() {
-            return (
-                NV_OK,
-                format!(
-                    "idle channels flags {flags:#x} timeout {timeout_us} us: {n} channel(s) idle after {waited:?} ({} on the host) [guest]{host_note}",
-                    mirrored.len()
-                ),
-            );
-        }
-        // Only a mirrored channel can still move while this thread waits.
-        if waited >= limit || busy.iter().all(|s| !s.mirrored) {
-            let names: Vec<String> = busy
-                .iter()
-                .map(|s| format!("chid {} GPGet {} GPPut {}{}", s.chid, s.gp_get, s.gp_put, if s.mirrored { " (host mirror)" } else { "" }))
-                .collect();
-            return (
-                NV_ERR_TIMEOUT,
-                format!("idle channels flags {flags:#x} timeout {timeout_us} us: not idle after {waited:?}: {}{host_note}", names.join(", ")),
-            );
-        }
-        std::thread::sleep(std::time::Duration::from_micros(200));
     }
+    let waited = start.elapsed();
+    if busy.is_empty() {
+        return (
+            NV_OK,
+            format!(
+                "idle channels flags {flags:#x} timeout {timeout_us} us: {n} channel(s) idle after {waited:?} ({} on the host) [guest]{host_note}",
+                mirrored.len()
+            ),
+        );
+    }
+    // Software work resumes on the continuation clock after this call releases
+    // the device. Sleeping here would prevent its progress.
+    let names: Vec<String> = busy
+        .iter()
+        .map(|s| format!("chid {} GPGet {} GPPut {}{}", s.chid, s.gp_get, s.gp_put,
+            if s.software_busy { " (retained software work)" } else { "" }))
+        .collect();
+    (
+        NV_ERR_TIMEOUT,
+        format!("idle channels flags {flags:#x} timeout {timeout_us} us: not idle after {waited:?}: {}{host_note}", names.join(", ")),
+    )
 }
 
 // ---------------------------------------------------------------------------------
@@ -310,38 +309,30 @@ mod tests {
 
     #[test]
     fn idle_channels_follows_userd() {
-        let idle = |_: u32, h: u32| Some(ChannelIdle { chid: h, mirrored: false, gp_get: 3, gp_put: 3 });
+        let idle = |_: u32, h: u32| Some(ChannelIdle { chid: h, mirrored: false, gp_get: 3, gp_put: 3, software_busy: false });
         assert_eq!(idle_channels(&idle_request(1000, &[(1, 2), (1, 3)]), idle, no_host).0, NV_OK);
         let unknown = |_: u32, _: u32| None;
         assert_eq!(idle_channels(&idle_request(1000, &[(1, 2)]), unknown, no_host).0, NV_ERR_INVALID_OBJECT_HANDLE);
         // A software channel that did not drain stays busy: no wait.
-        let stuck = |_: u32, h: u32| Some(ChannelIdle { chid: h, mirrored: false, gp_get: 2, gp_put: 3 });
+        let stuck = |_: u32, h: u32| Some(ChannelIdle { chid: h, mirrored: false, gp_get: 2, gp_put: 3, software_busy: true });
         let t = std::time::Instant::now();
         assert_eq!(idle_channels(&idle_request(10_000_000, &[(1, 2)]), stuck, no_host).0, NV_ERR_TIMEOUT);
         assert!(t.elapsed() < IDLE_WAIT_CAP);
-        // A mirrored channel without a host object is asked again until it drains.
-        let mut calls = 0;
-        let draining = |_: u32, h: u32| {
-            calls += 1;
-            Some(ChannelIdle { chid: h, mirrored: true, gp_get: calls.min(3), gp_put: 3 })
-        };
-        let (st, note) = idle_channels(&idle_request(10_000_000, &[(1, 2)]), draining, no_host);
-        assert_eq!(st, NV_OK, "{note}");
         assert_eq!(idle_channels(&idle_request(8, &[]), idle, no_host).0, NV_OK);
         assert_eq!(idle_channels(&idle_request(8, &[(1, 2)])[..16], idle, no_host).0, NV_ERR_INVALID_ARGUMENT);
     }
 
     /// Item 4 of the GSP plan round 2: the mirrored channels of the list go to the host
     /// idle in one call (only those, with the flags and the capped timeout); the host's
-    /// NV_OK makes them idle whatever their USERD says, its NV_ERR_TIMEOUT is the guest's,
-    /// any other host status falls back to polling; an unknown channel keeps 0x33 and the
+    /// NV_OK makes them idle whatever their USERD says, other statuses are preserved;
+    /// an unknown channel keeps 0x33 and the
     /// host is not asked.
     #[test]
     fn idle_channels_asks_the_host_for_mirror_channels() {
         // chid 2 software (idle), chid 3 mirrored and still busy in USERD.
         let probe = |_: u32, h: u32| match h {
-            2 => Some(ChannelIdle { chid: 2, mirrored: false, gp_get: 5, gp_put: 5 }),
-            3 => Some(ChannelIdle { chid: 3, mirrored: true, gp_get: 1, gp_put: 4 }),
+            2 => Some(ChannelIdle { chid: 2, mirrored: false, gp_get: 5, gp_put: 5, software_busy: false }),
+            3 => Some(ChannelIdle { chid: 3, mirrored: true, gp_get: 1, gp_put: 4, software_busy: false }),
             _ => None,
         };
         let mut req = idle_request(10_000_000, &[(1, 2), (1, 3)]);
@@ -360,12 +351,12 @@ mod tests {
             Some((NV_ERR_TIMEOUT, "host timeout".into()))
         });
         assert_eq!((st, asked), (NV_ERR_TIMEOUT, vec![700]));
-        // A refused host call: USERD polled; chid 3 never drains, so the cap ends it.
+        // A refused host call keeps its error instead of becoming a timeout.
         let (st, note) = idle_channels(&idle_request(2000, &[(1, 3)]), probe, |_: &[(u32, u32)], _, _| {
             Some((NV_ERR_NOT_SUPPORTED, "refused".into()))
         });
-        assert_eq!(st, NV_ERR_TIMEOUT);
-        assert!(note.contains("USERD polled"), "{note}");
+        assert_eq!(st, NV_ERR_NOT_SUPPORTED);
+        assert!(note.contains("refused"), "{note}");
         // An unknown channel anywhere in the list: 0x33, no host call.
         let mut called = false;
         let (st, _) = idle_channels(&idle_request(1000, &[(1, 3), (1, 9)]), probe, |_: &[(u32, u32)], _, _| {
@@ -379,6 +370,51 @@ mod tests {
             panic!("no mirrored channel in the list")
         });
         assert_eq!(st, NV_OK);
+    }
+
+    #[test]
+    fn mirrored_fetch_progress_never_substitutes_for_host_idle() {
+        let request = idle_request(1_000_000, &[(1, 2)]);
+        let fetched = |_: u32, _: u32| Some(ChannelIdle {
+            chid: 2, mirrored: true, gp_get: 7, gp_put: 7, software_busy: false,
+        });
+        // All entries fetched can still leave engine work in flight. Missing host
+        // authority and host errors must not turn into a successful idle reply.
+        assert_eq!(idle_channels(&request, fetched, no_host).0, NV_ERR_NOT_SUPPORTED);
+        for status in [NV_ERR_INVALID_ARGUMENT, NV_ERR_INVALID_OBJECT_HANDLE,
+            NV_ERR_NOT_SUPPORTED, NV_ERR_TIMEOUT, 0x66] {
+            let (actual, _) = idle_channels(&request, fetched, |_, _, _| {
+                Some((status, "host failure".into()))
+            });
+            assert_eq!(actual, status);
+        }
+        assert_eq!(idle_channels(&request, fetched, |_, _, _| {
+            Some((NV_OK, "host completed engine work".into()))
+        }).0, NV_OK);
+    }
+
+    #[test]
+    fn idle_host_does_not_hide_pending_software_work() {
+        let request = idle_request(1_000_000, &[(1, 2), (1, 3)]);
+        let probe = |_: u32, h: u32| Some(ChannelIdle {
+            chid: h, mirrored: h == 2, gp_get: 0, gp_put: 1, software_busy: h != 2,
+        });
+        let (status, note) = idle_channels(&request, probe, |_, _, _| {
+            Some((NV_OK, "host channel idle".into()))
+        });
+        assert_eq!(status, NV_ERR_TIMEOUT, "{note}");
+        assert!(note.contains("chid 3 GPGet 0 GPPut 1"), "{note}");
+    }
+
+    #[test]
+    fn equal_software_fetch_pointers_do_not_hide_retained_work() {
+        let request = idle_request(1_000_000, &[(1, 2)]);
+        let retained = |_: u32, _: u32| Some(ChannelIdle {
+            chid: 2, mirrored: false, gp_get: 7, gp_put: 7, software_busy: true,
+        });
+        let (status, note) = idle_channels(&request, retained, no_host);
+        assert_eq!(status, NV_ERR_TIMEOUT, "{note}");
+        assert!(note.contains("retained software work"), "{note}");
     }
 
     #[test]

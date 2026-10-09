@@ -20,14 +20,21 @@ These are diagnostic leads, not established causes of the reported idle load.
 The first hardware result must identify the busy NVIDIA driver path and the
 request/status sequence feeding it.
 
-- `public.rs::Guest::IdleChannels` caps host waits at 50 ms and maps unexpected
-  host failures to timeout. Check whether a busy driver path repeatedly asks
-  for idle and receives that status; do not report success for unfinished work.
-- `rusd.rs` implements the shared-data page behind `CARAXES_RUSD=1`; `boot.rs`
-  refreshes its polled timestamps on synchronous controls. Deferred host
-  controls take a different path. The requested mask is stored but not used,
-  and the header's `pollIntervalMs` is not scheduled. Record the flag and check
-  requested poll sections and freshness if the driver repeatedly queries data.
+- Idle replies now preserve host errors, including `NV_ERR_TIMEOUT_RETRY`.
+  Mirrored channels require authoritative host idle; equal USERD fetch pointers
+  do not prove engine completion. Every host channel must resolve, without
+  truncation. Software channels remain busy while slices, acquires, deferred
+  work or execution failures remain. The host timeout is capped at 50 ms;
+  lock acquisition and ioctl overhead can extend the complete RPC duration.
+- `rusd.rs` implements the shared-data page behind `CARAXES_RUSD=1`. Previously,
+  `boot.rs` refreshed timestamps only on synchronous controls and ignored the
+  mask and interval. A sleeping publisher now honors both without a Device
+  lock or GPU query. It validates current DMA mappings and stops publication
+  after deinit, unmap or translation changes. Only requested modeled clocks,
+  virtual P0 and GPU/board temperature receive valid timestamps; unsupported
+  telemetry remains invalid. These values are virtual state, not host samples.
+  Header probes verified the 570/595/610/615 layouts and P0 bitmask encoding.
+  Record the flag and check requested sections and freshness in a hot guest path.
   A successful registration reply alone does not prove a useful shared page.
   The vendored NVIDIA `gpu_user_shared_data.c::_gpushareddataSendDataPollRpc`
   caches the mask/interval after success and suppresses identical resends.
@@ -60,6 +67,19 @@ request/status sequence feeding it.
 - The historical [trap census](trap-census-2026-09-30.md) measured Linux GNOME
   idle at 421 traps/s and 1.1% observed vCPU load. That older result does not
   establish the current baseline or explain intermittent high CPU episodes.
+
+The source corrections passed 996 backend library tests (two existing tests
+ignored), including actual sliced copy work and DMA unmap/remap regressions.
+This establishes CPU behavior, not Windows hardware compatibility or performance.
+`ctrl.rs::rusd_pa` remains an unused diagnostic cache with the old init decoding;
+the publisher uses its own ABI-aware registration.
+
+Existing whole-run profiles further limit the idle hypothesis. C209 recorded
+44 idle RPCs taking 30 ms total, compared with 8,772 `0x2080a613` controls taking
+38 seconds total. C212/C214 show the same broad distribution. Their windows
+are unequal and scopes overlap: do not sum nested timings or infer an FPS gain.
+The next Windows diagnostic records the time distribution of these exact host
+controls alongside four-vCPU idle accounting and a short correctness probe.
 
 ## Controlled idle comparison
 
