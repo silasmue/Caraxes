@@ -7,6 +7,18 @@ work. Keep it untouched. User priorities: Windows rendering, Wayland desktop,
 CUDA, release documentation, then more GPU models. Use host-backed GPUs and stock
 guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanup.
 
+Disk watch: `caraxes-disk-reserve-20261009.service` is a transient user service
+for twelve hours from 18:05 UTC. It samples `/` and `/mnt/vmstore` every 30 seconds
+on CPU15/SCHED_IDLE/nice19. Read `disk-reserve-state.json` in the private trial
+directory; a low-reserve sample also writes `disk-reserve-pressure.json`.
+It observes only. Check both filesystems before new writes or VM starts; retain
+at least 20 GiB on `/` and 55 GiB on vmstore. Put new large build outputs on
+vmstore. Cleanup removed 3.522 GiB of old Rust incremental caches while holding
+Cargo locks and checking process FD/cwd/exe/maps references. Sources, pinned
+binaries, current evidence, VM images, Codex state and Floppy were preserved.
+Post-cleanup free space is about 27/142 GiB. Private proof:
+`disk-cleanup-oct09-1803.json`.
+
 ## Verified state
 
 - Source `f7c431d6` completes instrumented stock Windows Fire Strike in C220–C222.
