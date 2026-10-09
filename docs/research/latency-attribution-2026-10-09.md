@@ -116,13 +116,20 @@ checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
   remainder. Host validation checks aware UTC, finite 0–700 seconds and agreement
   within 1 ms; the 650-second pre-Run minimum remains. Fifty actual-function
   mocked CPU checks reproduce both old failures and exercise malformed or
-  inconsistent samples. Native Windows qualification is pending. The backend,
-  UI helper, workload and host policies remain unchanged.
+  inconsistent samples. Its hardware attempt stops before that check: the
+  settings image still has a loading modal and no required values, so visual
+  approval is refused; the preparation deadline follows. Cleanup is clean in
+  489 seconds. No process trace, arm, Run or FPS. Native timing remains
+  unqualified. Five successful reviews consume 140.945 seconds of host monotonic
+  time; READY-to-controller preparation adds 27.726 seconds of host wall time.
+  These are harness delays before rendering. The backend, UI helper, workload
+  and host policies stay unchanged.
 
 Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
 and `C225-runtime/results/partial-backend-timeline-report.json`, plus
 `C226-report.json`, `C228-report.json`, `C230-report.json`, `C232-report.json`
-and `C244-report.json`. There is no
+and `C244-report.json`, `C246-report.json` and `C246-preparation-timing.json`.
+There is no
 complete render timeline or demonstrated improvement from this build yet.
 
 The replacement `tools/windows/3dmark-ui-step.ps1` refreshes process state under
@@ -240,6 +247,15 @@ needs shared object lifetime through the last alias, not another silent ACK.
 
 These source paths are measurable candidates, not established render bottlenecks.
 No source evidence shows ordinary mirrored GR work being executed twice.
+
+C220's saved backend log confirms compression is enabled, with comptags covering
+the full 4096 MiB physical reservation. An unavailable PTE audit does not disable
+the mapping policy; a recorded violation does. The filter can downgrade sysmem,
+small, misaligned or uncovered mappings. Downgrade notes are capped and
+deduplicated, so existing logs cannot establish a complete byte/resource census.
+Host-backed ZBC setters use physical host entries; the separate local reference
+flag is not the table setter. No broad compression-disable or index-mapping bug
+was found in this scoped review. See `compslice.rs`, `shadow.rs` and `zbc.rs`.
 
 - A mirrored consumer can wait for a software semaphore producer held behind
   shadow invalidation. Root plans also delay physical doorbells

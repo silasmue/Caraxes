@@ -96,8 +96,15 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   minimum of 650 seconds remains. Root reruns owner11/controller6/UI25/
   publication42/trace50 CPU checks and verifies actual UID1000 reads/hashes of
   all 25 frozen inputs and 42 external pins. C231 backend and every workload,
-  resource, scheduling and time limit stay unchanged. One fresh Windows
-  diagnostic has started; native timing and rendering qualification are pending.
+  resource, scheduling and time limit stay unchanged. Its fresh Windows
+  diagnostic closes cleanly in 489 seconds. The settings screenshot still shows
+  a loading modal; required values are absent, so the reviewer refuses approval.
+  The controller reaches the preparation deadline. No trace, arm, Run or FPS;
+  native timing remains unqualified. Five successful image-review waits total
+  140.945 seconds. READY-to-controller preparation adds 27.726 seconds of host
+  wall time; that executor gap can be removed. The settings checkpoint arrives
+  418.252 seconds after owner start, leaving too little preparation margin.
+  Preserve C246-report and C246-preparation-timing; guest UTC stays separate.
 - `c8e8ea4d` retains early TSG SET0xa06c0103 requests and adds
   GET0xa06c0104. Both first-scheduling paths replay the latest accepted revision.
   Physical refusal/output and exact allocation lifetime are preserved. The
@@ -113,7 +120,13 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
 
 ## Continue
 
-1. Finish the fresh C246 render timeline. Its corrected callback passes 42
+1. Reduce the measured preparation overhead before another render attempt.
+   C246 never reaches the corrected native trace-clock check; no render timeline
+   exists. Start the controller on fresh READY without intervening diagnostic
+   tool rounds, keep reviews prebriefed, and handle a settings-loading image with
+   a separately reviewed bounded readiness flow. A short native trace-clock
+   qualification can isolate that fix from the full GUI sequence. No frozen
+   runtime edits or automatic retries. Its corrected callback passes 42
    actual publication checks for all nine caller literals, unsafe names,
    mismatched evidence, closed sessions and duplicate proof. Root independently
    reran these checks. Before any future runtime launch, verify actual `silas`
@@ -133,8 +146,10 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
    clock-only backend using the same corrected UI flow, workload and host policy.
    C234 has the old callback and C238 is an unfinished proposal; both remain
    launch-disabled. C242 retains the old trace-time bug and must not launch.
-   A fresh matched clock-only proposal must include C246's timing correction.
-   C230/C232/C240/C244 have no FPS baseline. The lost early request is a
+   C248 is a source-only clock baseline with that correction; independent review
+   confirms all 18 execution/test inputs differ from C246 only by case names.
+   It remains launch-disabled. C230/C232/C240/C244/C246 have no FPS baseline.
+   The lost early request is a
    confirmed correctness bug, not a proven FPS cause.
 
 Read [render trials](../research/windows-render-trials-2026-10-09.md),
