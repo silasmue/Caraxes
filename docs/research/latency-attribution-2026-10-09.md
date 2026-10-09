@@ -263,7 +263,32 @@ and 1016 library tests pass; two existing tests remain ignored. Release build
 and AST graph update pass. The patch is committed as `c8e8ea4d`. C232 preparation
 records 206 successful physical SET calls and 244 successful guest SET requests.
 Build-time replay and repeated requests prevent one-to-one count comparison.
-Render qualification and any FPS effect remain pending.
+Standard Fire Strike now qualifies in C262. GT1 is 18.486073 FPS and GT2 is
+29.838354; all four workload lifetimes exit 0 with clean driver health and exact
+owned teardown. C264 uses the same harness with the clock-only backend. Its
+matched comparison is required before attributing an FPS effect to TSG replay.
+
+## C262 render observation
+
+- The clipped backend interval is 282.166 seconds, including launch and result
+  handling. It is not an exact moving-scene interval or guest-to-host clock map.
+- A612 has 7984 calls, median 0.377 ms; A613 has 7990, median 3.478 ms and
+  p95 7.561 ms. All statuses are zero. Their union occupies 39.236 seconds,
+  about 13.9% of the interval; occupancy is not critical-path frame delay.
+- All 16690 host spans are present. The marker union retains 702240 of 704522
+  sequence IDs. The 2282 missing IDs equal global contention losses; their
+  locations are unknown. No invalid or poisoned records. Snapshot overwrite
+  reaches 636704, but overlapping captures recover those overwritten rows.
+- The native trace-time gate passes with 650–700 seconds remaining. Its exact
+  returned value was not stored. The original guest UTC deadline minus actual
+  Run receipt is 656.083 seconds; this is a separate derived margin.
+- The new helper succeeds natively and eight visual callback waits total
+  53.544 seconds. Preparation to Run request takes 319.108 seconds. Stock driver,
+  settings and owner limits remain fixed; no UI captures occur during rendering.
+
+Private evidence: `C262-report.json`, `controller-report.json`,
+`render-qualification.json` and `backend-timeline-report.json` under the trial
+directory. This instrumented result does not establish a speedup.
 
 TSG DUP handles remain an unqualified compatibility limit: the registry tracks
 VAS aliases only. Timeslice control on such a handle is refused; the old early

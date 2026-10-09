@@ -21,6 +21,22 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Verified state
 
+- C262 completes standard Fire Strike with the GPU clock and early TSG fixes.
+  GT1 is 18.486073 FPS, GT2 29.838354; graphics score 5250. All four workload
+  lifetimes exit 0; driver ProblemCode and Display 4101 remain 0. Exact owned
+  cleanup passes in 671 seconds. These are instrumented local results, with no
+  established speedup. C264 is the matched clock-only baseline now in progress.
+  The new helper, eight visual callbacks and native UTC trace check pass. The
+  gate establishes 650–700 seconds remaining; the exact returned sample was not
+  saved. Guest deadline minus Run receipt is 656.083 seconds, a separate derived
+  value. Callback waits total 53.544 seconds; preparation to Run request is
+  319.108 seconds. Root no longer publishes live visual callbacks.
+  Across the clipped 282.166-second observation, A612/A613 occupy 39.236 seconds
+  in union. A613 median is 3.478 ms. This is control occupancy, not frame stall
+  time. All 16690 host spans are retained; 2282 globally missing marker IDs equal
+  contention losses. Marker overwrite alone is not missing union coverage.
+  Preserve `C262-report.json`, SHA256
+  `929300eea1ec088d3d7ffb30a5bdc1a1593d1395cf4ac4525d73799a4bfe8666`.
 - C258 closes cleanly in 174 seconds before its first visual checkpoint. The
   screenshot helper rejects its owned-window check. The verified failure image
   shows a blank loading window with caption `...`; the old error records the
@@ -30,7 +46,8 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   HWND/native owner/foreground checks remain; click/wheel require exact `3DMark`
   title twice. Failure diagnostics report the rejection and a fresh census.
   Independent review, PowerShell/C# grammar, 18 structural checks and all 25
-  mocked handoff checks pass. Native behavior requires the fresh C262 case.
+  mocked handoff checks pass. Native operation now passes C262; the failure
+  branches are not fully hardware-qualified.
   The original helper/proof are archived under `ui-helper-history`; C264 will
   use the same new helper and harness with the clock-only backend. C260 must
   remain unlaunched because its candidate never qualified.
@@ -153,15 +170,15 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   bypasses and old children/promoted buffers. 1016 library tests pass, two existing
   tests ignored. Release and AST update pass. C232 preparation records 206
   successful physical SET calls and 244 successful guest SET requests. Repeated
-  requests and build-time replay prevent one-to-one count comparison. Render
-  qualification remains pending; no FPS claim.
+  requests and build-time replay prevent one-to-one count comparison. C262 now
+  qualifies rendering; a matched comparison is required for an FPS claim.
   TSG DUP remains unqualified: VAS-only alias tracking cannot authorize that
   handle. No stock Windows use was found; implement shared last-alias lifetime
   if traces establish this requirement.
 
 ## Continue
 
-1. Complete C262 with `ui_review_fast` as the sole PNG reviewer. Start the pinned watcher
+1. Complete C264 with `ui_review_fast` as the sole PNG reviewer. Start the pinned watcher
    before the owner; it launches one controller on fresh READY. Review the
    current image and publish immediately, within 40 seconds or 20 seconds for
    the armed page. Root performs other analyses and publishes no live callback.
@@ -170,7 +187,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    remainder of at least 650 seconds, fresh archive and all four successful
    workload lifetimes remain required. No frozen edits or automatic retries.
    Verify actual `silas` reads and hashes after freezing each fresh runtime.
-   The planned preparation budget is 600 seconds within the unchanged owner
+   The preparation budget is 600 seconds within the unchanged owner
    work/session budgets. Record physical clocks, driver health and exact cleanup.
    C250/C254 contain only preparation evidence; their missing marker IDs are
    contention losses. C254 retains 471865/473367 marker IDs and 716 host spans.
@@ -179,13 +196,16 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    completion nor guest ACK. Preserve losses and per-stream endpoints.
 3. Retain the corrected GPU clock domain, then obtain comparable native/guest
    samples and pilot GPU context
-   visibility. Context collector drafts remain disabled and reference closed
-   cases; create a fresh mapping and review before execution. No external
+   visibility. C266 is a source-only ten-second `tu10x`/200 Hz and context-switch
+   proposal with 57 CPU checks. It remains disabled until a separate frozen
+   owner and owner-attested Nsight index/PCI/UUID mapping are supplied. General
+   counters and context residency do not establish a stall cause or guest
+   ownership. Export only after rendering ends. No external
    benchmark code was imported.
-4. Hardware-qualify the reviewed TSG replay correction and compare it with a
+4. Compare the hardware-qualified TSG replay correction with a
    clock-only backend using the same corrected UI flow, workload and host policy.
-   C264 is the planned clock-backend comparison with C262's exact harness and
-   reviewer policy; freeze and check it independently after candidate cleanup.
+   C264 is frozen and independently checked after C262 cleanup, with the same
+   harness and reviewer policy. Only its backend and three associated pins differ.
    C252/C256/C260 remain source-only predecessor proposals. C234,
    C238 and C242 remain launch-disabled.
    C248 is a source-only clock baseline with that correction; independent review

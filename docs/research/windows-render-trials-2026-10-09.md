@@ -79,9 +79,35 @@ missing stop, duplicate result node, identical FPS values and changed VMM identi
 Raw archives and process command lines remain private. This does not validate
 pixels against native Windows or establish an uninstrumented speedup.
 
+## C262: clock and TSG corrections
+
+C262 completes standard Fire Strike with source `c8e8ea4d` and the corrected
+native UI/trace flow. Backend SHA256:
+`b6d36f87a730382d76b6c81719869191cb087ad931424adb2aa92cebcac1a96e`.
+
+| GT1 FPS | GT2 FPS | Physics FPS | Combined FPS | Graphics score |
+|---:|---:|---:|---:|---:|
+| 18.486073 | 29.838354 | 25.100178 | 17.217127 | 5250 |
+
+- All four workload lifetimes exit 0; native trace self-test exits 37. Driver
+  ProblemCode and Display 4101 stay 0; exact owned cleanup passes in 671 seconds.
+- Backend/VM policy is now nice10/SCHED_OTHER, with bounded marker captures.
+  C220's nice0 policy and older source are not a matched comparator.
+- The 282.166-second backend observation retains every selected host span.
+  A612/A613 union occupancy is 39.236 seconds, with A613 median 3.478 ms. This
+  includes launch/result handling and establishes neither GPU execution nor
+  critical-path delay. Global marker contention loses 2282 sequence IDs.
+- No speedup is established. C264 is the matched clock-only comparison, using
+  identical UI, tracing, affinity, resource limits and host policy.
+
 ## Next measurement
 
-Use the baseline pool and polling settings with the new bounded backend markers.
+After the matched comparison, test the existing host-control offlock option as
+a separate variant. It can release the device lock during physical A612/A613
+calls; it preserves ordered GSP replies and does not shorten the physical calls.
+Defaults remain unchanged until qualified evidence supports a change.
+
+Retain the baseline pool and polling settings with the bounded backend markers.
 Record physical doorbell writes, host notifier observations and local cause
 publication against the same clock as A612/A613 controls. Distinguish event gaps
 from execution time; notifier events alone do not establish GPU completion.
