@@ -21,6 +21,19 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Verified state
 
+- C302/C304 are separately frozen and root-reviewed for one bounded counter
+  pilot. Admission passes at 16.425 GiB available RAM, root/vmstore free
+  23.431/131.598 GiB. Watcher precedes the owner; C231/C215 remain unchanged.
+  Windows boots and passes all three D3D11 readbacks. At this checkpoint the
+  controller is preparing 3DMark; native capture/results remain unqualified.
+  Final runtime review `C302-final-runtime-review.json`, SHA256
+  `e076a92702bf6b735597c268cba07055588be9adbd93cbde77eb91769b1b1467`,
+  independently checks 88 pin hashes, 95 current UID1000 proof rows, 30 frozen
+  modes and actual filesystem-only owner/child/helper bindings. Parent SHA256
+  `b7e83dc67ea8dc9e227182d99abd72a6550eb30e2bf429c35a9efe1ee2d3fd0b`;
+  child `dadad0e965c7892ede6cc3286549345e0b371191c4c73c1264a17830bfaa597b`.
+  Sole reviewer remains `ui_review_c278`, direct C298 loader, normal40/armed30.
+  Keep profiles/timeline and all original bounds; this is a perturbed diagnostic.
 - C300 fixes pending USERD cancellation in `mirror.rs`. API IDs are scoped to
   owner/object; matching only the API could select another channel's ring.
   The old path also took and retired the pending page despite missing or failed
@@ -39,6 +52,15 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   REMOVE_API after the host already switched rings retains the old assumption;
   that native contract still needs separate review. Private proof:
   `C300-userd-cpu-review-v2.json`.
+- C306's successful-REMOVE retention proposal is unapplied. Open RM 615.71.09
+  removes only the registration and can keep physical USERD memory referenced;
+  that does not preserve Caraxes's CPU window/poller. Keeping the pending slot
+  blocks migration/API reuse and may require a freed guest USERD page. No current
+  binding query was found in the examined controls; idle alone does not detach.
+  Seek binding/rebind evidence before a production fix. Exact versioned source
+  evidence: `C306-userd-retirement-draft/SOURCE-EVIDENCE.md`, SHA256
+  `2c5158fdfe4f376ae969890065bd14ea27e4ee3a59138179ad76de780049060f`.
+  No hardware failure or FPS effect is attributed to this path.
 - C296 completes the backend-profile-off comparison: GT1 18.775480 FPS,
   GT2 32.267513, Physics 34.306366, Combined 20.259274; graphics score 5459.
   Against C272: -2.6%, +7.3%, +21.0%, +15.5%, respectively. Graphics changes

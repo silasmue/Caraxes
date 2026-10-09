@@ -442,8 +442,21 @@ one existing Mirror benchmark remains ignored. No hardware test or performance
 gain follows yet.
 
 Successful REMOVE_API after the host already switched to the pending page still
-uses the prior retirement assumption. This fix does not establish that native
-contract. Private evidence: `C300-userd-cpu-review-v2.json` in the trial directory.
+uses the prior retirement assumption. Open RM 615.71.09 source shows REMOVE
+deleting a registration without channel detach. Its USERD subdescriptor can
+keep the physical allocation referenced after handle free; Caraxes still drops
+the CPU BAR1 window and removes the pending poller. Physical allocation lifetime
+alone therefore does not establish safe continued emulation.
+
+The private C306 retention proposal remains unapplied. Keeping `next` until
+observed new GPGet or channel teardown bounds extra backing to one page per
+channel, but blocks later migrations/API reuse and can depend on an unmapped
+guest page. Examined local controls expose channel idle and general USERD
+location, without a per-channel current binding query. Idle does not detach a
+bound page. A later native diagnostic needs binding or controlled rebind evidence;
+no physical use-after-free or FPS cause has been demonstrated. Versioned source
+paths/hashes are in `C306-userd-retirement-draft/SOURCE-EVIDENCE.md`.
+CPU correction proof: `C300-userd-cpu-review-v2.json` in the trial directory.
 
 ## Measuring the missing boundaries
 
