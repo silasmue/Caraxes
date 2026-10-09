@@ -325,6 +325,15 @@ older preparation order. Disclose these factors before attributing a difference.
 These source paths are measurable candidates, not established render bottlenecks.
 No source evidence shows ordinary mirrored GR work being executed twice.
 
+The counter/context pilot remains source-only. C292's private tool GO follows
+pidfd admission, mapping freshness is checked again before exec, and SIGTERM
+allows cleanup of its dedicated tool subtree. Independent CPU checks pass
+61 collector and 28 gate cases. C282's BDF/UUID parser also passes; native help
+grammar remains unqualified. C284 places the collector in a separate coordinator
+to protect the render observer. Initialization cancellation and bounded parent
+cleanup supervision still need correction before freeze. No GPU counters have
+been collected by this pilot.
+
 C220's saved backend log confirms compression is enabled, with comptags covering
 the full 4096 MiB physical reservation. An unavailable PTE audit does not disable
 the mapping policy; a recorded violation does. The filter can downgrade sysmem,
@@ -347,7 +356,8 @@ was found in this scoped review. See `compslice.rs`, `shadow.rs` and `zbc.rs`.
   These aggregates include preparation/menu/idle, not exact GT boundaries.
 - The GSP reply HEAD is BAR0 0x110c80 on TU106; 0x110c04 is command TAIL.
   C272 records 180685 reply-HEAD reads/3.655 seconds in its broad observation.
-  C278 tests existing synchronous host BAR shared memory first. An autonomous
+  C278 negotiates synchronous host BAR shared memory, but its final workload
+  fails at startup, so there is no accepted transport FPS comparison. An autonomous
   host-only snapshot could avoid the client/backend round trip for exactly this
   four-byte read through the VMM's existing local route. No such snapshot exists.
   Publish only after committed v2 status slots; invalidate on queue retirement,

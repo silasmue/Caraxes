@@ -77,18 +77,33 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
   Reply HEAD 0x110c80 has 180685 reads/3.655 seconds; command HEAD writes
   31985/10.976 seconds. Physical A613 median remains 3.576 ms. Worker execution,
   queue wait, ready-to-Device and serialization totals overlap these scopes.
-- C278 is the active required BAR shared-memory comparison. Same C231/C215
+- C278 closes cleanly but is incomplete. The first three ICF children exit 0;
+  the fourth exits 1. The archive reports `NO_RESPONSE` during startup, then
+  `PROCESS_EXITED`; it repeats the prior Physics result and has no Combined
+  result. The independent validator rejects it. Keep FPS null and exclude it
+  from comparisons. Driver ProblemCode/Display4101 remain 0; exact teardown
+  leaves NVIDIA bound. Required BAR shared memory uses the same C231/C215
   binaries, offlock, CPU2 worker placement and corrected C272 harness. Private
   launcher requires BAR_SHMEM1 and required VMM mode; owned CH capture enforces
   exactly one required mode. All other guards and limits remain. Owner11 plus
   placement15/shared-BAR23, other CPU suites and actual UID1000 hashes pass.
   Manifest SHA256:
   `48a396b80d25187ccb2d65aaca2072f1365ddb3f8d386685e2e8835adabc82e5`.
-  Fresh `ui_review_c278` alone reviews PNGs; watcher starts before owner.
+  All fresh visual gates pass; the reviewer stops after armed publication.
   Native sync-slot-v1 negotiation succeeds; CH profiles report transport=shmem.
-  Initial three D3D11 readbacks pass. Full Fire Strike qualification is pending.
+  Initial three D3D11 readbacks pass. The failed final workload does not establish
+  transport corruption; its cause remains unresolved. No profiler ran.
   This transport still serves reads in the backend and retains KVM exits;
   it provides no autonomous GSP reply-HEAD snapshot.
+  Closure takes 790.753 seconds. Preserve `C278-report.json`, SHA256
+  `079f77e13ce8d9c699d592cdc5e30f70cdf5ecb28644ca85dcf16ab1686b2d0c`,
+  together with its separate VMM-log description correction `C278-report-v2.json`,
+  SHA256 `10d2139d3eca821699f7b6cb49f3c4d5a7258e86a53a0184c551f11b4394973c`.
+  Both C278 and qualified C272 contain the same 15 explicit BAR1 refusal errors
+  during boot; watched page-table pages remain trapped with replicas. They do
+  not identify a new C278 remapping fault. C278's two VMM matches are early BAR
+  relocation warnings; no narrow shmem/transport failure matches were found.
+  These log observations do not establish the final workload's failure cause.
 - C258 closes cleanly in 174 seconds before its first visual checkpoint. The
   screenshot helper rejects its owned-window check. The verified failure image
   shows a blank loading window with caption `...`; the old error records the
@@ -230,10 +245,11 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Continue
 
-1. Complete C278 with fresh `ui_review_c278` as sole PNG reviewer. Start the pinned watcher
-   before the owner; it launches one controller on fresh READY. Review the
-   current image and publish immediately, within 40 seconds or 30 seconds for
-   the armed page. Root performs other analyses and publishes no live callback.
+1. Investigate C278's final-workload startup failure from the preserved archive,
+   process trace and backend/VMM logs. C272 remains the last fully qualified
+   baseline. Any new run needs a fresh frozen runtime, actual UID1000 input proof
+   and one PNG reviewer. Preserve the strict 40-second normal and 30-second armed
+   deadlines, typed guest trace margin and exact teardown; do not retry C278.
    An actual settings-loading modal permits one five-second wait and a fresh
    settings-only recheck. Loaded values, Details return, the native UTC trace
    remainder of at least 650 seconds, fresh archive and all four successful
@@ -255,17 +271,31 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    C276 remains disabled until a separate frozen
    owner and owner-attested Nsight index/PCI/UUID mapping are supplied. Use
    Nsight metrics help's PCI BDF to join the owner's UUID inventory, never its
-   NVML index. The bounded source plan is `C276-mapping-plan.json`; native output
-   parsing and post-render export integration remain pending. General
+   NVML index. `C282-mapping-draft` adds a bounded pure parser; ten CPU methods
+   independently pass, including a full64 join and malformed/ambiguous/unsupported
+   input refusal. Native output remains unqualified. Source review SHA256:
+   `96d7ed2ec759de8f4c013bcec4762516a435b8458d6dececd7b9964d4e994455`.
+   `C292-counter-draft` replaces direct tool spawn with a gate-closed helper:
+   capture its pidfd before GO, recheck mapping freshness before exec, and clean
+   only the dedicated tool subtree. SIGTERM records cancellation for cleanup.
+   The pinned SMI path permits only the read-only BDF/UUID query. Independent
+   61 collector and 28 gate CPU checks pass. Source review SHA256:
+   `eea92680cb309136d9585c6c173e2eab2c05f1f557952f2d425ef333dcfffdf1`.
+   C292 is still disabled, with no native tool qualification. `C284-draft`
+   integrates it through a separate coordinator so the render observer remains
+   outside tool cleanup. Cancellation during initialization and parent cleanup
+   supervision need correction before freeze. Native mapping and post-render
+   export remain unqualified. General
    counters and context residency do not establish a stall cause or guest
    ownership. Export only after rendering ends. No external
    benchmark code was imported.
 4. Retain the TSG replay correction for correctness. C270 now provides a
    qualified clock-only comparison with the explicit preparation differences
    above, with no consistent graphics gain. C272 offlock also has no clear
-   graphics jump. Evaluate C278 transport FPS and queue-register/worker stage
-   costs before changing any default. A material gain needs a matched repeat; otherwise proceed to the
-   separate counter pilot and private USERD progress measurements.
+   graphics jump. C278 is incomplete, so it provides no accepted transport FPS
+   comparison. Preserve its queue-register/worker observations separately from
+   performance claims. Qualify the startup path before a matched repeat; prepare
+   the separate counter pilot and private USERD progress measurements meanwhile.
    C252/C256/C260 remain source-only predecessor proposals. C234,
    C238 and C242 remain launch-disabled.
    C248 is a source-only clock baseline with that correction; independent review

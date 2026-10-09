@@ -146,13 +146,39 @@ C270 completes the clock-only comparison with corrected preparation:
   additive GPU time or critical-path delay. Correct register names/costs are in
   immutable `C272-report-v2.json`; preserve the original report bytes.
 
+## C278: required BAR shared memory, incomplete
+
+- Same offlock backend, worker CPU2 placement, helper, workload and bounds as
+  C272. Private launcher and owned CH identity require shmem. Native sync-slot-v1
+  negotiation and initial D3D11 readbacks pass; CH confirms transport=shmem.
+- The first three ICF children exit 0, the fourth exits 1. The archive reports
+  `NO_RESPONSE` during startup, then `PROCESS_EXITED`. It repeats the previous
+  Physics result and has no Combined result. The validator rejects the run.
+- No accepted FPS comparison. Driver ProblemCode/Display4101 remain 0 and exact
+  teardown passes with NVIDIA bound. The cause of the startup failure remains
+  unresolved; these symptoms alone do not establish transport corruption.
+- Exact closure takes 790.753 seconds. All 150 samples with active workers match
+  CPU2/nice10/SCHED_OTHER; maximum gap is 5.003 seconds. The 16 samples after
+  lease release have no workers and are excluded. Minimum observed RAM is
+  9.375 GiB; free vmstore space is 134.191 GiB.
+- Both C278 and qualified C272 contain the same 15 explicit BAR1 refusal errors
+  during boot. These retain trapped watched page-table pages with replicas;
+  they do not establish a new remap fault. The two broad VMM matches concern
+  early BAR relocation warnings. Narrow shmem/transport failure matches are 0.
+- Preserve `C278-report.json` and its separate VMM-description correction
+  `C278-report-v2.json`; the original bytes are unchanged. SHA256 values:
+  `079f77e13ce8d9c699d592cdc5e30f70cdf5ecb28644ca85dcf16ab1686b2d0c`
+  and `10d2139d3eca821699f7b6cb49f3c4d5a7258e86a53a0184c551f11b4394973c`.
+
 ## Next measurement
 
-C278 tests required host BAR shared memory with the same offlock backend,
-worker CPU2 placement, helper, workload and bounds. Private launcher and owned
-CH identity now require shmem; there is no optional fallback. Native negotiation
-and initial D3D11 readbacks pass; full benchmark qualification remains pending.
-This shortens the transport path but retains KVM exits and backend service.
+Keep C272 as the last fully qualified baseline. Investigate C278's startup
+failure from existing evidence before another transport comparison. A separate
+counter pilot is source-only. C282's bounded BDF/UUID parser and C292's gated
+tool lifecycle pass independent CPU checks; native output is unqualified.
+C284 adds a dedicated coordinator and export before teardown. Initialization
+cancellation and parent cleanup supervision still need correction before freeze.
+No profiler has run in this case.
 Defaults remain unchanged until qualified evidence supports a change.
 
 Retain the baseline pool and polling settings with the bounded backend markers.
