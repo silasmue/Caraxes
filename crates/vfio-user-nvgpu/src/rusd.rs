@@ -5,7 +5,8 @@
 //! Only populated clock, pstate and GPU/board temperature sections are polled.
 //! Utilization, ECC, power, remapping, PCI counters, fans and processes stay invalid.
 //! BAR1/PMA are non-polled model facts. The sleeping publisher uses PTIMER's clock
-//! and the current DMA view, with no Device lock, GPU handle or cached pointer.
+//! and the current DMA view, with no Device lock or cached guest pointer. The
+//! selected private timer lease stays alive with its publisher.
 
 use crate::guestmem::{GuestMemory, MemView};
 use crate::ver::GuestAbi;
@@ -85,6 +86,7 @@ struct State {
     next: Option<Instant>,
     stop: bool,
     publications: u64,
+    clock: crate::gpuclock::GpuClock,
 }
 
 impl Default for State {
@@ -96,6 +98,7 @@ impl Default for State {
             next: None,
             stop: false,
             publications: 0,
+            clock: crate::gpuclock::GpuClock::emulated(crate::channel::device_epoch()),
         }
     }
 }
@@ -148,6 +151,10 @@ impl Default for Rusd {
 }
 
 impl Rusd {
+    pub fn set_gpu_clock(&mut self, clock: crate::gpuclock::GpuClock) {
+        self.shared.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clock = clock;
+    }
+
     pub fn enabled(&self) -> bool {
         self.enabled
     }
@@ -338,7 +345,8 @@ fn run(shared: Arc<(Mutex<State>, Condvar)>) {
             Some(deadline) => {
                 let now = Instant::now();
                 if now >= deadline {
-                    state.due(now, crate::channel::device_now_ns());
+                    let gpu_ns = state.clock.now_ns();
+                    state.due(now, gpu_ns);
                 } else {
                     state = changed
                         .wait_timeout(state, deadline - now)

@@ -141,6 +141,7 @@ pub struct UmPage {
     layout: Layout,
     map: Mapping,
     start: Instant,
+    clock: Option<crate::gpuclock::GpuClock>,
     pub stats: Stats,
     last_watchdog: std::sync::Mutex<Instant>,
     /// When the follow-up scan of the last doorbell is due (`None`: none owed).
@@ -163,6 +164,7 @@ impl UmPage {
             layout,
             map,
             start,
+            clock: None,
             stats: Stats::default(),
             last_watchdog: std::sync::Mutex::new(Instant::now()),
             follow_up: std::sync::Mutex::new(None),
@@ -170,6 +172,16 @@ impl UmPage {
         };
         p.reset();
         Ok(Arc::new(p))
+    }
+
+    /// A page on the selected GPU clock; publication throttling keeps its own
+    /// monotonic Instant epoch and never subtracts physical GPU timestamps.
+    pub fn create_with_clock(intr: &IntrPage, layout: Layout, clock: crate::gpuclock::GpuClock) -> Result<Arc<Self>, String> {
+        let mut page = Self::create(intr, layout, Instant::now())?;
+        let p = Arc::get_mut(&mut page).expect("new private page");
+        p.clock = Some(clock);
+        p.reset();
+        Ok(page)
     }
 
     /// Every register model answering a dword of the page must be one of the three words.
@@ -215,7 +227,9 @@ impl UmPage {
     /// Store the clock at `now` as one qword. A guest store to either word is found here
     /// (the page held something other than the last publish) and counted.
     pub fn publish_time(&self, now: Instant) {
-        let v = time_qword(now.saturating_duration_since(self.start).as_nanos() as u64);
+        let ns = self.clock.as_ref().map_or_else(
+            || now.saturating_duration_since(self.start).as_nanos() as u64, |clock| clock.now_ns());
+        let v = time_qword(ns);
         let t = self.time();
         let last = self.stats.publishes.load(Ordering::Relaxed);
         let old = t.swap(v, Ordering::Release);
@@ -537,4 +551,18 @@ mod tests {
         assert!(p.publish_bounded(t + TIME_EVERY * 2));
         assert!(p.summary().contains("inconsistencies: none"));
     }
+    #[test]
+    fn selected_gpu_clock_publication_throttle_uses_monotonic_interval() {
+        let (clock, value) = crate::gpuclock::GpuClock::for_test(1_791_558_986_000_000_000);
+        let p = UmPage::create_with_clock(&intr(), layout(), clock).unwrap();
+        assert_eq!(p.time().load(Ordering::Acquire), time_qword(1_791_558_986_000_000_000));
+        let now = Instant::now();
+        assert!(p.publish_bounded(now));
+        value.store(0x20, Ordering::Relaxed); // native timer wraps/resets, interval does not
+        assert!(!p.publish_bounded(now + TIME_EVERY / 2));
+        assert!(p.publish_bounded(now + TIME_EVERY));
+        assert_eq!(p.time().load(Ordering::Acquire), 0x20);
+        assert_eq!(p.read32(layout().time_0), 0x20);
+    }
+
 }

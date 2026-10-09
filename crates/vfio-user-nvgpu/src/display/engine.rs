@@ -167,9 +167,9 @@ pub fn lock(e: &Mutex<Engine>) -> std::sync::MutexGuard<'_, Engine> {
     e.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Nanoseconds of the display clock: the device clock, PTIMER's base
-/// ([`crate::channel::device_now_ns`]), so notifier timestamps and the guest's PTIMER
-/// reads compare.
+/// Logical display-interval time for vblank scheduling, queue age and deadlines.
+/// Host-backed notifier/release timestamps and PTIMER comparisons use the
+/// engine's selected GPU timer independently of this interval clock.
 pub fn now_ns() -> u64 {
     crate::channel::device_now_ns()
 }
@@ -783,6 +783,7 @@ pub struct Window {
 
 /// The display engine's method and timing state.
 pub struct Engine {
+    gpu_clock: Option<crate::gpuclock::GpuClock>,
     pub heads: Vec<Head>,
     pub windows: Vec<Window>,
     /// The interrupt status: here, or in the display page (fe_page.rs).
@@ -821,8 +822,13 @@ pub struct Engine {
 }
 
 impl Engine {
+    pub fn set_gpu_clock(&mut self, clock: crate::gpuclock::GpuClock) {
+        self.gpu_clock = clock.is_physical().then_some(clock);
+    }
+
     pub fn new(heads: usize, windows: usize) -> Self {
         let e = Engine {
+            gpu_clock: None,
             heads: vec![Head::default(); heads.min(MAX_HEADS)],
             windows: vec![Window::default(); windows.min(MAX_WINDOWS)],
             irq: IrqHome::Local(FeIrq::new(heads)),
@@ -1299,11 +1305,12 @@ impl Engine {
                 }
             }
         }
+        let gpu_ns = self.gpu_clock.as_ref().map_or(tick_ns, |clock| clock.now_ns());
         // TIMESTAMP_MODE: not before PTIMER reaches the flip's timestamp, on a head that
         // scans out (a window without an active head completes at once).
         let live = win.head.is_some_and(|h| self.heads.get(h).is_some_and(|hd| hd.active));
         if let Some(ts) = f.not_before_ns {
-            if live && tick_ns < ts {
+            if live && gpu_ns < ts {
                 self.windows[w].timestamp_waits += 1;
                 return false;
             }
@@ -1350,7 +1357,7 @@ impl Engine {
         }
         self.windows[w].acquire_since = None;
         let f = self.windows[w].pending.pop_front().unwrap();
-        let stamp = ptimer_stamp(tick_ns).to_le_bytes();
+        let stamp = ptimer_stamp(gpu_ns).to_le_bytes();
         // What the guest left in the records before the device writes them (the trace of
         // the first latches): how its driver resets a notifier and a semaphore.
         let before = |m: Option<MemRef>| {
@@ -1589,7 +1596,8 @@ impl Engine {
             let off = (((ctrl >> 4) & 0xFF) * 16) as u64;
             if let Some(m) = self.resolve_at(fb, handle, CHN_CORE, off, "core notifier") {
                 let io = &mut DeviceIo { fb: &mut *fb, mem };
-                m.write(io, 8, &ptimer_stamp(now).to_le_bytes());
+                let gpu_ns = self.gpu_clock.as_ref().map_or(now, |clock| clock.now_ns());
+                m.write(io, 8, &ptimer_stamp(gpu_ns).to_le_bytes());
                 m.write(io, 0, &NOTIFIER_FINISHED.to_le_bytes());
                 self.core_notifier_writes += 1;
                 if self.core_notifier_writes <= 3 {
@@ -2231,6 +2239,13 @@ mod tests {
     fn a_timestamped_flip_waits_for_its_time() {
         let mut fb = FakeFb::new(16 << 20);
         let mut e = engine_with_head(&mut fb);
+        // A real pure-emulation function reset must preserve supplied tick
+        // deadlines, rather than substitute the elapsed process clock.
+        let fixture = crate::fixture::rtx2070();
+        let mut boot = crate::boot::BootModel::new(fixture.chip,
+            crate::fb::FbLayout::plain(1 << 30), fixture.identity(1 << 30));
+        boot.reset();
+        e.set_gpu_clock(boot.ctrl.channels.gpu_clock());
         let mem = GuestMemory::new();
         let (t0, p) = (e.heads[0].t0_ns, e.heads[0].period_ns);
         let at = t0 + 3 * p - 10;
@@ -2591,4 +2606,22 @@ mod tests {
         assert!(t.raised.load(Ordering::Relaxed) > 0, "an asserted line is raised");
         t.set_want(0, false);
     }
+    #[test]
+    fn core_notifier_timestamp_uses_gpu_clock_without_changing_logical_head_time() {
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let before = e.heads[0].t0_ns;
+        let gpu_ns = 1_791_558_986_000_000_000;
+        let (clock, _) = crate::gpuclock::GpuClock::for_test(gpu_ns);
+        e.set_gpu_clock(clock);
+        let armed = BTreeMap::from([(C_SET_CONTEXT_DMA_NOTIFIER, 0x10),
+            (C_SET_NOTIFIER_CONTROL, 1 | (2 << 4) | (1 << 12))]);
+        e.core_update(&armed, 50_000, &mut fb, &GuestMemory::new());
+        let mut bytes = [0; 8];
+        fb.read(0x40_0000 + 32 + 8, &mut bytes);
+        assert_eq!(u64::from_le_bytes(bytes), ptimer_stamp(gpu_ns));
+        assert!(e.heads[0].t0_ns >= before && e.heads[0].t0_ns <= 50_000,
+            "head timing remains logical rather than physical GPU time");
+    }
+
 }

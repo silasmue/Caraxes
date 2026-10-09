@@ -24,7 +24,7 @@
 //!   found them. That copy goes whenever the page could change: a device write to its FB page,
 //!   a BAR2 table walk that re-points pages, a reset.
 //! - The time: `NV_PTIMER_TIME_0/1` and the usermode `TIME_0/1` from the device clock
-//!   (channel.rs `device_now_ns`), the hottest trapped read of a Windows guest (C67: 119k). The
+//!   (selected GPU timer; logical clock in pure emulation), the hottest trapped read (C67: 119k). The
 //!   PTIMER torn-read guard (boot.rs `ptimer_word`: the high word of the last TIME_1 read) lives
 //!   here, shared by both paths. Nothing else a guest can see is ordered by a time read on
 //!   this line (the display's scan position is computed from the time at its own read).
@@ -91,6 +91,7 @@ pub struct FastReads {
     time: [AtomicU64; 4],
     /// The high word of the last PTIMER TIME_1 read not yet followed by a TIME_0 read.
     ptimer_hi: AtomicU64,
+    clock: Mutex<crate::gpuclock::GpuClock>,
     c: Counters,
 }
 
@@ -106,6 +107,7 @@ impl Default for FastReads {
             flush_fb_page: AtomicU64::new(NONE),
             time: [const { AtomicU64::new(NONE) }; 4],
             ptimer_hi: AtomicU64::new(NONE),
+            clock: Mutex::new(crate::gpuclock::GpuClock::emulated(crate::channel::device_epoch())),
             c: Counters::default(),
         }
     }
@@ -116,6 +118,10 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 impl FastReads {
+    pub fn set_gpu_clock(&self, clock: crate::gpuclock::GpuClock) {
+        *lock(&self.clock) = clock;
+    }
+
     /// The trigger register's BAR0 offset and the word the guest last wrote to it.
     pub fn set_trigger(&self, off: u64, word: u32) {
         self.trigger_word.store(word & !TRIGGER, Ordering::Release);
@@ -194,7 +200,7 @@ impl FastReads {
         {
             return false;
         }
-        let now = crate::channel::device_now_ns();
+        let now = lock(&self.clock).now_ns();
         let v = if ptimer {
             self.ptimer_read(now, i == 1)
         } else {

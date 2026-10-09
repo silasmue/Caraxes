@@ -42,6 +42,7 @@ pub mod gfxpslot;
 pub mod gmcapi;
 pub mod gspboot;
 pub mod gspmem;
+pub mod gpuclock;
 pub mod gsprpc;
 pub mod grcapture;
 pub mod gmmu_v3;

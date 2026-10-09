@@ -340,7 +340,15 @@ impl BootModel {
         self.fast.clone()
     }
 
+    pub fn set_gpu_clock(&mut self, clock: crate::gpuclock::GpuClock) {
+        self.ctrl.channels.set_gpu_clock(clock.clone());
+        self.fast.set_gpu_clock(clock.clone());
+        self.ctrl.display.eng().set_gpu_clock(clock.clone());
+        self.rusd.set_gpu_clock(clock);
+    }
+
     fn set_fast(&mut self, f: std::sync::Arc<crate::fastread::FastReads>) {
+        f.set_gpu_clock(self.ctrl.channels.gpu_clock());
         self.fb.set_fast(f.clone());
         self.fast = f;
     }
@@ -377,6 +385,8 @@ impl BootModel {
         self.fb.set_private(self.layout.private_ranges());
         let r = self.regs;
         self.intr = IntrTree::new(r.intr_tree, r.intr_tree_size).with_shared(shared.clone());
+        let clock = hm.lock().unwrap().gpu_clock().map_err(|e| format!("physical GPU clock: {e}"))?;
+        self.set_gpu_clock(clock);
         self.ctrl.mirror = Some(Mirror::new(hm.clone(), shared.clone(), self.chip.data(), &self.layout)?);
         self.exec = Some((hm, shared));
         Ok(self)
@@ -1452,6 +1462,7 @@ impl BootModel {
             self.host_fault = Some(error);
             return;
         }
+        let gpu_clock = self.ctrl.channels.gpu_clock();
         let host_control = self.host_control.clone();
         let host = self.ctrl.take_host();
         let exec = self.exec.take();
@@ -1467,13 +1478,17 @@ impl BootModel {
             fresh.ctrl = Dispatcher::new(self.chip.data(), &self.identity, Some(h))
                 .with_layout(self.layout);
         }
+        fresh.set_gpu_clock(gpu_clock.clone());
         if let Some((hm, shared)) = exec {
             // Cannot fail once it succeeded (the layout's reservation is unchanged).
             fresh = match fresh.with_exec(hm, shared) {
                 Ok(f) => f,
                 Err(e) => {
                     eprintln!("vfio-user-nvgpu: reset: host execution not re-attached: {e}");
-                    BootModel::new(self.chip, self.layout, self.identity.clone())
+                    let mut failed = BootModel::new(self.chip, self.layout, self.identity.clone());
+                    failed.set_gpu_clock(gpu_clock.clone());
+                    failed.host_fault = Some(format!("reset: host execution not re-attached: {e}"));
+                    failed
                 }
             };
         }
@@ -1757,7 +1772,7 @@ impl BootModel {
     /// (fastread.rs), so both paths keep one guard.
     pub fn ptimer_read(&mut self, hi: bool) -> u32 {
         self.fast.note_locked_time();
-        self.fast.ptimer_read(self.ctrl.channels.now_ns(), hi)
+        self.fast.ptimer_read(self.ctrl.channels.gpu_now_ns(), hi)
     }
 
     /// The time registers' BAR0 offsets: PTIMER TIME_0, TIME_1, usermode TIME_0, TIME_1.
@@ -1922,7 +1937,7 @@ impl BootModel {
             if off == self.regs.usermode_time_0 || off == self.regs.usermode_time_1 {
                 self.fast.note_locked_time();
             }
-            return Some(self.vf.read32(off, self.ctrl.channels.now_ns()));
+            return Some(self.vf.read32(off, self.ctrl.channels.gpu_now_ns()));
         }
         Some(match self.reg(off) {
             Some(Reg::Bar0Window) => self.bar0_window,

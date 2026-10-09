@@ -91,8 +91,8 @@ pub enum Dev {
     /// `GSP_GET_RM_HEAP_STATS`: the device's own GSP heap view (decision under D9, Q-B6):
     /// the emulated GSP has no RM heap, so every number is 0; the host GSP is not asked.
     RmHeapStats,
-    /// `TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO`: samples of the device's own clock (the
-    /// emulated GSP's OS time and the device PTIMER are one time base).
+    /// `TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO`: logical GSP OS CPU time and
+    /// selected GPU time; these share an epoch only with pure emulation.
     TimeCorrelation,
     /// `BIOS_GET_NBSI_V2`: the synthesized VBIOS has no NBSI: `errorCode` NOT_FOUND.
     NbsiNotFound,

@@ -481,3 +481,88 @@ mod tests {
         assert_eq!(r.next, base + 1);
     }
 }
+
+/// Private read-only usermode timer mapping. No writable pointer, FD or writes
+/// are exposed. Its owner must retain the allocating RM client until this drops.
+pub struct ReadOnlyTimer {
+    _fd: NvDevice,
+    ctl: NvDevice,
+    root: u32,
+    subdevice: u32,
+    usermode: u32,
+    linear: sys::NvP64,
+    ptr: *const u8,
+}
+
+// SAFETY: reads only, volatile device registers; the mapping and registered FD
+// remain owned until the last reader drops. No mutation or pointer escape.
+unsafe impl Send for ReadOnlyTimer {}
+unsafe impl Sync for ReadOnlyTimer {}
+
+impl ReadOnlyTimer {
+    /// One aligned register inside the live usermode mapping.
+    pub fn read_u32(&self, offset: usize) -> u32 {
+        assert!(matches!(offset, 0x80 | 0x84), "only GPU timer words may be read");
+        // SAFETY: checked register range/alignment, live PROT_READ mapping.
+        unsafe { std::ptr::read_volatile(self.ptr.add(offset).cast::<u32>()) }
+    }
+
+    fn unmap_rm(&self) {
+        let mut p = sys::NVOS34_PARAMETERS::default();
+        p.hClient = self.root;
+        p.hDevice = self.subdevice;
+        p.hMemory = self.usermode;
+        p.pLinearAddress = self.linear;
+        // SAFETY: exact ABI and returned RM mapping cookie, not a user pointer.
+        let result = unsafe { self.ctl.ioctl_raw(sys::NV_ESC_RM_UNMAP_MEMORY, &mut p) };
+        if result.is_err() || p.status as u32 != sys::NV_OK {
+            eprintln!("private GPU timer RM unmap failed: status {:#x}", p.status);
+        }
+    }
+}
+
+impl Drop for ReadOnlyTimer {
+    fn drop(&mut self) {
+        // SAFETY: this mapping is owned here, unmapped once before RM object free.
+        if !self.ptr.is_null() {
+            unsafe { libc::munmap(self.ptr.cast_mut().cast(), nvrm_abi::doorbell::USERMODE_SIZE) };
+        }
+        self.unmap_rm();
+    }
+}
+
+/// Map a separately allocated VOLTA_USERMODE_A with RM read-only access and
+/// PROT_READ. This never reuses the write-only doorbell mapping.
+///
+/// # Safety
+/// The allocating RM client and usermode/subdevice objects must remain live
+/// until the returned map drops; callers must not explicitly FREE those objects.
+pub unsafe fn map_timer_read_only(rm: &RmClient, gpu: &NvDevice, subdevice: u32, usermode: u32) -> Result<ReadOnlyTimer> {
+    use std::os::fd::AsRawFd;
+    let ctl = rm.ctl().try_clone().map_err(|source| nvrm_abi::Error::Open {
+        path: "clone private GPU timer control FD".into(), source,
+    })?;
+    let fd = gpu.open_for_mapping(rm.ctl())?;
+    let mut params = sys::NVOS33_PARAMETERS::default();
+    params.hClient = rm.root(); params.hDevice = subdevice; params.hMemory = usermode;
+    params.length = nvrm_abi::doorbell::USERMODE_SIZE as u64;
+    params.flags = nvos33_flags::ACCESS.set(sys::NVOS33_FLAGS_ACCESS_READ_ONLY as u32)
+        | nvos33_flags::MEM_SPACE.set(nvos33_flags::MEM_SPACE_CLIENT);
+    let mut p = Nvos33WithFd::new(params, fd.as_raw_fd());
+    // SAFETY: fixed NVOS33WithFd ABI, no guest pointer or state.
+    unsafe { rm.ctl().ioctl_raw(sys::NV_ESC_RM_MAP_MEMORY, &mut p)? };
+    check_status(sys::NV_ESC_RM_MAP_MEMORY, p.params.status as u32)?;
+    let mut map = ReadOnlyTimer { _fd: fd, ctl, root: rm.root(), subdevice, usermode,
+        linear: p.params.pLinearAddress, ptr: std::ptr::null() };
+    // SAFETY: registered mapping FD, requested region bounded to usermode size,
+    // native mmap context uses offset zero; no writable permission.
+    let ptr = unsafe { libc::mmap(std::ptr::null_mut(), nvrm_abi::doorbell::USERMODE_SIZE,
+        libc::PROT_READ, libc::MAP_SHARED, map._fd.as_raw_fd(), 0) };
+    if ptr == libc::MAP_FAILED {
+        // map Drop releases successful RM_MAP_MEMORY even when mmap failed.
+        return Err(nvrm_abi::Error::Open { path: "mmap private GPU timer read-only".into(),
+            source: std::io::Error::last_os_error() });
+    }
+    map.ptr = ptr.cast();
+    Ok(map)
+}

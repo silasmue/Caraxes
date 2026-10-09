@@ -1644,11 +1644,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         let page = intr_page.as_ref().expect("checked by requested");
         let layout = vfio_user_nvgpu::um_page::Layout::of(&chip.data().registers)
             .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;
-        let epoch = bar0
-            .boot()
-            .and_then(|b| b.ctrl.channels.epoch())
-            .ok_or_else(|| anyhow::anyhow!("{env}=1: the device clock has no epoch"))?;
-        let um = vfio_user_nvgpu::um_page::UmPage::create(page, layout, epoch)
+        let clock = bar0.boot().expect("checked by requested").ctrl.channels.gpu_clock();
+        let um = vfio_user_nvgpu::um_page::UmPage::create_with_clock(page, layout, clock)
             .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;
         um.check(&|off| bar0.boot().is_some_and(|b| b.owns_register(off)))
             .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;

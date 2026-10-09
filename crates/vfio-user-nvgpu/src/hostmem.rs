@@ -12,7 +12,8 @@
 //! SIGTERM/SIGINT/SIGHUP; if the process dies anyway, closing `/dev/nvidiactl` frees the
 //! client with every object under it and unpins the pages.
 //!
-//! Only RM escapes: no register access, no mapping of the card. The one privileged
+//! RM escapes plus a private read-only usermode timer lease for host execution;
+//! no physical mapping is offered to the guest. The one privileged
 //! control, `GET_SURFACE_PHYS_ATTR`, runs inside [`Privilege::with_admin`].
 
 use std::os::fd::AsRawFd;
@@ -911,6 +912,7 @@ impl Drop for Filler {
 }
 
 pub struct HostMemory {
+    gpu_clock: Option<crate::gpuclock::GpuClock>,
     rm: RmClient,
     /// The GPU node the device allocation needs open, and the node registered to the
     /// client's ctl FD that `RM_ALLOC_MEMORY` runs on (host_pool.rs `Backing::new`).
@@ -1290,6 +1292,7 @@ impl HostMemory {
         unsafe { rm.alloc(device, subdevice, sys::NV20_SUBDEVICE_0, Some(&mut sp)) }
             .map_err(|e| anyhow::anyhow!("host NV20_SUBDEVICE_0: {e}"))?;
         Ok(HostMemory {
+            gpu_clock: None,
             rm,
             _gpu: gpu,
             gpu_reg,
@@ -2181,6 +2184,17 @@ impl HostMemory {
         }
         let fd = export_dmabuf(&self._gpu, self.rm.root(), r.handle, fb - r.base, len)?;
         Ok(Bar1Export { fd, fb, len })
+    }
+
+    /// Private RO physical timer with an independent RM lease. Arcs held by
+    /// readers keep that lease alive even after this host-memory client shuts down.
+    pub fn gpu_clock(&mut self) -> Result<crate::gpuclock::GpuClock> {
+        if self.shut { bail!("host memory already shut down"); }
+        crate::hostabi::selected().map_err(anyhow::Error::msg)?;
+        if self.gpu_clock.is_none() {
+            self.gpu_clock = Some(crate::gpuclock::GpuClock::physical(self._gpu.path())?);
+        }
+        Ok(self.gpu_clock.as_ref().expect("initialized").clone())
     }
 
     /// The host doorbell page: `VOLTA_USERMODE_A` under the subdevice, mapped write-only

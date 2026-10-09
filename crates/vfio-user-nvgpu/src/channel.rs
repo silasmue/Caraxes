@@ -549,13 +549,9 @@ impl Channel {
     }
 }
 
-/// The device clock's epoch: one per device process, the base of `NV_PTIMER_TIME_0/1`,
-/// the usermode TIME_0/1, semaphore timestamps, the time correlation, and the display
-/// engine's vblank clock and notifier timestamps (display/engine.rs), so every time the
-/// guest reads or finds in memory is on one base. A function-level reset does not restart
-/// it: the RM sets PTIMER to the wall-clock time before every GSP boot
-/// (`kernel_gsp.c:5677-5682`, `tmrSetCurrentTime_GV100`, timer_gv100.c:47-72), so on the
-/// card the timer never goes back across a reset either.
+/// Logical GSP OS and interval clock epoch, kept across function reset. Pure
+/// emulation also uses it for GPU time; host execution selects a private physical
+/// GPU timer through `Registry::gpu_clock` without changing this logical epoch.
 pub fn device_epoch() -> std::time::Instant {
     static EPOCH: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
     *EPOCH.get_or_init(std::time::Instant::now)
@@ -632,9 +628,10 @@ pub struct Registry {
     channels: BTreeMap<u32, Channel>,
     /// Last generation assigned to an accepted channel allocation.
     channel_generation: u64,
-    /// Device clock base for semaphore timestamps: [`device_epoch`], shared with PTIMER
-    /// and the display engine and kept across a function-level reset.
+    /// Logical GSP CPU/display-interval epoch, preserved across function reset.
+    /// GPU timestamps select `gpu_clock` separately during host execution.
     start: Option<std::time::Instant>,
+    gpu_clock: Option<crate::gpuclock::GpuClock>,
     pub doorbells: u64,
     /// TLB invalidates the software executor ran into (`MEM_OP` MMU_TLB_INVALIDATE):
     /// the page directory (`None`: all), for the host mirrors of the same page
@@ -709,6 +706,7 @@ impl Registry {
             channels: BTreeMap::new(),
             channel_generation: 0,
             start: Some(device_epoch()),
+            gpu_clock: None,
             doorbells: 0,
             tlb_invalidates: Vec::new(),
             memop_hold: None,
@@ -1537,9 +1535,28 @@ impl Registry {
         self.start
     }
 
-    /// Nanoseconds of the device clock (semaphore timestamps, usermode TIME_0/1).
+    /// Logical GSP OS time in ns. GPU timestamps use `gpu_now_ns`.
     pub fn now_ns(&self) -> u64 {
         self.start.map_or(0, |s| s.elapsed().as_nanos() as u64)
+    }
+
+    /// GPU timestamps use the physical timer with host execution; GSP OS time
+    /// continues to use `now_ns`. The provider survives function reset.
+    pub fn gpu_now_ns(&self) -> u64 {
+        self.gpu_clock.as_ref().map_or_else(|| self.now_ns(), |c| c.now_ns())
+    }
+
+    pub fn uses_physical_gpu_clock(&self) -> bool {
+        self.gpu_clock.as_ref().is_some_and(|clock| clock.is_physical())
+    }
+
+    pub fn gpu_clock(&self) -> crate::gpuclock::GpuClock {
+        self.gpu_clock.clone().unwrap_or_else(||
+            crate::gpuclock::GpuClock::emulated(self.start.unwrap_or_else(device_epoch)))
+    }
+
+    pub fn set_gpu_clock(&mut self, clock: crate::gpuclock::GpuClock) {
+        self.gpu_clock = Some(clock);
     }
 
     /// Record an allocation of one of the classes this module cares about.
@@ -2423,7 +2440,7 @@ impl Registry {
     /// Consume the channel's GPFIFO from GPGet up to GPPut.
     fn run(&mut self, mem: &mut GpuMem, chid: u32) -> Vec<String> {
         let mut notes = Vec::new();
-        let now = self.now_ns();
+        let now = self.gpu_now_ns();
         let classes = self.classes;
         let Some(root) = self.channels.get(&chid).and_then(|c| self.root_of(c)) else {
             notes.push(format!("chid {chid}: VAS root unknown, nothing run"));
@@ -5895,6 +5912,8 @@ mod tests {
     fn uvm_style_pushes_execute() {
         let (mut fb, sys, path, _root) = world("channel");
         let mut reg = Registry::new(classes());
+        let (clock, _) = crate::gpuclock::GpuClock::for_test(1_791_558_986_000_000_000);
+        reg.set_gpu_clock(clock);
         // A VAS whose root arrives by COPY_SERVER_RESERVED_PDES, a TSG, a channel.
         reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
         let mut pdes = vec![0u8; 40 + 24 * 6];
@@ -5968,7 +5987,7 @@ mod tests {
         assert_eq!(sys.read_u32(0x4000_1000), Some(7));
         assert_eq!(mem.read_u32(Target::Fb(0x101000)), Some(7));
         assert_eq!(sys.read_u32(0x4000_2000), Some(0x55));
-        assert_ne!(sys.read_u64(0x4000_2008), Some(0));
+        assert_eq!(sys.read_u64(0x4000_2008), Some(1_791_558_986_000_000_000));
         assert_eq!(mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET)), Some(2));
         let ch = reg.channels().next().unwrap();
         assert_eq!(ch.entries_done, 2);

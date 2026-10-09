@@ -53,7 +53,7 @@ pub struct Ctx<'a> {
     pub reservation: Option<(u64, u64)>,
     /// The engines the device presents (the GPUMON filter zeroes the others).
     pub chip: &'static crate::chip::ChipData,
-    /// The device clock, in ns (`channel::Registry::now_ns`).
+    /// Logical emulated GSP CPU time in ns; GPU time is selected via `reg`.
     pub now_ns: u64,
     /// The guest object the control names (hClient, hObject), and its key in the
     /// attribute record (duplicates resolved, `channel::Registry::resolve`).
@@ -735,21 +735,23 @@ fn device(ctx: &Ctx<'_>, row: &PublicControl, d: Dev, params: &[u8]) -> Answer {
             "rm heap stats: zeros".into(),
         ),
         Dev::TimeCorrelation => {
-            // Every requested sample from the one device clock: the emulated GSP's OS
-            // time and the device PTIMER (usermode TIME_0/1, uvm.rs) are the same base,
-            // so cpuTime = gpuTime. The host's GSP clock and PTIMER are never read.
+            // cpuClkId GSP_OS (0x14) names the emulated GSP OS clock, not host
+            // CLOCK_MONOTONIC. GPU time must match physical query/semaphore
+            // timestamps with host execution. This is not an error-bound claim.
+            let gpu_ns = ctx.reg.filter(|reg| reg.uses_physical_gpu_clock())
+                .map_or(ctx.now_ns, |reg| reg.gpu_now_ns());
             let mut b = params.to_vec();
             let count = (b[p::TIME_CORR_SAMPLE_COUNT] as usize).min(p::TIME_CORR_MAX_SAMPLES);
             b[p::TIME_CORR_SAMPLES..].fill(0);
             for i in 0..count {
                 let o = p::TIME_CORR_SAMPLES + 16 * i;
                 put64(&mut b, o, ctx.now_ns);
-                put64(&mut b, o + 8, ctx.now_ns);
+                put64(&mut b, o + 8, gpu_ns);
             }
             (
                 NV_OK,
                 b,
-                "synthesized (the device's own clock: GSP OS time and PTIMER are one time base)",
+                "sampled (logical GSP OS CPU clock and selected GPU timer; no host clock mapping implied)",
                 format!("cpuClkId {:#x}, {count} sample(s) at {} ns", params[0], ctx.now_ns),
             )
         }
