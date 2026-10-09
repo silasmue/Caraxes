@@ -99,6 +99,33 @@ bound drift between calls; retain that uncertainty before assigning a delay.
 Evidence: `vulkan-calibration/cpu-validation.json` and
 `vulkan-calibration/native-pilot/audit.json` under the private artifact directory.
 
+## Guest clock mismatch
+
+The fresh headless `linux-calibration-oct09a` pilot passes all 65536 output words
+on stock 615.71.09, with no helper module, four vCPUs and 4 GiB RAM. All ten ALU
+samples have incompatible calibrated DEVICE and query timestamp epochs:
+
+- Calibration returns about `1.685e10` ticks; query endpoints return about
+  `1.79156e18` ticks. The reported period is 1 ns and width is 64 bits.
+- No query interval falls inside its bracketing device calibration pairs. Native
+  pairs contain every query interval. This is an epoch mismatch, not timestamp
+  wrap or a small scheduling delay.
+- Guest calibration reports 86–186 µs deviation, versus about 2.1 µs natively.
+  Even after correcting the epoch, retain uncertainty before finer attribution.
+
+Vulkan requires DEVICE calibration and command-buffer timestamp queries to use
+comparable values. [Time-domain contract](https://docs.vulkan.org/refpages/latest/refpages/source/VkTimeDomainKHR.html).
+Code inspection finds process-relative time in PTIMER, usermode TIME and synthetic
+time-correlation replies, while mirror timestamp commands execute on the physical
+GPU. Correcting the GPU clock source is the next patch; its FPS effect is unproven.
+GPU elapsed differences and the output oracle remain valid, but a CPU/GPU boundary
+split from these pairs would be wrong.
+
+The 22-second session closes cleanly: owned backend/VMM and TAP are gone, NVIDIA
+remains bound, and no new host Xid appears. Floppy keeps priority. SCHED_IDLE/nice19
+makes this a clock-domain and correctness check, not a matched latency baseline.
+Private audit: `guest-gpu-clock-domain-audit.json` under the artifact directory.
+
 ## Measuring the missing boundaries
 
 1. **GPU execution and guest completion:** keep the original verified Vulkan and

@@ -27,6 +27,11 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   is about 2.1 µs. CPU-only capability/wrap checks and warning-clean build pass.
   This low-priority native pilot is not a performance baseline. Guest pairing
   and guest-to-host clock mapping remain pending.
+- Fresh `linux-calibration-oct09a` closes cleanly in 22 seconds, stock615/no-helper,
+  4 vCPU/4 GiB RAM. All output words pass. All ten samples prove incompatible
+  DEVICE calibration (`~1.685e10` ticks) and physical GPU query (`~1.79156e18`)
+  epochs at 1 ns/tick, 64 bits. Guest boundary attribution is invalid. The GPU
+  clock correction is in progress; no FPS effect is established.
 
 ## Continue
 
@@ -36,10 +41,12 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
 2. Distinguish control occupancy from serial frame stalls. HEAD costs contain
    physical calls. Marker notifiers are engine-wide; they prove neither GPU
    completion nor guest ACK. Preserve losses and per-stream endpoints.
-3. Run the calibrated probe in a stock guest, then obtain comparable native/guest
-   samples and pilot GPU context visibility. The context collector drafts remain
-   disabled and reference closed cases; create a fresh mapping and review before
-   execution. No external benchmark code was imported.
+3. Correct the proven guest GPU-clock mismatch and repeat the original calibrated
+   probe in a fresh stock guest. Keep logical GSP OS time separate from physical
+   GPU time. Then obtain comparable native/guest samples and pilot GPU context
+   visibility. Context collector drafts remain disabled and reference closed
+   cases; create a fresh mapping and review before execution. No external
+   benchmark code was imported.
 4. Review the lost pre-build TSG timeslice request next: `ctrl.rs` only forwards
    SET0xa06c0103 after a mirror exists; the early CUDA fallback ACK loses it.
    Exact owned-object lifecycle and host scheduling validation need a separate
