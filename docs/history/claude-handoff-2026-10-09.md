@@ -60,24 +60,37 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   with a ten-second same-session window/foreground bound, optional launcher PID
   pin and actual screenshot hash/size/time proof. Failure captures bounded window
   diagnostics and a separate fresh image. Thirteen CPU grammar/structure checks
-  pass; native PowerShell/Win32 qualification remains pending.
+  pass. C232 proves normal PID-bound snapshot/click operation on stock Windows;
+  failure capture remains unqualified.
+- C232 stops before Run because the separate visual-review callback rejects
+  `dx11-page`: its validator forbids digits. D3D11 readbacks and four fresh UI
+  images pass. Exact callback failure and image are preserved; no Fire Strike
+  detail/settings, trace, arm or FPS. All owned resources close cleanly in
+  332 seconds; pre/post driver health remains good and all frozen pins match.
+  Forty-three preparation snapshot pairs retain all 716 selected host spans and
+  346805/347881 marker IDs; 1076 IDs are lost to contention. See C232-report.
 - `c8e8ea4d` retains early TSG SET0xa06c0103 requests and adds
   GET0xa06c0104. Both first-scheduling paths replay the latest accepted revision.
   Physical refusal/output and exact allocation lifetime are preserved. The
   independent review caught and verified a fix for display/family allocation
   bypasses and old children/promoted buffers. 1016 library tests pass, two existing
-  tests ignored. Release and AST update pass. Hardware qualification remains
-  pending; no FPS claim.
+  tests ignored. Release and AST update pass. C232 preparation records 206
+  successful physical SET calls and 244 successful guest SET requests. Repeated
+  requests and build-time replay prevent one-to-one count comparison. Render
+  qualification remains pending; no FPS claim.
   TSG DUP remains unqualified: VAS-only alias tracking cannot authorize that
   handle. No stock Windows use was found; implement shared last-alias lifetime
   if traces establish this requirement.
 
 ## Continue
 
-1. Qualify the bounded UI helper and exact launcher-PID handoff, then finish an
-   admitted, bounded render timeline before another performance flag
-   trial. Preserve UI preset proof, fresh archive, four successful workload
-   lifetimes, physical clocks, driver health and exact cleanup.
+1. Correct the callback name validator in a fresh case. CPU-test the actual
+   callback publication for every literal UI checkpoint, including `dx11-page`,
+   plus unsafe names, mismatched evidence, closed sessions and duplicate proof.
+   Then finish an admitted, bounded render timeline. Preserve UI preset proof,
+   fresh archive, four successful workload lifetimes, physical clocks, driver
+   health and exact cleanup. Do not modify frozen C232 inputs or fabricate its
+   rejected callback.
 2. Distinguish control occupancy from serial frame stalls. HEAD costs contain
    physical calls. Marker notifiers are engine-wide; they prove neither GPU
    completion nor guest ACK. Preserve losses and per-stream endpoints.
@@ -86,9 +99,11 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
    visibility. Context collector drafts remain disabled and reference closed
    cases; create a fresh mapping and review before execution. No external
    benchmark code was imported.
-4. Hardware-qualify the reviewed TSG replay correction separately after the
-   clock-only render capture. Preserve identical workload and host policy. The
-   lost early request is a confirmed correctness bug, not a proven FPS cause.
+4. Hardware-qualify the reviewed TSG replay correction and compare it with a
+   clock-only backend using the same corrected UI flow, workload and host policy.
+   C234 is a source-only baseline proposal; it must receive the callback fix
+   before use. C230/C232 have no FPS baseline. The lost early request is a
+   confirmed correctness bug, not a proven FPS cause.
 
 Read [render trials](../research/windows-render-trials-2026-10-09.md),
 [latency attribution](../research/latency-attribution-2026-10-09.md), and

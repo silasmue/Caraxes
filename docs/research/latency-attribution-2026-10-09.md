@@ -97,10 +97,18 @@ checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
   Nineteen preparation snapshot pairs retain all 716 selected host spans and
   248352/249130 marker IDs; 778 IDs are lost to contention. Ring overwrite does
   not add union loss. This is preparation evidence, with no render FPS.
+- C232 uses the TSG candidate and the new PID-bound UI helper. Three D3D11
+  readbacks and four fresh snapshot/click images pass. The separate callback
+  validator rejects `dx11-page` because its name check forbids digits. No Fire
+  Strike detail/settings proof, process trace, arm, Run or FPS follows. The
+  332-second session closes cleanly with unchanged good driver health. Forty-three
+  preparation snapshot pairs retain all 716 selected host spans and
+  346805/347881 marker IDs; 1076 IDs are lost to contention. Frozen inputs remain
+  unchanged. Fix and exercise the actual callback before another run.
 
 Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
 and `C225-runtime/results/partial-backend-timeline-report.json`, plus
-`C226-report.json`, `C228-report.json` and `C230-report.json`. There is no
+`C226-report.json`, `C228-report.json`, `C230-report.json` and `C232-report.json`. There is no
 complete render timeline or demonstrated improvement from this build yet.
 
 The replacement `tools/windows/3dmark-ui-step.ps1` refreshes process state under
@@ -108,8 +116,9 @@ one ten-second window/foreground bound. It checks the interactive session, exact
 title, PID/start time and native HWND owner before input. `ExpectedPid` supports
 the launcher's exact handoff. Screenshots report their hash, size and UTC;
 failures include bounded process/window observations and a separate fresh image.
-Thirteen CPU grammar/structure checks and independent source review pass. Native
-PowerShell/Add-Type/Win32 behavior still needs the next stock Windows pilot.
+Thirteen CPU grammar/structure checks and independent source review pass. C232
+qualifies normal snapshot/click operation on stock Windows with exact PID9220
+and session1. The failure-capture path remains unqualified on Windows.
 
 ## Calibrated probe
 
@@ -202,14 +211,34 @@ Host context eviction retains policy for rebuilding. Display/family allocations
 receive the same retirement check as registry allocations. Unknown initial GET
 keeps the previous fallback: no native default is invented. Independent review
 and 1016 library tests pass; two existing tests remain ignored. Release build
-and AST graph update pass. The patch is committed as `c8e8ea4d`. Hardware
-qualification and any FPS effect remain pending.
+and AST graph update pass. The patch is committed as `c8e8ea4d`. C232 preparation
+records 206 successful physical SET calls and 244 successful guest SET requests.
+Build-time replay and repeated requests prevent one-to-one count comparison.
+Render qualification and any FPS effect remain pending.
 
 TSG DUP handles remain an unqualified compatibility limit: the registry tracks
 VAS aliases only. Timeslice control on such a handle is refused; the old early
 SET fallback falsely acknowledged it without applying policy. No stock Windows
 TSG DUP use was found in the scoped evidence search. A future implementation
 needs shared object lifetime through the last alias, not another silent ACK.
+
+## Remaining candidates
+
+These source paths are measurable candidates, not established render bottlenecks.
+No source evidence shows ordinary mirrored GR work being executed twice.
+
+- A mirrored consumer can wait for a software semaphore producer held behind
+  shadow invalidation. Root plans also delay physical doorbells
+  (`channel.rs`, `mirror.rs`). Match one semaphore address/value to its producer,
+  plan completion, forwarded doorbell and consumer progress. Current markers
+  have no semaphore identity and cannot establish that dependency.
+- BAR1 pool changes copy pages and can preempt affected TSGs before remapping and
+  resynchronizing (`bar1pool.rs`). Measure render-only deltas of copied bytes,
+  warm barriers, preempts and resync time. Startup totals are insufficient.
+- Slice compression can downgrade small/misaligned pages, sysmem, uncovered
+  ranges and audit-disabled mappings (`compslice.rs`). Count mapped bytes by
+  requested/effective kind, backing and downgrade reason. Valid output alone
+  does not establish equivalent memory traffic. Retain physical PTE audit proof.
 
 ## Measuring the missing boundaries
 
