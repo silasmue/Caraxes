@@ -357,6 +357,16 @@ host intervals without scene or guest/GPU clock mapping. Guest tracing and CH
 write profiling remain. No backend timeline or new GPU counters exist for C296.
 See [render trials](windows-render-trials-2026-10-09.md) for qualification and hashes.
 
+C302's counter pilot reaches Run but stops before capture: native Nsight help
+uses leading tabs, which C282's parser rejects. Help and BDF/UUID inventory
+commands both exit 0. Exact cleanup, driver health and seven fresh visual reviews
+pass. The incomplete workload yields no FPS or GPU counters. Root verifies all
+29 evidence hashes in `C302-report.json`. The canonical pure parser in
+`tools/graphics/nsys-device-map.py` accepts one leading help tab or four spaces,
+while preserving bounded input, control rejection and the complete BDF/UUID join.
+Twelve CPU tests and unchanged captured-output regression pass. A fresh C310/C312
+pilot still needs new mapping evidence; historical output cannot attest it.
+
 A613 is the opaque GSS legacy PMGR 0x13 control, with a 79936-byte buffer on
 the current 610 ABI (`ver/v610.rs`, `nvml.rs`). Eligible requests forward their
 exact bytes/status; no field interpretation or version translation is defined.

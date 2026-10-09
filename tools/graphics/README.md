@@ -43,6 +43,16 @@ or a depth-rendering result.
 
 ## Offline Nsight GPU-metrics summary
 
+`nsys-device-map.py` is an importable, pure parser for saved Nsight device help
+and the two-column PCI BDF/UUID inventory. It joins by BDF, validates the complete
+device namespace and selects a unique supported target. Leading help indentation
+may be four spaces or one tab. It executes no tools and provides no freshness,
+process ownership or runtime attestation. CPU checks:
+
+```sh
+python3 -B tools/graphics/test_nsys_device_map.py -v
+```
+
 Export an owned Nsight Systems report to SQLite, then summarize it without
 modifying the export:
 

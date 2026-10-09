@@ -21,19 +21,27 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
 
 ## Verified state
 
-- C302/C304 are separately frozen and root-reviewed for one bounded counter
-  pilot. Admission passes at 16.425 GiB available RAM, root/vmstore free
-  23.431/131.598 GiB. Watcher precedes the owner; C231/C215 remain unchanged.
-  Windows boots and passes all three D3D11 readbacks. At this checkpoint the
-  controller is preparing 3DMark; native capture/results remain unqualified.
+- C302/C304 close cleanly after the mapping parser rejects native Nsight help's
+  leading tabs. Both native enumeration commands exit 0 and identify the target
+  RTX 2070. One Fire Strike child starts, without a paired exit before trace
+  stop. No capture, export, fresh result or FPS qualifies. All seven actual PNG
+  reviews pass; the armed review remains inside 30 seconds. Cleanup completes
+  in 530.973 seconds without errors; all owned processes/TAP are gone, NVIDIA
+  stays host-bound and guest driver health passes. Preserve `C302-report.json`,
+  SHA256 `e7b9e4e777ca1b66f1b39c1acdc3b27ecbe5cbbff26f3178a2938a9910b09be4`.
+  Root independently verifies all 29 evidence hashes. No retry occurs.
   Final runtime review `C302-final-runtime-review.json`, SHA256
   `e076a92702bf6b735597c268cba07055588be9adbd93cbde77eb91769b1b1467`,
   independently checks 88 pin hashes, 95 current UID1000 proof rows, 30 frozen
   modes and actual filesystem-only owner/child/helper bindings. Parent SHA256
   `b7e83dc67ea8dc9e227182d99abd72a6550eb30e2bf429c35a9efe1ee2d3fd0b`;
   child `dadad0e965c7892ede6cc3286549345e0b371191c4c73c1264a17830bfaa597b`.
-  Sole reviewer remains `ui_review_c278`, direct C298 loader, normal40/armed30.
-  Keep profiles/timeline and all original bounds; this is a perturbed diagnostic.
+  `tools/graphics/nsys-device-map.py` accepts exactly one leading help tab or
+  four spaces; CSV/control, byte-bound and complete BDF/UUID join checks remain.
+  Twelve CPU tests and the exact preserved C302 raw-output regression pass.
+  This offline regression does not attest a future mapping. Prepare distinct
+  C310/C312 with the canonical parser and fresh mapping. Keep C231/C215,
+  profiles/timeline, all bounds and `ui_review_c278` with C298 normal40/armed30.
 - C300 fixes pending USERD cancellation in `mirror.rs`. API IDs are scoped to
   owner/object; matching only the API could select another channel's ring.
   The old path also took and retired the pending page despite missing or failed
@@ -393,10 +401,14 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    24 ASTs, 81 manifest hashes, eight CPU suites and 88 UID1000 source reads pass.
    `C302-source-review.json` SHA256:
    `144cb8d96b5cdf856edc756f469a9c58f8d8b7086f254c8bbbc78db817d5539f`.
-   They retain C231/C215, profiling/timeline, original policies and the C298
-   loader. No runtime or new capture exists. Freeze/review separate runtimes
-   before GO; fresh native mapping, capture, export and descendant cleanup remain
-   unqualified. This pilot is a perturbed diagnostic, not a comparative FPS run.
+   Their separately frozen runtimes are reviewed and run once. C302 stops after
+   Run because C282's parser refuses literal leading tabs in the successful
+   native help output. Cleanup and explicit descendant-exit proof pass; no
+   capture/export or FPS qualifies. The canonical parser fixes this exact
+   grammar issue with 12 CPU tests and preserved raw-output verification.
+   Use distinct C310/C312; freeze/review their inputs before GO. Fresh native
+   mapping, capture and export still need qualification. Retain C231/C215 and
+   all original policies; this is a perturbed diagnostic, not an FPS comparison.
 4. Retain the TSG replay correction for correctness. C270 now provides a
    qualified clock-only comparison with the explicit preparation differences
    above, with no consistent graphics gain. C272 offlock also has no clear
