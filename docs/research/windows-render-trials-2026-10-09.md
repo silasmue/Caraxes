@@ -174,14 +174,15 @@ C270 completes the clock-only comparison with corrected preparation:
 
 Keep C272 as the last fully qualified baseline. Investigate C278's startup
 failure from existing evidence before another transport comparison. A separate
-counter pilot is source-only. C282's bounded BDF/UUID parser and C292's gated
+counter pilot uses C282's bounded BDF/UUID parser and C292's gated
 tool lifecycle pass independent CPU checks; native output is unqualified.
 C284 adds a dedicated coordinator and export before teardown. Initialization
 cancellation, integer trigger timing and explicit descendant cleanup are now
 corrected in source; 26 new CPU cases pass independently. Frozen bindings and
-actual UID1000 input proof are being prepared. Native mapping, capture and export
-still need qualification in the bounded pilot.
-No profiler has run in this case.
+actual UID1000 input proof now pass. C284's watcher starts before the single
+owned VM; admission has started with `ui_review_c278` as current-case sole PNG
+reviewer. Native mapping, ten-second capture and post-render export are pending.
+This diagnostic remains excluded from FPS comparisons.
 Defaults remain unchanged until qualified evidence supports a change.
 
 Retain the baseline pool and polling settings with the bounded backend markers.

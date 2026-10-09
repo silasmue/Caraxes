@@ -325,7 +325,7 @@ older preparation order. Disclose these factors before attributing a difference.
 These source paths are measurable candidates, not established render bottlenecks.
 No source evidence shows ordinary mirrored GR work being executed twice.
 
-The counter/context pilot remains source-only. C292's private tool GO follows
+The counter/context pilot's source and runtime bindings are reviewed. C292's private tool GO follows
 pidfd admission, mapping freshness is checked again before exec, and SIGTERM
 allows cleanup of its dedicated tool subtree. Independent CPU checks pass
 61 collector and 28 gate cases. C282's BDF/UUID parser also passes; native help
@@ -334,8 +334,9 @@ to protect the render observer. Initialization cancellation and bounded parent
 cleanup supervision are corrected, with explicit descendant-exit proof even
 after nonzero coordinator exit; integer trigger timing also avoids float
 rounding. Independent 26 counter cases and inherited controller checks pass.
-Frozen bindings are being prepared. No GPU counters have been collected by
-this pilot.
+Actual UID1000 pins/access pass. C284's watcher starts before the one owned VM;
+admission has started. Native mapping/capture/export remain pending. No GPU
+counters have been collected by this pilot yet.
 
 A613 is the opaque GSS legacy PMGR 0x13 control, with a 79936-byte buffer on
 the current 610 ABI (`ver/v610.rs`, `nvml.rs`). Eligible requests forward their

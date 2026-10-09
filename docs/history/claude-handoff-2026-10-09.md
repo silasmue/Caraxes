@@ -281,7 +281,7 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    The pinned SMI path permits only the read-only BDF/UUID query. Independent
    61 collector and 28 gate CPU checks pass. Source review SHA256:
    `eea92680cb309136d9585c6c173e2eab2c05f1f557952f2d425ef333dcfffdf1`.
-   C292 is still disabled, with no native tool qualification. `C284-draft`
+   The C292 draft stays disabled, with no native tool qualification. `C284-draft`
    integrates it through a separate coordinator so the render observer remains
    outside tool cleanup. Source review corrects lost initialization cancellation,
    a Unix-nanosecond float trigger failure, and cleanup inferred from coordinator
@@ -290,8 +290,17 @@ Post-cleanup free space is about 27/142 GiB. Private proof:
    Independent 26 counter cases and inherited controller18/callback3/preparation15
    checks pass. C284 source review SHA256:
    `81c3696fb02d074f934191a99663c56399a14a61639f080b6deb8a05b62051d1`.
-   Frozen parent/collector bindings and actual UID1000 proof are being prepared.
-   Native mapping and post-render export remain unqualified. General
+   C284/C292 runtime bindings and actual UID1000 proof pass. Watcher starts
+   before the single owned VM; admission has started. Current-case sole PNG
+   reviewer is `ui_review_c278`; root publishes no live callbacks. Parent SHA256
+   `559c570c3f4da596693b4616841ef315769b2393fd461036605a2bcd15d5e76d`,
+   child `9e9dfa85ab690c29d1ade94e22619c2da71ca47287447bb328fc80711d285ad8`.
+   Separate final runtime review `C284-final-runtime-review.json`, SHA256
+   `cc2110251e728cee5d4e395a6544c676522c5c5c5aa3a3e925f06cabb3842dcd`,
+   completes the preserved candidate metadata without changing either manifest.
+   Two copied child tests assume a draft path; their failures are preserved.
+   Original draft61/28 and actual promoted pin/helper-input checks pass.
+   Native mapping, capture and post-render export are pending. General
    counters and context residency do not establish a stall cause or guest
    ownership. Export only after rendering ends. No external
    benchmark code was imported.
