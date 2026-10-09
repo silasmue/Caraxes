@@ -52,6 +52,9 @@ Bounds use nanoseconds relative to the common backend anchor. Without them the
 report covers startup through the latest snapshot. The analyzer deduplicates
 sequence IDs, rejects different anchors and conflicting rows, preserves statuses,
 reports missing IDs, and computes interval unions instead of summing overlaps.
+It accepts up to 4096 snapshots, 8 GiB of input and four million unique rows;
+exceeding a limit fails explicitly. The previous 128-file cap could reject a
+complete paired render capture at five-second cadence.
 One-second buckets show control occupancy and event counts. Doorbell interarrival
 gaps are grouped by channel incarnation; they are not queue latency. No nearest
 event matching invents a dispatch/completion relationship.
@@ -74,9 +77,16 @@ checks. Windows C224/C225 boot and pass the three-frame D3D11 readback gate.
 - C225 later aborts at the 6 GiB RAM floor, before Run or trace arming. Owned VM,
   backend, TPM and TAP are gone; the physical GPU remains NVIDIA-bound. Floppy
   priority and resource limits remain unchanged. No FPS comparison follows.
+- C226 passes the D3D11 gate and reaches the standard Fire Strike page, demo off,
+  but exceeds its 450-second preparation bound before arming or Run. Two host
+  orchestration gaps total about 169 seconds; task exit 0 did not prove that the
+  first menu navigation succeeded. Preparation snapshots retain 378961 of
+  672823 marker observations, so startup coverage is incomplete. Cleanup is
+  clean; signed NVIDIA 617.14 remains ProblemCode0 with no Display4101 events.
 
 Curated local evidence: `/mnt/vmstore/caraxes/3dmark-trials-2026-10-09/C225-report.json`
-and `C225-runtime/results/partial-backend-timeline-report.json`. There is no
+and `C225-runtime/results/partial-backend-timeline-report.json`, plus
+`C226-report.json`. There is no
 complete render timeline or demonstrated improvement from this build yet.
 
 ## Calibrated probe
@@ -94,8 +104,9 @@ calibration pairs. The build passes `-Wall -Wextra -Werror` and CPU self-tests.
 
 This is a capability and ordering check, not a new native performance baseline.
 CPU15/SCHED_IDLE/nice19 preserves Floppy priority and can delay CPU observation
-of completed work. No matching guest run exists yet. Pair-derived offsets do not
-bound drift between calls; retain that uncertainty before assigning a delay.
+of completed work. The guest capability check below uses the same binary.
+Pair-derived offsets do not bound drift between calls; retain that uncertainty
+before assigning a delay.
 Evidence: `vulkan-calibration/cpu-validation.json` and
 `vulkan-calibration/native-pilot/audit.json` under the private artifact directory.
 

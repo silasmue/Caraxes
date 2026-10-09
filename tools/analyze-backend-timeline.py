@@ -18,6 +18,9 @@ KINDS = {
 HOST_COLUMNS = 'sequence cmd status begin_ns end_ns duration_ns'.split()
 MARKER_COLUMNS = ('sequence kind at_ns chid channel_generation producer_generation '
                   'vector notifier epoch ticket').split()
+MAX_SNAPSHOTS = 4096
+MAX_INPUT_BYTES = 8 * 1024 ** 3
+MAX_UNIQUE_ROWS = 4_000_000
 
 
 def require(ok, message):
@@ -77,7 +80,8 @@ def snapshot(path):
             'row after snapshot')
     for key in (('overflow', 'contention', 'poisoned') if marker else ('dropped',)):
         require(key in meta, 'missing loss counter ' + key)
-    return marker, meta, rows, {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(), **meta}
+    return marker, meta, rows, {**meta, 'path': str(path),
+                              'sha256': hashlib.sha256(raw).hexdigest(), 'size_bytes': len(raw)}
 
 
 def distribution(values):
@@ -104,13 +108,18 @@ def merged_intervals(intervals):
 
 
 def analyze(paths, begin_ns=0, end_ns=None, bucket_ns=1_000_000_000):
-    require(1 <= len(paths) <= 128, 'use 1..128 snapshots')
+    require(1 <= len(paths) <= MAX_SNAPSHOTS, f'use 1..{MAX_SNAPSHOTS} snapshots')
+    require(sum(Path(path).stat().st_size for path in paths) <= MAX_INPUT_BYTES,
+            'snapshot inputs exceed total byte limit')
     require(begin_ns >= 0 and bucket_ns > 0, 'invalid analysis interval')
     host, markers, sources = {}, {}, []
     anchor = None
     last_snapshot = 0
+    input_bytes = 0
     for path in paths:
         marker, meta, rows, source = snapshot(Path(path))
+        input_bytes += source['size_bytes']
+        require(input_bytes <= MAX_INPUT_BYTES, 'snapshot inputs exceed total byte limit')
         identity = tuple(meta[key] for key in ('pid', 'anchor_unix_before_ns', 'anchor_unix_after_ns'))
         require(anchor in (None, identity), 'snapshots have different process/clock anchors')
         anchor = identity
@@ -120,6 +129,7 @@ def analyze(paths, begin_ns=0, end_ns=None, bucket_ns=1_000_000_000):
         for row in rows:
             require(row[0] not in saved or saved[row[0]] == row, 'conflicting overlapping snapshot row')
             saved[row[0]] = row
+        require(len(host) + len(markers) <= MAX_UNIQUE_ROWS, 'too many unique observations')
     end_ns = last_snapshot if end_ns is None else end_ns
     require(begin_ns < end_ns <= last_snapshot, 'interval outside snapshot coverage')
     require((end_ns - begin_ns + bucket_ns - 1) // bucket_ns <= 10000, 'too many buckets')
@@ -171,6 +181,8 @@ def analyze(paths, begin_ns=0, end_ns=None, bucket_ns=1_000_000_000):
         'pid': anchor[0], 'anchor_unix_bracket_ns': list(anchor[1:]),
         'begin_ns': begin_ns, 'end_ns': end_ns, 'bucket_ns': bucket_ns,
         'sources': sources, 'host_coverage': coverage(host, False),
+        'input_limits': {'max_snapshots': MAX_SNAPSHOTS, 'max_bytes': MAX_INPUT_BYTES,
+                         'max_unique_rows': MAX_UNIQUE_ROWS, 'read_bytes': input_bytes},
         'marker_coverage': coverage(markers, True), 'controls': controls,
         'host_control_union_ms': sum(b - a for a, b in union) / 1e6,
         'marker_counts': dict(kinds), 'doorbell_interarrival': distribution(gaps),

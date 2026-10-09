@@ -6,6 +6,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 spec = importlib.util.spec_from_file_location('timeline', Path(__file__).with_name('analyze-backend-timeline.py'))
 timeline = importlib.util.module_from_spec(spec)
@@ -87,6 +88,31 @@ class TimelineTests(unittest.TestCase):
         b = self.save('b', [(1, '0x2080a613', '0x0', 10, 20)])
         with self.assertRaisesRegex(ValueError, 'truncated'):
             timeline.analyze([b])
+
+    def test_long_paired_capture_deduplicates_more_than_128_snapshots(self):
+        paths = []
+        for i in range(70):
+            paths.append(self.save(f'h{i}', [(1, '0x2080a612', '0x0', 10, 20, 10)]))
+            paths.append(self.save(f'm{i}', [(1, 'physical_doorbell_written', 30,
+                                            4, 1, '-', '-', '-', '-', '-')], marker=True))
+        report = timeline.analyze(paths)
+        self.assertEqual(len(report['sources']), 140)
+        self.assertEqual(report['host_coverage']['unique_rows'], 1)
+        self.assertEqual(report['marker_coverage']['unique_rows'], 1)
+        self.assertEqual(report['marker_coverage']['unobserved_sequence_ids'], 0)
+        self.assertEqual(report['host_control_union_ms'], 0.00001)
+
+    def test_input_limits_refuse_instead_of_truncating_capture(self):
+        with self.assertRaisesRegex(ValueError, 'snapshots'):
+            timeline.analyze([self.root / 'missing'] * (timeline.MAX_SNAPSHOTS + 1))
+        p = self.save('a', [(1, '0x2080a613', '0x0', 10, 20, 10),
+                            (2, '0x2080a613', '0x0', 20, 30, 10)])
+        with mock.patch.object(timeline, 'MAX_INPUT_BYTES', p.stat().st_size - 1):
+            with self.assertRaisesRegex(ValueError, 'total byte limit'):
+                timeline.analyze([p])
+        with mock.patch.object(timeline, 'MAX_UNIQUE_ROWS', 1):
+            with self.assertRaisesRegex(ValueError, 'unique observations'):
+                timeline.analyze([p])
 
 
 if __name__ == '__main__':

@@ -21,12 +21,14 @@ guests. Floppy has priority; retain fixed RAM/disk floors and exact owned cleanu
   1001 library tests pass; two existing ignored. Six analyzer checks pass.
 - That build boots Windows and passes three D3D11 readbacks. C225 proves marker
   dumps work, but aborts on RAM before Run. No new render FPS or critical path is
-  established. C223/C224/C225 have no active owned VM/backend/TPM/TAP.
+  established. C223–C226 have no active owned VM/backend/TPM/TAP. C226 reaches
+  standard Fire Strike, but exceeds preparation time before Run. Its incomplete
+  startup marker coverage and UI orchestration gaps are recorded in C226-report.
 - `vk-unit-timing --calibrate` adds optional raw CPU/GPU clock pairs and CPU
   endpoints. Native KHR calibration and all 65536 output words pass; deviation
   is about 2.1 µs. CPU-only capability/wrap checks and warning-clean build pass.
-  This low-priority native pilot is not a performance baseline. Guest pairing
-  and guest-to-host clock mapping remain pending.
+  This low-priority native pilot is not a performance baseline. The guest pilot
+  below uses the same binary; guest-to-host clock mapping remains pending.
 - Fresh `linux-calibration-oct09a` closes cleanly in 22 seconds, stock615/no-helper,
   4 vCPU/4 GiB RAM. All output words pass. All ten samples prove incompatible
   DEVICE calibration (`~1.685e10` ticks) and physical GPU query (`~1.79156e18`)
