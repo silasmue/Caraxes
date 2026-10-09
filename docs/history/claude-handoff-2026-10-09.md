@@ -19,8 +19,29 @@ binaries, current evidence, VM images, Codex state and Floppy were preserved.
 Post-cleanup free space is about 27/142 GiB. Private proof:
 `disk-cleanup-oct09-1803.json`.
 
+Four inactive Caraxes build caches now live under
+`/mnt/vmstore/caraxes/build-cache-archive-2026-10-10`; their original cache paths
+remain symlinks. Cargo locks and process-reference checks precede migration;
+10484 entries pass content/metadata comparison before removing the old copies.
+This frees 5.850 GiB on `/`, bringing free space to 27.609/124.221 GiB.
+Sources, graph cache, Floppy, Codex state, images and pinned runtime binaries stay
+untouched. Proof: `disk-cache-migration-20261010.json` in the private trial directory.
+
 ## Verified state
 
+- C314's short installed-file query fails in the GZip wrapper before the native
+  AST or file probe. Numeric `0` is ambiguous between the compression-mode and
+  compression-level constructor overloads. Complete raw stdout/stderr, 144/412
+  bytes, are retained with SSH exit 1; the installed signature/hash/version remain
+  unknown. No benchmark or metrics tool starts. The owner closes in 64.471 seconds
+  without errors; driver health and exact process/TAP cleanup pass. Root verifies
+  all 24 evidence hashes. `C314-report.json` SHA256
+  `7f9d08801acec74ea62900c65f9b87883be61995ffb70d48606723650d609839`.
+  C316 uses explicit `CompressionMode::Decompress`; its command is 7102 characters,
+  below the documented 8191-character limit. The source-only controller retains
+  length/hash/AST checks and all query/output/ownership bounds. Owner11,
+  placement15, query12 and 62 current UID1000 checks pass; native qualification
+  still needs a fresh frozen runtime and explicit GO. No signature rule changes.
 - C310/C312 close after fresh native mapping succeeds but capture admission
   rejects the ICF executable signature before Nsight Popen. The exact signature
   status/path/signer reply is lost: the collector writes it only after validation

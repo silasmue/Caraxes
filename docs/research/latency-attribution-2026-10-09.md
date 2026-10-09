@@ -1,6 +1,15 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Locating render latency
 
+C314's fixed-file diagnostic retains failed replies before validation, but its
+numeric GZip parameter is ambiguous on Windows. The wrapper fails before AST
+validation or any installed-file read. C316 uses explicit
+`CompressionMode::Decompress`, matching the
+[Microsoft constructor overload](https://learn.microsoft.com/en-us/dotnet/api/system.io.compression.gzipstream.-ctor?view=netframework-4.8.1).
+The 7102-character command retains the exact source hash and all bounded query
+and cleanup checks. Native qualification and the actual signature status remain
+pending. This is a diagnostic transport fix, with no measured FPS effect.
+
 The long Linux ALU probe reports 239.231 µs native versus 335.146 µs guest CPU
 submit-through-fence medians: about 40% more time, or 71% of native throughput.
 Its GPU medians are 207.968 and 209.952 µs. This supports investigating submission
