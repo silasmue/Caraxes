@@ -1007,9 +1007,62 @@ struct HostTsg {
     /// The guest object the host TSG stands for: the guest TSG `(hClient, hTsg)`, or the
     /// channel itself for a bare channel's own TSG.
     guest: (u32, u32),
+    /// Exact owned allocation; a recycled guest tuple is a different TSG.
+    generation: u64,
+    /// Only a successful physical SET advances this record.
+    timeslice_applied: Option<crate::channel::TimesliceRequest>,
     gfxp: Option<OwnedGfxp>,
     /// Steps 0 and 1 of the GR preemption fix (preempt.rs) on a GR TSG.
     preempt: TsgPreempt,
+}
+
+/// Apply the latest accepted request and schedule under the caller's HostMemory lock.
+/// A failed SET never marks the request applied and never reaches GPFIFO_SCHEDULE.
+fn first_schedule(
+    tsg: &mut HostTsg,
+    generation: u64,
+    desired: Option<crate::channel::TimesliceRequest>,
+    channel: u32,
+    mut control: impl FnMut(u32, u32, &mut [u8]) -> u32,
+) -> Result<(), String> {
+    if tsg.generation != generation || desired.is_some_and(|r| r.generation != generation) {
+        return Err("TSG allocation changed before first host schedule".into());
+    }
+    if let Some(request) = desired.filter(|r| Some(*r) != tsg.timeslice_applied) {
+        let mut p = request.microseconds.to_le_bytes();
+        let st = control(tsg.handle, v::CMD_TSG_SET_TIMESLICE, &mut p);
+        if st != sys::NV_OK {
+            return Err(format!("host TSG SET_TIMESLICE before first schedule: {}", status_name(st)));
+        }
+        tsg.timeslice_applied = Some(request);
+    }
+    let mut sched = [1u8, 0, 0];
+    let st = control(channel, CMD_GPFIFO_SCHEDULE, &mut sched);
+    if st != sys::NV_OK {
+        return Err(format!("host GPFIFO_SCHEDULE: {}", status_name(st)));
+    }
+    Ok(())
+}
+
+fn control_owned_timeslice(
+    t: &mut HostTsg, reg: &mut Registry, guest: (u32, u32), cmd: u32, params: &[u8],
+    mut control: impl FnMut(u32, u32, &mut [u8]) -> u32,
+) -> (u32, Vec<u8>, String) {
+    if params.len() != 8 || !matches!(cmd, v::CMD_TSG_SET_TIMESLICE | v::CMD_TSG_GET_TIMESLICE) {
+        return (sys::NV_ERR_INVALID_ARGUMENT, params.to_vec(),
+            "invalid TSG timeslice control or payload size".into());
+    }
+    if t.guest != guest || reg.tsg_generation(guest) != Some(t.generation) {
+        return (sys::NV_ERR_INVALID_STATE, params.to_vec(),
+            "host TSG belongs to another allocation; timeslice control refused".into());
+    }
+    let mut p = params.to_vec();
+    let st = control(t.handle, cmd, &mut p);
+    if st == sys::NV_OK && cmd == v::CMD_TSG_SET_TIMESLICE {
+        let value = u64::from_le_bytes(params.try_into().expect("validated timeslice size"));
+        t.timeslice_applied = reg.accept_timeslice(guest, value);
+    }
+    (st, p, format!("timeslice control {cmd:#x} on owned host TSG: {} [host]", status_name(st)))
 }
 
 /// Change only the guest ownership key; the host objects and their handles stay live.
@@ -1145,7 +1198,10 @@ pub enum TsgReuse {
 
 /// The decision for an existing host TSG that stands for `existing` when guest object
 /// `wanted` maps to the same key.
-pub fn tsg_reuse(reg: &Registry, existing: (u32, u32), wanted: (u32, u32)) -> TsgReuse {
+pub fn tsg_reuse(reg: &Registry, existing: (u32, u32), generation: u64, wanted: (u32, u32)) -> TsgReuse {
+    if reg.tsg_generation(existing) != Some(generation) {
+        return TsgReuse::Stale;
+    }
     if existing == wanted {
         return TsgReuse::Join;
     }
@@ -1516,6 +1572,8 @@ struct PendingBuild {
     h_channel: u32,
     tsg_key: TsgKey,
     tsg_guest: (u32, u32),
+    /// Ownership snapshot only; desired timeslice is read fresh at commit.
+    tsg_generation: u64,
     vas_key: (u32, u32),
     /// The host TSG's engine (for a TSG the build makes).
     engine_type: u32,
@@ -1600,6 +1658,7 @@ struct BuildOut {
 /// A host channel the worker made, not scheduled yet.
 struct HostBuilt {
     channel: u32,
+    tsg: u32,
     objects: Vec<(u32, u32)>,
     engine_map: BTreeMap<u32, u32>,
     /// Everything the build made on the host except the TSG, oldest first (the USERD and
@@ -1836,6 +1895,7 @@ fn build_on_host(b: BuildInput, hm: &Mutex<HostMemory>) -> BuildOut {
     let result = match built {
         Ok((channel, objects, engine_map)) => Ok(HostBuilt {
             channel,
+            tsg,
             objects,
             engine_map,
             owned,
@@ -4002,6 +4062,7 @@ impl Mirror {
                 h_channel: ch.h_object,
                 tsg_key,
                 tsg_guest,
+                tsg_generation: reg.tsg_generation(tsg_guest).expect("owned TSG at build"),
                 vas_key,
                 engine_type,
                 slot: gfxp_slot.and_then(|r| r.ok()).map(|(i, _)| i),
@@ -4328,6 +4389,8 @@ impl Mirror {
                 vas: pb.vas_key,
                 engine: pb.engine_type,
                 guest: pb.tsg_guest,
+                generation: pb.tsg_generation,
+                timeslice_applied: None,
                 gfxp: None,
                 preempt: TsgPreempt::default(),
             });
@@ -4519,12 +4582,17 @@ impl Mirror {
                 u.storage.write_u32(0x8c, get);
                 u.storage.flush();
             }
-            let h = self.hm.lock().unwrap();
-            let mut sched = [1u8, 0, 0];
-            let st = h.control(built.channel, CMD_GPFIFO_SCHEDULE, &mut sched);
-            if st != sys::NV_OK {
-                return Err(format!("shadow: GPFIFO_SCHEDULE: {}", status_name(st)));
+            if reg.channel(chid).is_none_or(|c| c.generation != pb.generation)
+                || reg.tsg_generation(pb.tsg_guest) != Some(pb.tsg_generation) {
+                return Err("guest allocation changed during mirror build; not scheduling".into());
             }
+            let h = self.hm.lock().unwrap();
+            let t = self.tsgs.get_mut(&key).ok_or("missing host TSG at schedule")?;
+            if t.guest != pb.tsg_guest || built.tsg != t.handle {
+                return Err("host TSG ownership changed during mirror build; not scheduling".into());
+            }
+            first_schedule(t, pb.tsg_generation, reg.timeslice_desired(pb.tsg_guest),
+                built.channel, |handle, cmd, p| h.control(handle, cmd, p))?;
             let mut tok = [0u8; 4];
             let st = h.control(built.channel, CMD_GET_WORK_SUBMIT_TOKEN, &mut tok);
             if st != sys::NV_OK {
@@ -5617,18 +5685,32 @@ impl Mirror {
         guest: (u32, u32),
         notes: &mut Vec<String>,
     ) -> Result<(), String> {
-        let Some(existing) = self.tsgs.get(&key).map(|t| t.guest) else {
+        reg.tsg_generation(guest).ok_or("unknown owned TSG allocation")?;
+        // A worker cell belongs to an allocation too; settle and free an old incarnation
+        // before a recycled grpID can join it, even if no result was absorbed yet.
+        if let Some((old_guest, old_generation)) = self.builds.values()
+            .find(|b| b.tsg_key == key).map(|b| (b.tsg_guest, b.tsg_generation)) {
+            match tsg_reuse(reg, old_guest, old_generation, guest) {
+                TsgReuse::Join => {},
+                TsgReuse::Collision => return Err("another live TSG owns this pending build id".into()),
+                TsgReuse::Stale if !self.free_tsg(key, notes) =>
+                    return Err("old TSG build cleanup refused; cannot reuse its id".into()),
+                TsgReuse::Stale => {},
+            }
+        }
+        let Some((existing, old_generation)) = self.tsgs.get(&key).map(|t| (t.guest, t.generation)) else {
             return Ok(());
         };
-        match tsg_reuse(reg, existing, guest) {
+        match tsg_reuse(reg, existing, old_generation, guest) {
             TsgReuse::Join => Ok(()),
             TsgReuse::Stale => {
                 notes.push(format!(
                     "tsg {key}: host TSG of the freed guest TSG {:#x}/{:#x} dropped before guest TSG {:#x}/{:#x} takes the id [host]",
                     existing.0, existing.1, guest.0, guest.1
                 ));
-                self.free_tsg(key, notes);
-                Ok(())
+                if self.free_tsg(key, notes) { Ok(()) } else {
+                    Err("stale host TSG cleanup refused; cannot reuse its id".into())
+                }
             }
             TsgReuse::Collision => Err(format!(
                 "tsg {key}: guest TSGs {:#x}/{:#x} and {:#x}/{:#x} are both live under one kernel TSG id; refused, stays with the software executor",
@@ -5641,6 +5723,7 @@ impl Mirror {
         &mut self,
         key: TsgKey,
         guest: (u32, u32),
+        generation: u64,
         vas_key: (u32, u32),
         vas_handle: u32,
         engine: u32,
@@ -5678,6 +5761,8 @@ impl Mirror {
                 vas: vas_key,
                 engine,
                 guest,
+                generation,
+                timeslice_applied: None,
                 gfxp: None,
                 preempt: TsgPreempt::default(),
             },
@@ -5735,7 +5820,7 @@ impl Mirror {
         let vas_handle = self.ensure_vas(vas_key, root, entries, &mut notes)?;
         self.check_tsg_reuse(reg, tsg_key, tsg_guest, &mut notes)?;
         let tsg_handle =
-            self.ensure_tsg(tsg_key, tsg_guest, vas_key, vas_handle, engine, &mut notes)?;
+            self.ensure_tsg(tsg_key, tsg_guest, reg.tsg_generation(tsg_guest).ok_or("unknown TSG generation")?, vas_key, vas_handle, engine, &mut notes)?;
 
         let mut h = self.hm.lock().unwrap();
         let mut owned: Vec<u32> = Vec::new();
@@ -5884,11 +5969,9 @@ impl Mirror {
             if objects.is_empty() {
                 return Err("no engine object could be created on the host channel; GPFIFO_SCHEDULE needs one".into());
             }
-            let mut sched = [1u8, 0, 0];
-            let st = h.control(handle, CMD_GPFIFO_SCHEDULE, &mut sched);
-            if st != sys::NV_OK {
-                return Err(format!("host GPFIFO_SCHEDULE: {}", status_name(st)));
-            }
+            let t = self.tsgs.get_mut(&tsg_key).ok_or("missing host TSG at schedule")?;
+            first_schedule(t, reg.tsg_generation(tsg_guest).ok_or("unknown TSG generation")?,
+                reg.timeslice_desired(tsg_guest), handle, |handle, cmd, p| h.control(handle, cmd, p))?;
             let mut tok = [0u8; 4];
             let st = h.control(handle, CMD_GET_WORK_SUBMIT_TOKEN, &mut tok);
             if st != sys::NV_OK {
@@ -6361,9 +6444,22 @@ impl Mirror {
         targets.len()
     }
 
+    /// Timeslice controls retain the actual host status and mutated payload. SET is
+    /// accepted into the registry only after NV_OK; a refused live SET changes no policy.
+    pub fn timeslice_control(
+        &mut self, reg: &mut Registry, guest: (u32, u32), cmd: u32, params: &[u8],
+    ) -> Option<(u32, Vec<u8>, String)> {
+        let key = tsg_key_of_guest(reg, guest)?;
+        let t = self.tsgs.get_mut(&key)?;
+        let h = self.hm.lock().unwrap();
+        Some(control_owned_timeslice(t, reg, guest, cmd, params,
+            |handle, cmd, p| h.control(handle, cmd, p)))
+    }
+
     /// A control the guest sent to one of its channels or TSGs, forwarded to the host
-    /// mirror when there is one (`STOP_CHANNEL`, `GPFIFO_SCHEDULE`, TSG `PREEMPT`,
-    /// `SET_TIMESLICE`). `None` when the object has no mirror.
+    /// mirror when there is one (`STOP_CHANNEL`, `GPFIFO_SCHEDULE`, TSG `PREEMPT`).
+    /// Timeslice controls use `timeslice_control` instead.
+    /// `None` when the object has no mirror.
     pub fn forward_control(
         &mut self,
         reg: &Registry,
@@ -8409,17 +8505,136 @@ mod tests {
         assert_eq!(tsg_key_of(&reg, reg.channel(6).unwrap()).0, grp(10, 2, 0x30));
         // Reuse: the same guest TSG joins; a freed TSG's id taken by a new TSG is stale; two
         // live TSGs under one id collide.
-        assert_eq!(tsg_reuse(&reg, (1, 0x30), (1, 0x30)), TsgReuse::Join);
-        assert_eq!(tsg_reuse(&reg, (1, 0x30), (1, 0x31)), TsgReuse::Collision);
+        let generation = reg.tsg_generation((1, 0x30)).unwrap();
+        assert_eq!(tsg_reuse(&reg, (1, 0x30), generation, (1, 0x30)), TsgReuse::Join);
+        assert_eq!(tsg_reuse(&reg, (1, 0x30), generation, (1, 0x31)), TsgReuse::Collision);
         reg.record_free(1, 0x30);
         reg.record_alloc(1, 0x10, 0x32, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(7)));
-        assert_eq!(tsg_reuse(&reg, (1, 0x30), (1, 0x32)), TsgReuse::Stale);
+        assert_eq!(tsg_reuse(&reg, (1, 0x30), generation, (1, 0x32)), TsgReuse::Stale);
         assert_eq!(tsg_key_of_guest(&reg, (1, 0x32)), Some(grp(7, 1, 0x32)));
         assert_eq!(tsg_key_of_guest(&reg, (1, 0x30)), None);
         // Keys sort and print.
         assert!(TsgKey::Grp(1) < TsgKey::Handle(0, 0));
         assert_eq!(TsgKey::Grp(7).to_string(), "grpID 7");
         assert_eq!(TsgKey::Handle(1, 0x30).to_string(), "0x1/0x30");
+    }
+
+    fn timeslice_host(reg: &Registry, guest: (u32, u32)) -> HostTsg {
+        HostTsg { handle: 0x700, vas: (1, 0x20), engine: 1, guest,
+            generation: reg.tsg_generation(guest).unwrap(), timeslice_applied: None,
+            gfxp: None, preempt: TsgPreempt::default() }
+    }
+
+    #[test]
+    fn timeslice_latest_revision_precedes_reverse_member_commits_and_rebuild() {
+        let mut reg = registry();
+        let guest = (1, 0x30);
+        reg.record_alloc(1, 0x10, guest.1, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(7)));
+        let first = reg.accept_timeslice(guest, 2000).unwrap();
+        let mut host = timeslice_host(&reg, guest); // build holds no desired snapshot
+        let latest = reg.accept_timeslice(guest, 0).unwrap();
+        assert!(latest.revision > first.revision);
+        let mut calls = Vec::new();
+        for channel in [0x42, 0x41] { // reverse member commit order
+            first_schedule(&mut host, latest.generation, reg.timeslice_desired(guest), channel,
+                |handle, cmd, p| { calls.push((handle, cmd, p.to_vec())); sys::NV_OK }).unwrap();
+        }
+        assert_eq!(calls.iter().map(|c| c.1).collect::<Vec<_>>(),
+            [v::CMD_TSG_SET_TIMESLICE, CMD_GPFIFO_SCHEDULE, CMD_GPFIFO_SCHEDULE]);
+        assert_eq!(calls[0].2, 0u64.to_le_bytes());
+        assert_eq!(host.timeslice_applied, Some(latest));
+        // Host eviction resets only the physical applied state, not guest policy.
+        let mut rebuilt = timeslice_host(&reg, guest);
+        let mut commands = Vec::new();
+        first_schedule(&mut rebuilt, latest.generation, reg.timeslice_desired(guest), 0x43,
+            |_, cmd, _| { commands.push(cmd); sys::NV_OK }).unwrap();
+        assert_eq!(commands, [v::CMD_TSG_SET_TIMESLICE, CMD_GPFIFO_SCHEDULE]);
+        assert_eq!(reg.timeslice_desired(guest), Some(latest));
+    }
+
+    #[test]
+    fn timeslice_host_refusal_retains_policy_and_blocks_first_schedule() {
+        let mut reg = registry();
+        let guest = (1, 0x30);
+        reg.record_alloc(1, 0x10, guest.1, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(7)));
+        let old = reg.accept_timeslice(guest, u64::MAX).unwrap();
+        let mut host = timeslice_host(&reg, guest);
+        host.timeslice_applied = Some(old);
+        let (st, _, _) = control_owned_timeslice(&mut host, &mut reg, guest,
+            v::CMD_TSG_SET_TIMESLICE, &[0; 7], |_, _, _| panic!("invalid payload must not reach host"));
+        assert_eq!(st, sys::NV_ERR_INVALID_ARGUMENT);
+        let (st, _, _) = control_owned_timeslice(&mut host, &mut reg, guest,
+            v::CMD_TSG_SET_TIMESLICE, &0u64.to_le_bytes(), |_, _, _| sys::NV_ERR_INVALID_ARGUMENT);
+        assert_eq!(st, sys::NV_ERR_INVALID_ARGUMENT);
+        assert_eq!(reg.timeslice_desired(guest), Some(old));
+        assert_eq!(host.timeslice_applied, Some(old));
+        host.timeslice_applied = None; // rebuilt host has not applied the accepted request
+        let mut commands = Vec::new();
+        assert!(first_schedule(&mut host, old.generation, reg.timeslice_desired(guest), 0x41,
+            |_, cmd, p| { commands.push(cmd); assert_eq!(p, u64::MAX.to_le_bytes());
+                sys::NV_ERR_INVALID_STATE }).is_err());
+        assert_eq!(commands, [v::CMD_TSG_SET_TIMESLICE]);
+        assert_eq!(host.timeslice_applied, None);
+        assert_eq!(reg.timeslice_desired(guest), Some(old));
+        // Live GET preserves output mutation and even refusal status.
+        let (st, p, _) = control_owned_timeslice(&mut host, &mut reg, guest,
+            v::CMD_TSG_GET_TIMESLICE, &[0; 8], |_, _, p| {
+                p.copy_from_slice(&77u64.to_le_bytes()); sys::NV_ERR_INVALID_STATE
+            });
+        assert_eq!((st, p), (sys::NV_ERR_INVALID_STATE, 77u64.to_le_bytes().to_vec()));
+        assert_eq!(reg.timeslice_desired(guest), Some(old));
+        // A successful live SET accepts the new exact input at a fresh revision.
+        let (st, _, _) = control_owned_timeslice(&mut host, &mut reg, guest,
+            v::CMD_TSG_SET_TIMESLICE, &0u64.to_le_bytes(), |_, _, _| sys::NV_OK);
+        assert_eq!(st, sys::NV_OK);
+        let accepted = reg.timeslice_desired(guest).unwrap();
+        assert_eq!(accepted.microseconds, 0);
+        assert!(accepted.revision > old.revision);
+        assert_eq!(host.timeslice_applied, Some(accepted));
+        let (st, p, _) = control_owned_timeslice(&mut host, &mut reg, guest,
+            v::CMD_TSG_GET_TIMESLICE, &[0; 8], |_, _, p| {
+                p.copy_from_slice(&88u64.to_le_bytes()); sys::NV_OK
+            });
+        assert_eq!((st, p), (sys::NV_OK, 88u64.to_le_bytes().to_vec()));
+        assert_eq!(reg.timeslice_desired(guest), Some(accepted));
+    }
+
+    #[test]
+    fn timeslice_reallocation_and_client_free_cannot_reuse_old_host_generation() {
+        let mut reg = registry();
+        let guest = (1, 0x30);
+        for free_client in [false, true] {
+            reg.record_alloc(1, 0x10, guest.1, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(7)));
+            let old = reg.accept_timeslice(guest, 1).unwrap();
+            let mut host = timeslice_host(&reg, guest);
+            reg.record_free(1, if free_client { 1 } else { guest.1 });
+            assert_eq!(reg.timeslice_desired(guest), None);
+            reg.record_alloc(1, 0x10, guest.1, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(7)));
+            assert_eq!(tsg_reuse(&reg, guest, old.generation, guest), TsgReuse::Stale);
+            assert_eq!(reg.timeslice_desired(guest), None);
+            let generation = reg.tsg_generation(guest).unwrap();
+            assert_ne!(generation, old.generation);
+            assert!(first_schedule(&mut host, generation, None, 0x41,
+                |_, _, _| panic!("recycled TSG must not submit any host control")).is_err());
+            let (st, _, _) = control_owned_timeslice(&mut host, &mut reg, guest,
+                v::CMD_TSG_SET_TIMESLICE, &[0; 8], |_, _, _| panic!("stale host TSG"));
+            assert_eq!(st, sys::NV_ERR_INVALID_STATE);
+        }
+        let generation = reg.tsg_generation(guest).unwrap();
+        reg.accept_timeslice(guest, 10);
+        // A direct allocation replacing the tuple also clears policy and stale grpID.
+        reg.record_alloc(1, 0x10, guest.1, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(None));
+        assert_ne!(reg.tsg_generation(guest), Some(generation));
+        assert_eq!(reg.timeslice_desired(guest), None);
+        assert_eq!(reg.tsg_id(guest), None);
+        let generation = reg.tsg_generation(guest).unwrap();
+        reg.accept_timeslice(guest, 99);
+        let gpfifo = crate::fixture::rtx2070().chip.data().channel.gpfifo;
+        reg.record_alloc(1, 0x10, guest.1, gpfifo, &channel_params(10, Some(7)));
+        assert_eq!(reg.tsg(guest), None);
+        assert_eq!(reg.timeslice_desired(guest), None);
+        assert_ne!(reg.tsg_generation(guest), Some(generation));
+        assert_eq!(tsg_reuse(&reg, guest, generation, guest), TsgReuse::Stale);
     }
 
     /// Run P30: the eviction of a TSG's context through its last channel, which never rang,
@@ -8863,6 +9078,8 @@ mod tests {
                 vas: OWNER,
                 engine: 1,
                 guest: (0xb4, 0x30),
+                generation: reg.tsg_generation((0xb4, 0x30)).unwrap(),
+                timeslice_applied: None,
                 gfxp: None,
                 preempt: TsgPreempt::default(),
             })]);

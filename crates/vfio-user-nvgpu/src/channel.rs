@@ -574,6 +574,20 @@ pub struct SoftwareEvent {
 /// `NV01_DEVICE_0`.
 const NV01_DEVICE_0_CLASS: u32 = 0x80;
 
+/// An accepted guest request; application to a physical TSG is tracked separately.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TimesliceRequest {
+    pub generation: u64,
+    pub revision: u64,
+    pub microseconds: u64,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TsgPolicy {
+    generation: u64,
+    desired: Option<TimesliceRequest>,
+}
+
 pub struct Registry {
     /// The chip's channel, copy and UVM software classes.
     classes: ChannelClasses,
@@ -593,6 +607,7 @@ pub struct Registry {
     /// g_kernel_channel_group_nvoc.h:123-129; set at kernel_channel_group_api.c:442-455,
     /// honoured by the GSP build at :273-285), by (hClient, hTsg).
     tsg_ids: BTreeMap<(u32, u32), u32>,
+    tsg_policy: BTreeMap<(u32, u32), TsgPolicy>,
     /// (hClient, hCtxShare) → hVASpace (`FERMI_CONTEXT_SHARE_A`): GR channels name their
     /// VAS only through their context share (cuda-lookahead.md §5 item 2).
     ctxshares: BTreeMap<(u32, u32), u32>,
@@ -626,8 +641,8 @@ pub struct Registry {
     client_share: BTreeMap<u32, u32>,
     /// ChID → channel.
     channels: BTreeMap<u32, Channel>,
-    /// Last generation assigned to an accepted channel allocation.
-    channel_generation: u64,
+    /// Last generation assigned to an accepted channel or TSG allocation.
+    allocation_generation: u64,
     /// Logical GSP CPU/display-interval epoch, preserved across function reset.
     /// GPU timestamps select `gpu_clock` separately during host execution.
     start: Option<std::time::Instant>,
@@ -695,6 +710,7 @@ impl Registry {
             server_pdes: BTreeMap::new(),
             tsgs: BTreeMap::new(),
             tsg_ids: BTreeMap::new(),
+            tsg_policy: BTreeMap::new(),
             ctxshares: BTreeMap::new(),
             aliases: BTreeMap::new(),
             promoted: BTreeMap::new(),
@@ -704,7 +720,7 @@ impl Registry {
             client_device: BTreeMap::new(),
             client_share: BTreeMap::new(),
             channels: BTreeMap::new(),
-            channel_generation: 0,
+            allocation_generation: 0,
             start: Some(device_epoch()),
             gpu_clock: None,
             doorbells: 0,
@@ -1334,6 +1350,70 @@ impl Registry {
         self.tsgs.get(&key).copied()
     }
 
+    /// Retire only the old owned allocation and its children. The generation check
+    /// preserves a replacement already installed by another allocation path.
+    pub fn retire_tsg_allocation(&mut self, key: (u32, u32), generation: u64) -> bool {
+        if self.tsg_policy.get(&key).is_none_or(|p| p.generation != generation) {
+            return false;
+        }
+        self.retire_owned_channels(key.0, key.1, false);
+        self.tsgs.remove(&key);
+        self.tsg_ids.remove(&key);
+        self.tsg_policy.remove(&key);
+        self.promoted.remove(&key);
+        self.retain_live_preemption();
+        self.set_b_changed();
+        true
+    }
+
+    // Shared by real FREE and accepted TSG replacement. Replacement always uses
+    // object scope, even if an unusual guest tuple has hObject == hClient.
+    fn retire_owned_channels(&mut self, h_client: u32, h_object: u32, all: bool) {
+        let owned = |c: &Channel| c.h_client == h_client
+            && (all || c.h_object == h_object || c.h_parent == h_object);
+        if let Some(pool) = self.tokens.as_mut() {
+            for c in self.channels.values().filter(|c| owned(c)) {
+                pool.release(c.chid);
+            }
+        }
+        self.channels.retain(|_, c| !owned(c));
+    }
+
+    fn retain_live_preemption(&mut self) {
+        if !self.preempt.is_empty() {
+            let (tsgs, channels) = (&self.tsgs, &self.channels);
+            self.preempt.retain(|k| tsgs.contains_key(k)
+                || channels.values().any(|c| (c.h_client, c.h_object) == *k));
+        }
+    }
+
+    /// Identity of the current owned TSG, or a bare channel's internal TSG.
+    pub fn tsg_generation(&self, key: (u32, u32)) -> Option<u64> {
+        let key = self.resolve(key);
+        self.tsg_policy.get(&key).map(|p| p.generation).or_else(|| {
+            self.channels.values().find(|c| (c.h_client, c.h_object) == key
+                && !self.tsgs.contains_key(&(c.h_client, c.h_parent))).map(|c| c.generation)
+        })
+    }
+
+    pub fn timeslice_desired(&self, key: (u32, u32)) -> Option<TimesliceRequest> {
+        self.tsg_policy.get(&self.resolve(key))?.desired
+    }
+
+    /// Commit only an accepted SET; host refusal leaves both desired and revision intact.
+    pub fn accept_timeslice(&mut self, key: (u32, u32), microseconds: u64) -> Option<TimesliceRequest> {
+        let key = self.resolve(key);
+        let p = self.tsg_policy.get_mut(&key)?;
+        let request = TimesliceRequest {
+            generation: p.generation,
+            revision: p.desired.map_or(1, |r| r.revision.checked_add(1)
+                .expect("TSG timeslice revision exhausted")),
+            microseconds,
+        };
+        p.desired = Some(request);
+        Some(request)
+    }
+
     /// The channel's VAS key as the registry resolves it (through DUP aliases), with
     /// the default-VAS fallback of the software executor.
     pub fn vas_key_of(&self, ch: &Channel) -> Option<(u32, u32)> {
@@ -1569,6 +1649,11 @@ impl Registry {
         h_class: u32,
         params: &[u8],
     ) -> Option<String> {
+        // Retire an old TSG and its members before installing any replacement.
+        // New channel/TSG allocations below must survive post-allocation cleanup.
+        if let Some(generation) = self.tsg_policy.get(&(h_client, h_object)).map(|p| p.generation) {
+            self.retire_tsg_allocation((h_client, h_object), generation);
+        }
         match h_class {
             NV01_DEVICE_0_CLASS => {
                 // A client handle can be reused after FREE. Every new device allocation
@@ -1616,6 +1701,12 @@ impl Registry {
                 let vas = rd32(params, TSG_HVASPACE);
                 let engine = rd32(params, TSG_ENGINE_TYPE);
                 self.tsgs.insert((h_client, h_object), (vas, engine));
+                self.allocation_generation = self.allocation_generation.checked_add(1)
+                    .expect("allocation generation exhausted");
+                self.tsg_policy.insert((h_client, h_object), TsgPolicy {
+                    generation: self.allocation_generation, desired: None,
+                });
+                self.tsg_ids.remove(&(h_client, h_object));
                 // 615 appends internalFlags (28 bytes; 610 has 20 and no such field).
                 let grp = crate::ver::layouts()
                     .tsg_internal_flags
@@ -1632,8 +1723,8 @@ impl Registry {
                 ))
             }
             c if c == self.classes.gpfifo => {
-                self.channel_generation = self
-                    .channel_generation
+                self.allocation_generation = self
+                    .allocation_generation
                     .checked_add(1)
                     .expect("channel generation exhausted");
                 let flags = rd32(params, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags);
@@ -1673,7 +1764,7 @@ impl Registry {
                     mirrored: false,
                     stopped: false,
                     chid,
-                    generation: self.channel_generation,
+                    generation: self.allocation_generation,
                     engine_type: rd32(params, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType),
                     alloc_flags: flags,
                     gpfifo_va: rd64(
@@ -1900,15 +1991,6 @@ impl Registry {
         if !all {
             notes.extend(self.retain_device_default(h_client, h_object));
         }
-        let parent_gone = |c: &Channel| {
-            c.h_client == h_client && (all || c.h_object == h_object || c.h_parent == h_object)
-        };
-        // A freed channel gives its doorbell token back (docs/caraxes/doorbell-token-pool.md).
-        if let Some(pool) = self.tokens.as_mut() {
-            for c in self.channels.values().filter(|c| parent_gone(c)) {
-                pool.release(c.chid);
-            }
-        }
         // Freeing a TSG owns and tears down its child channels. An engine-object FREE
         // removes only that exact client-scoped handle from its owning live channel.
         for c in self
@@ -1922,19 +2004,15 @@ impl Registry {
                 c.engine_objects.remove(i);
             }
         }
-        self.channels.retain(|_, c| !parent_gone(c));
+        self.retire_owned_channels(h_client, h_object, all);
         self.tsgs
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.tsg_ids
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
+        self.tsg_policy
+            .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         // A preemption request lives as long as its guest TSG or bare channel.
-        if !self.preempt.is_empty() {
-            let (tsgs, channels) = (&self.tsgs, &self.channels);
-            self.preempt.retain(|k| {
-                tsgs.contains_key(k)
-                    || channels.values().any(|c| (c.h_client, c.h_object) == *k)
-            });
-        }
+        self.retain_live_preemption();
         self.vaspaces
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         let live = &self.vaspaces;

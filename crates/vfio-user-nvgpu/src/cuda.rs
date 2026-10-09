@@ -21,7 +21,7 @@ fn answer(params: Vec<u8>, label: &'static str, note: String) -> Answer {
 }
 
 /// The controls of the context path that real GSP acts on (clock limits, exception masks,
-/// preemption modes, timeslices, preemption, channel stop, eviction) and that the device
+/// preemption modes, preemption, channel stop, eviction) and that the device
 /// acknowledges without effect, because no host channel exists yet (part 2 maps them to
 /// the host objects; cuda-lookahead.md §6.3). Native status for each is NV_OK
 /// (matrix/traces/610.57.04/cuda-core.tsv and cuda-launch.tsv). The clock boost
@@ -44,7 +44,6 @@ const ACKNOWLEDGED: &[(u32, &str)] = &[
         v::CMD_DEBUG_SET_EXCEPTION_MASK,
         "DEBUG_SET_EXCEPTION_MASK (no SM to trap)",
     ),
-    (v::CMD_TSG_SET_TIMESLICE, "TSG SET_TIMESLICE (no scheduler)"),
     (
         v::CMD_TSG_PREEMPT,
         "TSG PREEMPT (the emulated channels run to completion at the doorbell)",

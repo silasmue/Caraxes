@@ -327,7 +327,6 @@ pub fn route_token(reg: &crate::channel::Registry, token: u32, host_owner: Optio
 const MIRROR_FORWARDED: &[u32] = &[
     v::CMD_CHANNEL_STOP,
     v::CMD_TSG_PREEMPT,
-    v::CMD_TSG_SET_TIMESLICE,
     v::CMD_CHANNEL_GPFIFO_SCHEDULE,
     v::CMD_TSG_GPFIFO_SCHEDULE,
 ];
@@ -2209,6 +2208,37 @@ impl Dispatcher {
         h_class: u32,
         params: &[u8],
     ) -> Answer {
+        let key = (h_client, h_object);
+        let old_tsg = self.channels.tsg(key).and_then(|_| self.channels.tsg_generation(key));
+        let old_class = self.objects.get(&key).copied();
+        let mut answer = self.alloc_inner(h_client, h_object, h_parent, h_class, params);
+        if answer.status == NV_OK {
+            if let Some(generation) = old_tsg {
+                // The ordinary registry path retires before insertion; early display/
+                // family paths retire afterward only if the old generation still exists.
+                self.channels.retire_tsg_allocation(key, generation);
+                if let Some(m) = self.mirror.as_mut() {
+                    for note in m.retire_replaced_channels(&self.channels) {
+                        answer.note.push_str("; ");
+                        answer.note.push_str(&note);
+                    }
+                }
+            }
+        } else if old_tsg.is_some() {
+            // A refused replacement did not retire the prior owned allocation.
+            if let Some(class) = old_class { self.objects.insert(key, class); }
+        }
+        answer
+    }
+
+    fn alloc_inner(
+        &mut self,
+        h_client: u32,
+        h_object: u32,
+        h_parent: u32,
+        h_class: u32,
+        params: &[u8],
+    ) -> Answer {
         if self.channels.engine_object(h_client, h_object).is_some()
             || self
                 .mirror
@@ -2575,6 +2605,13 @@ impl Dispatcher {
         params: &[u8],
         service: Option<&crate::host_control::Service>,
     ) -> Result<Answer, ControlFlow> {
+        // These controls carry persistent guest policy. Never replace a real host
+        // refusal with a recorded/diagnostic ACK, or discard the host GET output.
+        if matches!(cmd, v::CMD_TSG_SET_TIMESLICE | v::CMD_TSG_GET_TIMESLICE) {
+            if let Some(a) = self.timeslice_control(h_client, h_object, cmd, params) {
+                return Ok(a);
+            }
+        }
         // The Windows KMD's graphics-preemption pool (GR_GFX_POOL_QUERY_SIZE and the three
         // pool controls) gets recorded.rs's answer: the pool is the KMD's own heap memory,
         // part of the VM's slice; the host context's GFXP comes from a slot bound at its
@@ -2717,6 +2754,38 @@ impl Dispatcher {
             .find(|e| e[0] == index)
             .map(|e| e[1])
             .filter(|&n| (1..32).contains(&n))
+    }
+
+    fn timeslice_control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Option<Answer> {
+        let reply = |status, p: Vec<u8>, note: String| Answer {
+            status, params: p, label: "guest (TSG timeslice policy)", note,
+        };
+        if params.len() != 8 {
+            return Some(reply(nvrm_sys::NV_ERR_INVALID_ARGUMENT, params.to_vec(),
+                "TSG timeslice requires exactly eight bytes".into()));
+        }
+        let guest = self.channels.resolve((h_client, h_object));
+        if self.objects.get(&guest) != Some(&v::KEPLER_CHANNEL_GROUP_A)
+            || self.channels.tsg(guest).is_none() {
+            return Some(reply(nvrm_sys::NV_ERR_INVALID_ARGUMENT, params.to_vec(),
+                "TSG timeslice requires a live owned TSG".into()));
+        }
+        if let Some((st, p, note)) = self.mirror.as_mut()
+            .and_then(|m| m.timeslice_control(&mut self.channels, guest, cmd, params)) {
+            return Some(Answer { status: st, params: p,
+                label: "host (owned TSG timeslice)", note });
+        }
+        if cmd == v::CMD_TSG_SET_TIMESLICE {
+            let value = u64::from_le_bytes(params.try_into().unwrap());
+            let request = self.channels.accept_timeslice(guest, value).unwrap();
+            return Some(reply(NV_OK, params.to_vec(), format!(
+                "TSG timeslice {value} us accepted at revision {}; deferred until host TSG exists", request.revision)));
+        }
+        self.channels.timeslice_desired(guest).map(|r| reply(NV_OK,
+            r.microseconds.to_le_bytes().to_vec(),
+            "TSG GET returns accepted guest request; no physical TSG exists".into()))
+        // No known native initial default: preserve the original fallback when no
+        // SET has been accepted and no host TSG exists.
     }
 
     fn control_modelled(
@@ -3357,6 +3426,163 @@ mod tests {
     fn dispatcher(host: Option<Box<dyn HostRm>>) -> Dispatcher {
         let f = crate::fixture::rtx2070();
         Dispatcher::new(f.chip.data(), &f.identity(4 << 30), host)
+    }
+
+    fn timeslice_promote(d: &mut Dispatcher, object: u32) {
+        let mut p = vec![0; v::PROMOTE_PARAMS_SIZE];
+        p[v::PROMOTE_H_CHAN_CLIENT..v::PROMOTE_H_CHAN_CLIENT + 4].copy_from_slice(&1u32.to_le_bytes());
+        p[v::PROMOTE_H_OBJECT..v::PROMOTE_H_OBJECT + 4].copy_from_slice(&object.to_le_bytes());
+        p[v::PROMOTE_ENTRY_COUNT..v::PROMOTE_ENTRY_COUNT + 4].copy_from_slice(&1u32.to_le_bytes());
+        let e = v::PROMOTE_ENTRIES;
+        p[e + 8..e + 16].copy_from_slice(&0x2000u64.to_le_bytes());
+        p[e + 16..e + 24].copy_from_slice(&0x1000u64.to_le_bytes());
+        p[e + 28..e + 30].copy_from_slice(&2u16.to_le_bytes());
+        d.channels.record_promote_ctx(&p);
+        assert_eq!(d.channels.promoted((1, object)).unwrap().len(), 1);
+    }
+
+    fn timeslice_child(d: &mut Dispatcher, object: u32, parent: u32, chid: u32) -> Vec<u8> {
+        type Abi = nvrm_sys::V610;
+        let mut p = vec![0; <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let off = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags;
+        let flags = ((chid / 8) << 12) | ((chid % 8) << 8);
+        p[off..off + 4].copy_from_slice(&flags.to_le_bytes());
+        assert_eq!(d.alloc(1, object, parent, d.chip.channel.gpfifo, &p).status, NV_OK);
+        p
+    }
+
+    #[test]
+    fn early_timeslice_controls_preserve_exact_value_and_validate_owned_tsg() {
+        let mut d = dispatcher(None);
+        let guest = (1, 0x30);
+        d.alloc(1, guest.1, 0x10, v::KEPLER_CHANNEL_GROUP_A,
+            &vec![0; crate::ver::layouts().tsg_size]);
+        // Unset GET follows the original fallback; no native default is invented.
+        assert!(d.timeslice_control(guest.0, guest.1, v::CMD_TSG_GET_TIMESLICE, &[0; 8]).is_none());
+        for value in [0u64, u64::MAX, 0x1_0000_0001] {
+            let a = d.control(guest.0, guest.1, v::CMD_TSG_SET_TIMESLICE, &value.to_le_bytes());
+            assert_eq!(a.status, NV_OK, "{}", a.note);
+            assert!(a.note.contains("deferred"));
+            let a = d.control(guest.0, guest.1, v::CMD_TSG_GET_TIMESLICE, &[0; 8]);
+            assert_eq!(a.status, NV_OK);
+            assert_eq!(a.params, value.to_le_bytes());
+        }
+        let desired = d.channels.timeslice_desired(guest);
+        for cmd in [v::CMD_TSG_SET_TIMESLICE, v::CMD_TSG_GET_TIMESLICE] {
+            for n in [0, 1, 7, 9, 16] {
+                assert_eq!(d.control(1, guest.1, cmd, &vec![0; n]).status, nvrm_sys::NV_ERR_INVALID_ARGUMENT);
+                assert_eq!(d.channels.timeslice_desired(guest), desired);
+            }
+            assert_eq!(d.control(2, guest.1, cmd, &[0; 8]).status, nvrm_sys::NV_ERR_INVALID_ARGUMENT);
+            assert_eq!(d.control(1, 0x31, cmd, &[0; 8]).status, nvrm_sys::NV_ERR_INVALID_ARGUMENT);
+        }
+        d.free(1, guest.1);
+        assert_eq!(d.channels.timeslice_desired(guest), None);
+        assert_eq!(d.control(1, guest.1, v::CMD_TSG_GET_TIMESLICE, &[0; 8]).status, nvrm_sys::NV_ERR_INVALID_ARGUMENT);
+    }
+
+    #[test]
+    fn timeslice_policy_is_retired_by_accepted_display_and_family_replacements() {
+        let mut display = dispatcher(None);
+        display.display.enabled = true;
+        let f = crate::fixture::rtx2070();
+        let chip = crate::chip::by_name("gh100").unwrap();
+        let family = Dispatcher::new(chip.data(), &f.identity(4 << 30), None);
+        let mut mig_params = vec![0; 12];
+        mig_params[8..12].copy_from_slice(&0xFFFF_FFFEu32.to_le_bytes());
+        for (mut d, class, p) in [
+            (display, v::display::NVC570_DISPLAY, Vec::new()),
+            (family, 0xC637, mig_params),
+        ] {
+            let guest = (1, 0x30);
+            assert_eq!(d.alloc(1, guest.1, 0x10, v::KEPLER_CHANNEL_GROUP_A,
+                &vec![0; crate::ver::layouts().tsg_size]).status, NV_OK);
+            assert_eq!(d.control(1, guest.1, v::CMD_TSG_SET_TIMESLICE,
+                &2000u64.to_le_bytes()).status, NV_OK);
+            let generation = d.channels.tsg_generation(guest).unwrap();
+            timeslice_promote(&mut d, guest.1);
+            timeslice_promote(&mut d, 0x99);
+            d.channels.tokens = Some(crate::tokens::TokenPool::new(4));
+            timeslice_child(&mut d, 0x40, guest.1, 9);
+            timeslice_child(&mut d, 0x51, 0x10, 10);
+            d.channels.tokens.as_mut().unwrap().assign(9);
+            let other_token = d.channels.tokens.as_mut().unwrap().assign(10);
+            if class == 0xC637 {
+                let refused = d.alloc(1, guest.1, 0x10, class, &[0; 12]);
+                assert_ne!(refused.status, NV_OK);
+                assert_eq!(d.objects.get(&guest), Some(&v::KEPLER_CHANNEL_GROUP_A));
+                assert_eq!(d.channels.tsg_generation(guest), Some(generation));
+                assert!(d.channels.channel(9).is_some());
+                assert!(d.channels.promoted(guest).is_some());
+                assert_eq!(d.control(1, guest.1, v::CMD_TSG_GET_TIMESLICE, &[0; 8]).params,
+                    2000u64.to_le_bytes());
+            }
+            let a = d.alloc(1, guest.1, 0x10, class, &p);
+            assert_eq!(a.status, NV_OK, "{}", a.note);
+            assert_eq!(d.objects.get(&guest), Some(&class));
+            assert_eq!(d.channels.tsg(guest), None);
+            assert_eq!(d.channels.tsg_id(guest), None);
+            assert_eq!(d.channels.timeslice_desired(guest), None);
+            assert!(d.channels.promoted(guest).is_none());
+            assert!(d.channels.promoted((1, 0x99)).is_some());
+            assert!(d.channels.channel(9).is_none(), "old TSG child survived replacement");
+            assert!(d.channels.channel(10).is_some(), "unrelated child was retired");
+            assert_eq!(d.channels.tokens.as_ref().unwrap().token_of(9), None);
+            assert_eq!(d.channels.tokens.as_ref().unwrap().token_of(10), other_token);
+            for cmd in [v::CMD_TSG_SET_TIMESLICE, v::CMD_TSG_GET_TIMESLICE] {
+                assert_eq!(d.control(1, guest.1, cmd, &[0; 8]).status,
+                    nvrm_sys::NV_ERR_INVALID_ARGUMENT);
+            }
+            // Even if an allocation path accidentally leaves registry state behind,
+            // the actual allocated class must still authorize a TSG control.
+            d.channels.record_alloc(1, 0x10, guest.1, v::KEPLER_CHANNEL_GROUP_A,
+                &vec![0; crate::ver::layouts().tsg_size]);
+            assert_ne!(d.channels.tsg_generation(guest), Some(generation));
+            assert_eq!(d.control(1, guest.1, v::CMD_TSG_SET_TIMESLICE, &[0; 8]).status,
+                nvrm_sys::NV_ERR_INVALID_ARGUMENT);
+        }
+    }
+
+    #[test]
+    fn timeslice_tsg_replacement_retires_old_children_and_preserves_new_allocation() {
+        for object in [0x30, 1] {
+            let mut d = dispatcher(None);
+            let guest = (1, object);
+            let p = vec![0; crate::ver::layouts().tsg_size];
+            d.alloc(1, object, 0x10, v::KEPLER_CHANNEL_GROUP_A, &p);
+            let old = d.channels.accept_timeslice(guest, 2000).unwrap();
+            timeslice_promote(&mut d, object);
+            timeslice_promote(&mut d, 0x99);
+            d.channels.tokens = Some(crate::tokens::TokenPool::new(4));
+            timeslice_child(&mut d, 0x40, object, 9);
+            timeslice_child(&mut d, 0x51, 0x10, 10);
+            d.channels.tokens.as_mut().unwrap().assign(9);
+            let other_token = d.channels.tokens.as_mut().unwrap().assign(10);
+            assert_eq!(d.alloc(1, object, 0x10, v::KEPLER_CHANNEL_GROUP_A, &p).status, NV_OK);
+            let generation = d.channels.tsg_generation(guest).unwrap();
+            assert_ne!(generation, old.generation);
+            assert_eq!(d.channels.timeslice_desired(guest), None);
+            assert!(d.channels.promoted(guest).is_none());
+            assert!(d.channels.promoted((1, 0x99)).is_some());
+            assert!(d.channels.channel(9).is_none());
+            assert!(d.channels.channel(10).is_some());
+            assert_eq!(d.channels.tokens.as_ref().unwrap().token_of(9), None);
+            assert_eq!(d.channels.tokens.as_ref().unwrap().token_of(10), other_token);
+            // A delayed cleanup for the old generation cannot delete the replacement.
+            assert!(!d.channels.retire_tsg_allocation(guest, old.generation));
+            assert_eq!(d.channels.tsg_generation(guest), Some(generation));
+            timeslice_child(&mut d, 0x41, object, 11);
+            timeslice_promote(&mut d, object);
+            // Replacing a TSG with a bare channel must preserve that new channel.
+            timeslice_child(&mut d, object, 0x10, 12);
+            assert!(d.channels.channel(11).is_none());
+            assert!(d.channels.channel(12).is_some());
+            assert!(d.channels.channel(10).is_some());
+            assert_eq!(d.channels.tsg(guest), None);
+            assert_eq!(d.channels.timeslice_desired(guest), None);
+            assert!(d.channels.promoted(guest).is_none());
+            assert!(d.channels.promoted((1, 0x99)).is_some());
+        }
     }
 
     #[test]
