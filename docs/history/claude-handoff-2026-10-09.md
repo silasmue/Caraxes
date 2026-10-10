@@ -47,8 +47,16 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   One hardware GO follows sole reviewer `ui_review_c278` READY. Keep C231/C215,
   all resource limits, fresh mapping/live file checks and postrender export.
   Profiles/timeline remain enabled: this is a perturbed diagnostic, not an FPS
-  comparison. Results and cleanup are pending. Final review:
-  `C330-root-final-runtime-review.json`. No automatic retry.
+  comparison. It stops before Run: the fifth actual PNG was viewed, but its
+  publisher missed the 40-second deadline. Four accepted reviews took
+  11.754/29.169/19.512/33.015 seconds. Phase timestamps inside those intervals
+  are absent; no specific loader/model/publisher cause is established. Owner
+  closes in 428.391 seconds without errors; driver health and exact cleanup pass.
+  Root verifies all 54 hashes in `C330-report.json`, SHA256
+  `0ca94c79d6eaf04aa6975f0132507a45ac6cc68898f79430550630fd25d1cb88`.
+  No Run, trace, capture, export or FPS qualifies. C334/C336 is being prepared
+  with GPT-Sol as sole image reviewer and explicit tool-stage timings; keep all
+  deadlines, GPU settings and isolation checks. No automatic retry.
 - C318/C320 starts Fire Strike and passes fresh physical GPU mapping plus the
   live executable check against C316's reviewed file tuple. The complete
   424-byte stdout and empty stderr are retained before validation; `NotSigned`

@@ -5,8 +5,14 @@ C326/C328 completes a short native capture/export probe with clean driver health
 and exact cleanup. Root verifies all 37 evidence hashes. Its SQLite export
 matches the fresh physical BDF/UUID and contains 49364 values, 1763 timestamps,
 28 metrics and 754 context events. No benchmark ran. C330/C332 now applies the
-same reviewed ownership fix to the full Fire Strike diagnostic; its render
-capture, result archive and cleanup remain pending.
+same reviewed ownership fix to the full Fire Strike diagnostic, but stops before
+Run when its fifth PNG review exceeds 40 seconds. Exact cleanup and driver health
+pass; root verifies all 54 evidence hashes. No render capture or FPS qualifies.
+Four accepted reviews took 11.754/29.169/19.512/33.015 seconds. The PNG was already
+local when the host checkpoint clock started; internal loader/view/publisher
+boundaries are absent, so the delay cannot be assigned to one stage. C334/C336
+will use GPT-Sol for image review and retain tool-stage timings with unchanged
+deadlines and GPU settings.
 
 The short export lacks an embedded metric definition. Use
 `tools/graphics/nsys-metrics-summary.py --metric-definition PATH
