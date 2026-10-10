@@ -65,6 +65,11 @@ frame stalls. BAR2 memfd sync is separate from BAR1 replica synchronization.
 `f6008969898ec1da2ff63bc74dd2920a850f182464a6381bdca2a59775575063`,
 preserves input hashes, monotone counter checks and the full delta. Its join
 uses kind/key/name/label; status includes cumulative counts and is not a key.
+The same bracket records 3929 worker queue waits averaging 29.075 µs and
+3399 host-ready-to-Device intervals averaging 99.000 µs. Finish/serialization
+averages 32.484 µs across 3399 calls; physical A613 averages 4179.726 µs.
+The different counts include bracket boundaries and different call categories.
+These means do not identify a frame dependency or a GPU waiting percentage.
 
 Set `CARAXES_PROFILE=1` and `CARAXES_PROFILE_HOST_TIMELINE=1`. Existing SIGUSR2 and
 exit dumps now produce three files under `CARAXES_PROFILE_OUT`:
