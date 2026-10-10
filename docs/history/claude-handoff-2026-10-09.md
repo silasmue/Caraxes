@@ -66,6 +66,12 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   callback must explicitly attest preset and Demo off; settings also require
   standard, unchanged 1920×1080 settings, and armed review requires Run at
   `[1470,445]`. Publish only facts visible in the fresh screenshot.
+- C338/C340 passes all seven fresh UI gates with complete callback fields.
+  Actual Run receipt is `2026-10-10T01:35:56.9136424Z`. The single 10-second
+  native capture produces a nonempty 877326-byte report; the benchmark is still
+  running and postrender export is pending. No new FPS or render-counter
+  interpretation qualifies yet. Keep the native window distinct from the
+  complete benchmark duration. Parent/child settings and all limits are unchanged.
 - C318/C320 starts Fire Strike and passes fresh physical GPU mapping plus the
   live executable check against C316's reviewed file tuple. The complete
   424-byte stdout and empty stderr are retained before validation; `NotSigned`

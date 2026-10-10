@@ -18,6 +18,11 @@ exact cleanup pass. C338/C340 will use the corrected complete callback brief
 with unchanged deadlines and GPU settings. Neither failed preparation yields
 render counters or a performance comparison.
 
+C338/C340 passes seven complete fresh UI gates and requests Run at guest UTC
+`2026-10-10T01:35:56.9136424Z`. Its single 10-second native capture produces an
+877326-byte report. The benchmark is still running; export and interpretation
+remain pending. This window does not cover every benchmark scene.
+
 The short export lacks an embedded metric definition. Use
 `tools/graphics/nsys-metrics-summary.py --metric-definition PATH
 --metric-definition-sha256 SHA256` with the exact `tu10x.config` from its pinned
@@ -35,6 +40,10 @@ Preserve those samples rather than silently clipping them. Context pairing has
 does not prove execution or a stall cause. This idle probe does not identify the
 rendering bottleneck. Private audits: `C326-root-metrics-summary.json` and
 `C326-root-metric-quality-audit.json`.
+
+On Turing, Nsight samples by SYS-clock periods, so cadence varies with that clock.
+A requested 200 Hz does not imply exactly 5 ms between samples.
+See [NVIDIA's metric clock definitions](https://docs.nvidia.com/nsight-systems/UserGuide/index.html#gpu-metrics).
 
 C314's fixed-file diagnostic retains failed replies before validation, but its
 numeric GZip parameter is ambiguous on Windows. The wrapper fails before AST
