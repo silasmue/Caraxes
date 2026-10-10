@@ -54,9 +54,18 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   closes in 428.391 seconds without errors; driver health and exact cleanup pass.
   Root verifies all 54 hashes in `C330-report.json`, SHA256
   `0ca94c79d6eaf04aa6975f0132507a45ac6cc68898f79430550630fd25d1cb88`.
-  No Run, trace, capture, export or FPS qualifies. C334/C336 is being prepared
-  with GPT-Sol as sole image reviewer and explicit tool-stage timings; keep all
-  deadlines, GPU settings and isolation checks. No automatic retry.
+  No Run, trace, capture, export or FPS qualifies.
+- C334/C336 also stops before Run. GPT-Sol publishes the Fire Strike review
+  after 7.393 seconds, within its 40-second bound, but the root review brief
+  omitted the required preset and Demo-off flags. The consumer rejects that
+  incomplete callback. This is a test workflow error, not a driver failure.
+  Driver health and exact cleanup pass; root verifies all 51 evidence hashes
+  in `C334-report.json`. Four publication records survive; loader/view stage
+  timestamps do not. C338/C340 is being prepared with a corrected reviewer
+  brief, unchanged GPU settings and unchanged deadlines. Every Fire Strike
+  callback must explicitly attest preset and Demo off; settings also require
+  standard, unchanged 1920×1080 settings, and armed review requires Run at
+  `[1470,445]`. Publish only facts visible in the fresh screenshot.
 - C318/C320 starts Fire Strike and passes fresh physical GPU mapping plus the
   live executable check against C316's reviewed file tuple. The complete
   424-byte stdout and empty stderr are retained before validation; `NotSigned`

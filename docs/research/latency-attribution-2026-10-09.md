@@ -11,8 +11,12 @@ pass; root verifies all 54 evidence hashes. No render capture or FPS qualifies.
 Four accepted reviews took 11.754/29.169/19.512/33.015 seconds. The PNG was already
 local when the host checkpoint clock started; internal loader/view/publisher
 boundaries are absent, so the delay cannot be assigned to one stage. C334/C336
-will use GPT-Sol for image review and retain tool-stage timings with unchanged
-deadlines and GPU settings.
+uses GPT-Sol; its Fire Strike review takes 7.393 seconds, within the bound, but
+omits explicit preset and Demo-off fields because the root brief was incomplete.
+The consumer stops before Run. Root verifies all 51 evidence hashes; health and
+exact cleanup pass. C338/C340 will use the corrected complete callback brief
+with unchanged deadlines and GPU settings. Neither failed preparation yields
+render counters or a performance comparison.
 
 The short export lacks an embedded metric definition. Use
 `tools/graphics/nsys-metrics-summary.py --metric-definition PATH
