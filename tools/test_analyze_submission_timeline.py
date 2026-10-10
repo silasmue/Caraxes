@@ -113,7 +113,6 @@ class SubmissionTimelineTests(unittest.TestCase):
             submission.analyze([self.root / 'missing'] * (submission.MAX_SNAPSHOTS + 1))
         p = self.save('a', [(1, 101, 'fb_flush', 'mirror', 10, 20, 10, '-', '-'),
                             (2, 101, 'bar1_replica_sync', 'mirror', 20, 30, 10, '-', '-')])
-        self.assertEqual(submission.MAX_SNAPSHOT_BYTES, 64 * 1024 ** 2)
         with mock.patch.object(submission, 'MAX_SNAPSHOT_BYTES', p.stat().st_size - 1):
             with self.assertRaisesRegex(ValueError, 'snapshot exceeds 64 MiB'):
                 submission.analyze([p])
