@@ -55,6 +55,17 @@ reviews: `C318-bar1-vram-offline-review.json` and
 Check runtime churn, replica syncs, shadow resyncs and their costs before changing
 window sizes or table handling. Keep ownership and address validation intact.
 
+C318's before-trace and last pre-abort snapshots span 126.710 seconds, including
+preparation and only part of the workload. Their cumulative differences show
+1702 A613 host calls occupying 7.114 seconds, 48194 BAR2 memfd syncs occupying
+2.220 seconds with 851 dirty-page units, and 6369 RM_FREE calls occupying
+2.221 seconds. These costs overlap other profile categories and do not establish
+frame stalls. BAR2 memfd sync is separate from BAR1 replica synchronization.
+`C318-partial-profile-delta.json`, SHA256
+`f6008969898ec1da2ff63bc74dd2920a850f182464a6381bdca2a59775575063`,
+preserves input hashes, monotone counter checks and the full delta. Its join
+uses kind/key/name/label; status includes cumulative counts and is not a key.
+
 Set `CARAXES_PROFILE=1` and `CARAXES_PROFILE_HOST_TIMELINE=1`. Existing SIGUSR2 and
 exit dumps now produce three files under `CARAXES_PROFILE_OUT`:
 
