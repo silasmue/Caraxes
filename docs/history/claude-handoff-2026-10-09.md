@@ -497,9 +497,18 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
 
 ## Continue
 
-1. Investigate C278's final-workload startup failure from the preserved archive,
-   process trace and backend/VMM logs. C272 remains the profiled baseline; C296
-   is the qualified profile-off comparison. Any new run needs a fresh frozen
+1. Build C345 from isolated source `e730370918a0db165200339e49b8d6d4cad41f54`
+   in `/mnt/vmstore/caraxes/wt-submission-diagnostic-C341`, below Floppy's work.
+   It adds only the larger diagnostic ring to C341. C346/C348 source review
+   passes: 38 file comparisons, 29 ASTs and twelve preserved policy sections.
+   The owner CPU check still requires the actual C345 binary/checksum aliases;
+   its missing-file failure is preserved. Finish build validation and exact
+   artifact bindings before runtime promotion and a fresh hardware GO. Wait
+   for competing Floppy compilation and RAM headroom; C342 stopped on the
+   existing RAM guard, so do not retry it or waive that guard.
+   C272 remains the profiled baseline; C296
+   is the qualified profile-off comparison. C278's older final-workload startup
+   failure remains preserved and unresolved. Any new run needs a fresh frozen
    runtime, actual UID1000 input proof
    and one PNG reviewer. Preserve the strict 40-second normal and 30-second armed
    deadlines, typed guest trace margin and exact teardown; do not retry C278.
