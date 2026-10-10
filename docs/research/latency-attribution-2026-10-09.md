@@ -12,10 +12,19 @@ Fire Strike x64 file reports `NotSigned`, version `1.1.0.0`, size 5853696 bytes,
 SHA256 `e68d2fad78ab1d73d0f053c922f8be03e8e5b791f576f4779f092328c0f73ef5`.
 Its complete raw reply is saved; driver health and exact cleanup pass. The
 collector's `Valid`-only predicate therefore rejects this installed payload.
-C310's lost live reply remains unknown. The next diagnostic will bind the live
-process to this reviewed file tuple and retain failed replies, while preserving
-host ownership and fresh device mapping. This fixes measurement admission; it
-does not improve or measure FPS.
+C310's lost live reply remains unknown. C318/C320 passes the live file tuple and
+fresh physical GPU mapping; complete 424-byte stdout and empty stderr are saved.
+Nsight then fails its process ownership check and reports an agent connection
+ending. The offending PID/census was not retained; the exact cause and error
+order remain unknown. No capture, export, completed benchmark or FPS qualifies.
+Driver health and exact cleanup pass in 560.897 seconds. Root verifies all 42
+hashes in `C318-report.json`, SHA256
+`e61ecc5681d221ed122673fab598af5095d8da827f93b638a7c2fc4d607906f1`.
+The collector discovers children before a blocking guard, then scans Nsight
+processes: a new owned descendant can appear during the guard. The successor
+must check positive ancestry and exact retained process identity at the scan,
+keep prelaunch exclusion strict, and save bounded rejection evidence. This
+repairs measurement admission; it does not improve or measure FPS.
 
 The long Linux ALU probe reports 239.231 µs native versus 335.146 µs guest CPU
 submit-through-fence medians: about 40% more time, or 71% of native throughput.
@@ -29,6 +38,22 @@ Compare complete, aligned samples. Existing evidence and clock limitations are
 in [GPU workload attribution](gpu-workload-attribution-2026-10-06.md).
 
 ## Backend observations
+
+The VRAM reservation is one contiguous allocation. Compression adds attributes
+to that allocation; it does not allocate another 4 GiB slice. Comptag occupancy
+has not been measured. The FB store uses two 16 MiB data windows, plus four 2 MiB
+BAR2 windows; the separate BAR1 pool holds 32 MiB. Those windows can remap on
+misses, but the preserved C272 log has no runtime churn or final store totals.
+Startup BAR1 admission alone cannot establish pressure during rendering.
+
+C272's fifteen `remap refused` rows identify protected guest page-table pages,
+not exhausted BAR1 capacity. Their CPU view uses mapped replicas, which are
+merged into the tracked home pages at synchronization points. A write need
+not trap; merge and shadow-resync costs remain unmeasured. Read-only source/log
+reviews: `C318-bar1-vram-offline-review.json` and
+`C318-bar1-table-replicas-offline-review.json` in the private trial directory.
+Check runtime churn, replica syncs, shadow resyncs and their costs before changing
+window sizes or table handling. Keep ownership and address validation intact.
 
 Set `CARAXES_PROFILE=1` and `CARAXES_PROFILE_HOST_TIMELINE=1`. Existing SIGUSR2 and
 exit dumps now produce three files under `CARAXES_PROFILE_OUT`:

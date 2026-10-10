@@ -29,6 +29,23 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
 
 ## Verified state
 
+- C318/C320 starts Fire Strike and passes fresh physical GPU mapping plus the
+  live executable check against C316's reviewed file tuple. The complete
+  424-byte stdout and empty stderr are retained before validation; `NotSigned`
+  is informational. Nsight then refuses with `External or unattributed Nsight
+  process active`; its log also reports an agent connection ending. No offending
+  PID/census is saved, so the exact cause and error order remain unknown.
+  No report, SQLite export, completed benchmark archive, FPS or GPU samples
+  qualify. The owner closes in 560.897 seconds without errors; driver health,
+  resource floors and exact cleanup pass. Root verifies all 42 evidence hashes.
+  `C318-report.json` SHA256
+  `e61ecc5681d221ed122673fab598af5095d8da827f93b638a7c2fc4d607906f1`.
+  Prepare C322/C324: the collector currently discovers descendants before a
+  blocking guard, then checks for foreign Nsight processes. New descendants
+  can appear between those steps. Require positive ancestry and retained
+  PID/starttick/pidfd identity at the check; keep prelaunch exclusion strict.
+  Preserve a bounded rejection census and failure stage before raising.
+  This is a measurement fix, with no established rendering speedup.
 - C316 completes the fixed installed-file probe. Native decode/hash/AST and the
   stable file checks pass; the exact UTF-8 reply is retained before validation.
   Fire Strike x64 is 5853696 bytes, file/product version `1.1.0.0`, SHA256
@@ -39,10 +56,9 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   closes cleanly in 72.878 seconds with healthy driver and exact cleanup. Root
   verifies all 26 evidence hashes. `C316-report.json` SHA256
   `0d1a38fbbfed726da00e538e10f99081e5813857deadb6b969bea6c3da619b27`.
-  Prepare C318/C320: bind capture to this reviewed path/hash/size/version tuple,
-  recheck live PID/start/path, and save bounded raw replies before validation.
-  Record Authenticode status as information. Keep host lease, ownership, fresh
-  GPU mapping and all resource/time limits. Neither draft has hardware GO yet.
+  C318/C320 subsequently passes the live path/hash/size/version check while
+  recording Authenticode status as information. Host lease, ownership, fresh
+  GPU mapping and all resource/time limits remain enforced.
 - C314's short installed-file query fails in the GZip wrapper before the native
   AST or file probe. Numeric `0` is ambiguous between the compression-mode and
   compression-level constructor overloads. Complete raw stdout/stderr, 144/412
