@@ -188,6 +188,33 @@ exit dumps now produce three files under `CARAXES_PROFILE_OUT`:
 | `.TAG.tsv` | Existing aggregate costs |
 | `.TAG.host.tsv` | Completed A612/A613 host ioctl intervals |
 | `.TAG.markers.tsv` | Physical doorbells, drained host notifiers, requested raises, published local IRQ causes |
+| `.TAG.submission.tsv` | Opt-in backend submission spans by stage, source and native thread |
+
+Add `CARAXES_PROFILE_SUBMISSION_TIMELINE=1` for the last file; both profile and
+host timeline must be enabled. Storage is preallocated for 65536 spans. Writers
+drop on contention instead of waiting; snapshots expose overflow, contention,
+poison and invalid-record counts. Records share the host anchor and retain native
+TID plus known channel/generation IDs. A missing generation stays unknown.
+Spans include private USERD polling, completer lock acquisition, shadow planning,
+BAR2 and BAR1 replica synchronization, FB flush, publication, post-ring harvest,
+physical doorbell writes and completed held-ring waits. Common mirror spans may
+nest inside completer spans; do not sum them as exclusive time. A returned scope
+can represent a refused submission and does not prove GPU completion.
+
+The isolated diagnostic source includes these hooks and setting registration
+on C231; it excludes later unrelated behavior changes. Its initial full test run
+caught a missing diagnostic setting entry. The entry is fixed before any build
+can qualify for hardware; the failed log is preserved.
+
+```sh
+python3 tools/analyze-submission-timeline.py \
+  run/host-profile.1.submission.tsv run/host-profile.2.submission.tsv \
+  --begin-ns BEGIN --end-ns END --output fresh-submission-analysis.json
+```
+
+This analyzer validates schema, timestamps, process/anchor identity and identical
+overlapping rows. It reports clipped durations and interval unions by stage,
+source and thread; absent sequence IDs cannot be assigned to a time bucket.
 
 - Host spans and markers share the exact monotonic anchor. Unix capture brackets
   support coarse alignment; they do not calibrate guest QPC or the GPU clock.

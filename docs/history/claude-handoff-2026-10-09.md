@@ -100,8 +100,14 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   harvest is not timed separately; the worker-wait histogram has no production
   sample call. `C338-launch-timing-source-audit.json` preserves the source pin
   and excerpts. Do not assume `CARAXES_LAUNCH_TIMING=1` covers Windows fully.
-  A default-off, bounded submission timeline is being added for the next
-  diagnostic build. Its build and runtime bindings must pass review before launch.
+  Default-off submission timing is implemented at `9344ae4c`, with setting
+  registration at `576bcd6b`. Isolated C341 source `73d24aa5` applies only these
+  diagnostics to C231; five source files differ, without the later USERD fix.
+  All 1020 library tests pass (two existing ignores); release build is pending.
+  The initial test run caught
+  the missing setting entry, now fixed; its failed log remains in `C341-build`.
+  Build and runtime bindings must pass review before launch. C342/C344 remains
+  a source-only draft with no hardware GO.
 - Public NVIDIA headers checked for both 610 and 615 give no A612/A613 payload
   or side-effect contract. Existing observations of identical A612 responses
   do not prove future input independence; identical A613 requests have produced
