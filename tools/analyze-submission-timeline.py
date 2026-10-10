@@ -186,7 +186,8 @@ def analyze(paths, begin_ns=0, end_ns=None):
         'coverage': {'unique_rows': len(rows), 'selected_rows': selected,
                      'last_seen': last_seen,
                      'unobserved_sequence_ids': last_seen - len(rows),
-                     'loss_counters_present': any(any(s[k] for k in
+                     'loss_counters_present': True,
+                     'nonzero_loss_counters_observed': any(any(s[k] for k in
                          ('overflow', 'contention', 'poisoned', 'invalid')) for s in sources),
                      'missing_chid_selected': sum(g['missing_chid'] for g in groups.values()),
                      'missing_generation_selected': sum(g['missing_generation'] for g in groups.values())},

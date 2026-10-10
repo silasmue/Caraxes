@@ -103,7 +103,9 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   Default-off submission timing is implemented at `9344ae4c`, with setting
   registration at `576bcd6b`. Isolated C341 source `73d24aa5` applies only these
   diagnostics to C231; five source files differ, without the later USERD fix.
-  All 1020 library tests pass (two existing ignores); release build is pending.
+  All 1020 library tests pass (two existing ignores); release build passes.
+  Backend SHA256 is
+  `c3e74ee3a5f23cae2aad370a187dda5cbca2bf4b135b038cbee51ce06079a1c4`.
   The initial test run caught
   the missing setting entry, now fixed; its failed log remains in `C341-build`.
   Build and runtime bindings must pass review before launch. C342/C344 remains

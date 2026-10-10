@@ -50,6 +50,8 @@ class SubmissionTimelineTests(unittest.TestCase):
         result = submission.analyze([a, b], 30, 60)
         self.assertEqual(result['selection_ns'], {'begin': 30, 'end': 60, 'end_exclusive': True})
         self.assertEqual(result['coverage']['unique_rows'], 3)
+        self.assertTrue(result['coverage']['loss_counters_present'])
+        self.assertFalse(result['coverage']['nonzero_loss_counters_observed'])
         self.assertEqual(result['all_stage_interval_union_ns'], 30)
         groups = {g['stage']: g for g in result['groups']}
         self.assertEqual((groups['ring_handler']['count'], groups['ring_handler']['sum_duration_ns'],
@@ -100,6 +102,7 @@ class SubmissionTimelineTests(unittest.TestCase):
         result = submission.analyze([a, b])
         self.assertEqual(result['coverage']['unobserved_sequence_ids'], 3)
         self.assertTrue(result['coverage']['loss_counters_present'])
+        self.assertTrue(result['coverage']['nonzero_loss_counters_observed'])
         self.assertEqual(result['coverage']['missing_chid_selected'], 1)
         self.assertEqual(result['coverage']['missing_generation_selected'], 2)
         self.assertEqual({g['tid'] for g in result['groups']}, {101, 202})
