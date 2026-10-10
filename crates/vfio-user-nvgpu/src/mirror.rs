@@ -52,6 +52,7 @@ use crate::guestmem::GuestMemory;
 use crate::hostmem::{HostMemory, HostUserd, OsEvent};
 use crate::intr::IntrShared;
 use crate::invalidate::Invalidator;
+use crate::profile::submission_timeline::{Ids, Source, Span, Stage};
 use crate::ver::common as v;
 
 /// `NV2080_NOTIFIERS_*` (class/cl2080_notification.h): the engine notifiers the mirrored
@@ -1431,16 +1432,25 @@ fn sync_private_userd_data(gm: &mut GpuMem) {
         return;
     }
     let owed = gm.fb.bar2_flush_pending().then(Instant::now);
-    gm.fb.bar2_sync(None, Some(gm.sys));
+    {
+        let _sync = Span::new(Stage::Bar2Sync, Source::Mirror, Ids::NONE);
+        gm.fb.bar2_sync(None, Some(gm.sys));
+    }
     if let (Some(t0), Some(a)) = (owed, gm.fb.bar2_area_mut()) {
         a.count_point(
             crate::bar2area::Point::Doorbell,
             t0.elapsed().as_nanos() as u64,
         );
     }
-    crate::bar1pool::sync_untracked(gm.fb);
+    {
+        let _sync = Span::new(Stage::Bar1ReplicaSync, Source::Mirror, Ids::NONE);
+        crate::bar1pool::sync_untracked(gm.fb);
+    }
     gm.fb.bar2_flush_settled(crate::bar2area::Settle::Doorbell);
-    gm.fb.flush();
+    {
+        let _flush = Span::new(Stage::FbFlush, Source::Mirror, Ids::NONE);
+        gm.fb.flush();
+    }
 }
 
 /// Cancel a precise host registration. The slot cell is never held over `remove`;
@@ -3501,7 +3511,12 @@ impl Mirror {
             // `shadow_resync` recomputes the set-B ranges of the root's live channels once:
             // a context promoted since the build leaves set A, and one whose channel the
             // guest freed comes back to it.
-            notes.extend(self.shadow_resync(reg, gm, root));
+            {
+                let _plan = Span::new_with_ids(Stage::ShadowPlan, Source::Mirror, || Ids {
+                    chid: Some(chid), generation: self.channels.get(&chid).map(|hc| hc.generation),
+                });
+                notes.extend(self.shadow_resync(reg, gm, root));
+            }
             mark(Step::Plan);
             if !submit {
                 match root {
@@ -3547,7 +3562,7 @@ impl Mirror {
             }
             if let Some(h) = self.held_rings.remove(&chid) {
                 // A ring held before is covered by this one (its jobs are older).
-                self.note_ring_completed(&h);
+                self.note_ring_completed(chid, &h);
                 self.update_waiting();
             } else {
                 self.ring_stats.direct += 1;
@@ -3563,7 +3578,9 @@ impl Mirror {
     }
 
     /// A held ring left the gate (`complete_held_rings`, or a later doorbell covered it).
-    fn note_ring_completed(&mut self, h: &crate::ringgate::HeldRing) {
+    fn note_ring_completed(&mut self, chid: u32, h: &crate::ringgate::HeldRing) {
+        crate::profile::submission_timeline::record(Stage::HeldRingWait, Source::Mirror,
+            Ids { chid: Some(chid), generation: None }, h.since);
         let ns = h.since.elapsed().as_nanos() as u64;
         self.ring_stats.completed += 1;
         self.ring_stats.held_ns += ns;
@@ -3587,7 +3604,7 @@ impl Mirror {
                 self.ring_stats.dropped += 1;
                 continue;
             }
-            self.note_ring_completed(&h);
+            self.note_ring_completed(chid, &h);
             notes.push(format!(
                 "shadow: chid {chid} held ring forwarded after {} us ({} doorbell(s)) [host]",
                 h.since.elapsed().as_micros(),
@@ -3706,14 +3723,21 @@ impl Mirror {
     /// Forward the doorbell of built channel `chid` now: flush the FB store, publish a
     /// shadowed USERD, record the forwarded GPPut, ring the host doorbell, harvest.
     fn ring_now(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
+        let _handler = Span::new_with_ids(Stage::RingHandler, Source::Mirror, || Ids {
+            chid: Some(chid), generation: self.channels.get(&chid).map(|hc| hc.generation),
+        });
         if self.channels.get(&chid).is_some_and(|hc| hc.cleanup_quarantined || self.gfxp_quarantined(hc.tsg)) {
             return vec![format!("shadow: chid {chid} held: owned GFXP cleanup is quarantined")];
         }
         use crate::launch::{mark, Step};
         let mut notes = Vec::new();
-        gm.fb.flush();
+        {
+            let _flush = Span::new(Stage::FbFlush, Source::Mirror, _handler.ids());
+            gm.fb.flush();
+        }
         mark(Step::Flush);
         {
+            let publish = Span::new(Stage::UserdPublish, Source::Mirror, _handler.ids());
             let enabled = self.channels.get(&chid).is_some_and(|hc| hc.gr_capture.is_some());
             let put = if enabled {
                 let ch = reg.channel(chid);
@@ -3780,6 +3804,7 @@ impl Mirror {
                     _ => Self::userd_ring(reg, gm, chid).map(|(_, put, _)| put),
                 }
             };
+            drop(publish);
             mark(Step::Userd);
             let unwaited = self.unwaited;
             if let Some(hc) = self.channels.get_mut(&chid) {
@@ -3793,6 +3818,7 @@ impl Mirror {
             // The GPU-owned words back to the guest's USERD after the ring, off the
             // submission path (uncached reads of the host USERD; P37: 9.6 us before it).
             if let Some(hc) = self.channels.get(&chid) {
+                let _harvest = Span::new(Stage::UserdHarvest, Source::Mirror, _handler.ids());
                 hc.with_userd(|u| u.harvest(gm));
             }
             // A ring migration the host completed in its stream (a channel of it only).
@@ -6339,7 +6365,11 @@ impl Mirror {
             self.doorbell = Some((h, map));
         }
         let (_, map) = self.doorbell.as_ref().expect("mapped");
-        map.write_u32(DOORBELL_OFFSET, token);
+        {
+            let _write = Span::new(Stage::PhysicalDoorbell, Source::Mirror,
+                Ids { chid: Some(chid), generation: Some(generation) });
+            map.write_u32(DOORBELL_OFFSET, token);
+        }
         crate::profile::backend_markers::record(
             crate::profile::backend_markers::Kind::PhysicalDoorbellWritten,
             crate::profile::backend_markers::Ids {

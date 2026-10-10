@@ -37,6 +37,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub mod backend_markers;
 mod host_timeline;
+pub mod submission_timeline;
 
 /// The switch.
 pub const PROFILE_ENV: &str = "CARAXES_PROFILE";
@@ -46,6 +47,8 @@ pub const PROFILE_OUT_ENV: &str = "CARAXES_PROFILE_OUT";
 /// Retain selected host ioctl timestamps and backend observation markers while the
 /// aggregate profile is enabled.
 pub const HOST_TIMELINE_ENV: &str = "CARAXES_PROFILE_HOST_TIMELINE";
+/// Retain bounded backend submission-stage spans on the host timeline clock.
+pub const SUBMISSION_TIMELINE_ENV: &str = "CARAXES_PROFILE_SUBMISSION_TIMELINE";
 /// A gap between two trapped accesses longer than this is idle time, not the cost of the
 /// later access (rpc-cost.py `--idle-ms 2`).
 pub const IDLE_GAP: Duration = Duration::from_millis(2);
@@ -508,15 +511,24 @@ fn global() -> MutexGuard<'static, Option<Profile>> {
     PROFILE.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Whether `CARAXES_PROFILE=1` is set.
+/// Whether profiling or its submission diagnostic is requested. `start` validates dependencies.
 pub fn requested() -> bool {
     std::env::var(PROFILE_ENV).is_ok_and(|v| v.trim() == "1")
+        || std::env::var(SUBMISSION_TIMELINE_ENV).is_ok_and(|v| v.trim() == "1")
 }
 
 /// Turn the profile on with dumps at `prefix`, install the host ioctl observer, and block
 /// SIGUSR2 in the calling thread (call it before any other thread exists, so that every
 /// thread inherits the mask and only [`spawn_dump_thread`]'s `sigwait` takes the signal).
 pub fn start(prefix: PathBuf) -> std::io::Result<()> {
+    let submission = std::env::var(SUBMISSION_TIMELINE_ENV).is_ok_and(|v| v.trim() == "1");
+    let timeline = std::env::var(HOST_TIMELINE_ENV).is_ok_and(|v| v == "1");
+    if submission && (!std::env::var(PROFILE_ENV).is_ok_and(|v| v.trim() == "1") || !timeline) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "CARAXES_PROFILE_SUBMISSION_TIMELINE=1 requires CARAXES_PROFILE=1 and CARAXES_PROFILE_HOST_TIMELINE=1",
+        ));
+    }
     // SAFETY: sigset manipulation on a local set; pthread_sigmask on the calling thread.
     unsafe {
         let mut set: libc::sigset_t = std::mem::zeroed();
@@ -526,7 +538,6 @@ pub fn start(prefix: PathBuf) -> std::io::Result<()> {
             return Err(std::io::Error::other("pthread_sigmask(SIGUSR2)"));
         }
     }
-    let timeline = std::env::var(HOST_TIMELINE_ENV).is_ok_and(|v| v == "1");
     let mut p = Profile::new();
     if timeline {
         p.host_timeline = Some(host_timeline::Timeline::new(host_timeline::CAPACITY));
@@ -541,6 +552,9 @@ pub fn start(prefix: PathBuf) -> std::io::Result<()> {
     }
     if let Some(t) = &p.host_timeline {
         backend_markers::start(t.anchor());
+        if submission {
+            submission_timeline::configure(t.anchor());
+        }
     }
     *global() = Some(p);
     *OUT.lock().unwrap_or_else(PoisonError::into_inner) = Some(prefix);
@@ -610,6 +624,7 @@ pub fn dump(tag: &str, reason: &str) -> std::io::Result<PathBuf> {
     // Marker writers never acquire PROFILE. Format this independent ring after
     // dropping the aggregate guard, avoiding a new nested lock order.
     let markers = backend_markers::snapshot(reason);
+    let submission = submission_timeline::snapshot(reason);
     let path = PathBuf::from(format!("{}.{tag}.tsv", prefix.display()));
     let tmp = PathBuf::from(format!("{}.{tag}.tsv.tmp", prefix.display()));
     std::fs::write(&tmp, text)?;
@@ -625,6 +640,12 @@ pub fn dump(tag: &str, reason: &str) -> std::io::Result<PathBuf> {
         let markers_tmp = PathBuf::from(format!("{}.{tag}.markers.tsv.tmp", prefix.display()));
         std::fs::write(&markers_tmp, markers)?;
         std::fs::rename(&markers_tmp, markers_path)?;
+    }
+    if let Some(submission) = submission {
+        let submission_path = PathBuf::from(format!("{}.{tag}.submission.tsv", prefix.display()));
+        let submission_tmp = PathBuf::from(format!("{}.{tag}.submission.tsv.tmp", prefix.display()));
+        std::fs::write(&submission_tmp, submission)?;
+        std::fs::rename(&submission_tmp, submission_path)?;
     }
     Ok(path)
 }
@@ -947,13 +968,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn submission_timeline_requires_profile_before_observer_setup() {
+        const MODE: &str = "NVRM_PROFILE_TEST_SUBMISSION_DEPENDENCIES";
+        if matches!(std::env::var(MODE).as_deref(), Ok("missing-profile" | "missing-host")) {
+            assert!(requested());
+            assert_eq!(
+                start(PathBuf::from("unused-submission-profile")).unwrap_err().kind(),
+                std::io::ErrorKind::InvalidInput
+            );
+            assert!(!on());
+            assert!(global().is_none());
+            assert!(backend_markers::snapshot("rejected").is_none());
+            assert!(submission_timeline::snapshot("rejected").is_none());
+            assert!(nvrm_abi::set_ioctl_observer(|_, _, _, _| {}));
+            return;
+        }
+        for (mode, profile, host) in [("missing-profile", false, true), ("missing-host", true, false)] {
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+            child.args(["--exact", "profile::tests::submission_timeline_requires_profile_before_observer_setup"])
+                .env(MODE, mode)
+                .env(SUBMISSION_TIMELINE_ENV, "1");
+            if profile { child.env(PROFILE_ENV, "1"); } else { child.env_remove(PROFILE_ENV); }
+            if host { child.env(HOST_TIMELINE_ENV, "1"); } else { child.env_remove(HOST_TIMELINE_ENV); }
+            let output = child.output().unwrap();
+            assert!(output.status.success(), "{mode}: stdout: {}\nstderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr));
+        }
+    }
+
+    #[test]
     fn host_timeline_opt_in_dump_and_observer_conflict() {
         const MODE: &str = "NVRM_PROFILE_TEST_HOST_TIMELINE_MODE";
         let mode = match std::env::var(MODE) {
             Ok(mode) => mode,
             Err(_) => {
                 // The observer and profile are process-wide. Each case gets fresh globals.
-                for mode in ["normal", "timeline", "conflict"] {
+                for mode in ["normal", "timeline", "submission", "conflict"] {
                     let mut child = std::process::Command::new(std::env::current_exe().unwrap());
                     child
                         .args([
@@ -961,9 +1012,14 @@ mod tests {
                             "profile::tests::host_timeline_opt_in_dump_and_observer_conflict",
                         ])
                         .env(MODE, mode)
-                        .env_remove(HOST_TIMELINE_ENV);
+                        .env(PROFILE_ENV, "1")
+                        .env_remove(HOST_TIMELINE_ENV)
+                        .env_remove(SUBMISSION_TIMELINE_ENV);
                     if mode != "normal" {
                         child.env(HOST_TIMELINE_ENV, "1");
+                    }
+                    if mode == "submission" {
+                        child.env(SUBMISSION_TIMELINE_ENV, "1");
                     }
                     let output = child.output().unwrap();
                     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -996,7 +1052,7 @@ mod tests {
             assert!(global().is_none());
             assert!(backend_markers::snapshot("conflict").is_none());
         } else {
-            assert!(mode == "normal" || mode == "timeline");
+            assert!(mode == "normal" || mode == "timeline" || mode == "submission");
             start(prefix.clone()).unwrap();
             let device = nvrm_abi::NvDevice::open("/dev/null").unwrap();
             for cmd in [0x2080_a612, 0x2080_a613, 0x2080_0101] {
@@ -1016,7 +1072,16 @@ mod tests {
                     assert_eq!(cell.count, 1);
                     assert_eq!(cell.status, [(u32::MAX, 1)]);
                 }
-                assert_eq!(profile.host_timeline.is_some(), mode == "timeline");
+                assert_eq!(profile.host_timeline.is_some(), mode != "normal");
+            }
+            if mode == "submission" {
+                let begin = submission_timeline::start().unwrap();
+                submission_timeline::record(
+                    submission_timeline::Stage::PhysicalDoorbell,
+                    submission_timeline::Source::Mirror,
+                    submission_timeline::Ids { chid: Some(7), generation: Some(3) },
+                    begin,
+                );
             }
             backend_markers::record(backend_markers::Kind::PhysicalDoorbellWritten, backend_markers::Ids {
                 chid: Some(7), channel_generation: Some(3), ..backend_markers::Ids::default()
@@ -1024,8 +1089,8 @@ mod tests {
             assert!(dump("one", "CPU-only test").unwrap().is_file());
             assert!(dump("two", "CPU-only test").unwrap().is_file());
             let markers_path = PathBuf::from(format!("{}.one.markers.tsv", prefix.display()));
-            assert_eq!(markers_path.exists(), mode == "timeline");
-            if mode == "timeline" {
+            assert_eq!(markers_path.exists(), mode != "normal");
+            if mode != "normal" {
                 let markers = std::fs::read_to_string(markers_path).unwrap();
                 let second = std::fs::read_to_string(format!("{}.two.markers.tsv", prefix.display())).unwrap();
                 assert!(markers.contains("seen=1 retained=1 overflow=0 contention=0 poisoned=0 invalid=0"));
@@ -1034,11 +1099,19 @@ mod tests {
                 assert!(backend_markers::snapshot("disabled").is_none());
             }
             let path = PathBuf::from(format!("{}.one.host.tsv", prefix.display()));
-            assert_eq!(path.exists(), mode == "timeline");
-            if mode == "timeline" {
+            assert_eq!(path.exists(), mode != "normal");
+            if mode != "normal" {
                 let text = std::fs::read_to_string(path).unwrap();
                 assert!(text.contains("seen=2 retained=2 dropped=0 invalid=0"));
                 assert_eq!(text.lines().filter(|l| !l.starts_with('#')).count(), 3);
+            }
+            let submission_path = PathBuf::from(format!("{}.one.submission.tsv", prefix.display()));
+            assert_eq!(submission_path.exists(), mode == "submission");
+            if mode == "submission" {
+                let text = std::fs::read_to_string(submission_path).unwrap();
+                assert!(text.contains("seen=1 retained=1 overflow=0 contention=0 poisoned=0 invalid=0"));
+                assert!(text.contains("physical_doorbell\tmirror\t"));
+                assert!(text.contains("\t7\t3\n"));
             }
         }
         std::fs::remove_dir_all(root).unwrap();

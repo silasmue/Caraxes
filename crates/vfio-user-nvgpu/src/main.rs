@@ -37,6 +37,7 @@ use vfio_user_nvgpu::intr::IntrShared;
 use vfio_user_nvgpu::intr_page::{self, IntrPage, PageHook};
 use vfio_user_nvgpu::privilege::Privilege;
 use vfio_user_nvgpu::profile;
+use vfio_user_nvgpu::profile::submission_timeline::{Ids, Source, Span, Stage};
 use vfio_user_nvgpu::rpc::StaticIdentity;
 use vfio_user_nvgpu::selftest;
 use vfio_user_nvgpu::tokens;
@@ -2031,12 +2032,20 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                         vfio_user_nvgpu::dlock::lock(&d, "posted doorbells").ring_posted(&gate, false);
                     }
                     if gate.has_userd() {
-                        vfio_user_nvgpu::dlock::lock(&d, "shadow USERD rings").ring_polled_userds(&gate);
+                        let wait = Span::new(Stage::DeviceLock, Source::PolledUserd, Ids::NONE);
+                        let mut dev = vfio_user_nvgpu::dlock::lock(&d, "shadow USERD rings");
+                        drop(wait);
+                        let _handler = Span::new(Stage::RingHandler, Source::PolledUserd, Ids::NONE);
+                        dev.ring_polled_userds(&gate);
                     }
                     if gate.waiting() == 0 {
                         continue;
                     }
-                    vfio_user_nvgpu::dlock::lock(&d, "held ring completer").complete_held_rings();
+                    let wait = Span::new(Stage::DeviceLock, Source::HeldRingCompleter, Ids::NONE);
+                    let mut dev = vfio_user_nvgpu::dlock::lock(&d, "held ring completer");
+                    drop(wait);
+                    let _handler = Span::new(Stage::RingHandler, Source::HeldRingCompleter, Ids::NONE);
+                    dev.complete_held_rings();
                 }
             })
             .context("spawn the ring completer")?
@@ -2112,7 +2121,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 let n = watch.len().min(32);
                 for k in 0..n {
                     let (chid, slot) = &watch[(cursor + k) % watch.len()];
-                    if slot.poll(&mem) {
+                    let scan = Span::new(Stage::PrivateUserdScan, Source::PolledUserd,
+                        Ids { chid: Some(*chid), generation: None });
+                    let pending = slot.poll(&mem);
+                    drop(scan);
+                    if pending {
                         gate.post_userd(*chid);
                     }
                 }
