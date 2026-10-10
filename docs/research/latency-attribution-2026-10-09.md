@@ -19,9 +19,47 @@ with unchanged deadlines and GPU settings. Neither failed preparation yields
 render counters or a performance comparison.
 
 C338/C340 passes seven complete fresh UI gates and requests Run at guest UTC
-`2026-10-10T01:35:56.9136424Z`. Its single 10-second native capture produces an
-877326-byte report. The benchmark is still running; export and interpretation
-remain pending. This window does not cover every benchmark scene.
+`2026-10-10T01:35:56.9136424Z`. Four benchmark lifetimes exit 0; archive,
+selftest 37, health and exact cleanup pass. Root verifies all 78 evidence hashes.
+Perturbed GT1/GT2 is 17.264181/30.061977 FPS, with no baseline comparison.
+The single native capture and postrender SQLite export succeed. This window
+does not cover every benchmark scene.
+
+The export matches the fresh BDF/UUID and pinned `tu10x` definition. It contains
+63588 metric values, 2271 timestamps, 28 metrics and 5234 context events.
+Six diagnostics are Info; no warnings, null/nonfinite values or large cadence
+gaps occur. Median cadence is 4.420 ms. Retain all 24 samples extending
+101.991 ms beyond analysis stop. Root audits:
+`C338-root-evidence-review.json`, `C338-root-metrics-summary.json` and
+`C338-root-metric-quality-audit.json` in the private trial directory.
+
+| Metric | Whole-window sample mean | Relative seconds 5–9, one-second means |
+| --- | ---: | ---: |
+| GR Active | 55.76% | 72.24–91.04% |
+| SMs Active | 35.36% | 43.61–62.20% |
+| SM Issue | 3.09% | 3.44–4.89% |
+| DRAM read activity | 2.62% | 2.87–3.85% |
+| DRAM write activity | 1.67% | 1.74–2.29% |
+| PCIe RX throughput | 1.59% | 1.65–2.19% |
+
+GPC median is 1838.40 MHz. The active buckets show few instructions issued
+relative to GR activity and low bulk traffic. Investigate dependency waits,
+submission gaps and small work batches. This is a hypothesis, not a stall
+percentage; low throughput does not exclude memory latency, cache/TLB misses
+or graphics-pipeline limits. A native Windows shader-efficiency baseline is absent.
+Early seconds include low activity, so the whole-window mean alone is insufficient.
+[NVIDIA's definitions](https://docs.nvidia.com/nsight-systems/UserGuide/index.html#gpu-metrics)
+distinguish work in the graphics/compute pipe, resident SM warps and instruction
+issue; these metrics do not assign work to a guest.
+
+Pairing RESTORE_START (8) with SAVE_END (7) gives 2616 intervals: backend
+5.787 seconds, Hyprland 3.076 seconds, plus two unmatched capture edges.
+Intervals include context switching and can include idle residence. Do not
+convert the host compositor's residence into a lost-performance percentage.
+Nsight event timestamps and Python monotonic remain separate clock domains;
+UTC comparisons are nominal. The retained C231 timeline has host A612/A613
+spans and four event kinds; USERD/invalidation costs are aggregate counters,
+not one-second timed events. Preserve its coverage limitations when joining.
 
 The short export lacks an embedded metric definition. Use
 `tools/graphics/nsys-metrics-summary.py --metric-definition PATH

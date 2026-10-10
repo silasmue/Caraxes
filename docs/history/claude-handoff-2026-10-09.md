@@ -67,11 +67,24 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   standard, unchanged 1920×1080 settings, and armed review requires Run at
   `[1470,445]`. Publish only facts visible in the fresh screenshot.
 - C338/C340 passes all seven fresh UI gates with complete callback fields.
-  Actual Run receipt is `2026-10-10T01:35:56.9136424Z`. The single 10-second
-  native capture produces a nonempty 877326-byte report; the benchmark is still
-  running and postrender export is pending. No new FPS or render-counter
-  interpretation qualifies yet. Keep the native window distinct from the
-  complete benchmark duration. Parent/child settings and all limits are unchanged.
+  Four benchmark lifetimes exit 0; archive, selftest 37, health and exact cleanup
+  pass. Root verifies all 78 hashes in `C338-report.json`, SHA256
+  `6db72e156bd020d0235cec3f70544225d433c697cc2d31e8e169e51749562afb`.
+  Perturbed GT1/GT2 FPS is 17.264181/30.061977; do not compare with C296.
+  Its 10-second native capture and postrender SQLite export succeed. Root checks
+  fresh BDF/UUID, all 28 metric names/units, 2271 timestamps, six Info diagnostics,
+  no warnings or large gaps, and unchanged DB hash. GPC median is 1838.40 MHz.
+  In relative seconds 5–9, GR activity averages 72–91%, while SM issue is
+  3.44–4.89%, DRAM reads 2.87–3.85% and PCIe RX 1.65–2.19%. This warrants
+  dependency/submission/latency investigation; it does not identify a stall or
+  exclude memory latency. No matched native shader-efficiency baseline exists.
+  Preserve the 24 tail samples beyond analysis stop. Context restore-to-save
+  intervals total 5.787 seconds for backend and 3.076 for Hyprland, with two
+  unmatched edges; these intervals include switching and do not prove execution.
+  Raw/whole-window data: `C338-root-metrics-summary.json` and
+  `C338-root-metric-quality-audit.json`. Timeline union has 1929 missing marker
+  IDs; USERD/invalidation stages lack individual timestamps in pinned C231.
+  Parent/child settings and all limits stay unchanged; no retry or speedup claim.
 - C318/C320 starts Fire Strike and passes fresh physical GPU mapping plus the
   live executable check against C316's reviewed file tuple. The complete
   424-byte stdout and empty stderr are retained before validation; `NotSigned`
