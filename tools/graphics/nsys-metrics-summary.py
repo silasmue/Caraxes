@@ -4,6 +4,7 @@
 """Summarize one Nsight Systems GPU-metrics SQLite export without changing it."""
 
 import argparse
+import hashlib
 import json
 import math
 import re
@@ -22,14 +23,17 @@ def percentile(values, fraction):
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
 
 
-def metric_multipliers(db, names):
+MAX_METRIC_DEFINITION_BYTES = 1 << 20
+
+
+def definition_multipliers(definitions, names):
     """Match exported names to the captured metric-set YAML's submetrics.
 
     This intentionally recognizes only Nsight's simple metric/submetric layout.
     Unknown layouts fail instead of emitting unscaled values under scaled units.
     """
     candidates = []
-    for (definition,) in db.execute("SELECT value FROM StringIds WHERE value LIKE '%metricSets:%'"):
+    for definition in definitions:
         aliases = re.findall(r"(?m)^- alias: ([^\n]+)$", definition)
         if len(aliases) != 1 or "\n  metrics:\n" not in definition:
             continue
@@ -67,6 +71,25 @@ def metric_multipliers(db, names):
         )
     alias, factors = candidates[0]
     return alias, {name: factors[name] for name in names}
+
+
+def metric_multipliers(db, names):
+    return definition_multipliers(
+        (row[0] for row in db.execute("SELECT value FROM StringIds WHERE value LIKE '%metricSets:%'")), names
+    )
+
+
+def external_metric_definition(path, expected_sha256):
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha256):
+        raise ValueError("metric definition SHA256 must be 64 hexadecimal characters")
+    with path.open("rb") as source:
+        raw = source.read(MAX_METRIC_DEFINITION_BYTES + 1)
+    if not raw or len(raw) > MAX_METRIC_DEFINITION_BYTES:
+        raise ValueError("metric definition is empty or exceeds 1 MiB")
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != expected_sha256.lower():
+        raise ValueError("metric definition SHA256 differs")
+    return raw.decode("utf-8", errors="strict"), digest
 
 
 def summarize(args):
@@ -107,7 +130,27 @@ def summarize(args):
         names = {mid: name for mid, name in metadata}
         if len(set(names.values())) != len(names):
             raise ValueError("duplicate metric names in selected group")
-        metric_set, factors = metric_multipliers(db, names.values())
+        definition_path = getattr(args, "metric_definition", None)
+        definition_sha = getattr(args, "metric_definition_sha256", None)
+        if (definition_path is None) != (definition_sha is None):
+            raise ValueError("--metric-definition and --metric-definition-sha256 are required together")
+        embedded = [row[0] for row in db.execute(
+            "SELECT value FROM StringIds WHERE value LIKE '%metricSets:%'"
+        )]
+        definition_provenance = None
+        if definition_path is None:
+            metric_set, factors = definition_multipliers(embedded, names.values())
+            unit_status = "matched_embedded_metric_set"
+        else:
+            definition_path = Path(definition_path)
+            definition, digest = external_metric_definition(definition_path, definition_sha)
+            metric_set, factors = definition_multipliers([definition], names.values())
+            if embedded:
+                embedded_set, embedded_factors = definition_multipliers(embedded, names.values())
+                if (metric_set, factors) != (embedded_set, embedded_factors):
+                    raise ValueError("external and embedded metric definitions disagree")
+            definition_provenance = {"path": str(definition_path.resolve()), "sha256": digest}
+            unit_status = "matched_pinned_external_metric_set"
 
         bounds = ["g.typeId=?"]
         parameters = [group]
@@ -167,8 +210,11 @@ def summarize(args):
             }
             if name.endswith("[Workloads]") or name.endswith("[Requests]"):
                 result["sum"] = sum(values)
-            result["applied_multiplier_from_embedded_yaml"] = factors[name]
-            result["unit_status"] = "matched_embedded_metric_set"
+            if definition_path is None:
+                result["applied_multiplier_from_embedded_yaml"] = factors[name]
+            else:
+                result["applied_multiplier_from_external_definition"] = factors[name]
+            result["unit_status"] = unit_status
             metrics[name] = result
 
         diagnostics = {"severity_counts": {}, "warnings_and_overflow": []}
@@ -201,7 +247,7 @@ def summarize(args):
                 warnings.append(f"{name}: sample count differs from unique group timestamps")
         if diagnostics["warnings_and_overflow"]:
             warnings.append("Nsight warning/error/overflow diagnostics present")
-        return {
+        output = {
             "input": str(args.input.resolve()),
             "device": {"index": device[0][0], "name": device[0][1],
                        "chip": device[0][2], "bus_location": device[0][3]},
@@ -218,6 +264,9 @@ def summarize(args):
             "diagnostics": diagnostics,
             "warnings": warnings,
         }
+        if definition_provenance is not None:
+            output["metric_definition_provenance"] = definition_provenance
+        return output
     finally:
         db.close()
 
@@ -233,10 +282,12 @@ def main():
                         help="expected GPU index in TARGET_INFO_GPU (default: 0)")
     parser.add_argument("--start-ns", type=int, help="inclusive Nsight event timestamp lower bound")
     parser.add_argument("--end-ns", type=int, help="inclusive Nsight event timestamp upper bound")
+    parser.add_argument("--metric-definition", type=Path, help="explicit bounded metric-set definition")
+    parser.add_argument("--metric-definition-sha256", help="SHA256 of exact external definition bytes")
     args = parser.parse_args()
     try:
         print(json.dumps(summarize(args), indent=2, sort_keys=True, allow_nan=False))
-    except (ValueError, sqlite3.Error, OSError) as error:
+    except (ValueError, UnicodeError, sqlite3.Error, OSError) as error:
         parser.exit(2, f"nsys-metrics-summary: {error}\n")
 
 

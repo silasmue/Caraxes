@@ -1,6 +1,31 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Locating render latency
 
+C326/C328 completes a short native capture/export probe with clean driver health
+and exact cleanup. Root verifies all 37 evidence hashes. Its SQLite export
+matches the fresh physical BDF/UUID and contains 49364 values, 1763 timestamps,
+28 metrics and 754 context events. No benchmark ran. C330/C332 now applies the
+same reviewed ownership fix to the full Fire Strike diagnostic; its render
+capture, result archive and cleanup remain pending.
+
+The short export lacks an embedded metric definition. Use
+`tools/graphics/nsys-metrics-summary.py --metric-definition PATH
+--metric-definition-sha256 SHA256` with the exact `tu10x.config` from its pinned
+Nsight installation. The parser checks bounded bytes, SHA256, all metric names
+and agreement with embedded definitions when present. It records the external
+provenance and applied factors. Four CPU regressions and the real export pass;
+raw clock values use a factor of `1e-6` before reporting MHz. No vendor definition
+is copied into the repository.
+
+Requested sampling is 200 Hz; observed median spacing is 5.745 ms, with no gaps
+over three times that median and no warning/error/overflow diagnostics. The
+metric tail extends 144.831 ms past analysis stop, containing 26 extra timestamps.
+Preserve those samples rather than silently clipping them. Context pairing has
+376 complete intervals and two unmatched capture edges; host context residence
+does not prove execution or a stall cause. This idle probe does not identify the
+rendering bottleneck. Private audits: `C326-root-metrics-summary.json` and
+`C326-root-metric-quality-audit.json`.
+
 C314's fixed-file diagnostic retains failed replies before validation, but its
 numeric GZip parameter is ambiguous on Windows. The wrapper fails before AST
 validation or any installed-file read. C316 uses explicit
@@ -20,11 +45,12 @@ order remain unknown. No capture, export, completed benchmark or FPS qualifies.
 Driver health and exact cleanup pass in 560.897 seconds. Root verifies all 42
 hashes in `C318-report.json`, SHA256
 `e61ecc5681d221ed122673fab598af5095d8da827f93b638a7c2fc4d607906f1`.
-The collector discovers children before a blocking guard, then scans Nsight
+The old collector discovers children before a blocking guard, then scans Nsight
 processes: a new owned descendant can appear during the guard. The successor
-must check positive ancestry and exact retained process identity at the scan,
-keep prelaunch exclusion strict, and save bounded rejection evidence. This
-repairs measurement admission; it does not improve or measure FPS.
+checks positive ancestry and exact retained process identity at the scan,
+keeps prelaunch exclusion strict, and saves bounded rejection evidence. C326
+passes its short native lifecycle. This repairs measurement admission; it does
+not establish C318's exact rejection cause or a rendering speedup.
 
 The long Linux ALU probe reports 239.231 µs native versus 335.146 µs guest CPU
 submit-through-fence medians: about 40% more time, or 71% of native throughput.
@@ -70,6 +96,12 @@ The same bracket records 3929 worker queue waits averaging 29.075 µs and
 averages 32.484 µs across 3399 calls; physical A613 averages 4179.726 µs.
 The different counts include bracket boundaries and different call categories.
 These means do not identify a frame dependency or a GPU waiting percentage.
+
+Zero-dirty BAR2 syncs still compare live mapped pages against their snapshots.
+Clean cached page tables already skip `follow_tables` traversal; the periodic
+drift read remains separate. Skipping the method's setup could save a small
+cost, but skipping page comparisons requires reliable VMM write tracking.
+No such optimization is applied without render-specific cost evidence.
 
 Set `CARAXES_PROFILE=1` and `CARAXES_PROFILE_HOST_TIMELINE=1`. Existing SIGUSR2 and
 exit dumps now produce three files under `CARAXES_PROFILE_OUT`:

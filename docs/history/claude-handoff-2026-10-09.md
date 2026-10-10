@@ -29,6 +29,26 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
 
 ## Verified state
 
+- C326/C328 completes the short host/tool probe: capture and SQLite export exit
+  0; driver health and exact VM/tool cleanup pass. Root verifies all 37 evidence
+  hashes in `C326-report.json`. No UI, benchmark or FPS qualifies. The export has
+  49364 values across 1763 timestamps and 28 metrics, plus 754 context events.
+  Its BDF/UUID matches the fresh device mapping. Units require the explicit,
+  SHA256-pinned `tu10x.config` from the same Nsight installation: the export lacks
+  an embedded definition. Four CPU regressions and this actual export pass the
+  updated metrics summarizer. Median cadence is 5.745 ms at requested 200 Hz;
+  no large gaps or diagnostic warnings appear. Retain the 26 timestamps beyond
+  analysis stop; this does not prove lossless capture or explain render latency.
+  Root audits: `C326-root-evidence-review.json`,
+  `C326-root-metrics-summary.json`, `C326-root-metric-quality-audit.json`.
+- C330/C332 is the full Fire Strike successor, using the reviewed descendant
+  ownership fix and nonempty capture/export gates. Eleven source CPU suites,
+  105 actual UID1000 reads, 39 readonly mode rows and final runtime bindings pass.
+  One hardware GO follows sole reviewer `ui_review_c278` READY. Keep C231/C215,
+  all resource limits, fresh mapping/live file checks and postrender export.
+  Profiles/timeline remain enabled: this is a perturbed diagnostic, not an FPS
+  comparison. Results and cleanup are pending. Final review:
+  `C330-root-final-runtime-review.json`. No automatic retry.
 - C318/C320 starts Fire Strike and passes fresh physical GPU mapping plus the
   live executable check against C316's reviewed file tuple. The complete
   424-byte stdout and empty stderr are retained before validation; `NotSigned`
@@ -40,12 +60,13 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   resource floors and exact cleanup pass. Root verifies all 42 evidence hashes.
   `C318-report.json` SHA256
   `e61ecc5681d221ed122673fab598af5095d8da827f93b638a7c2fc4d607906f1`.
-  Prepare C322/C324: the collector currently discovers descendants before a
+  The old collector discovers descendants before a
   blocking guard, then checks for foreign Nsight processes. New descendants
-  can appear between those steps. Require positive ancestry and retained
-  PID/starttick/pidfd identity at the check; keep prelaunch exclusion strict.
-  Preserve a bounded rejection census and failure stage before raising.
-  This is a measurement fix, with no established rendering speedup.
+  can appear between those steps. C330/C332 retains positive ancestry and exact
+  PID/starttick/pidfd identity at the check, strict prelaunch exclusion, and a
+  bounded rejection census with failure stage. C326 proves its short native
+  lifecycle. The original C318 offending PID remains unknown; neither a false
+  foreign-process rejection nor a rendering speedup is established.
 - C316 completes the fixed installed-file probe. Native decode/hash/AST and the
   stable file checks pass; the exact UTF-8 reply is retained before validation.
   Fire Strike x64 is 5853696 bytes, file/product version `1.1.0.0`, SHA256
