@@ -14,7 +14,7 @@ boundaries are absent, so the delay cannot be assigned to one stage. C334/C336
 uses GPT-Sol; its Fire Strike review takes 7.393 seconds, within the bound, but
 omits explicit preset and Demo-off fields because the root brief was incomplete.
 The consumer stops before Run. Root verifies all 51 evidence hashes; health and
-exact cleanup pass. C338/C340 will use the corrected complete callback brief
+exact cleanup pass. C338/C340 uses the corrected complete callback brief
 with unchanged deadlines and GPU settings. Neither failed preparation yields
 render counters or a performance comparison.
 
@@ -60,6 +60,26 @@ Nsight event timestamps and Python monotonic remain separate clock domains;
 UTC comparisons are nominal. The retained C231 timeline has host A612/A613
 spans and four event kinds; USERD/invalidation costs are aggregate counters,
 not one-second timed events. Preserve its coverage limitations when joining.
+
+The nominal ten-second capture window contains 283 A612 calls totaling
+227.560 ms and 284 A613 calls totaling 1756.483 ms, all NV_OK. A613 median is
+5.838 ms. Their interval union is 1984.043 ms; these host ioctl spans can include
+driver waits and overlap GPU execution. They are not measured frame stalls.
+The same window contains 470 observed physical doorbells. Its largest observed
+gap, including capture edges, is 700.065 ms. Twenty-four attempted marker IDs
+between observed sequence extrema are absent; their times and kinds are unknown.
+Source snapshots differ from the nominal UTC conversion by -179 to +16 ns,
+which supports this coarse alignment but does not establish a shared GPU clock.
+Root independently verifies hashes, interval arithmetic and marker counts in
+`C338-root-counter-host-window-review.json`.
+
+Existing C231 launch timing does not cover the private USERD or held-ring
+completer submission stages: those callers never start the thread-local chain.
+Post-ring harvest has no separate histogram, and the worker-wait histogram has
+no production samples. The next diagnostic adds bounded backend span timing
+for these paths. A612/A613 request semantics remain undocumented in the checked
+public NVIDIA headers. Keep their ordered real host calls; repeated old replies
+are insufficient to justify caching or synthesizing them.
 
 The short export lacks an embedded metric definition. Use
 `tools/graphics/nsys-metrics-summary.py --metric-definition PATH

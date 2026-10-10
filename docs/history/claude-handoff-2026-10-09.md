@@ -61,7 +61,7 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   incomplete callback. This is a test workflow error, not a driver failure.
   Driver health and exact cleanup pass; root verifies all 51 evidence hashes
   in `C334-report.json`. Four publication records survive; loader/view stage
-  timestamps do not. C338/C340 is being prepared with a corrected reviewer
+  timestamps do not. C338/C340 uses a corrected reviewer
   brief, unchanged GPU settings and unchanged deadlines. Every Fire Strike
   callback must explicitly attest preset and Demo off; settings also require
   standard, unchanged 1920×1080 settings, and armed review requires Run at
@@ -85,6 +85,27 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   `C338-root-metric-quality-audit.json`. Timeline union has 1929 missing marker
   IDs; USERD/invalidation stages lack individual timestamps in pinned C231.
   Parent/child settings and all limits stay unchanged; no retry or speedup claim.
+- C338's nominal capture window contains 283 A612 calls (227.560 ms) and
+  284 A613 calls (1756.483 ms; median 5.838 ms), all NV_OK. Their interval union
+  occupies 1984.043 ms. Root independently checks input hashes, clipping,
+  interval arithmetic and marker counts. This includes host driver waits and
+  can overlap GPU work; it is not recoverable frame time. The 470 observed
+  doorbells have a 700.065 ms gap at the capture boundary. Twenty-four attempted
+  marker IDs between observed window extrema are absent, without timestamps
+  or kinds. Do not interpret gaps as no submission or GPU idle. Private proof:
+  `C338-root-counter-host-window-review.json`, SHA256
+  `e4d82963cd5abcc4b3fe8eee41bfc5c90a1a2cd05354af9bc1687112b1d852fc`.
+- Pinned C231 launch histograms miss private USERD and held-ring completer
+  submission stages: those callers never start the thread-local chain. Post-ring
+  harvest is not timed separately; the worker-wait histogram has no production
+  sample call. `C338-launch-timing-source-audit.json` preserves the source pin
+  and excerpts. Do not assume `CARAXES_LAUNCH_TIMING=1` covers Windows fully.
+  A default-off, bounded submission timeline is being added for the next
+  diagnostic build. Its build and runtime bindings must pass review before launch.
+- Public NVIDIA headers checked for both 610 and 615 give no A612/A613 payload
+  or side-effect contract. Existing observations of identical A612 responses
+  do not prove future input independence; identical A613 requests have produced
+  changing replies. Keep real ordered host calls and `CARAXES_LEGACY_CACHEABLE=0`.
 - C318/C320 starts Fire Strike and passes fresh physical GPU mapping plus the
   live executable check against C316's reviewed file tuple. The complete
   424-byte stdout and empty stderr are retained before validation; `NotSigned`
