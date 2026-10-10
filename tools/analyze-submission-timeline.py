@@ -13,7 +13,7 @@ import re
 
 MAX_SNAPSHOTS = 4096
 MAX_INPUT_BYTES = 8 * 1024 ** 3
-MAX_SNAPSHOT_BYTES = 32 * 1024 ** 2
+MAX_SNAPSHOT_BYTES = 64 * 1024 ** 2
 MAX_UNIQUE_ROWS = 4_000_000
 STAGES = frozenset('device_lock private_userd_scan shadow_plan bar2_sync '
                    'bar1_replica_sync fb_flush userd_publish userd_harvest '
@@ -43,9 +43,9 @@ def optional(value, bits):
 
 
 def snapshot(path):
-    require(path.stat().st_size <= MAX_SNAPSHOT_BYTES, 'snapshot exceeds 32 MiB')
+    require(path.stat().st_size <= MAX_SNAPSHOT_BYTES, 'snapshot exceeds 64 MiB')
     raw = path.read_bytes()
-    require(len(raw) <= MAX_SNAPSHOT_BYTES, 'snapshot exceeds 32 MiB')
+    require(len(raw) <= MAX_SNAPSHOT_BYTES, 'snapshot exceeds 64 MiB')
     lines = raw.decode('utf-8').splitlines()
     require(sum(line.startswith('# backend submission timeline ') for line in lines) == 1,
             'missing or duplicate submission schema header')

@@ -76,8 +76,24 @@ Root independently verifies hashes, interval arithmetic and marker counts in
 Existing C231 launch timing does not cover the private USERD or held-ring
 completer submission stages: those callers never start the thread-local chain.
 Post-ring harvest has no separate histogram, and the worker-wait histogram has
-no production samples. The next diagnostic adds bounded backend span timing
-for these paths. A612/A613 request semantics remain undocumented in the checked
+no production samples. C341 adds bounded backend span timing for these paths.
+C342 boots with this diagnostic and passes pre-health, then stops before the
+first UI checkpoint because the Host RAM floor is crossed. Exact teardown
+passes; post-health is unavailable. No rendering or native capture ran. Root
+verifies all 41 report hashes in `C342-root-evidence-review.json`.
+
+The retained startup stream has 65536 rows across 3.013 seconds, including
+64580 private USERD scans with median 1.760 us, p95 2.150 us and total 124.148 ms.
+It reports 365343 overwrites and 40 contention losses, with one internal sequence
+gap. The observed rate is about 21752 rows/s, so the original ring cannot retain
+the intended ten-second counter window. The next build increases the ring to
+262144 rows (20 MiB); the bounded reader permits 64 MiB per snapshot. At this
+startup rate the ring holds about twelve seconds. Rendering can have a different
+rate; actual coverage and losses remain mandatory evidence. Do not extrapolate
+these startup durations to scene overhead. Raw input and per-stage analysis:
+`C342-submission-startup-analysis.json` in the private trial directory.
+
+A612/A613 request semantics remain undocumented in the checked
 public NVIDIA headers. Keep their ordered real host calls; repeated old replies
 are insufficient to justify caching or synthesizing them.
 

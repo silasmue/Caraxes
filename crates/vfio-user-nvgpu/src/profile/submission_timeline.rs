@@ -10,7 +10,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock, PoisonError, TryLockError};
 use std::time::Instant;
 
-pub const CAPACITY: usize = 65536;
+// Startup polling exceeds 20,000 rows/s. A 20 MiB ring allows snapshot overlap;
+// retained sequence IDs still determine actual coverage.
+pub const CAPACITY: usize = 262144;
 static ON: AtomicBool = AtomicBool::new(false);
 static TIMELINE: OnceLock<Timeline> = OnceLock::new();
 thread_local! {

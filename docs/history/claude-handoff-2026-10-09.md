@@ -108,8 +108,26 @@ untouched. Proof: `disk-cache-migration-20261010.json` in the private trial dire
   `c3e74ee3a5f23cae2aad370a187dda5cbca2bf4b135b038cbee51ce06079a1c4`.
   The initial test run caught
   the missing setting entry, now fixed; its failed log remains in `C341-build`.
-  Build and runtime bindings must pass review before launch. C342/C344 remains
-  a source-only draft with no hardware GO.
+  C342/C344 receives one GO after independent build/runtime checks and reviewer
+  readiness, then stops before its first UI checkpoint when the Host RAM floor
+  is crossed. Pre-health passes; no Run, capture, export or FPS qualifies.
+- C342 closes after 50.090 seconds. Root verifies all 41 evidence hashes and
+  exact backend/VMM/owner/watcher/controller, TAP/TPM and lease removal. The
+  physical driver remains NVIDIA; post-health was not reached. The failed guard
+  does not retain its exact RAM value. A Floppy compiler starts during boot and
+  is observed after closeout, but that alone does not prove the RAM cause.
+  Keep Floppy's priority and the existing resource floors.
+  Proofs: `C342-report.json`, `C342-root-evidence-review.json` and
+  `C342-root-after-close-memory-census.json` in the private trial directory.
+- C342 retains a valid startup submission stream. Its 65536 rows cover only
+  3.013 seconds: 64580 are private USERD scans, with median 1.760 us, p95 2.150 us
+  and sum 124.148 ms. Ring overwrites total 365343, contention losses 40; one
+  sequence gap remains within the retained range. These are startup observations,
+  not render attribution. `C342-submission-startup-analysis.json` preserves the
+  breakdown. The next diagnostic reserves 262144 rows (20 MiB) and accepts
+  snapshots up to 64 MiB. At the observed startup row rate that is about twelve
+  seconds; render coverage still requires retained-ID analysis. C345 build and
+  fresh C346/C348 bindings remain pending, with no successor hardware GO.
 - Public NVIDIA headers checked for both 610 and 615 give no A612/A613 payload
   or side-effect contract. Existing observations of identical A612 responses
   do not prove future input independence; identical A613 requests have produced
