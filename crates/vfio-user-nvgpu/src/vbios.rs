@@ -122,12 +122,12 @@ pub fn locate(img: &[u8]) -> Option<PciImage> {
 mod tests {
     use super::*;
 
-    const WINDOW: &[u8] =
-        include_bytes!("../../../caraxes/reference/rtx2070/prom-window-2026-09-25.bin");
-
     #[test]
     fn the_card_window_is_found_through_its_ifr() {
-        let i = locate(WINDOW).unwrap();
+        let Some(window) = crate::fixture::rtx2070_prom_window() else {
+            return;
+        };
+        let i = locate(window).unwrap();
         assert_eq!(i.offset, 0x28600);
         assert_eq!(i.how, Found::Ifr(3));
         assert_eq!(
@@ -137,7 +137,7 @@ mod tests {
         // BIT at ROM offset 0x1B0 (prom-window-2026-09-25.md, "Tables").
         assert_eq!(i.bit, Some(0x1B0));
         // Without the IFR the scan finds the same image.
-        let mut no_ifr = WINDOW.to_vec();
+        let mut no_ifr = window.to_vec();
         no_ifr[..4].fill(0);
         let s = locate(&no_ifr).unwrap();
         assert_eq!((s.offset, s.how), (0x28600, Found::Scan));
@@ -148,8 +148,11 @@ mod tests {
     /// PCI-visible part): the window's slice from the found offset is that image.
     #[test]
     fn the_found_image_is_the_pci_rom() {
-        let i = locate(WINDOW).unwrap();
-        let rom = &WINDOW[i.offset..0x48200];
+        let Some(window) = crate::fixture::rtx2070_prom_window() else {
+            return;
+        };
+        let i = locate(window).unwrap();
+        let rom = &window[i.offset..0x48200];
         let r = locate(rom).unwrap();
         assert_eq!(r.how, Found::AtZero);
         assert_eq!(

@@ -4,6 +4,8 @@
 `prom-window-2026-09-25.bin`: 1048576 bytes, BAR0 0x300000-0x3fffff (`NV_PROM_DATA`), little-endian dwords.
 sha256 `759b8ea7f8404f00a9d3a53e4d5db8c5e9b37a314850963c7c9fa1bbacd5f4c2`.
 
+The dump is the card's firmware and is not in the repository (`.gitignore`). Read your own card's window as described under How and put it at this path: `run44.py` passes the chain from 0x28600 (`prom-window-2026-09-25-from-55aa.bin`) to the device, and six unit tests of `vfio-user-nvgpu` read the window and do not run without it.
+
 ## How
 
 - Host card TU106, 0000:2d:00.0, driver 615.71.09; read-only, as root, with the user's go-ahead.

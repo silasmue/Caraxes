@@ -731,10 +731,9 @@ mod tests {
         pa: u64,
         cmd: u32,
         frts_4k: u32,
-    ) -> (GuestMemory, std::path::PathBuf) {
+    ) -> Option<(GuestMemory, std::path::PathBuf)> {
         use std::io::Write;
-        let window =
-            include_bytes!("../../../../caraxes/reference/rtx2070/prom-window-2026-09-25.bin");
+        let window = crate::fixture::rtx2070_prom_window()?;
         let mut data = window[0x6FD64..0x6FD64 + 0x420].to_vec();
         data[0x390 + 0x2C..][..4].copy_from_slice(&cmd.to_le_bytes());
         data[0x3E0 + 0x20..][..4].copy_from_slice(&frts_4k.to_le_bytes());
@@ -750,7 +749,7 @@ mod tests {
         let mut mem = GuestMemory::new();
         mem.map(pa, 0x1000, 0, &f).unwrap();
         assert!(mem.write(pa, &data));
-        (mem, path)
+        Some((mem, path))
     }
 
     /// The loader descriptor the Windows driver writes (run P): dataDmaBase `pa`, dataSize
@@ -779,7 +778,9 @@ mod tests {
     fn fwsec_command_decides_wpr2() {
         let d = data();
         let pa = 0x1_7FC4_5000;
-        let (mem, path) = fwsec_guest("sb", pa, FWSEC_CMD_SB, 0);
+        let Some((mem, path)) = fwsec_guest("sb", pa, FWSEC_CMD_SB, 0) else {
+            return;
+        };
         assert_eq!(
             fwsec_command(&mem, pa, 0x420),
             Some(FwsecCmd {
@@ -802,7 +803,9 @@ mod tests {
         );
         std::fs::remove_file(path).ok();
 
-        let (mem, path) = fwsec_guest("frts", pa, FWSEC_CMD_FRTS, 0x1_FDE00);
+        let Some((mem, path)) = fwsec_guest("frts", pa, FWSEC_CMD_FRTS, 0x1_FDE00) else {
+            return;
+        };
         let mut b = TuringBoot::new(d, 8 << 30);
         let w = fwsec_start(&mut b, pa, &mem);
         assert!(
@@ -852,7 +855,9 @@ mod tests {
         let d = data();
         let pmu = d.pmu.as_ref().unwrap().base;
         let pa = 0x1_7FC4_5000;
-        let (mem, path) = fwsec_guest("unload", pa, FWSEC_CMD_FRTS, 0x1_FDE00);
+        let Some((mem, path)) = fwsec_guest("unload", pa, FWSEC_CMD_FRTS, 0x1_FDE00) else {
+            return;
+        };
         let mut b = TuringBoot::new(d, 8 << 30);
         fwsec_start(&mut b, pa, &mem);
         assert_ne!(b.read32(d.wpr2_addr_hi), Some(0));

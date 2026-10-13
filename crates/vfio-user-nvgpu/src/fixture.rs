@@ -12,6 +12,26 @@ const DUMP: &str = include_str!("../../../caraxes/reference/rtx2070/config-space
 pub const DUMP_GB206: &str =
     include_str!("../../../caraxes/reference/gb206/gpu-0000_01_00.0/config-space.txt");
 
+/// The host RTX 2070's PROM window (caraxes/reference/rtx2070/prom-window-2026-09-25.md).
+/// The capture is the card's firmware and stays out of the repository: a test that needs it
+/// gets `None` where the file is absent and returns without a verdict.
+pub fn rtx2070_prom_window() -> Option<&'static [u8]> {
+    static WINDOW: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+    WINDOW
+        .get_or_init(|| {
+            let path = concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../caraxes/reference/rtx2070/prom-window-2026-09-25.bin"
+            );
+            let window = std::fs::read(path).ok();
+            if window.is_none() {
+                eprintln!("no PROM window capture at {path}: the tests that read it do not run");
+            }
+            window
+        })
+        .as_deref()
+}
+
 pub struct Fixture {
     pub chip: &'static dyn Chip,
     pub board: Board,

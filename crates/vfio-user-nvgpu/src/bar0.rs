@@ -685,8 +685,9 @@ mod tests {
     /// its real offsets; the device locates its PCI image through the IFR.
     #[test]
     fn the_ifr_headed_prom_window_is_served_as_on_the_card() {
-        let window =
-            include_bytes!("../../../caraxes/reference/rtx2070/prom-window-2026-09-25.bin");
+        let Some(window) = crate::fixture::rtx2070_prom_window() else {
+            return;
+        };
         let f = crate::fixture::rtx2070();
         let mut bar0 = Bar0::new(f.chip, vec![0x55, 0xAA], Some(window.to_vec()));
         let cfg = f.config();
