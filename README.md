@@ -64,13 +64,50 @@ unmodified ([guest support](docs/vfio/guest-support.md), numbers in
   still trap 3200 to 8600 times per second, 14 to 24 % of a vCPU; the plan to remove them
   is in the [trap census](docs/research/trap-census-2026-09-30.md).
 - v2 open defects: [known issues](docs/vfio/known-issues.md) (DX12 3DMark, Shadow of the
-  Tomb Raider on Linux, vkmark on nouveau, the NVENC stream latency on Windows, host VRAM
-  with two VMs).
+  Tomb Raider on Linux, vkmark on nouveau, host VRAM with two VMs) and the Windows 3D
+  throughput below.
 - One device binary serves every guest ABI; one configuration with five knobs (VRAM size,
   display, compression, doorbell poll, BAR1 pool); the device logs its effective
   configuration at start ([device configuration](docs/wiki/device-configuration.md)).
 - v1: unchanged since 2026-09-24. Its gates on the 615.71.09 image: `smi` pass, `cuda` 14 of
   14. It stays the reference path and the other side of the v1-against-v2 benchmark.
+
+## Measured on the RTX 2070 (TU106)
+
+The latest value per workload; native is the same card without a VM. Ranges, older runs and
+sources are in [performance](docs/performance.md), the Fire Strike runs in the
+[render trials](https://github.com/silasmue/Caraxes/blob/windows-3dmark-2026-10-04/docs/research/windows-render-trials-2026-10-09.md)
+on the branch `windows-3dmark-2026-10-04`.
+
+| Workload | Native | Leandro VirtIO | Leandro VFIO |
+|---|---|---|---|
+| 3DMark Fire Strike 1.1, 1080p, graphics score (Windows 11) | not measured | no Windows guest | 5486 to 5696 |
+| Fire Strike graphics test 1 / test 2, fps (Windows 11) | not measured | no Windows guest | 18.9 to 19.6 / 32.2 to 33.7 |
+| Unigine Heaven 4.0, 1080p High, fps (Windows 11) | not measured | no Windows guest | 152.6 |
+| Unigine Superposition, 1080p Medium, points (Windows 11) | not measured | no Windows guest | 11656 (87.2 fps) |
+| Shadow of the Tomb Raider, 1080p, fps (Linux) | 91.7 | 68.2, 70.1 | 34.7 in one run, fails at start in another |
+| glmark2-wayland, 1280x720, score (Linux) | 12214 | not measured | 3324 |
+| vkmark, 1280x720, score (Linux) | 15973 | not measured | 2388, 2635 |
+| NVENC H.264 encode, 1080p, fps (Linux / Windows 11) | not measured | not measured | 414 / 311 |
+| Sunshine with NVENC, fps and host latency (Linux / Windows 11) | not measured | 58.8, 6.8 ms | 59.9, 5.3 ms / 59.8, 6.9 ms |
+| CUDA kernel of 30M cycles, ms | 16.3 | 16.5 | 17.1 |
+| CUDA short kernel, µs per launch | 6 | 8 | 23 |
+| cuCtxCreate, ms | 129 | 153 | 210 |
+| llama.cpp 1B, token generation, tokens/s | 305 | 304 | 243 |
+
+- Fire Strike: three instrumented runs of 2026-10-09 (C220 to C222); two runs of 2026-10-05
+  reached 6015 and 6040. Everything else on Leandro VFIO: 2026-09-30. Native and Leandro
+  VirtIO values come from dated records (2026-08-07 to 2026-09-29).
+- GPU-bound compute runs at the card's speed. Work made of many small calls is far from
+  native: short kernels, context creation and 3D.
+- Windows 3D is the open problem. Fire Strike completes, but its graphics tests run at 19 to
+  34 fps, and neither server polling nor a larger BAR1 pool raised them. 3DMark Steel Nomad
+  (DX12) still faults ([known issue 1](docs/vfio/known-issues.md)).
+- The author has little time for the project at present. The [roadmap](docs/roadmap.md), the
+  [known issues](docs/vfio/known-issues.md), the
+  [trap census](docs/research/trap-census-2026-09-30.md) and the notes on the branch
+  `windows-3dmark-2026-10-04` say where to continue. Issues, forks and pull requests are
+  welcome.
 
 ## Start here
 
